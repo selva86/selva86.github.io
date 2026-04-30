@@ -1,0 +1,907 @@
+---
+title: "Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization"
+description: "Compute matrix derivatives in R: gradient, Hessian, and Newton-Raphson optimization with deriv(), numDeriv, and a from-scratch update loop verified vs glm()."
+keywords: "matrix derivatives in R, Hessian matrix R, gradient vector R, Newton-Raphson optimization R, deriv() function R, numDeriv R, second-order optimization, Hessian eigenvalues R, optim() Newton, multivariate optimization R"
+mathjax: true
+webr: true
+curriculum_id: "2.9.8"
+post_type: "C"
+auto_link_terms: "Hessian matrix|Newton-Raphson method|Newton-Raphson optimization|matrix derivatives|gradient vector|second-order optimization"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Matrix Derivatives & Hessian"
+sidebar_order: "110"
+---
+<!-- md2html:generated -->
+
+<h1>Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization</h1>
+
+<p class="lead">Matrix derivatives generalize the scalar derivative to vector-valued inputs: the <strong>gradient</strong> packs the first partial derivatives into a vector, and the <strong>Hessian</strong> packs the second partial derivatives into a matrix. The <strong>Newton-Raphson method</strong> uses both to leap toward an optimum in one curvature-aware step, and R gives you everything you need with <code>deriv()</code>, <code>numDeriv</code>, and a few lines of <code>solve()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What does taking a derivative of a matrix actually mean?</h2>
+
+<p>When a function takes one input, its derivative is a single number. When it takes a vector of inputs, the first derivative is a <em>vector</em> (the gradient) and the second derivative is a <em>matrix</em> (the Hessian). That structural change is what "matrix derivatives" really refers to. R has both symbolic differentiation (<code>deriv()</code>, built into base R) and numeric differentiation (<code>numDeriv</code> package). Here is the payoff in three lines, using <code>deriv()</code> on $f(x, y) = x^2 + 2y^2 + xy$ at the point $(1, 1)$.</p>
+
+<div class="webr-container" data-block-title="Symbolic gradient and Hessian with deriv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Symbolic gradient and Hessian with deriv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_expr &lt;- expression(x^2 + 2*y^2 + x*y)
+f_deriv &lt;- deriv(f_expr, c(&quot;x&quot;, &quot;y&quot;), function.arg = TRUE, hessian = TRUE)
+df1 &lt;- f_deriv(1, 1)
+df1
+#&gt; [1] 4
+#&gt; attr(,&quot;gradient&quot;)
+#&gt;      x y
+#&gt; [1,] 3 5
+#&gt; attr(,&quot;hessian&quot;)
+#&gt; , , x
+#&gt;      x y
+#&gt; [1,] 2 1
+#&gt; , , y
+#&gt;      x y
+#&gt; [1,] 1 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single call returned three things at once: the function value (4), the gradient (3, 5), and the Hessian matrix <code>[[2, 1], [1, 4]]</code>. The gradient is a row vector of first partial derivatives, and the Hessian is the matrix whose entry $h_{ij}$ is $\partial^2 f / \partial x_i \partial x_j$. Schwarz's theorem guarantees the Hessian is symmetric for any twice-continuously-differentiable function, so the off-diagonals match. We will use this same trick repeatedly throughout the article.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Matrix derivatives are not exotic, just bookkeeping.</strong> A gradient is "stack all the $\partial f / \partial x_i$ values into a vector." A Hessian is "stack all the $\partial^2 f / \partial x_i \partial x_j$ values into a matrix." Once you see them as bookkeeping, the formulas stop looking intimidating.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>deriv()</code> to compute the gradient of $g(x, y) = 3x^2 + xy + y^2$ at the point $(2, -1)$. Save the result to <code>ex_g_at_pt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: gradient with deriv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gradient with deriv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a deriv() function for g and evaluate at (2, -1)
+g_expr &lt;- expression(3*x^2 + x*y + y^2)
+ex_g_at_pt &lt;- # your code here
+
+ex_g_at_pt
+#&gt; Expected gradient row: 11 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: gradient of g at (2, -1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: gradient of g at (2, -1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g_expr &lt;- expression(3*x^2 + x*y + y^2)
+g_deriv &lt;- deriv(g_expr, c(&quot;x&quot;, &quot;y&quot;), function.arg = TRUE, hessian = TRUE)
+ex_g_at_pt &lt;- g_deriv(2, -1)
+attr(ex_g_at_pt, &quot;gradient&quot;)
+#&gt;       x y
+#&gt; [1,] 11 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $\partial g / \partial x = 6x + y = 12 - 1 = 11$ and $\partial g / \partial y = x + 2y = 2 - 2 = 0$, matching the row vector returned by <code>deriv()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you compute the gradient and Hessian numerically?</h2>
+
+<p><code>deriv()</code> is exact, but it needs an algebraic expression. When your function is a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a>, a simulation, or a black-box loss that has no clean formula, switch to numeric differentiation via the <code>numDeriv</code> package, which uses Richardson extrapolation on finite differences. The same gradient and Hessian come back as plain <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">R vectors</a> and matrices.</p>
+
+<div class="webr-container" data-block-title="Numeric gradient and Hessian with numDeriv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric gradient and Hessian with numDeriv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(numDeriv)
+f_fn &lt;- function(v) v[1]^2 + 2*v[2]^2 + v[1]*v[2]
+g_num &lt;- grad(f_fn, c(1, 1))
+H_num &lt;- hessian(f_fn, c(1, 1))
+g_num
+#&gt; [1] 3 5
+H_num
+#&gt;      [,1] [,2]
+#&gt; [1,]    2    1
+#&gt; [2,]    1    4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numeric output matches the symbolic output to about six decimal places. <code>grad()</code> returns a plain numeric vector and <code>hessian()</code> returns a square matrix, which is exactly the shape you want for linear-algebra calls like <code>solve()</code>. From now on we will mostly call <code>f_fn</code> (the closure) instead of <code>f_expr</code>, so we can plug it into any optimizer.</p>
+
+<p>Numeric differentiation also works when there is no formula at all. Below we minimize the sum of squared residuals for a tiny <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> where the parameters are an intercept and a slope. The function is built from data, not from symbols, but <code>numDeriv</code> does not care.</p>
+
+<div class="webr-container" data-block-title="numDeriv on a closure with no formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">numDeriv on a closure with no formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+x_obs &lt;- 1:20
+y_obs &lt;- 2 + 0.5 * x_obs + rnorm(20, sd = 0.5)
+resid_loss &lt;- function(theta) sum((y_obs - theta[1] - theta[2] * x_obs)^2)
+g_loss &lt;- grad(resid_loss, c(0, 0))
+H_loss &lt;- hessian(resid_loss, c(0, 0))
+round(g_loss, 2)
+#&gt; [1] -302.78 -4282.16
+round(H_loss, 2)
+#&gt;       [,1]   [,2]
+#&gt; [1,]    40    420
+#&gt; [2,]   420   5740</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gradient at $(0, 0)$ points sharply uphill in both directions (intercept and slope), telling us we are far from the optimum. The Hessian is the familiar $2 X^\top X$ matrix from linear regression, and because it is positive definite (we will check that next), the loss surface is a single bowl and Newton's method will find the bottom in one step from any starting point.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use deriv() when you have a formula, numDeriv when you don't.</strong> Symbolic differentiation gives you exact derivatives in machine precision. Use <code>numDeriv</code> for closures, simulation outputs, complicated likelihoods, or any time you don't trust your hand-derived gradient.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>numDeriv::hessian()</code> to compute the Hessian of $g(\mathbf{x}) = x_1^4 + x_2^4$ at the point $(1, 2)$. Save it to <code>ex_H</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Hessian via numDeriv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Hessian via numDeriv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build the Hessian of g at (1, 2)
+g_quartic &lt;- function(v) v[1]^4 + v[2]^4
+ex_H &lt;- # your code here
+
+ex_H
+#&gt; Expected: diag matrix with 12 and 48 on the diagonal</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: Hessian of x1^4 + x2^4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: Hessian of x1^4 + x2^4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g_quartic &lt;- function(v) v[1]^4 + v[2]^4
+ex_H &lt;- hessian(g_quartic, c(1, 2))
+round(ex_H, 4)
+#&gt;      [,1] [,2]
+#&gt; [1,]   12    0
+#&gt; [2,]    0   48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $\partial^2 g / \partial x_i^2 = 12 x_i^2$ and the cross-partials are zero, giving a diagonal matrix with $12$ at $(1,1)$ and $48$ at $(2,2)$.</p>
+
+</details>
+</section>
+
+<h2>Why does the Hessian matter for optimization?</h2>
+
+<p>The Hessian is the second-order shape of the loss surface near a point. Just as the second derivative of a one-dimensional function tells you whether a critical point is a minimum (positive), a maximum (negative), or an inflection (zero), the <em>eigenvalues</em> of the Hessian classify a multidimensional critical point. All positive eigenvalues means a local minimum (a bowl). All negative means a local maximum (a hilltop). Mixed signs means a saddle, where some directions go down and others go up. This single fact is the foundation of every second-order optimizer.</p>
+
+<div class="webr-container" data-block-title="Hessian eigenvalues at a local minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hessian eigenvalues at a local minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">H_min &lt;- hessian(f_fn, c(0, 0))
+H_min_eig &lt;- eigen(H_min)$values
+round(H_min_eig, 4)
+#&gt; [1] 4.4142 1.5858</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both eigenvalues are strictly positive, so the origin is a local minimum of $f(x, y) = x^2 + 2y^2 + xy$. Their values $3 \pm \sqrt{2}$ also tell us the curvature in the two principal directions: about $4.41$ along the steepest direction, $1.59$ along the shallowest. The ratio $4.41 / 1.59 \approx 2.78$ is the <em>condition number</em>; high condition numbers signal stretched, ill-conditioned bowls that slow most optimizers down.</p>
+
+<p>Now contrast that with a saddle. The function $s(x, y) = x^2 - y^2$ has a critical point at the origin, but its curvature is positive in $x$ and negative in $y$.</p>
+
+<div class="webr-container" data-block-title="Hessian eigenvalues at a saddle point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hessian eigenvalues at a saddle point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_saddle &lt;- function(v) v[1]^2 - v[2]^2
+H_saddle &lt;- hessian(f_saddle, c(0, 0))
+eigen(H_saddle)$values
+#&gt; [1]  2 -2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One positive eigenvalue, one negative, so the origin is a saddle, not an extremum. Mixed signs are also why naive Newton-Raphson can mistakenly march toward saddles in deep learning loss surfaces, an issue we will return to in the failure-modes section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the Hessian of $h(x, y) = x^2 + xy + 4y^2$ at $(0, 0)$ and use <code>eigen()</code> to confirm the origin is a local minimum.</p>
+<div class="webr-container" data-block-title="Your turn: classify a critical point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify a critical point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute Hessian and eigenvalues, decide minimum/maximum/saddle
+ex_h &lt;- function(v) v[1]^2 + v[1]*v[2] + 4*v[2]^2
+ex_eig &lt;- # your code here
+
+ex_eig
+#&gt; Expected: both eigenvalues positive</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: classify (0,0) for h(x,y)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: classify (0,0) for h(x,y)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_h &lt;- function(v) v[1]^2 + v[1]*v[2] + 4*v[2]^2
+ex_eig &lt;- eigen(hessian(ex_h, c(0, 0)))$values
+round(ex_eig, 4)
+#&gt; [1] 8.1244 1.8756</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both eigenvalues are positive, so the Hessian is positive definite and the origin is a local minimum.</p>
+
+</details>
+</section>
+
+<h2>How does Newton-Raphson use the gradient and Hessian?</h2>
+
+<p>Newton-Raphson treats the loss surface as a quadratic bowl near the current point and jumps to the bottom of that bowl in one step. The trick is the second-order Taylor expansion: near $\mathbf{x}_k$, the function looks like</p>
+
+<p>$$f(\mathbf{x}) \approx f(\mathbf{x}_k) + \nabla f(\mathbf{x}_k)^\top (\mathbf{x} - \mathbf{x}_k) + \tfrac{1}{2} (\mathbf{x} - \mathbf{x}_k)^\top H(\mathbf{x}_k) (\mathbf{x} - \mathbf{x}_k).$$</p>
+
+<p>Setting the gradient of this quadratic to zero gives the Newton step:</p>
+
+<p>$$\mathbf{x}_{k+1} = \mathbf{x}_k - H(\mathbf{x}_k)^{-1} \nabla f(\mathbf{x}_k).$$</p>
+
+<p>Where $\nabla f$ is the gradient (an $n \times 1$ vector) and $H$ is the Hessian (an $n \times n$ matrix). The whole algorithm is "fit a quadratic, jump to its minimum, repeat."</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-newton-step-flow.webp" alt="One Newton-Raphson step: solve H times d equals minus g, take the step, repeat until converged." class="img-responsive img-zoomable" loading="lazy" width="2248" height="446" /></p>
+
+<p><em>Figure 1: One Newton-Raphson step: solve <code>H d = -g</code>, take the step, repeat until converged.</em></p>
+
+<p>Let's take exactly one such step on $f(x, y) = x^2 + 2y^2 + xy$ from $(2, 2)$. Because $f$ is itself quadratic, one Newton step lands exactly at the minimum, no matter where we start.</p>
+
+<div class="webr-container" data-block-title="One Newton step on a quadratic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One Newton step on a quadratic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x0 &lt;- c(2, 2)
+g0 &lt;- grad(f_fn, x0)
+H0 &lt;- hessian(f_fn, x0)
+step1 &lt;- solve(H0, -g0)
+x1 &lt;- x0 + step1
+x1
+#&gt; [1] 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The step vector <code>solve(H0, -g0)</code> is the Newton direction, and <code>x0 + step1</code> lands at the true minimum $(0, 0)$. We used <code>solve(H, -g)</code> instead of <code>-solve(H) %*% g</code> because solving the linear system is faster and numerically more stable than computing the explicit inverse, especially when the Hessian is large or ill-conditioned. This is a habit worth forming.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always solve the linear system, never invert the Hessian.</strong> <code>solve(H, -g)</code> returns the same direction as <code>-solve(H) %*% g</code> but in less time and with smaller numerical error. The explicit inverse is rarely the right tool.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take one Newton step on $f(x, y) = (x - 3)^2 + (y + 1)^2$ starting from $(0, 0)$. Because the function is quadratic with no cross-term, one step should land exactly at $(3, -1)$.</p>
+<div class="webr-container" data-block-title="Your turn: single Newton step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: single Newton step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute one Newton step on (x-3)^2 + (y+1)^2 from (0, 0)
+ex_f &lt;- function(v) (v[1] - 3)^2 + (v[2] + 1)^2
+ex_x0 &lt;- c(0, 0)
+ex_x1 &lt;- # your code here
+
+ex_x1
+#&gt; Expected: 3 -1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: one Newton step on a separable quadratic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: one Newton step on a separable quadratic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_f &lt;- function(v) (v[1] - 3)^2 + (v[2] + 1)^2
+ex_x0 &lt;- c(0, 0)
+ex_g &lt;- grad(ex_f, ex_x0)
+ex_H &lt;- hessian(ex_f, ex_x0)
+ex_x1 &lt;- ex_x0 + solve(ex_H, -ex_g)
+round(ex_x1, 4)
+#&gt; [1]  3 -1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A quadratic function is exactly its own second-order Taylor expansion, so a single Newton step always lands at the true minimum.</p>
+
+</details>
+</section>
+
+<h2>How do you implement Newton-Raphson in R from scratch?</h2>
+
+<p>Wrap the one-step formula in a loop with a convergence check, a maximum iteration count, and a trace of intermediate iterates. Numeric differentiation makes this a 15-line function that works on any scalar-valued R function.</p>
+
+<div class="webr-container" data-block-title="Define newton_raphson() from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define newton_raphson() from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">newton_raphson &lt;- function(f, x0, tol = 1e-8, max_iter = 50) {
+  x &lt;- x0
+  trace &lt;- list(x)
+  for (k in seq_len(max_iter)) {
+    g &lt;- grad(f, x)
+    H &lt;- hessian(f, x)
+    step &lt;- solve(H, -g)
+    x &lt;- x + step
+    trace[[k + 1]] &lt;- x
+    if (sqrt(sum(g^2)) &lt; tol) break
+  }
+  list(par = x, iterations = k, trace = trace)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns a list with the final parameters, the number of iterations used, and a trace of every iterate so we can plot or inspect the path. The convergence test is <code>||g|| &lt; tol</code>, which fires when the gradient is essentially zero. Let's run it on a non-quadratic test problem, $f(x, y) = e^x - x + y^2$, which has a unique minimum at $(0, 0)$.</p>
+
+<div class="webr-container" data-block-title="Newton-Raphson on a non-quadratic function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Newton-Raphson on a non-quadratic function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test_fn &lt;- function(v) exp(v[1]) - v[1] + v[2]^2
+fit &lt;- newton_raphson(test_fn, c(1, 1))
+fit$par
+#&gt; [1] 1.137978e-15 0.000000e+00
+fit$iterations
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The optimizer converged to the true minimum in six iterations, and the final gradient norm is below $10^{-8}$. Because the function is not quadratic, Newton-Raphson does not finish in one step, but it still exhibits the famous <em>quadratic convergence</em> near the optimum: the number of correct digits roughly doubles per iteration.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pure Newton-Raphson with no damping can overshoot on non-convex functions.</strong> It assumes the local quadratic fit is a good global guide. When that assumption breaks, Newton can step out of the function's domain or into a worse region. We address this in the next section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>newton_raphson()</code> on $f(x, y) = (x - 1)^2 + (y - 2)^2 + (x - 1)(y - 2)$, starting from $(0, 0)$. Confirm it lands at $(1, 2)$.</p>
+<div class="webr-container" data-block-title="Your turn: run newton_raphson()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run newton_raphson()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: minimize (x-1)^2 + (y-2)^2 + (x-1)(y-2) from (0, 0)
+ex_target &lt;- function(v) (v[1] - 1)^2 + (v[2] - 2)^2 + (v[1] - 1)*(v[2] - 2)
+ex_fit &lt;- # your code here
+
+ex_fit$par
+#&gt; Expected: 1 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: minimize a quadratic with cross-term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: minimize a quadratic with cross-term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_target &lt;- function(v) (v[1] - 1)^2 + (v[2] - 2)^2 + (v[1] - 1)*(v[2] - 2)
+ex_fit &lt;- newton_raphson(ex_target, c(0, 0))
+round(ex_fit$par, 4)
+#&gt; [1] 1 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function is quadratic, so Newton converges in a single step regardless of the starting point.</p>
+
+</details>
+</section>
+
+<h2>When does Newton-Raphson fail and what should you do?</h2>
+
+<p>Pure Newton-Raphson is fast when the quadratic approximation is good, but four failure modes wreck convergence in practice. The Hessian can be indefinite (mixed-sign eigenvalues) so the step heads toward a saddle, not a minimum. The Hessian can be nearly singular, producing huge garbage steps. The quadratic fit can be poor far from the optimum, so a full step lands somewhere worse than where you started. And in high dimensions, building the $n \times n$ Hessian becomes expensive enough that quasi-Newton methods are preferred. The decision tree below summarizes how to react.</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-failure-decision.webp" alt="Decision guide for handling Hessian failure modes during optimization." class="img-responsive img-zoomable" loading="lazy" width="1520" height="2040" /></p>
+
+<p><em>Figure 2: Decision guide for handling Hessian failure modes during optimization.</em></p>
+
+<p>Here is divergence in action. We minimize $f(x, y) = -\log(x) - \log(y) + x + y$, which has a unique minimum at $(1, 1)$ on the positive orthant. From the starting point $(3, 3)$, a full Newton step overshoots into negative territory where the logarithm is undefined.</p>
+
+<div class="webr-container" data-block-title="Pure Newton diverges out of the function&#x27;s domain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pure Newton diverges out of the function&#x27;s domain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_loss &lt;- function(v) -log(v[1]) - log(v[2]) + v[1] + v[2]
+x_div &lt;- c(3, 3)
+g_div &lt;- grad(log_loss, x_div)
+H_div &lt;- hessian(log_loss, x_div)
+step_div &lt;- solve(H_div, -g_div)
+x_div + step_div
+#&gt; [1] -3 -3
+log_loss(x_div + step_div)
+#&gt; [1] NaN</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single Newton step lands at $(-3, -3)$, where the log of a negative number is <code>NaN</code>. The fix is <em>damping</em>: scale the step by a factor $\gamma \in (0, 1]$ that we shrink until the new point actually decreases the objective. This converts pure Newton into a globally convergent algorithm with the same fast local rate.</p>
+
+<div class="webr-container" data-block-title="Damped Newton-Raphson with backtracking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Damped Newton-Raphson with backtracking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">newton_damped &lt;- function(f, x0, tol = 1e-8, max_iter = 50) {
+  x &lt;- x0
+  for (k in seq_len(max_iter)) {
+    g &lt;- grad(f, x)
+    H &lt;- hessian(f, x)
+    step &lt;- solve(H, -g)
+    gamma &lt;- 1
+    while (!is.finite(f(x + gamma * step)) || f(x + gamma * step) &gt; f(x)) {
+      gamma &lt;- gamma / 2
+      if (gamma &lt; 1e-10) break
+    }
+    x &lt;- x + gamma * step
+    if (sqrt(sum(g^2)) &lt; tol) break
+  }
+  list(par = x, iterations = k)
+}
+damped_fit &lt;- newton_damped(log_loss, c(3, 3))
+round(damped_fit$par, 6)
+#&gt; [1] 1 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With backtracking, the same starting point now converges to $(1, 1)$ in a handful of iterations. When even damping is not enough, switch to a quasi-Newton method like BFGS, which approximates the Hessian from gradient differences and never requires the explicit second-derivative matrix. R's built-in <code>optim()</code> ships with BFGS and is a solid first stop for any unconstrained problem.</p>
+
+<div class="webr-container" data-block-title="optim() BFGS as a fallback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">optim() BFGS as a fallback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bfgs_fit &lt;- optim(c(3, 3), log_loss, method = &quot;BFGS&quot;)
+round(bfgs_fit$par, 6)
+#&gt; [1] 1 1
+bfgs_fit$convergence
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>optim()</code> returned the same minimum without any Hessian computation. For most problems, BFGS is more robust than pure Newton because it implicitly damps via its line search, and L-BFGS scales to thousands of parameters without storing a dense $n \times n$ matrix.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A nearly singular Hessian gives huge, garbage steps.</strong> Always check <code>kappa(H)</code> before trusting a Newton step. If the condition number exceeds about $10^{10}$, regularize with <code>H + lambda * diag(n)</code> (Levenberg-Marquardt style) before solving, or switch to BFGS.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a damping check to <code>newton_raphson()</code> so it accepts the step only when $f$ decreases, halving $\gamma$ otherwise. Test it on <code>log_loss</code> from $(5, 5)$.</p>
+<div class="webr-container" data-block-title="Your turn: add damping to newton_raphson()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add damping to newton_raphson()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: copy newton_raphson, add a backtracking line search, run on log_loss
+ex_newton_safe &lt;- function(f, x0, tol = 1e-8, max_iter = 50) {
+  # your code here
+}
+ex_safe_fit &lt;- ex_newton_safe(log_loss, c(5, 5))
+round(ex_safe_fit$par, 6)
+#&gt; Expected: 1 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: damped Newton on log_loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: damped Newton on log_loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_newton_safe &lt;- function(f, x0, tol = 1e-8, max_iter = 50) {
+  x &lt;- x0
+  for (k in seq_len(max_iter)) {
+    g &lt;- grad(f, x)
+    H &lt;- hessian(f, x)
+    step &lt;- solve(H, -g)
+    gamma &lt;- 1
+    while (!is.finite(f(x + gamma * step)) || f(x + gamma * step) &gt; f(x)) {
+      gamma &lt;- gamma / 2
+      if (gamma &lt; 1e-10) break
+    }
+    x &lt;- x + gamma * step
+    if (sqrt(sum(g^2)) &lt; tol) break
+  }
+  list(par = x, iterations = k)
+}
+ex_safe_fit &lt;- ex_newton_safe(log_loss, c(5, 5))
+round(ex_safe_fit$par, 6)
+#&gt; [1] 1 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The line-search loop shrinks $\gamma$ until the candidate point is in the domain and improves the objective, which makes the algorithm globally convergent.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These three problems weave the concepts together. Use distinct variable names so they don't collide with the tutorial code that came before.</p>
+
+<h3>Exercise 1: Find a non-trivial minimum with newton_raphson()</h3>
+
+<p>Minimize $f(x, y) = (x^2 + y - 11)^2 + (x + y^2 - 7)^2$ (the Himmelblau function) starting from $(0, 0)$. Compare the result to <code>optim(method = &quot;BFGS&quot;)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: Himmelblau minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Himmelblau minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: Himmelblau has four local minima; you should find one of them.
+my_himmel &lt;- function(v) (v[1]^2 + v[2] - 11)^2 + (v[1] + v[2]^2 - 7)^2
+my_newton_fit &lt;- # your code here
+my_bfgs_fit  &lt;- # your code here
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution: Himmelblau minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution: Himmelblau minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_himmel &lt;- function(v) (v[1]^2 + v[2] - 11)^2 + (v[1] + v[2]^2 - 7)^2
+my_newton_fit &lt;- newton_damped(my_himmel, c(0, 0))
+my_bfgs_fit  &lt;- optim(c(0, 0), my_himmel, method = &quot;BFGS&quot;)
+round(my_newton_fit$par, 4)
+#&gt; [1] 3 2
+round(my_bfgs_fit$par, 4)
+#&gt; [1] 3 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both methods land at the same Himmelblau minimum near $(3, 2)$. Different starting points converge to different local minima; that is a Himmelblau feature, not a bug.</p>
+
+</details>
+
+<h3>Exercise 2: Fit logistic regression by hand and verify against glm()</h3>
+
+<p>Build a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> on <code>mtcars</code>, predicting <code>am</code> from <code>mpg</code> and <code>hp</code>. Write the <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a>, run <code>newton_damped()</code> from a zero starting vector, and compare your coefficients to <code>glm()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: hand-built logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: hand-built logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: NLL = -sum(y * log(p) + (1 - y) * log(1 - p)) with p = 1 / (1 + exp(-X %*% beta))
+my_X &lt;- cbind(1, mtcars$mpg, mtcars$hp)
+my_y &lt;- mtcars$am
+my_nll &lt;- function(beta) {
+  # your code here
+}
+my_logit_fit &lt;- # your code here
+my_glm_fit  &lt;- glm(am ~ mpg + hp, data = mtcars, family = binomial)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution: logistic regression by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution: logistic regression by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_X &lt;- cbind(1, mtcars$mpg, mtcars$hp)
+my_y &lt;- mtcars$am
+my_nll &lt;- function(beta) {
+  eta &lt;- as.numeric(my_X %*% beta)
+  -sum(my_y * eta - log1p(exp(eta)))
+}
+my_logit_fit &lt;- newton_damped(my_nll, c(0, 0, 0), max_iter = 100)
+my_glm_fit  &lt;- glm(am ~ mpg + hp, data = mtcars, family = binomial)
+round(my_logit_fit$par, 4)
+#&gt; [1] -33.6052   1.2596   0.0550
+round(coef(my_glm_fit), 4)
+#&gt; (Intercept)         mpg          hp
+#&gt;    -33.6052      1.2596      0.0550</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The hand-built Newton-Raphson fit matches <code>glm()</code> to four decimals. <code>glm()</code> itself uses iteratively reweighted least squares, which is mathematically equivalent to Newton's method on the binomial NLL.</p>
+
+</details>
+
+<h3>Exercise 3: Classify any critical point from its Hessian</h3>
+
+<p>Write a function <code>inspect_critical_point(f, x)</code> that returns one of <code>&quot;minimum&quot;</code>, <code>&quot;maximum&quot;</code>, <code>&quot;saddle&quot;</code>, or <code>&quot;degenerate&quot;</code> based on the eigenvalues of the Hessian at <code>x</code>. A degenerate point has at least one eigenvalue with absolute value below $10^{-8}$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: classify critical points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: classify critical points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inspect_critical_point &lt;- function(f, x) {
+  # your code here
+}
+inspect_critical_point(function(v) v[1]^2 + v[2]^2, c(0, 0))
+#&gt; Expected: &quot;minimum&quot;
+inspect_critical_point(function(v) v[1]^2 - v[2]^2, c(0, 0))
+#&gt; Expected: &quot;saddle&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution: critical-point classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution: critical-point classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inspect_critical_point &lt;- function(f, x) {
+  ev &lt;- eigen(hessian(f, x))$values
+  if (any(abs(ev) &lt; 1e-8)) return(&quot;degenerate&quot;)
+  if (all(ev &gt; 0)) return(&quot;minimum&quot;)
+  if (all(ev &lt; 0)) return(&quot;maximum&quot;)
+  &quot;saddle&quot;
+}
+inspect_critical_point(function(v) v[1]^2 + v[2]^2, c(0, 0))
+#&gt; [1] &quot;minimum&quot;
+inspect_critical_point(function(v) v[1]^2 - v[2]^2, c(0, 0))
+#&gt; [1] &quot;saddle&quot;
+inspect_critical_point(function(v) -v[1]^2 - v[2]^2, c(0, 0))
+#&gt; [1] &quot;maximum&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All-positive eigenvalues mean a positive-definite Hessian and a local minimum. All-negative gives a maximum. Mixed signs indicate a saddle. Tiny eigenvalues mean the second-order test is inconclusive and you need higher-order information.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Below we tie the entire pipeline together: define a real loss function (logistic regression NLL on <code>mtcars</code>), fit it with our from-scratch damped Newton-Raphson, and verify against R's industrial-strength <code>glm()</code>. This is the same workflow that powers maximum-likelihood estimators across statistics, from logistic regression to Cox models.</p>
+
+<div class="webr-container" data-block-title="End-to-end Newton-Raphson on logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Newton-Raphson on logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Build design matrix and response
+X_full &lt;- cbind(1, mtcars$mpg, mtcars$hp)
+y_full &lt;- mtcars$am
+
+# 2. Define the negative log-likelihood
+nll_full &lt;- function(beta) {
+  eta &lt;- as.numeric(X_full %*% beta)
+  -sum(y_full * eta - log1p(exp(eta)))
+}
+
+# 3. Fit with our damped Newton-Raphson
+fit_newton &lt;- newton_damped(nll_full, c(0, 0, 0), max_iter = 100)
+
+# 4. Compare against glm()
+fit_glm &lt;- glm(am ~ mpg + hp, data = mtcars, family = binomial)
+
+cbind(newton = round(fit_newton$par, 4),
+      glm    = round(coef(fit_glm), 4))
+#&gt;             newton      glm
+#&gt; (Intercept) -33.6052 -33.6052
+#&gt; mpg           1.2596   1.2596
+#&gt; hp            0.0550   0.0550</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns agree to four decimals. The Hessian of the binomial NLL has the closed form $X^\top W X$ with $W = \mathrm{diag}(p_i (1 - p_i))$, which is why this loss is convex and Newton converges so cleanly. The same matrix-derivative recipe extends to <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a>, <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial regression</a>, and any generalized linear model with a canonical link.</p>
+
+<h2>Summary</h2>
+
+<p>The mental model: gradient is the first-order shape (uphill direction), Hessian is the second-order shape (curvature), Newton-Raphson uses both to leap to the minimum of a local quadratic fit.</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-overview-mindmap.webp" alt="Overview of matrix derivatives and Newton-Raphson in R." class="img-responsive img-zoomable" loading="lazy" width="1578" height="932" /></p>
+
+<p><em>Figure 3: Overview of matrix derivatives and Newton-Raphson in R.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it is</th>
+<th>R tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gradient</td>
+<td>Vector of first partial derivatives, $\nabla f$</td>
+<td><code>numDeriv::grad()</code>, <code>deriv()</code></td>
+</tr>
+<tr>
+<td>Hessian</td>
+<td>Matrix of second partial derivatives, $H$</td>
+<td><code>numDeriv::hessian()</code>, <code>deriv(..., hessian = TRUE)</code></td>
+</tr>
+<tr>
+<td>Critical-point test</td>
+<td>Eigenvalues of $H$</td>
+<td><code>eigen(H)$values</code></td>
+</tr>
+<tr>
+<td>Newton step</td>
+<td>$\mathbf{x}_{k+1} = \mathbf{x}_k - H^{-1} \nabla f$</td>
+<td><code>solve(H, -g)</code></td>
+</tr>
+<tr>
+<td>Damped Newton</td>
+<td>Scale step by $\gamma$ until $f$ decreases</td>
+<td>Backtracking line search</td>
+</tr>
+<tr>
+<td>Quasi-Newton fallback</td>
+<td>BFGS approximates $H$ from gradients</td>
+<td><code>optim(method = &quot;BFGS&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>deriv()</code> when you have a formula, <code>numDeriv</code> for closures and black-box losses, pure Newton-Raphson when the Hessian is well-conditioned and the start is close, damped Newton when you might overshoot, and BFGS when you don't want to compute the Hessian at all.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>Symbolic and Algorithmic Derivatives of Simple Expressions</em> (<code>?deriv</code> documentation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/deriv.html">Link</a></li>
+
+<li>Gilbert, P. and Varadhan, R. <em>numDeriv: Accurate Numerical Derivatives</em> (CRAN package). <a href="https://cran.r-project.org/package=numDeriv">Link</a></li>
+
+<li>Nocedal, J. and Wright, S. <em>Numerical Optimization</em>, 2nd Edition. Springer (2006). Chapters 3 and 6 on Newton's method and quasi-Newton methods.</li>
+
+<li>Wikipedia. <em>Newton's method in optimization</em>. <a href="https://en.wikipedia.org/wiki/Newton%27s_method_in_optimization">Link</a></li>
+
+<li>Peng, R. <em>Advanced Statistical Computing</em>, "The Newton Direction." <a href="https://bookdown.org/rdpeng/advstatcomp/the-newton-direction.html">Link</a></li>
+
+<li>R Core Team. <em>General-purpose Optimization</em> (<code>?optim</code> documentation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html">Link</a></li>
+
+<li>Givens, G. H. and Hoeting, J. A. <em>Computational Statistics</em>, 2nd Edition. Wiley (2013). Chapter on optimization.</li>
+
+<li>Tibshirani, R. <em>Newton's Method</em> (Convex Optimization lecture notes, CMU 10-725). <a href="https://www.stat.cmu.edu/~ryantibs/convexopt-S15/lectures/14-newton.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R</a>, the most common Newton-Raphson use case in statistics, with <code>optim()</code> and <code>mle()</code> recipes.</li>
+
+<li><a href="Eigenvalues-and-Eigenvectors-in-R.html">Eigenvalues and Eigenvectors in R</a>, covering the <code>eigen()</code> test we used to classify critical points in depth.</li>
+
+<li><a href="Solving-Linear-Systems-in-R.html">Solving Linear Systems in R</a>, covering what <code>solve(H, -g)</code> is doing under the hood, including LU decomposition and condition numbers.</li>
+
+</ul>

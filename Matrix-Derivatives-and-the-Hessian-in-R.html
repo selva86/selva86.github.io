@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Compute matrix derivatives in R: gradient, Hessian, and Newton-Raphson optimization with deriv(), numDeriv, and a from-scratch update loop verified vs glm().">
+    <meta name="Keywords" content="matrix derivatives in R, Hessian matrix R, gradient vector R, Newton-Raphson optimization R, deriv() function R, numDeriv R, second-order optimization, Hessian eigenvalues R, optim() Newton, multivariate optimization R">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Matrix-Derivatives-and-the-Hessian-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#1a1a2e;background:#fdfdfd}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#3566c0;border-color:#3566c0}.btn-primary:hover{background:#2c5fbe}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#3566c0;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#1a1a2e}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#1a1a2e;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #e5e7eb}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#1a1a2e}
+      p.lead{font-size:1.1em;line-height:1.75;color:#1a1a2e;font-weight:400;border-left:3px solid #3b82f6;padding-left:1em;margin:-4px 0 1.15em 0}
+      .masthead{padding-top:4px}
+      .site-title{line-height:normal}
+      .site-title a{color:#3560b8}
+      .site-header{min-height:auto;position:relative}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#3b82f6;font-weight:600;border-left-color:#3b82f6}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=f3d3de1f" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=f3d3de1f" rel="stylesheet"></noscript>
+    <style>
+      a{color:#3566c0}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}#mobile-menu-btn{display:block!important}.site-title{font-size:16px!important}.site-title small{display:none!important}.site-header form{display:none}}
+      @media(max-width:400px){.site-title{font-size:14px!important}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization">
+    <meta property="og:description" content="Compute matrix derivatives in R: gradient, Hessian, and Newton-Raphson optimization with deriv(), numDeriv, and a from-scratch update loop verified vs glm().">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Matrix-Derivatives-and-the-Hessian-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Matrix-Derivatives-and-the-Hessian-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization">
+    <meta name="twitter:description" content="Compute matrix derivatives in R: gradient, Hessian, and Newton-Raphson optimization with deriv(), numDeriv, and a from-scratch update loop verified vs glm().">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Matrix-Derivatives-and-the-Hessian-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization",
+      "description": "Compute matrix derivatives in R: gradient, Hessian, and Newton-Raphson optimization with deriv(), numDeriv, and a from-scratch update loop verified vs glm().",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Matrix-Derivatives-and-the-Hessian-in-R.html",
+      "datePublished": "2026-04-30",
+      "dateModified": "2026-04-30",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization", "item": "https://r-statistics.co/Matrix-Derivatives-and-the-Hessian-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <div class="masthead">
+        <div class="site-header" style="display:flex; justify-content:space-between; align-items:center; padding: 12px 0 8px 0; flex-wrap: nowrap; gap: 10px;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+            <button id="mobile-menu-btn" aria-label="Menu" style="display:none;background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:18px;line-height:1;color:#666;">&#9776;</button>
+            <div class="site-title" style="margin:0;white-space:nowrap;font-size:20px;font-weight:700;"><a href="/" style="text-decoration:none;">r&#8209;statistics.co</a><small style="color:#757575; margin-left:4px; font-size:11px;font-weight:400;"> by Selva Prabhakaran</small></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+            <a href="/about/" style="font-size:13px; color:#666; text-decoration:none;">About</a>
+            <button id="dark-mode-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"
+              style="background:none;border:1px solid #d0d7de;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:16px;line-height:1;color:#666;transition:all 0.2s;">
+              &#9789;
+            </button>
+            <form onsubmit="my_search_google(); return false;" style="margin:0;">
+              <input type="text" class="form-control" id="my-google-search" placeholder="Search.." aria-label="Search r-statistics.co" style="width:130px; height:30px; font-size:12px; border-radius:6px;">
+            </form>
+          </div>
+        </div>
+        <hr style="margin:0 0 16px 0;">
+      </div>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series</div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials</div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="Profiling.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises</div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization</span></nav>
+<!-- md2html:generated -->
+
+<h1>Matrix Derivatives & the Hessian in R: Newton-Raphson Optimization</h1>
+
+<p class="lead">Matrix derivatives generalize the scalar derivative to vector-valued inputs: the <strong>gradient</strong> packs the first partial derivatives into a vector, and the <strong>Hessian</strong> packs the second partial derivatives into a matrix. The <strong>Newton-Raphson method</strong> uses both to leap toward an optimum in one curvature-aware step, and R gives you everything you need with <code>deriv()</code>, <code>numDeriv</code>, and a few lines of <code>solve()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What does taking a derivative of a matrix actually mean?</h2>
+
+<p>When a function takes one input, its derivative is a single number. When it takes a vector of inputs, the first derivative is a <em>vector</em> (the gradient) and the second derivative is a <em>matrix</em> (the Hessian). That structural change is what "matrix derivatives" really refers to. R has both symbolic differentiation (<code>deriv()</code>, built into base R) and numeric differentiation (<code>numDeriv</code> package). Here is the payoff in three lines, using <code>deriv()</code> on $f(x, y) = x^2 + 2y^2 + xy$ at the point $(1, 1)$.</p>
+
+<div class="webr-container" data-block-title="Symbolic gradient and Hessian with deriv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Symbolic gradient and Hessian with deriv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">f_expr <span class="o">&lt;-</span> <span class="nf">expression</span>(x<span class="o">^</span><span class="m">2</span> <span class="o">+</span> <span class="m">2</span><span class="o">*</span>y<span class="o">^</span><span class="m">2</span> <span class="o">+</span> x<span class="o">*</span>y)</span>
+<span class="cl">f_deriv <span class="o">&lt;-</span> <span class="nf">deriv</span>(f_expr, <span class="nf">c</span>(<span class="s">&quot;x&quot;</span>, <span class="s">&quot;y&quot;</span>), function.arg <span class="o">=</span> <span class="kc">TRUE</span>, hessian <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">df1 <span class="o">&lt;-</span> <span class="nf">f_deriv</span>(<span class="m">1</span>, <span class="m">1</span>)</span>
+<span class="cl">df1</span>
+<span class="cl"><span class="c1">#&gt; [1] 4</span></span>
+<span class="cl"><span class="c1">#&gt; attr(,&quot;gradient&quot;)</span></span>
+<span class="cl"><span class="c1">#&gt;      x y</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 3 5</span></span>
+<span class="cl"><span class="c1">#&gt; attr(,&quot;hessian&quot;)</span></span>
+<span class="cl"><span class="c1">#&gt; , , x</span></span>
+<span class="cl"><span class="c1">#&gt;      x y</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 2 1</span></span>
+<span class="cl"><span class="c1">#&gt; , , y</span></span>
+<span class="cl"><span class="c1">#&gt;      x y</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 1 4</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single call returned three things at once: the function value (4), the gradient (3, 5), and the Hessian matrix <code>[[2, 1], [1, 4]]</code>. The gradient is a row vector of first partial derivatives, and the Hessian is the matrix whose entry $h_{ij}$ is $\partial^2 f / \partial x_i \partial x_j$. Schwarz's theorem guarantees the Hessian is symmetric for any twice-continuously-differentiable function, so the off-diagonals match. We will use this same trick repeatedly throughout the article.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Matrix derivatives are not exotic, just bookkeeping.</strong> A gradient is "stack all the $\partial f / \partial x_i$ values into a vector." A Hessian is "stack all the $\partial^2 f / \partial x_i \partial x_j$ values into a matrix." Once you see them as bookkeeping, the formulas stop looking intimidating.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>deriv()</code> to compute the gradient of $g(x, y) = 3x^2 + xy + y^2$ at the point $(2, -1)$. Save the result to <code>ex_g_at_pt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: gradient with deriv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gradient with deriv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: build a deriv() function for g and evaluate at (2, -1)</span></span>
+<span class="cl">g_expr <span class="o">&lt;-</span> <span class="nf">expression</span>(<span class="m">3</span><span class="o">*</span>x<span class="o">^</span><span class="m">2</span> <span class="o">+</span> x<span class="o">*</span>y <span class="o">+</span> y<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">ex_g_at_pt <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_g_at_pt</span>
+<span class="cl"><span class="c1">#&gt; Expected gradient row: 11 0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: gradient of g at (2, -1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: gradient of g at (2, -1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">g_expr <span class="o">&lt;-</span> <span class="nf">expression</span>(<span class="m">3</span><span class="o">*</span>x<span class="o">^</span><span class="m">2</span> <span class="o">+</span> x<span class="o">*</span>y <span class="o">+</span> y<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">g_deriv <span class="o">&lt;-</span> <span class="nf">deriv</span>(g_expr, <span class="nf">c</span>(<span class="s">&quot;x&quot;</span>, <span class="s">&quot;y&quot;</span>), function.arg <span class="o">=</span> <span class="kc">TRUE</span>, hessian <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">ex_g_at_pt <span class="o">&lt;-</span> <span class="nf">g_deriv</span>(<span class="m">2</span>, <span class="m">-1</span>)</span>
+<span class="cl"><span class="nf">attr</span>(ex_g_at_pt, <span class="s">&quot;gradient&quot;</span>)</span>
+<span class="cl"><span class="c1">#&gt;       x y</span></span>
+<span class="cl"><span class="c1">#&gt; [1,] 11 0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $\partial g / \partial x = 6x + y = 12 - 1 = 11$ and $\partial g / \partial y = x + 2y = 2 - 2 = 0$, matching the row vector returned by <code>deriv()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do you compute the gradient and Hessian numerically?</h2>
+
+<p><code>deriv()</code> is exact, but it needs an algebraic expression. When your function is a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a>, a simulation, or a black-box loss that has no clean formula, switch to numeric differentiation via the <code>numDeriv</code> package, which uses Richardson extrapolation on finite differences. The same gradient and Hessian come back as plain <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">R vectors</a> and matrices.</p>
+
+<div class="webr-container" data-block-title="Numeric gradient and Hessian with numDeriv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric gradient and Hessian with numDeriv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(numDeriv)</span>
+<span class="cl">f_fn <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> <span class="m">2</span><span class="o">*</span>v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">1</span>]<span class="o">*</span>v[<span class="m">2</span>]</span>
+<span class="cl">g_num <span class="o">&lt;-</span> <span class="nf">grad</span>(f_fn, <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl">H_num <span class="o">&lt;-</span> <span class="nf">hessian</span>(f_fn, <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl">g_num</span>
+<span class="cl"><span class="c1">#&gt; [1] 3 5</span></span>
+<span class="cl">H_num</span>
+<span class="cl"><span class="c1">#&gt;      [,1] [,2]</span></span>
+<span class="cl"><span class="c1">#&gt; [1,]    2    1</span></span>
+<span class="cl"><span class="c1">#&gt; [2,]    1    4</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numeric output matches the symbolic output to about six decimal places. <code>grad()</code> returns a plain numeric vector and <code>hessian()</code> returns a square matrix, which is exactly the shape you want for linear-algebra calls like <code>solve()</code>. From now on we will mostly call <code>f_fn</code> (the closure) instead of <code>f_expr</code>, so we can plug it into any optimizer.</p>
+
+<p>Numeric differentiation also works when there is no formula at all. Below we minimize the sum of squared residuals for a tiny <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> where the parameters are an intercept and a slope. The function is built from data, not from symbols, but <code>numDeriv</code> does not care.</p>
+
+<div class="webr-container" data-block-title="numDeriv on a closure with no formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">numDeriv on a closure with no formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">x_obs <span class="o">&lt;-</span> <span class="m">1</span><span class="o">:</span><span class="m">20</span></span>
+<span class="cl">y_obs <span class="o">&lt;-</span> <span class="m">2</span> <span class="o">+</span> <span class="m">0.5</span> <span class="o">*</span> x_obs <span class="o">+</span> <span class="nf">rnorm</span>(<span class="m">20</span>, sd <span class="o">=</span> <span class="m">0.5</span>)</span>
+<span class="cl">resid_loss <span class="o">&lt;-</span> <span class="kr">function</span>(theta) <span class="nf">sum</span>((y_obs <span class="o">-</span> theta[<span class="m">1</span>] <span class="o">-</span> theta[<span class="m">2</span>] <span class="o">*</span> x_obs)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">g_loss <span class="o">&lt;-</span> <span class="nf">grad</span>(resid_loss, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl">H_loss <span class="o">&lt;-</span> <span class="nf">hessian</span>(resid_loss, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="nf">round</span>(g_loss, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] -302.78 -4282.16</span></span>
+<span class="cl"><span class="nf">round</span>(H_loss, <span class="m">2</span>)</span>
+<span class="cl"><span class="c1">#&gt;       [,1]   [,2]</span></span>
+<span class="cl"><span class="c1">#&gt; [1,]    40    420</span></span>
+<span class="cl"><span class="c1">#&gt; [2,]   420   5740</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gradient at $(0, 0)$ points sharply uphill in both directions (intercept and slope), telling us we are far from the optimum. The Hessian is the familiar $2 X^\top X$ matrix from linear regression, and because it is positive definite (we will check that next), the loss surface is a single bowl and Newton's method will find the bottom in one step from any starting point.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use deriv() when you have a formula, numDeriv when you don't.</strong> Symbolic differentiation gives you exact derivatives in machine precision. Use <code>numDeriv</code> for closures, simulation outputs, complicated likelihoods, or any time you don't trust your hand-derived gradient.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>numDeriv::hessian()</code> to compute the Hessian of $g(\mathbf{x}) = x_1^4 + x_2^4$ at the point $(1, 2)$. Save it to <code>ex_H</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Hessian via numDeriv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Hessian via numDeriv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: build the Hessian of g at (1, 2)</span></span>
+<span class="cl">g_quartic <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">4</span> <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">4</span></span>
+<span class="cl">ex_H <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_H</span>
+<span class="cl"><span class="c1">#&gt; Expected: diag matrix with 12 and 48 on the diagonal</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: Hessian of x1^4 + x2^4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: Hessian of x1^4 + x2^4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">g_quartic <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">4</span> <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">4</span></span>
+<span class="cl">ex_H <span class="o">&lt;-</span> <span class="nf">hessian</span>(g_quartic, <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>))</span>
+<span class="cl"><span class="nf">round</span>(ex_H, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt;      [,1] [,2]</span></span>
+<span class="cl"><span class="c1">#&gt; [1,]   12    0</span></span>
+<span class="cl"><span class="c1">#&gt; [2,]    0   48</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> $\partial^2 g / \partial x_i^2 = 12 x_i^2$ and the cross-partials are zero, giving a diagonal matrix with $12$ at $(1,1)$ and $48$ at $(2,2)$.</p>
+
+</details>
+</section>
+
+<h2>Why does the Hessian matter for optimization?</h2>
+
+<p>The Hessian is the second-order shape of the loss surface near a point. Just as the second derivative of a one-dimensional function tells you whether a critical point is a minimum (positive), a maximum (negative), or an inflection (zero), the <em>eigenvalues</em> of the Hessian classify a multidimensional critical point. All positive eigenvalues means a local minimum (a bowl). All negative means a local maximum (a hilltop). Mixed signs means a saddle, where some directions go down and others go up. This single fact is the foundation of every second-order optimizer.</p>
+
+<div class="webr-container" data-block-title="Hessian eigenvalues at a local minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hessian eigenvalues at a local minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">H_min <span class="o">&lt;-</span> <span class="nf">hessian</span>(f_fn, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl">H_min_eig <span class="o">&lt;-</span> <span class="nf">eigen</span>(H_min)<span class="o">$</span>values</span>
+<span class="cl"><span class="nf">round</span>(H_min_eig, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 4.4142 1.5858</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both eigenvalues are strictly positive, so the origin is a local minimum of $f(x, y) = x^2 + 2y^2 + xy$. Their values $3 \pm \sqrt{2}$ also tell us the curvature in the two principal directions: about $4.41$ along the steepest direction, $1.59$ along the shallowest. The ratio $4.41 / 1.59 \approx 2.78$ is the <em>condition number</em>; high condition numbers signal stretched, ill-conditioned bowls that slow most optimizers down.</p>
+
+<p>Now contrast that with a saddle. The function $s(x, y) = x^2 - y^2$ has a critical point at the origin, but its curvature is positive in $x$ and negative in $y$.</p>
+
+<div class="webr-container" data-block-title="Hessian eigenvalues at a saddle point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hessian eigenvalues at a saddle point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">f_saddle <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">H_saddle <span class="o">&lt;-</span> <span class="nf">hessian</span>(f_saddle, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="nf">eigen</span>(H_saddle)<span class="o">$</span>values</span>
+<span class="cl"><span class="c1">#&gt; [1]  2 -2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One positive eigenvalue, one negative, so the origin is a saddle, not an extremum. Mixed signs are also why naive Newton-Raphson can mistakenly march toward saddles in deep learning loss surfaces, an issue we will return to in the failure-modes section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the Hessian of $h(x, y) = x^2 + xy + 4y^2$ at $(0, 0)$ and use <code>eigen()</code> to confirm the origin is a local minimum.</p>
+<div class="webr-container" data-block-title="Your turn: classify a critical point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify a critical point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: compute Hessian and eigenvalues, decide minimum/maximum/saddle</span></span>
+<span class="cl">ex_h <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">1</span>]<span class="o">*</span>v[<span class="m">2</span>] <span class="o">+</span> <span class="m">4</span><span class="o">*</span>v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">ex_eig <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_eig</span>
+<span class="cl"><span class="c1">#&gt; Expected: both eigenvalues positive</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: classify (0,0) for h(x,y)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: classify (0,0) for h(x,y)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_h <span class="o">&lt;-</span> <span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">1</span>]<span class="o">*</span>v[<span class="m">2</span>] <span class="o">+</span> <span class="m">4</span><span class="o">*</span>v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">ex_eig <span class="o">&lt;-</span> <span class="nf">eigen</span>(<span class="nf">hessian</span>(ex_h, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>)))<span class="o">$</span>values</span>
+<span class="cl"><span class="nf">round</span>(ex_eig, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 8.1244 1.8756</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both eigenvalues are positive, so the Hessian is positive definite and the origin is a local minimum.</p>
+
+</details>
+</section>
+
+<h2>How does Newton-Raphson use the gradient and Hessian?</h2>
+
+<p>Newton-Raphson treats the loss surface as a quadratic bowl near the current point and jumps to the bottom of that bowl in one step. The trick is the second-order Taylor expansion: near $\mathbf{x}_k$, the function looks like</p>
+
+<p>$$f(\mathbf{x}) \approx f(\mathbf{x}_k) + \nabla f(\mathbf{x}_k)^\top (\mathbf{x} - \mathbf{x}_k) + \tfrac{1}{2} (\mathbf{x} - \mathbf{x}_k)^\top H(\mathbf{x}_k) (\mathbf{x} - \mathbf{x}_k).$$</p>
+
+<p>Setting the gradient of this quadratic to zero gives the Newton step:</p>
+
+<p>$$\mathbf{x}_{k+1} = \mathbf{x}_k - H(\mathbf{x}_k)^{-1} \nabla f(\mathbf{x}_k).$$</p>
+
+<p>Where $\nabla f$ is the gradient (an $n \times 1$ vector) and $H$ is the Hessian (an $n \times n$ matrix). The whole algorithm is "fit a quadratic, jump to its minimum, repeat."</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-newton-step-flow.webp" alt="One Newton-Raphson step: solve H times d equals minus g, take the step, repeat until converged." class="img-responsive img-zoomable" loading="lazy" width="2248" height="446" /></p>
+
+<p><em>Figure 1: One Newton-Raphson step: solve <code>H d = -g</code>, take the step, repeat until converged.</em></p>
+
+<p>Let's take exactly one such step on $f(x, y) = x^2 + 2y^2 + xy$ from $(2, 2)$. Because $f$ is itself quadratic, one Newton step lands exactly at the minimum, no matter where we start.</p>
+
+<div class="webr-container" data-block-title="One Newton step on a quadratic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One Newton step on a quadratic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">x0 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">2</span>)</span>
+<span class="cl">g0 <span class="o">&lt;-</span> <span class="nf">grad</span>(f_fn, x0)</span>
+<span class="cl">H0 <span class="o">&lt;-</span> <span class="nf">hessian</span>(f_fn, x0)</span>
+<span class="cl">step1 <span class="o">&lt;-</span> <span class="nf">solve</span>(H0, <span class="o">-</span>g0)</span>
+<span class="cl">x1 <span class="o">&lt;-</span> x0 <span class="o">+</span> step1</span>
+<span class="cl">x1</span>
+<span class="cl"><span class="c1">#&gt; [1] 0 0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The step vector <code>solve(H0, -g0)</code> is the Newton direction, and <code>x0 + step1</code> lands at the true minimum $(0, 0)$. We used <code>solve(H, -g)</code> instead of <code>-solve(H) %*% g</code> because solving the linear system is faster and numerically more stable than computing the explicit inverse, especially when the Hessian is large or ill-conditioned. This is a habit worth forming.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always solve the linear system, never invert the Hessian.</strong> <code>solve(H, -g)</code> returns the same direction as <code>-solve(H) %*% g</code> but in less time and with smaller numerical error. The explicit inverse is rarely the right tool.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take one Newton step on $f(x, y) = (x - 3)^2 + (y + 1)^2$ starting from $(0, 0)$. Because the function is quadratic with no cross-term, one step should land exactly at $(3, -1)$.</p>
+<div class="webr-container" data-block-title="Your turn: single Newton step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: single Newton step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: compute one Newton step on (x-3)^2 + (y+1)^2 from (0, 0)</span></span>
+<span class="cl">ex_f <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">3</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">2</span>] <span class="o">+</span> <span class="m">1</span>)<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">ex_x0 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>)</span>
+<span class="cl">ex_x1 <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_x1</span>
+<span class="cl"><span class="c1">#&gt; Expected: 3 -1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: one Newton step on a separable quadratic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: one Newton step on a separable quadratic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_f <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">3</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">2</span>] <span class="o">+</span> <span class="m">1</span>)<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">ex_x0 <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>)</span>
+<span class="cl">ex_g <span class="o">&lt;-</span> <span class="nf">grad</span>(ex_f, ex_x0)</span>
+<span class="cl">ex_H <span class="o">&lt;-</span> <span class="nf">hessian</span>(ex_f, ex_x0)</span>
+<span class="cl">ex_x1 <span class="o">&lt;-</span> ex_x0 <span class="o">+</span> <span class="nf">solve</span>(ex_H, <span class="o">-</span>ex_g)</span>
+<span class="cl"><span class="nf">round</span>(ex_x1, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1]  3 -1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A quadratic function is exactly its own second-order Taylor expansion, so a single Newton step always lands at the true minimum.</p>
+
+</details>
+</section>
+
+<h2>How do you implement Newton-Raphson in R from scratch?</h2>
+
+<p>Wrap the one-step formula in a loop with a convergence check, a maximum iteration count, and a trace of intermediate iterates. Numeric differentiation makes this a 15-line function that works on any scalar-valued R function.</p>
+
+<div class="webr-container" data-block-title="Define newton_raphson() from scratch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define newton_raphson() from scratch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">newton_raphson <span class="o">&lt;-</span> <span class="kr">function</span>(f, x0, tol <span class="o">=</span> <span class="m">1e-8</span>, max_iter <span class="o">=</span> <span class="m">50</span>) {</span>
+<span class="cl">  x <span class="o">&lt;-</span> x0</span>
+<span class="cl">  trace <span class="o">&lt;-</span> <span class="nf">list</span>(x)</span>
+<span class="cl">  <span class="kr">for</span> (k <span class="kr">in</span> <span class="nf">seq_len</span>(max_iter)) {</span>
+<span class="cl">    g <span class="o">&lt;-</span> <span class="nf">grad</span>(f, x)</span>
+<span class="cl">    H <span class="o">&lt;-</span> <span class="nf">hessian</span>(f, x)</span>
+<span class="cl">    step <span class="o">&lt;-</span> <span class="nf">solve</span>(H, <span class="o">-</span>g)</span>
+<span class="cl">    x <span class="o">&lt;-</span> x <span class="o">+</span> step</span>
+<span class="cl">    trace[[k <span class="o">+</span> <span class="m">1</span>]] <span class="o">&lt;-</span> x</span>
+<span class="cl">    <span class="kr">if</span> (<span class="nf">sqrt</span>(<span class="nf">sum</span>(g<span class="o">^</span><span class="m">2</span>)) <span class="o">&lt;</span> tol) <span class="kr">break</span></span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">list</span>(par <span class="o">=</span> x, iterations <span class="o">=</span> k, trace <span class="o">=</span> trace)</span>
+<span class="cl">}</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns a list with the final parameters, the number of iterations used, and a trace of every iterate so we can plot or inspect the path. The convergence test is <code>||g|| &lt; tol</code>, which fires when the gradient is essentially zero. Let's run it on a non-quadratic test problem, $f(x, y) = e^x - x + y^2$, which has a unique minimum at $(0, 0)$.</p>
+
+<div class="webr-container" data-block-title="Newton-Raphson on a non-quadratic function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Newton-Raphson on a non-quadratic function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">test_fn <span class="o">&lt;-</span> <span class="kr">function</span>(v) <span class="nf">exp</span>(v[<span class="m">1</span>]) <span class="o">-</span> v[<span class="m">1</span>] <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">fit <span class="o">&lt;-</span> <span class="nf">newton_raphson</span>(test_fn, <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl">fit<span class="o">$</span>par</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.137978e-15 0.000000e+00</span></span>
+<span class="cl">fit<span class="o">$</span>iterations</span>
+<span class="cl"><span class="c1">#&gt; [1] 6</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The optimizer converged to the true minimum in six iterations, and the final gradient norm is below $10^{-8}$. Because the function is not quadratic, Newton-Raphson does not finish in one step, but it still exhibits the famous <em>quadratic convergence</em> near the optimum: the number of correct digits roughly doubles per iteration.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pure Newton-Raphson with no damping can overshoot on non-convex functions.</strong> It assumes the local quadratic fit is a good global guide. When that assumption breaks, Newton can step out of the function's domain or into a worse region. We address this in the next section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>newton_raphson()</code> on $f(x, y) = (x - 1)^2 + (y - 2)^2 + (x - 1)(y - 2)$, starting from $(0, 0)$. Confirm it lands at $(1, 2)$.</p>
+<div class="webr-container" data-block-title="Your turn: run newton_raphson()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: run newton_raphson()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: minimize (x-1)^2 + (y-2)^2 + (x-1)(y-2) from (0, 0)</span></span>
+<span class="cl">ex_target <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">1</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">2</span>] <span class="o">-</span> <span class="m">2</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">1</span>)<span class="o">*</span>(v[<span class="m">2</span>] <span class="o">-</span> <span class="m">2</span>)</span>
+<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl"></span>
+<span class="cl">ex_fit<span class="o">$</span>par</span>
+<span class="cl"><span class="c1">#&gt; Expected: 1 2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: minimize a quadratic with cross-term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: minimize a quadratic with cross-term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_target <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">1</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">2</span>] <span class="o">-</span> <span class="m">2</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">1</span>] <span class="o">-</span> <span class="m">1</span>)<span class="o">*</span>(v[<span class="m">2</span>] <span class="o">-</span> <span class="m">2</span>)</span>
+<span class="cl">ex_fit <span class="o">&lt;-</span> <span class="nf">newton_raphson</span>(ex_target, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="nf">round</span>(ex_fit<span class="o">$</span>par, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1 2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function is quadratic, so Newton converges in a single step regardless of the starting point.</p>
+
+</details>
+</section>
+
+<h2>When does Newton-Raphson fail and what should you do?</h2>
+
+<p>Pure Newton-Raphson is fast when the quadratic approximation is good, but four failure modes wreck convergence in practice. The Hessian can be indefinite (mixed-sign eigenvalues) so the step heads toward a saddle, not a minimum. The Hessian can be nearly singular, producing huge garbage steps. The quadratic fit can be poor far from the optimum, so a full step lands somewhere worse than where you started. And in high dimensions, building the $n \times n$ Hessian becomes expensive enough that quasi-Newton methods are preferred. The decision tree below summarizes how to react.</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-failure-decision.webp" alt="Decision guide for handling Hessian failure modes during optimization." class="img-responsive img-zoomable" loading="lazy" width="1520" height="2040" /></p>
+
+<p><em>Figure 2: Decision guide for handling Hessian failure modes during optimization.</em></p>
+
+<p>Here is divergence in action. We minimize $f(x, y) = -\log(x) - \log(y) + x + y$, which has a unique minimum at $(1, 1)$ on the positive orthant. From the starting point $(3, 3)$, a full Newton step overshoots into negative territory where the logarithm is undefined.</p>
+
+<div class="webr-container" data-block-title="Pure Newton diverges out of the function&#x27;s domain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pure Newton diverges out of the function&#x27;s domain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">log_loss <span class="o">&lt;-</span> <span class="kr">function</span>(v) <span class="o">-</span><span class="nf">log</span>(v[<span class="m">1</span>]) <span class="o">-</span> <span class="nf">log</span>(v[<span class="m">2</span>]) <span class="o">+</span> v[<span class="m">1</span>] <span class="o">+</span> v[<span class="m">2</span>]</span>
+<span class="cl">x_div <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">3</span>, <span class="m">3</span>)</span>
+<span class="cl">g_div <span class="o">&lt;-</span> <span class="nf">grad</span>(log_loss, x_div)</span>
+<span class="cl">H_div <span class="o">&lt;-</span> <span class="nf">hessian</span>(log_loss, x_div)</span>
+<span class="cl">step_div <span class="o">&lt;-</span> <span class="nf">solve</span>(H_div, <span class="o">-</span>g_div)</span>
+<span class="cl">x_div <span class="o">+</span> step_div</span>
+<span class="cl"><span class="c1">#&gt; [1] -3 -3</span></span>
+<span class="cl"><span class="nf">log_loss</span>(x_div <span class="o">+</span> step_div)</span>
+<span class="cl"><span class="c1">#&gt; [1] NaN</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single Newton step lands at $(-3, -3)$, where the log of a negative number is <code>NaN</code>. The fix is <em>damping</em>: scale the step by a factor $\gamma \in (0, 1]$ that we shrink until the new point actually decreases the objective. This converts pure Newton into a globally convergent algorithm with the same fast local rate.</p>
+
+<div class="webr-container" data-block-title="Damped Newton-Raphson with backtracking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Damped Newton-Raphson with backtracking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">newton_damped <span class="o">&lt;-</span> <span class="kr">function</span>(f, x0, tol <span class="o">=</span> <span class="m">1e-8</span>, max_iter <span class="o">=</span> <span class="m">50</span>) {</span>
+<span class="cl">  x <span class="o">&lt;-</span> x0</span>
+<span class="cl">  <span class="kr">for</span> (k <span class="kr">in</span> <span class="nf">seq_len</span>(max_iter)) {</span>
+<span class="cl">    g <span class="o">&lt;-</span> <span class="nf">grad</span>(f, x)</span>
+<span class="cl">    H <span class="o">&lt;-</span> <span class="nf">hessian</span>(f, x)</span>
+<span class="cl">    step <span class="o">&lt;-</span> <span class="nf">solve</span>(H, <span class="o">-</span>g)</span>
+<span class="cl">    gamma <span class="o">&lt;-</span> <span class="m">1</span></span>
+<span class="cl">    <span class="kr">while</span> (<span class="o">!</span><span class="nf">is.finite</span>(<span class="nf">f</span>(x <span class="o">+</span> gamma <span class="o">*</span> step)) <span class="o">||</span> <span class="nf">f</span>(x <span class="o">+</span> gamma <span class="o">*</span> step) <span class="o">&gt;</span> <span class="nf">f</span>(x)) {</span>
+<span class="cl">      gamma <span class="o">&lt;-</span> gamma <span class="o">/</span> <span class="m">2</span></span>
+<span class="cl">      <span class="kr">if</span> (gamma <span class="o">&lt;</span> <span class="m">1e-10</span>) <span class="kr">break</span></span>
+<span class="cl">    }</span>
+<span class="cl">    x <span class="o">&lt;-</span> x <span class="o">+</span> gamma <span class="o">*</span> step</span>
+<span class="cl">    <span class="kr">if</span> (<span class="nf">sqrt</span>(<span class="nf">sum</span>(g<span class="o">^</span><span class="m">2</span>)) <span class="o">&lt;</span> tol) <span class="kr">break</span></span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">list</span>(par <span class="o">=</span> x, iterations <span class="o">=</span> k)</span>
+<span class="cl">}</span>
+<span class="cl">damped_fit <span class="o">&lt;-</span> <span class="nf">newton_damped</span>(log_loss, <span class="nf">c</span>(<span class="m">3</span>, <span class="m">3</span>))</span>
+<span class="cl"><span class="nf">round</span>(damped_fit<span class="o">$</span>par, <span class="m">6</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1 1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With backtracking, the same starting point now converges to $(1, 1)$ in a handful of iterations. When even damping is not enough, switch to a quasi-Newton method like BFGS, which approximates the Hessian from gradient differences and never requires the explicit second-derivative matrix. R's built-in <code>optim()</code> ships with BFGS and is a solid first stop for any unconstrained problem.</p>
+
+<div class="webr-container" data-block-title="optim() BFGS as a fallback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">optim() BFGS as a fallback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">bfgs_fit <span class="o">&lt;-</span> <span class="nf">optim</span>(<span class="nf">c</span>(<span class="m">3</span>, <span class="m">3</span>), log_loss, method <span class="o">=</span> <span class="s">&quot;BFGS&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(bfgs_fit<span class="o">$</span>par, <span class="m">6</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1 1</span></span>
+<span class="cl">bfgs_fit<span class="o">$</span>convergence</span>
+<span class="cl"><span class="c1">#&gt; [1] 0</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>optim()</code> returned the same minimum without any Hessian computation. For most problems, BFGS is more robust than pure Newton because it implicitly damps via its line search, and L-BFGS scales to thousands of parameters without storing a dense $n \times n$ matrix.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A nearly singular Hessian gives huge, garbage steps.</strong> Always check <code>kappa(H)</code> before trusting a Newton step. If the condition number exceeds about $10^{10}$, regularize with <code>H + lambda * diag(n)</code> (Levenberg-Marquardt style) before solving, or switch to BFGS.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a damping check to <code>newton_raphson()</code> so it accepts the step only when $f$ decreases, halving $\gamma$ otherwise. Test it on <code>log_loss</code> from $(5, 5)$.</p>
+<div class="webr-container" data-block-title="Your turn: add damping to newton_raphson()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add damping to newton_raphson()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Try it: copy newton_raphson, add a backtracking line search, run on log_loss</span></span>
+<span class="cl">ex_newton_safe <span class="o">&lt;-</span> <span class="kr">function</span>(f, x0, tol <span class="o">=</span> <span class="m">1e-8</span>, max_iter <span class="o">=</span> <span class="m">50</span>) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl">ex_safe_fit <span class="o">&lt;-</span> <span class="nf">ex_newton_safe</span>(log_loss, <span class="nf">c</span>(<span class="m">5</span>, <span class="m">5</span>))</span>
+<span class="cl"><span class="nf">round</span>(ex_safe_fit<span class="o">$</span>par, <span class="m">6</span>)</span>
+<span class="cl"><span class="c1">#&gt; Expected: 1 1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution: damped Newton on log_loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution: damped Newton on log_loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_newton_safe <span class="o">&lt;-</span> <span class="kr">function</span>(f, x0, tol <span class="o">=</span> <span class="m">1e-8</span>, max_iter <span class="o">=</span> <span class="m">50</span>) {</span>
+<span class="cl">  x <span class="o">&lt;-</span> x0</span>
+<span class="cl">  <span class="kr">for</span> (k <span class="kr">in</span> <span class="nf">seq_len</span>(max_iter)) {</span>
+<span class="cl">    g <span class="o">&lt;-</span> <span class="nf">grad</span>(f, x)</span>
+<span class="cl">    H <span class="o">&lt;-</span> <span class="nf">hessian</span>(f, x)</span>
+<span class="cl">    step <span class="o">&lt;-</span> <span class="nf">solve</span>(H, <span class="o">-</span>g)</span>
+<span class="cl">    gamma <span class="o">&lt;-</span> <span class="m">1</span></span>
+<span class="cl">    <span class="kr">while</span> (<span class="o">!</span><span class="nf">is.finite</span>(<span class="nf">f</span>(x <span class="o">+</span> gamma <span class="o">*</span> step)) <span class="o">||</span> <span class="nf">f</span>(x <span class="o">+</span> gamma <span class="o">*</span> step) <span class="o">&gt;</span> <span class="nf">f</span>(x)) {</span>
+<span class="cl">      gamma <span class="o">&lt;-</span> gamma <span class="o">/</span> <span class="m">2</span></span>
+<span class="cl">      <span class="kr">if</span> (gamma <span class="o">&lt;</span> <span class="m">1e-10</span>) <span class="kr">break</span></span>
+<span class="cl">    }</span>
+<span class="cl">    x <span class="o">&lt;-</span> x <span class="o">+</span> gamma <span class="o">*</span> step</span>
+<span class="cl">    <span class="kr">if</span> (<span class="nf">sqrt</span>(<span class="nf">sum</span>(g<span class="o">^</span><span class="m">2</span>)) <span class="o">&lt;</span> tol) <span class="kr">break</span></span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">list</span>(par <span class="o">=</span> x, iterations <span class="o">=</span> k)</span>
+<span class="cl">}</span>
+<span class="cl">ex_safe_fit <span class="o">&lt;-</span> <span class="nf">ex_newton_safe</span>(log_loss, <span class="nf">c</span>(<span class="m">5</span>, <span class="m">5</span>))</span>
+<span class="cl"><span class="nf">round</span>(ex_safe_fit<span class="o">$</span>par, <span class="m">6</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 1 1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The line-search loop shrinks $\gamma$ until the candidate point is in the domain and improves the objective, which makes the algorithm globally convergent.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These three problems weave the concepts together. Use distinct variable names so they don't collide with the tutorial code that came before.</p>
+
+<h3>Exercise 1: Find a non-trivial minimum with newton_raphson()</h3>
+
+<p>Minimize $f(x, y) = (x^2 + y - 11)^2 + (x + y^2 - 7)^2$ (the Himmelblau function) starting from $(0, 0)$. Compare the result to <code>optim(method = &quot;BFGS&quot;)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: Himmelblau minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Himmelblau minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: Himmelblau has four local minima; you should find one of them.</span></span>
+<span class="cl">my_himmel <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">2</span>] <span class="o">-</span> <span class="m">11</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">1</span>] <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> <span class="m">7</span>)<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">my_newton_fit <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl">my_bfgs_fit  <span class="o">&lt;-</span> <span class="c1"># your code here</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution: Himmelblau minimum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution: Himmelblau minimum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_himmel <span class="o">&lt;-</span> <span class="kr">function</span>(v) (v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">2</span>] <span class="o">-</span> <span class="m">11</span>)<span class="o">^</span><span class="m">2</span> <span class="o">+</span> (v[<span class="m">1</span>] <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> <span class="m">7</span>)<span class="o">^</span><span class="m">2</span></span>
+<span class="cl">my_newton_fit <span class="o">&lt;-</span> <span class="nf">newton_damped</span>(my_himmel, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl">my_bfgs_fit  <span class="o">&lt;-</span> <span class="nf">optim</span>(<span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>), my_himmel, method <span class="o">=</span> <span class="s">&quot;BFGS&quot;</span>)</span>
+<span class="cl"><span class="nf">round</span>(my_newton_fit<span class="o">$</span>par, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 3 2</span></span>
+<span class="cl"><span class="nf">round</span>(my_bfgs_fit<span class="o">$</span>par, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 3 2</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Both methods land at the same Himmelblau minimum near $(3, 2)$. Different starting points converge to different local minima; that is a Himmelblau feature, not a bug.</p>
+
+</details>
+
+<h3>Exercise 2: Fit logistic regression by hand and verify against glm()</h3>
+
+<p>Build a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> on <code>mtcars</code>, predicting <code>am</code> from <code>mpg</code> and <code>hp</code>. Write the <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a>, run <code>newton_damped()</code> from a zero starting vector, and compare your coefficients to <code>glm()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: hand-built logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: hand-built logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Hint: NLL = -sum(y * log(p) + (1 - y) * log(1 - p)) with p = 1 / (1 + exp(-X %*% beta))</span></span>
+<span class="cl">my_X <span class="o">&lt;-</span> <span class="nf">cbind</span>(<span class="m">1</span>, mtcars<span class="o">$</span>mpg, mtcars<span class="o">$</span>hp)</span>
+<span class="cl">my_y <span class="o">&lt;-</span> mtcars<span class="o">$</span>am</span>
+<span class="cl">my_nll <span class="o">&lt;-</span> <span class="kr">function</span>(beta) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl">my_logit_fit <span class="o">&lt;-</span> <span class="c1"># your code here</span></span>
+<span class="cl">my_glm_fit  <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> mpg <span class="o">+</span> hp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution: logistic regression by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution: logistic regression by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">my_X <span class="o">&lt;-</span> <span class="nf">cbind</span>(<span class="m">1</span>, mtcars<span class="o">$</span>mpg, mtcars<span class="o">$</span>hp)</span>
+<span class="cl">my_y <span class="o">&lt;-</span> mtcars<span class="o">$</span>am</span>
+<span class="cl">my_nll <span class="o">&lt;-</span> <span class="kr">function</span>(beta) {</span>
+<span class="cl">  eta <span class="o">&lt;-</span> <span class="nf">as.numeric</span>(my_X <span class="o">%*%</span> beta)</span>
+<span class="cl">  <span class="o">-</span><span class="nf">sum</span>(my_y <span class="o">*</span> eta <span class="o">-</span> <span class="nf">log1p</span>(<span class="nf">exp</span>(eta)))</span>
+<span class="cl">}</span>
+<span class="cl">my_logit_fit <span class="o">&lt;-</span> <span class="nf">newton_damped</span>(my_nll, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>, <span class="m">0</span>), max_iter <span class="o">=</span> <span class="m">100</span>)</span>
+<span class="cl">my_glm_fit  <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> mpg <span class="o">+</span> hp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
+<span class="cl"><span class="nf">round</span>(my_logit_fit<span class="o">$</span>par, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] -33.6052   1.2596   0.0550</span></span>
+<span class="cl"><span class="nf">round</span>(<span class="nf">coef</span>(my_glm_fit), <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; (Intercept)         mpg          hp</span></span>
+<span class="cl"><span class="c1">#&gt;    -33.6052      1.2596      0.0550</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The hand-built Newton-Raphson fit matches <code>glm()</code> to four decimals. <code>glm()</code> itself uses iteratively reweighted least squares, which is mathematically equivalent to Newton's method on the binomial NLL.</p>
+
+</details>
+
+<h3>Exercise 3: Classify any critical point from its Hessian</h3>
+
+<p>Write a function <code>inspect_critical_point(f, x)</code> that returns one of <code>&quot;minimum&quot;</code>, <code>&quot;maximum&quot;</code>, <code>&quot;saddle&quot;</code>, or <code>&quot;degenerate&quot;</code> based on the eigenvalues of the Hessian at <code>x</code>. A degenerate point has at least one eigenvalue with absolute value below $10^{-8}$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: classify critical points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: classify critical points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">inspect_critical_point <span class="o">&lt;-</span> <span class="kr">function</span>(f, x) {</span>
+<span class="cl">  <span class="c1"># your code here</span></span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">inspect_critical_point</span>(<span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; Expected: &quot;minimum&quot;</span></span>
+<span class="cl"><span class="nf">inspect_critical_point</span>(<span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; Expected: &quot;saddle&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution: critical-point classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution: critical-point classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">inspect_critical_point <span class="o">&lt;-</span> <span class="kr">function</span>(f, x) {</span>
+<span class="cl">  ev <span class="o">&lt;-</span> <span class="nf">eigen</span>(<span class="nf">hessian</span>(f, x))<span class="o">$</span>values</span>
+<span class="cl">  <span class="kr">if</span> (<span class="nf">any</span>(<span class="nf">abs</span>(ev) <span class="o">&lt;</span> <span class="m">1e-8</span>)) <span class="kr">return</span>(<span class="s">&quot;degenerate&quot;</span>)</span>
+<span class="cl">  <span class="kr">if</span> (<span class="nf">all</span>(ev <span class="o">&gt;</span> <span class="m">0</span>)) <span class="kr">return</span>(<span class="s">&quot;minimum&quot;</span>)</span>
+<span class="cl">  <span class="kr">if</span> (<span class="nf">all</span>(ev <span class="o">&lt;</span> <span class="m">0</span>)) <span class="kr">return</span>(<span class="s">&quot;maximum&quot;</span>)</span>
+<span class="cl">  <span class="s">&quot;saddle&quot;</span></span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">inspect_critical_point</span>(<span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">+</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;minimum&quot;</span></span>
+<span class="cl"><span class="nf">inspect_critical_point</span>(<span class="kr">function</span>(v) v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;saddle&quot;</span></span>
+<span class="cl"><span class="nf">inspect_critical_point</span>(<span class="kr">function</span>(v) <span class="o">-</span>v[<span class="m">1</span>]<span class="o">^</span><span class="m">2</span> <span class="o">-</span> v[<span class="m">2</span>]<span class="o">^</span><span class="m">2</span>, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] &quot;maximum&quot;</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All-positive eigenvalues mean a positive-definite Hessian and a local minimum. All-negative gives a maximum. Mixed signs indicate a saddle. Tiny eigenvalues mean the second-order test is inconclusive and you need higher-order information.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Below we tie the entire pipeline together: define a real loss function (logistic regression NLL on <code>mtcars</code>), fit it with our from-scratch damped Newton-Raphson, and verify against R's industrial-strength <code>glm()</code>. This is the same workflow that powers maximum-likelihood estimators across statistics, from logistic regression to Cox models.</p>
+
+<div class="webr-container" data-block-title="End-to-end Newton-Raphson on logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end Newton-Raphson on logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Build design matrix and response</span></span>
+<span class="cl">X_full <span class="o">&lt;-</span> <span class="nf">cbind</span>(<span class="m">1</span>, mtcars<span class="o">$</span>mpg, mtcars<span class="o">$</span>hp)</span>
+<span class="cl">y_full <span class="o">&lt;-</span> mtcars<span class="o">$</span>am</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 2. Define the negative log-likelihood</span></span>
+<span class="cl">nll_full <span class="o">&lt;-</span> <span class="kr">function</span>(beta) {</span>
+<span class="cl">  eta <span class="o">&lt;-</span> <span class="nf">as.numeric</span>(X_full <span class="o">%*%</span> beta)</span>
+<span class="cl">  <span class="o">-</span><span class="nf">sum</span>(y_full <span class="o">*</span> eta <span class="o">-</span> <span class="nf">log1p</span>(<span class="nf">exp</span>(eta)))</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 3. Fit with our damped Newton-Raphson</span></span>
+<span class="cl">fit_newton <span class="o">&lt;-</span> <span class="nf">newton_damped</span>(nll_full, <span class="nf">c</span>(<span class="m">0</span>, <span class="m">0</span>, <span class="m">0</span>), max_iter <span class="o">=</span> <span class="m">100</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 4. Compare against glm()</span></span>
+<span class="cl">fit_glm <span class="o">&lt;-</span> <span class="nf">glm</span>(am <span class="o">~</span> mpg <span class="o">+</span> hp, data <span class="o">=</span> mtcars, family <span class="o">=</span> binomial)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">cbind</span>(newton <span class="o">=</span> <span class="nf">round</span>(fit_newton<span class="o">$</span>par, <span class="m">4</span>),</span>
+<span class="cl">      glm    <span class="o">=</span> <span class="nf">round</span>(<span class="nf">coef</span>(fit_glm), <span class="m">4</span>))</span>
+<span class="cl"><span class="c1">#&gt;             newton      glm</span></span>
+<span class="cl"><span class="c1">#&gt; (Intercept) -33.6052 -33.6052</span></span>
+<span class="cl"><span class="c1">#&gt; mpg           1.2596   1.2596</span></span>
+<span class="cl"><span class="c1">#&gt; hp            0.0550   0.0550</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns agree to four decimals. The Hessian of the binomial NLL has the closed form $X^\top W X$ with $W = \mathrm{diag}(p_i (1 - p_i))$, which is why this loss is convex and Newton converges so cleanly. The same matrix-derivative recipe extends to <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a>, <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial regression</a>, and any generalized linear model with a canonical link.</p>
+
+<h2>Summary</h2>
+
+<p>The mental model: gradient is the first-order shape (uphill direction), Hessian is the second-order shape (curvature), Newton-Raphson uses both to leap to the minimum of a local quadratic fit.</p>
+
+<p><img src="screenshots/Matrix-Derivatives-and-the-Hessian-in-R-overview-mindmap.webp" alt="Overview of matrix derivatives and Newton-Raphson in R." class="img-responsive img-zoomable" loading="lazy" width="1578" height="932" /></p>
+
+<p><em>Figure 3: Overview of matrix derivatives and Newton-Raphson in R.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>What it is</th>
+<th>R tool</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gradient</td>
+<td>Vector of first partial derivatives, $\nabla f$</td>
+<td><code>numDeriv::grad()</code>, <code>deriv()</code></td>
+</tr>
+<tr>
+<td>Hessian</td>
+<td>Matrix of second partial derivatives, $H$</td>
+<td><code>numDeriv::hessian()</code>, <code>deriv(..., hessian = TRUE)</code></td>
+</tr>
+<tr>
+<td>Critical-point test</td>
+<td>Eigenvalues of $H$</td>
+<td><code>eigen(H)$values</code></td>
+</tr>
+<tr>
+<td>Newton step</td>
+<td>$\mathbf{x}_{k+1} = \mathbf{x}_k - H^{-1} \nabla f$</td>
+<td><code>solve(H, -g)</code></td>
+</tr>
+<tr>
+<td>Damped Newton</td>
+<td>Scale step by $\gamma$ until $f$ decreases</td>
+<td>Backtracking line search</td>
+</tr>
+<tr>
+<td>Quasi-Newton fallback</td>
+<td>BFGS approximates $H$ from gradients</td>
+<td><code>optim(method = &quot;BFGS&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>deriv()</code> when you have a formula, <code>numDeriv</code> for closures and black-box losses, pure Newton-Raphson when the Hessian is well-conditioned and the start is close, damped Newton when you might overshoot, and BFGS when you don't want to compute the Hessian at all.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>Symbolic and Algorithmic Derivatives of Simple Expressions</em> (<code>?deriv</code> documentation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/deriv.html">Link</a></li>
+
+<li>Gilbert, P. and Varadhan, R. <em>numDeriv: Accurate Numerical Derivatives</em> (CRAN package). <a href="https://cran.r-project.org/package=numDeriv">Link</a></li>
+
+<li>Nocedal, J. and Wright, S. <em>Numerical Optimization</em>, 2nd Edition. Springer (2006). Chapters 3 and 6 on Newton's method and quasi-Newton methods.</li>
+
+<li>Wikipedia. <em>Newton's method in optimization</em>. <a href="https://en.wikipedia.org/wiki/Newton%27s_method_in_optimization">Link</a></li>
+
+<li>Peng, R. <em>Advanced Statistical Computing</em>, "The Newton Direction." <a href="https://bookdown.org/rdpeng/advstatcomp/the-newton-direction.html">Link</a></li>
+
+<li>R Core Team. <em>General-purpose Optimization</em> (<code>?optim</code> documentation). <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/optim.html">Link</a></li>
+
+<li>Givens, G. H. and Hoeting, J. A. <em>Computational Statistics</em>, 2nd Edition. Wiley (2013). Chapter on optimization.</li>
+
+<li>Tibshirani, R. <em>Newton's Method</em> (Convex Optimization lecture notes, CMU 10-725). <a href="https://www.stat.cmu.edu/~ryantibs/convexopt-S15/lectures/14-newton.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Maximum-Likelihood-Estimation-in-R.html">Maximum Likelihood Estimation in R</a>, the most common Newton-Raphson use case in statistics, with <code>optim()</code> and <code>mle()</code> recipes.</li>
+
+<li><a href="Eigenvalues-and-Eigenvectors-in-R.html">Eigenvalues and Eigenvectors in R</a>, covering the <code>eigen()</code> test we used to classify critical points in depth.</li>
+
+<li><a href="Solving-Linear-Systems-in-R.html">Solving Linear Systems in R</a>, covering what <code>solve(H, -g)</code> is doing under the hood, including LU decomposition and condition numbers.</li>
+
+</ul>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script defer src="www/toc.min.js?h=3bbf0dbf"></script>
+  <!-- MathJax Script -->
+  
+  <script type="text/x-mathjax-config">
+    MathJax.Hub.Config({
+      tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+    });
+  </script>
+  <script type="text/javascript" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+  </script>
+
+  <!-- WebR Interactive Code -->
+    <script defer src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script defer src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script defer src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
