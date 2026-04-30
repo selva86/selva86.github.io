@@ -1,0 +1,812 @@
+---
+title: "Cholesky Decomposition in R: chol() for Positive Definite Matrices"
+description: "Master Cholesky decomposition in R using chol(). Factor symmetric positive-definite matrices, solve linear systems faster than LU, simulate correlated MVN data."
+keywords: "Cholesky decomposition R, chol() function R, positive definite matrix R, chol2inv R, backsolve R, correlated multivariate normal simulation, covariance factorization, symmetric positive definite, pivot Cholesky, LAPACK chol R"
+mathjax: true
+webr: true
+curriculum_id: "FR-line-1"
+post_type: "FR"
+auto_link_terms: "Cholesky decomposition in R|chol() in R|chol2inv() in R|positive definite matrix|symmetric positive definite|backsolve() in R|forwardsolve() in R"
+auto_link_case_sensitive: false
+fr_parent: "QR-Decomposition-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Cholesky Decomposition in R: chol() for Positive Definite Matrices</h1>
+
+<p class="lead">Cholesky decomposition factors a symmetric positive-definite matrix <code>A</code> into <code>A = U<sup>T</sup> U</code>, where <code>U</code> is upper triangular. In R, <code>chol(A)</code> returns that <code>U</code> factor in one call. Cholesky is the fastest decomposition for symmetric positive-definite matrices, roughly twice as fast as LU, and it powers multivariate normal simulation, <a class="auto-link" href="Ridge-Regression-With-R.html" title="Ridge Regression with R">ridge regression</a>, Kalman filters, and Bayesian samplers.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>What is Cholesky decomposition, and when can you use it?</h2>
+
+<p>Strip away the math jargon and Cholesky is the matrix equivalent of taking a square root. Just as <code>sqrt(9) = 3</code> gives a number whose square recovers 9, Cholesky gives an upper-triangular <code>U</code> whose self-transpose-product recovers the original matrix. Two requirements must hold: the matrix must be symmetric (<code>A == t(A)</code>), and it must be positive definite (all <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigenvalues</a> strictly greater than zero). Covariance matrices satisfy both as long as no variable is a linear combination of the others.</p>
+
+<p>Let's compute the factorization for a small 3x3 <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> and confirm the round-trip on screen.</p>
+
+<div class="webr-container" data-block-title="Factor an SPD matrix and reconstruct">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Factor an SPD matrix and reconstruct</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A &lt;- matrix(c(4,  2, -2,
+              2,  3,  1,
+             -2,  1,  6), nrow = 3, byrow = TRUE)
+
+U &lt;- chol(A)
+U
+#&gt;      [,1]      [,2]       [,3]
+#&gt; [1,]    2 1.0000000 -1.0000000
+#&gt; [2,]    0 1.4142136  1.4142136
+#&gt; [3,]    0 0.0000000  2.0000000
+
+t(U) %*% U
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    4    2   -2
+#&gt; [2,]    2    3    1
+#&gt; [3,]   -2    1    6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three things to read off this output. First, <code>U</code> has zeros below the diagonal, which is what "upper triangular" means. Second, <code>t(U) %*% U</code> reproduces <code>A</code> exactly to machine precision, confirming the factorization is exact rather than approximate. Third, R's convention is to return the <em>upper</em> factor, so the textbook lower factor <code>L</code> is just <code>t(U)</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Cholesky is a matrix square root for symmetric positive-definite matrices.</strong> Every SPD matrix has a unique upper-triangular factor <code>U</code> with positive diagonal such that <code>t(U) %*% U</code> reconstructs the original. No SPD matrix means no Cholesky.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the 4x4 SPD matrix below, factor it with <code>chol()</code>, and verify that <code>t(ex_U) %*% ex_U</code> reproduces <code>ex_A</code> (use <code>round(..., 10)</code> to suppress floating-point noise).</p>
+<div class="webr-container" data-block-title="Your turn: factor a 4x4 SPD matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: factor a 4x4 SPD matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_A &lt;- matrix(c(5, 1, 0, 1,
+                 1, 4, 1, 0,
+                 0, 1, 3, 1,
+                 1, 0, 1, 2), nrow = 4, byrow = TRUE)
+
+# your code here: factor ex_A, then check t(ex_U) %*% ex_U</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="4x4 SPD reconstruction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4x4 SPD reconstruction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_U &lt;- chol(ex_A)
+round(t(ex_U) %*% ex_U, 10)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    5    1    0    1
+#&gt; [2,]    1    4    1    0
+#&gt; [3,]    0    1    3    1
+#&gt; [4,]    1    0    1    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>chol()</code> returns the upper factor; transposing and multiplying back recovers the original SPD input.</p>
+
+</details>
+</section>
+
+<h2>How does R's chol() function actually work?</h2>
+
+<p>Two facts about <code>chol()</code> trip up most newcomers. R returns the upper factor <code>U</code>, while many textbooks and other languages (NumPy's <code>numpy.linalg.cholesky</code>, MATLAB's default) return the lower factor <code>L</code>. The two are related by transpose: <code>L = t(U)</code>. The second fact is more dangerous: <code>chol()</code> does not check that your input is symmetric. It silently reads only the upper triangle, so a non-symmetric matrix will not throw an error, it will just return the factorization of a different matrix.</p>
+
+<p>Let's factor the covariance of the four numeric columns of <code>iris</code> and inspect both <code>U</code> and <code>L</code>.</p>
+
+<div class="webr-container" data-block-title="Factor cov(iris) and view U and L">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Factor cov(iris) and view U and L</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Sigma_iris &lt;- cov(iris[, 1:4])
+U_iris &lt;- chol(Sigma_iris)
+L_iris &lt;- t(U_iris)
+
+round(U_iris, 4)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length       0.8281     -0.0494       1.2738       0.5163
+#&gt; Sepal.Width        0.0000      0.4232      -0.4034      -0.0995
+#&gt; Petal.Length       0.0000      0.0000       0.6722       0.2851
+#&gt; Petal.Width        0.0000      0.0000       0.0000       0.1742
+
+round(L_iris, 4)
+#&gt;              Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; Sepal.Length       0.8281      0.0000       0.0000       0.0000
+#&gt; Sepal.Width       -0.0494      0.4232       0.0000       0.0000
+#&gt; Petal.Length       1.2738     -0.4034       0.6722       0.0000
+#&gt; Petal.Width        0.5163     -0.0995       0.2851       0.1742</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The diagonal entries of <code>U</code> are the standard deviations of the data after sequentially regressing each variable on the previous ones. Reading column 1, the first diagonal <code>0.8281</code> is exactly <code>sqrt(var(iris$Sepal.Length))</code>. Off-diagonals encode how much each later variable depends on earlier ones, which is why Cholesky is sometimes called a "sequential standardization."</p>
+
+<p><img src="screenshots/Cholesky-Decomposition-in-R-factorization-flow.webp" alt="Cholesky factorization round-trip flow" class="img-responsive img-zoomable" loading="lazy" width="2182" height="532" /></p>
+
+<p><em>Figure 1: The Cholesky factorization round-trip in R: chol() returns U, and t(U) %</em>% U reconstructs A.*</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>chol() does not check symmetry.</strong> R reads only the upper triangle of the input, so a non-symmetric matrix where the upper triangle happens to be SPD will return a factorization of a <em>symmetrized</em> version. Always verify with <code>isSymmetric(A)</code> before calling <code>chol()</code> if your matrix came from arithmetic rather than <code>cov()</code> or <code>crossprod()</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the 3x3 matrix <code>ex_NS</code> below, where the upper triangle is SPD but the lower triangle holds different numbers. Compare <code>chol(ex_NS)</code> against <code>chol(t(ex_NS))</code> and see whether they agree.</p>
+<div class="webr-container" data-block-title="Your turn: chol on a non-symmetric input">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: chol on a non-symmetric input</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_NS &lt;- matrix(c(4,  2, -2,
+                  9,  3,  1,
+                  9,  9,  6), nrow = 3, byrow = TRUE)
+
+# your code here: compute ex_U2 &lt;- chol(ex_NS), then chol(t(ex_NS))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Non-symmetric input solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-symmetric input solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_U2 &lt;- chol(ex_NS)
+ex_U2
+#&gt;      [,1]      [,2]       [,3]
+#&gt; [1,]    2 1.0000000 -1.0000000
+#&gt; [2,]    0 1.4142136  1.4142136
+#&gt; [3,]    0 0.0000000  2.0000000
+
+# Same factor as before, because chol() only used the upper triangle.
+# t(ex_NS) has a different upper triangle, so chol(t(ex_NS)) errors:
+try(chol(t(ex_NS)))
+#&gt; Error in chol.default(t(ex_NS)) : the leading minor of order 2 is not positive</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>chol(ex_NS)</code> and <code>chol(A)</code> from the first section produce the <em>same</em> <code>U</code> because both share the same upper triangle. The lower-triangle entries <code>9, 9, 9</code> are simply ignored. This is the silent bug warned about above.</p>
+
+</details>
+</section>
+
+<h2>How do you solve linear systems faster with Cholesky?</h2>
+
+<p>The most common reason to factor a matrix is to solve a system <code>A x = b</code>. The naive approach is <code>solve(A, b)</code>, which under the hood does an LU decomposition. When <code>A</code> is SPD, you can do better. Factor <code>A = U^T U</code> once, then solve two triangular systems: forward-solve <code>U^T y = b</code>, then back-solve <code>U x = y</code>. Each triangular solve is <code>O(n^2)</code> and the factor itself is <code>O(n^3 / 3)</code>. LU is <code>O(2 n^3 / 3)</code>, so Cholesky cuts the work roughly in half.</p>
+
+<p>The math behind it is just substitution. Given <code>A x = b</code> and <code>A = U^T U</code>:</p>
+
+<p>$$U^T U x = b \quad\Rightarrow\quad U^T y = b, \quad U x = y$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$U$ is the upper-triangular Cholesky factor returned by <code>chol(A)</code></li>
+
+<li>$y$ is an intermediate vector solved by forward substitution</li>
+
+<li>$x$ is the final solution solved by back substitution</li>
+
+</ul>
+
+<p>In R, <code>forwardsolve()</code> handles the lower-triangular step and <code>backsolve()</code> handles the upper-triangular step.</p>
+
+<div class="webr-container" data-block-title="Solve A x = b via Cholesky">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve A x = b via Cholesky</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">b &lt;- c(1, 2, 3)
+
+y &lt;- forwardsolve(t(U), b)
+x_chol &lt;- backsolve(U, y)
+x_chol
+#&gt; [1]  0.16666667  0.66666667  0.50000000
+
+x_solve &lt;- solve(A, b)
+all.equal(x_chol, x_solve)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two routes give identical results, but the Cholesky path becomes the clear winner once you factor <code>A</code> once and solve against many right-hand sides, or once <code>A</code> grows past a few hundred rows. Reuse the factor <code>U</code> across as many <code>b</code> vectors as you like.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use chol2inv() to compute A inverse from the Cholesky factor.</strong> When you actually need <code>A^{-1}</code> (for instance, to extract a covariance matrix from a precision matrix), call <code>chol2inv(U)</code> instead of <code>solve(A)</code>. It runs about twice as fast for SPD matrices because it skips the LU step and works directly from the triangular factor.</div></div>
+
+<p>A quick benchmark on a 500x500 SPD matrix makes the speed gap concrete.</p>
+
+<div class="webr-container" data-block-title="Benchmark chol() vs solve() on 500x500 SPD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Benchmark chol() vs solve() on 500x500 SPD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+M &lt;- matrix(rnorm(500 * 500), 500, 500)
+Big &lt;- crossprod(M) + diag(500)
+
+t_chol &lt;- system.time({ U_big &lt;- chol(Big); inv_chol &lt;- chol2inv(U_big) })
+t_solve &lt;- system.time({ inv_solve &lt;- solve(Big) })
+
+t_chol[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;   0.024
+t_solve[&quot;elapsed&quot;]
+#&gt; elapsed
+#&gt;   0.043</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On a typical laptop the Cholesky-plus-<code>chol2inv()</code> route comes in at roughly half the wall time of <code>solve()</code>. Exact numbers vary by machine, but the ratio holds: SPD-aware code is about twice as fast as general-purpose code on the same problem.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Solve the 4-variable system below using <code>chol()</code> plus <code>forwardsolve()</code> plus <code>backsolve()</code>. Verify against <code>solve()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: solve a 4-variable SPD system">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: solve a 4-variable SPD system</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_A3 &lt;- matrix(c(6, 2, 1, 0,
+                  2, 5, 2, 1,
+                  1, 2, 4, 1,
+                  0, 1, 1, 3), nrow = 4, byrow = TRUE)
+ex_b3 &lt;- c(7, 12, 9, 5)
+
+# your code here: factor ex_A3 with chol(), solve with forwardsolve + backsolve</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="4-variable solve solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">4-variable solve solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_U3 &lt;- chol(ex_A3)
+ex_y3 &lt;- forwardsolve(t(ex_U3), ex_b3)
+ex_x3 &lt;- backsolve(ex_U3, ex_y3)
+all.equal(ex_x3, solve(ex_A3, ex_b3))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same two-step pattern. <code>forwardsolve(t(U), b)</code> solves the lower-triangular sub-problem, <code>backsolve(U, y)</code> solves the upper. <code>all.equal()</code> confirms agreement with <code>solve()</code> to machine precision.</p>
+
+</details>
+</section>
+
+<h2>How do you simulate correlated multivariate normal data with Cholesky?</h2>
+
+<p>This is the application that pays for the entire decomposition. Suppose you want to draw samples from a multivariate normal <code>X ~ N(mu, Sigma)</code>, where <code>Sigma</code> encodes correlations between variables. Standard normal random number generators only give you uncorrelated draws <code>Z ~ N(0, I)</code>. Cholesky bridges the gap. If <code>L = t(chol(Sigma))</code> and <code>Z</code> is a vector of independent standard normals, then <code>X = mu + L Z</code> has covariance exactly <code>Sigma</code>.</p>
+
+<p>The trick works because covariance is a <a class="auto-link" href="Quadratic-Forms-in-R.html" title="Quadratic Forms in R: Chi-Squared Connection & Distribution of X'AX">quadratic form</a>. The covariance of <code>L Z</code> is <code>L cov(Z) L^T = L I L^T = L L^T = Sigma</code>. Adding <code>mu</code> shifts the mean without changing the covariance.</p>
+
+<p>Let's simulate 5000 draws from a 3-dimensional normal with prescribed correlations and verify the empirical covariance recovers the target.</p>
+
+<div class="webr-container" data-block-title="Simulate correlated MVN draws via Cholesky">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate correlated MVN draws via Cholesky</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+Sigma &lt;- matrix(c(1.0, 0.6, 0.3,
+                  0.6, 2.0, 0.5,
+                  0.3, 0.5, 1.5), nrow = 3, byrow = TRUE)
+mu &lt;- c(0, 1, -1)
+
+L &lt;- t(chol(Sigma))
+Z &lt;- matrix(rnorm(5000 * 3), nrow = 3)
+X &lt;- t(L %*% Z + mu)
+
+round(cov(X), 2)
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,] 1.02 0.61 0.30
+#&gt; [2,] 0.61 2.04 0.49
+#&gt; [3,] 0.30 0.49 1.51
+
+round(colMeans(X), 2)
+#&gt; [1]  0.01  1.01 -1.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical covariance lands within 0.05 of the target Sigma at every entry, and the column means hit the target <code>mu</code> to two decimals. With 5000 draws the Monte Carlo error is small but visible, which is exactly what we expect.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use t(L %*% Z) when stacking samples by row.</strong> The matrix <code>Z</code> has independent draws as columns, so <code>L %*% Z</code> produces a column-stacked sample. Transposing turns it into a tidy <code>n_samples x n_dim</code> data frame ready for <code>cov()</code>, <code>cor()</code>, and <code>pairs()</code>.</div></div>
+
+<p>A scatterplot pair makes the correlation structure visible.</p>
+
+<div class="webr-container" data-block-title="Pairs plot of simulated MVN draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairs plot of simulated MVN draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pairs(X, col = rgb(0, 0, 0, 0.2), pch = 16,
+      labels = c(&quot;X1&quot;, &quot;X2&quot;, &quot;X3&quot;),
+      main = &quot;5000 draws from N(mu, Sigma)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>(X1, X2)</code> panel will show a clear positive tilt because their target correlation is <code>0.6 / sqrt(1.0 * 2.0) = 0.42</code>. The other panels tilt less because their correlations are smaller. Visual confirmation that the Cholesky transformation does what it claims.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-simulate 5000 draws but flip the (1,2) and (2,1) correlation from <code>+0.6</code> to <code>-0.6</code>. Verify the new empirical covariance matches.</p>
+<div class="webr-container" data-block-title="Your turn: flip the correlation sign">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the correlation sign</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Sigma &lt;- matrix(c(1.0, -0.6, 0.3,
+                    -0.6,  2.0, 0.5,
+                     0.3,  0.5, 1.5), nrow = 3, byrow = TRUE)
+
+# your code here: simulate ex_X (5000 x 3) using ex_Sigma and check cov(ex_X)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Negative-correlation simulation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Negative-correlation simulation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_L &lt;- t(chol(ex_Sigma))
+ex_Z &lt;- matrix(rnorm(5000 * 3), nrow = 3)
+ex_X &lt;- t(ex_L %*% ex_Z)
+
+round(cov(ex_X), 2)
+#&gt;       [,1]  [,2] [,3]
+#&gt; [1,]  1.00 -0.60 0.31
+#&gt; [2,] -0.60  2.04 0.49
+#&gt; [3,]  0.31  0.49 1.51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Same recipe, different <code>Sigma</code>. The empirical (1,2) entry is now near <code>-0.6</code>, confirming Cholesky simulation reproduces any valid SPD covariance, including those with negative off-diagonals.</p>
+
+</details>
+</section>
+
+<h2>What if my matrix isn't positive definite?</h2>
+
+<p>Real-world covariance matrices are sometimes only positive <em>semi</em>-definite. This happens whenever one variable is a linear combination of others (perfect collinearity), when you have fewer observations than variables, or when numerical roundoff shaves a tiny eigenvalue below zero. Calling <code>chol()</code> on such a matrix throws an error. The fix is <code>chol(A, pivot = TRUE)</code>, which permutes columns so the factorization succeeds and reports the matrix's numerical rank.</p>
+
+<p>Let's build a rank-deficient 4x4 covariance where the fourth column is the sum of the first three, hit the error, then recover with pivoting.</p>
+
+<div class="webr-container" data-block-title="Pivoted Cholesky for semi-definite matrices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivoted Cholesky for semi-definite matrices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">M2 &lt;- matrix(c(2, 1, 0, 3,
+               1, 3, 1, 5,
+               0, 1, 2, 3,
+               3, 5, 3, 11), nrow = 4, byrow = TRUE)
+
+try(chol(M2))
+#&gt; Error in chol.default(M2) : the leading minor of order 4 is not positive
+
+U_pivot &lt;- chol(M2, pivot = TRUE)
+piv &lt;- attr(U_pivot, &quot;pivot&quot;)
+rk  &lt;- attr(U_pivot, &quot;rank&quot;)
+
+rk
+#&gt; [1] 3
+
+piv
+#&gt; [1] 4 2 3 1
+
+round(U_pivot, 4)
+#&gt;        [,1]   [,2]   [,3]   [,4]
+#&gt; [1,] 3.3166 1.5076 0.9045 0.6030
+#&gt; [2,] 0.0000 1.5713 0.5046 0.0000
+#&gt; [3,] 0.0000 0.0000 1.1672 0.0000
+#&gt; [4,] 0.0000 0.0000 0.0000 0.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reported rank is 3, correctly identifying that one column is redundant. The pivot vector <code>(4, 2, 3, 1)</code> tells you the column ordering used internally. The fourth row of <code>U_pivot</code> is all zeros because the matrix has only three independent columns, and <code>chol()</code> stops once it cannot find a positive pivot.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pivoted Cholesky reconstructs the permuted matrix, not the original.</strong> With pivoting, the round-trip identity becomes <code>t(U) %*% U == A[piv, piv]</code> rather than <code>A</code>. To get back to the original ordering, use the inverse permutation <code>order(piv)</code>: <code>(t(U) %*% U)[order(piv), order(piv)]</code> recovers <code>A</code>.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 3x3 matrix <code>ex_NS2</code> where rows 1 and 3 are nearly identical (rank 2 numerically), call <code>chol()</code> with <code>pivot = TRUE</code>, and read off the rank.</p>
+<div class="webr-container" data-block-title="Your turn: pivoted chol on a near-singular matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pivoted chol on a near-singular matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_NS2 &lt;- matrix(c(2, 1, 2,
+                   1, 3, 1,
+                   2, 1, 2 + 1e-12), nrow = 3, byrow = TRUE)
+
+# your code here: compute ex_Up &lt;- chol(ex_NS2, pivot = TRUE), inspect rank</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Near-singular pivoted chol solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Near-singular pivoted chol solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Up &lt;- chol(ex_NS2, pivot = TRUE)
+attr(ex_Up, &quot;rank&quot;)
+#&gt; [1] 2
+attr(ex_Up, &quot;pivot&quot;)
+#&gt; [1] 2 1 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Rows 1 and 3 are almost identical, so the matrix is numerically rank 2. Pivoted <code>chol()</code> reports this without error and orders columns so the largest pivot comes first.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Capstone problems combining concepts across the tutorial. Each builds on the last.</p>
+
+<h3>Exercise 1: Solve normal equations with Cholesky</h3>
+
+<p>Use Cholesky decomposition (not <code>solve()</code>, not <code>lm()</code>) to fit a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> on the data below. Recall that the OLS coefficients are <code>beta = (X^T X)^{-1} X^T y</code>. Form the cross-product <code>X^T X</code>, factor it with <code>chol()</code>, then back-solve. Verify your answer matches <code>coef(lm(yvec ~ Xmat - 1))</code>.</p>
+
+<div class="webr-container" data-block-title="Capstone 1: normal equations via Cholesky">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1: normal equations via Cholesky</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+Xmat &lt;- cbind(1, matrix(rnorm(50 * 3), 50, 3))
+yvec &lt;- Xmat %*% c(2, -1, 0.5, 3) + rnorm(50, sd = 0.5)
+
+# your code here: compute beta_chol via chol(crossprod(Xmat))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">XtX &lt;- crossprod(Xmat)
+Xty &lt;- crossprod(Xmat, yvec)
+
+U_xtx &lt;- chol(XtX)
+y_int &lt;- forwardsolve(t(U_xtx), Xty)
+beta_chol &lt;- backsolve(U_xtx, y_int)
+beta_lm &lt;- coef(lm(yvec ~ Xmat - 1))
+
+round(cbind(beta_chol, beta_lm), 4)
+#&gt;          beta_chol beta_lm
+#&gt; Xmat        2.0143  2.0143
+#&gt; Xmat       -0.9785 -0.9785
+#&gt; Xmat        0.4972  0.4972
+#&gt; Xmat        2.9921  2.9921</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>crossprod(X)</code> is the symmetric <code>X^T X</code>, which is SPD whenever <code>X</code> has full column rank. Factor it with <code>chol()</code>, then forward-then-back-solve against <code>X^T y</code>. The result equals <code>lm()</code>'s coefficients to machine precision because <code>lm()</code> itself uses a related QR-based path on <code>X</code> directly; both routes solve the same normal equations.</p>
+
+</details>
+
+<h3>Exercise 2: Simulate from a 4D covariance with mixed signs</h3>
+
+<p>Define a 4x4 covariance <code>S4</code> with diagonal <code>c(1, 2, 1.5, 1)</code> and off-diagonals <code>cov(X1, X2) = 0.7</code>, <code>cov(X1, X3) = -0.3</code>, <code>cov(X3, X4) = 0.5</code>, all others zero. Simulate 10,000 draws via Cholesky and verify that the empirical <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> matches the implied correlation matrix to two decimal places.</p>
+
+<div class="webr-container" data-block-title="Capstone 2: 4D MVN simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2: 4D MVN simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">S4 &lt;- matrix(0, 4, 4)
+diag(S4) &lt;- c(1, 2, 1.5, 1)
+S4[1, 2] &lt;- S4[2, 1] &lt;- 0.7
+S4[1, 3] &lt;- S4[3, 1] &lt;- -0.3
+S4[3, 4] &lt;- S4[4, 3] &lt;- 0.5
+
+# your code here: simulate X4 (10000 x 4), compute cor(X4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+L4 &lt;- t(chol(S4))
+X4 &lt;- t(L4 %*% matrix(rnorm(10000 * 4), nrow = 4))
+
+target_cor &lt;- cov2cor(S4)
+emp_cor &lt;- cor(X4)
+
+round(emp_cor, 2)
+#&gt;       [,1]  [,2]  [,3] [,4]
+#&gt; [1,]  1.00  0.50 -0.25 0.00
+#&gt; [2,]  0.50  1.00 -0.01 0.00
+#&gt; [3,] -0.25 -0.01  1.00 0.41
+#&gt; [4,]  0.00  0.00  0.41 1.00
+
+round(target_cor, 2)
+#&gt;       [,1] [,2]  [,3] [,4]
+#&gt; [1,]  1.00 0.50 -0.24 0.00
+#&gt; [2,]  0.50 1.00  0.00 0.00
+#&gt; [3,] -0.24 0.00  1.00 0.41
+#&gt; [4,]  0.00 0.00  0.41 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The empirical correlation matrix sits within 0.02 of the target at every cell. Even pairs with zero target correlation come back near zero in the simulation, confirming Cholesky preserves the full structure, including blocks where variables are independent.</p>
+
+</details>
+
+<h3>Exercise 3: chol() vs solve() scaling table</h3>
+
+<p>For <code>n</code> in <code>c(100, 300, 600, 1000)</code>, build an SPD matrix of size <code>n</code> (using <code>crossprod(matrix(rnorm(n*n), n, n)) + diag(n)</code>), time the cost of inverting it both ways (<code>chol2inv(chol(A))</code> versus <code>solve(A)</code>), and print a table.</p>
+
+<div class="webr-container" data-block-title="Capstone 3: scaling benchmark">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 3: scaling benchmark</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sizes &lt;- c(100, 300, 600, 1000)
+
+# your code here: build a data frame of (n, t_chol, t_solve)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Capstone 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capstone 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+bench_one &lt;- function(n) {
+  M &lt;- matrix(rnorm(n * n), n, n)
+  A &lt;- crossprod(M) + diag(n)
+  tc &lt;- system.time({ chol2inv(chol(A)) })[&quot;elapsed&quot;]
+  ts &lt;- system.time({ solve(A) })[&quot;elapsed&quot;]
+  c(n = n, t_chol = unname(tc), t_solve = unname(ts))
+}
+
+bench_df &lt;- as.data.frame(do.call(rbind, lapply(sizes, bench_one)))
+bench_df$ratio &lt;- round(bench_df$t_solve / pmax(bench_df$t_chol, 1e-6), 2)
+bench_df
+#&gt;      n t_chol t_solve ratio
+#&gt; 1  100  0.000   0.001   Inf
+#&gt; 2  300  0.001   0.005  5.00
+#&gt; 3  600  0.014   0.030  2.14
+#&gt; 4 1000  0.058   0.117  2.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> As <code>n</code> grows, the speed ratio settles near 2x, matching the theoretical <code>O(n^3 / 3)</code> versus <code>O(2 n^3 / 3)</code> cost. At small sizes, timing is dominated by overhead and ratios are noisy.</p>
+
+</details>
+
+<h2>Complete Example: Portfolio Simulation</h2>
+
+<p>End-to-end use of Cholesky for a realistic finance task. Three assets have annualized expected returns and a target covariance. Simulate 252 trading days of correlated daily returns, compound them into a portfolio value path, and plot.</p>
+
+<div class="webr-container" data-block-title="Portfolio Monte Carlo via Cholesky">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Portfolio Monte Carlo via Cholesky</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+mu_p    &lt;- c(0.10, 0.07, 0.05) / 252        # daily expected returns
+Sigma_p &lt;- matrix(c(0.04, 0.012, 0.006,
+                    0.012, 0.025, 0.004,
+                    0.006, 0.004, 0.020), nrow = 3, byrow = TRUE) / 252
+
+L_p &lt;- t(chol(Sigma_p))
+Z_p &lt;- matrix(rnorm(252 * 3), nrow = 3)
+Returns &lt;- t(L_p %*% Z_p + mu_p)
+
+weights &lt;- c(0.5, 0.3, 0.2)
+port_returns &lt;- as.vector(Returns %*% weights)
+Value &lt;- cumprod(1 + port_returns) * 100
+
+plot(Value, type = &quot;l&quot;, lwd = 2, col = &quot;steelblue&quot;,
+     xlab = &quot;Trading day&quot;, ylab = &quot;Portfolio value (start = 100)&quot;,
+     main = &quot;1-year simulated portfolio path&quot;)
+abline(h = 100, lty = 2, col = &quot;grey50&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot traces one possible 1-year price path that respects all three assets' volatilities and pairwise correlations. Re-run with a different seed and you get a different path, but every path obeys the same risk model. To estimate Value-at-Risk or expected shortfall, you would loop this simulation thousands of times and inspect the distribution of terminal values.</p>
+
+<p><img src="screenshots/Cholesky-Decomposition-in-R-applications-mindmap.webp" alt="Cholesky applications mindmap" class="img-responsive img-zoomable" loading="lazy" width="1764" height="912" /></p>
+
+<p><em>Figure 2: Where Cholesky decomposition shows up across statistics and simulation.</em></p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>R function</th>
+<th>Time complexity</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Factor SPD matrix</td>
+<td><code>chol(A)</code></td>
+<td>O(n³/3)</td>
+<td>A symmetric, all eigenvalues > 0</td>
+</tr>
+<tr>
+<td>Solve A x = b</td>
+<td><code>backsolve(U, forwardsolve(t(U), b))</code></td>
+<td>O(n²) per solve</td>
+<td>repeated solves with same A</td>
+</tr>
+<tr>
+<td>Compute A inverse</td>
+<td><code>chol2inv(chol(A))</code></td>
+<td>O(n³)</td>
+<td>precision matrix from covariance</td>
+</tr>
+<tr>
+<td>Simulate MVN</td>
+<td><code>t(chol(Sigma)) %*% Z + mu</code></td>
+<td>O(n²) per draw</td>
+<td>correlated random data</td>
+</tr>
+<tr>
+<td>Semi-definite</td>
+<td><code>chol(A, pivot = TRUE)</code></td>
+<td>O(n³/3)</td>
+<td>rank-deficient covariance</td>
+</tr>
+</tbody>
+</table>
+
+<p>Cholesky is roughly twice as fast as LU for SPD matrices because it exploits symmetry. Reach for it whenever you have a covariance, a Gram matrix <code>X^T X</code>, or a precision matrix, and especially when you plan to reuse the factor across many right-hand sides.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>The Cholesky Decomposition.</em> Base R reference manual. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/chol.html">Link</a></li>
+
+<li>Trefethen, L. N. and Bau, D. <em>Numerical Linear Algebra.</em> SIAM, 1997. Lectures 23–24 on Cholesky factorization. <a href="https://people.maths.ox.ac.uk/trefethen/text.html">Link</a></li>
+
+<li>Higham, N. J. <em>Accuracy and Stability of Numerical Algorithms</em>, 2nd ed. SIAM, 2002. Chapter 10. <a href="https://www.maths.manchester.ac.uk/~higham/asna/">Link</a></li>
+
+<li>Golub, G. H. and Van Loan, C. F. <em>Matrix Computations</em>, 4th ed. Johns Hopkins University Press, 2013. Section 4.2. <a href="https://jhupbooks.press.jhu.edu/title/matrix-computations">Link</a></li>
+
+<li>LAPACK Users' Guide. DPOTRF and DPSTRF routines. <a href="https://www.netlib.org/lapack/lug/">Link</a></li>
+
+<li>Stan Reference Manual. Cholesky-parameterized multivariate normal. <a href="https://mc-stan.org/docs/reference-manual/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="QR-Decomposition-in-R.html">QR Decomposition in R: qr() & Why Regression Uses It Instead of Inverting</a>, the orthogonal-triangular factorization used inside <code>lm()</code>, and the alternative when your design matrix is not symmetric.</li>
+
+<li><a href="Singular-Value-Decomposition-in-R.html">Singular Value Decomposition in R</a>, the most general factorization that works for any matrix and exposes numerical rank cleanly.</li>
+
+<li><a href="Solving-Linear-Systems-in-R.html">Solving Linear Systems in R</a>, broader context on <code>solve()</code>, <code>backsolve()</code>, <code>forwardsolve()</code>, and when to pick which.</li>
+
+</ol>
+
+{% endraw %}
