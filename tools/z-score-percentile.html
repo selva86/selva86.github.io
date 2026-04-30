@@ -423,9 +423,9 @@ const MODES = [
 let activeMode = 'rawZ';
 
 const state = {
-  rawZ:    {x:1280, mu:1050, sigma:200},
+  rawZ:    {x:1280, mu:1050, sigma:200, n:1},
   zPct:    {z:1.96},
-  pctZ:    {pct:97.5, isFraction:false},
+  pctZ:    {pct:97.5, isFraction:false, tail:'left'},
   between: {z1:-1, z2:1},
   beyond:  {z:1.96, tail:'two'}
 };
@@ -448,13 +448,19 @@ function renderInputs(){
   const m = activeMode, s = state[m];
   let html = '';
   if (m === 'rawZ'){
-    html += inputRow('Raw score x', `<input type="number" step="any" value="${s.x}" oninput="state.rawZ.x=+this.value;recompute()">`);
+    html += inputRow('Raw score x' + (s.n > 1 ? ' (sample mean x̄)' : ''), `<input type="number" step="any" value="${s.x}" oninput="state.rawZ.x=+this.value;recompute()">`);
     html += inputRow('Mean μ', `<input type="number" step="any" value="${s.mu}" oninput="state.rawZ.mu=+this.value;recompute()">`);
     html += inputRow('Standard deviation σ', `<input type="number" step="any" min="0" value="${s.sigma}" oninput="state.rawZ.sigma=+this.value;recompute()">`);
+    html += inputRow('Sample size n', `<input type="number" step="1" min="1" value="${s.n||1}" oninput="state.rawZ.n=Math.max(1,+this.value||1);recompute()">`, 'Default 1 (single value). Set n &gt; 1 for a sample mean: z = (x̄ − μ) / (σ/√n).');
   } else if (m === 'zPct'){
     html += inputRow('z-score', `<input type="number" step="any" value="${s.z}" oninput="state.zPct.z=+this.value;recompute()">`);
   } else if (m === 'pctZ'){
     html += inputRow('Percentile', `<input type="number" step="any" min="0" max="100" value="${s.pct}" oninput="setPercentile(this.value)">`, '0–100 (e.g., 95) or 0–1 (e.g., 0.95) — auto-detected');
+    html += inputRow('Tail', `<select onchange="state.pctZ.tail=this.value;recompute()">
+      <option value="left" ${(s.tail||'left')==='left'?'selected':''}>Left tail: p = P(Z ≤ z)</option>
+      <option value="right" ${s.tail==='right'?'selected':''}>Right tail: p = P(Z ≥ z)</option>
+      <option value="two" ${s.tail==='two'?'selected':''}>Two-tailed: p = central area, |z| critical</option>
+    </select>`, 'How to interpret the percentile.');
   } else if (m === 'between'){
     html += inputRow('Lower z₁', `<input type="number" step="any" value="${s.z1}" oninput="state.between.z1=+this.value;recompute()">`);
     html += inputRow('Upper z₂', `<input type="number" step="any" value="${s.z2}" oninput="state.between.z2=+this.value;recompute()">`);
@@ -829,6 +835,69 @@ function toast(msg){
 function toggleDark(){
   document.documentElement.classList.toggle('dark');
   localStorage.setItem('rstat_dark', document.documentElement.classList.contains('dark') ? '1' : '0');
+}
+
+// ============================================================
+// Round-2 enhancements — wrap recompute() to support:
+//   - Sample-mean variant in raw→z mode (state.rawZ.n > 1)
+//   - Explicit tail picker for percentile→z mode (state.pctZ.tail)
+// We wrap rather than modify recompute() so the original function stays intact.
+// ============================================================
+(function(){
+  const origRecompute = window.recompute;
+  window.recompute = function(){
+    origRecompute.apply(this, arguments);
+    try { applyRoundTwoOverlays(); } catch(e){ /* noop */ }
+  };
+})();
+
+function applyRoundTwoOverlays(){
+  const m = activeMode;
+  // --- raw → z, sample-mean variant ---
+  if (m === 'rawZ'){
+    const n = Math.max(1, state.rawZ.n || 1);
+    if (n > 1){
+      const {x, mu, sigma} = state.rawZ;
+      if (sigma > 0 && isFinite(x) && isFinite(mu)){
+        const se = sigma / Math.sqrt(n);
+        const z = (x - mu) / se;
+        const left = pnorm(z), right = 1 - left;
+        $('result-label').textContent = 'z-SCORE (sample mean)';
+        $('result-value').textContent = fmt(z, 4);
+        $('result-aux').textContent = `(x̄ − μ)/(σ/√n) = (${fmt(x,3)} − ${fmt(mu,3)})/(${fmt(sigma,3)}/√${n})`;
+        const summary = `Sample mean <strong>x̄ = ${fmt(x,4)}</strong> from <strong>n = ${n}</strong> observations is <strong>${fmt(z,3)}</strong> standard errors ${z>0?'above':'below'} μ. SE = σ/√n = <strong>${fmt(se,4)}</strong>. Two-tailed: P(|Z| &gt; |z|) = <strong>${fmt(2*Math.min(left,right),5)}</strong>.`;
+        $('summary').innerHTML = summary;
+      }
+    }
+  }
+  // --- percentile → z, explicit tail ---
+  if (m === 'pctZ'){
+    let p = state.pctZ.pct;
+    const isFraction = state.pctZ.isFraction || p <= 1;
+    if (!isFraction) p = p / 100;
+    if (!(p > 0 && p < 1)) return;
+    const tail = state.pctZ.tail || 'left';
+    let z, label, aux, summary;
+    if (tail === 'right'){
+      z = qnorm(1 - p);
+      label = 'z-SCORE  ·  right-tail';
+      aux = `Φ⁻¹(1 − ${fmt(p,5)})`;
+      summary = `The z-score with <strong>${fmt(p*100,3)}%</strong> of the standard normal <em>above</em> it is <strong>z = ${fmt(z,5)}</strong>.`;
+    } else if (tail === 'two'){
+      // p = central area; critical |z| at α = 1 − p, two-sided
+      const alpha = 1 - p;
+      z = qnorm(1 - alpha/2);
+      label = 'z-SCORE  ·  two-tailed |z| critical';
+      aux = `Φ⁻¹(1 − (1 − ${fmt(p,4)})/2) = Φ⁻¹(${fmt(1 - alpha/2,5)})`;
+      summary = `Treating <strong>${fmt(p*100,3)}%</strong> as the <strong>central area</strong>, the two-tailed |z| critical is <strong>${fmt(z,5)}</strong> (α = ${fmt(alpha,4)}, split equally between tails).`;
+    } else {
+      return;  // left tail = original behavior, leave untouched
+    }
+    $('result-label').textContent = label;
+    $('result-value').textContent = fmt(z, 5);
+    $('result-aux').textContent = aux;
+    $('summary').innerHTML = summary;
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {

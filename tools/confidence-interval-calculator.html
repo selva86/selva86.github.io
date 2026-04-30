@@ -648,12 +648,12 @@ let confLevel = 0.95;
 const state = {
   mean:     {n:30, mean:72, sd:11},
   diffmean: {sub:'indep', n1:50, m1:72, s1:11, n2:50, m2:68, s2:9, welch:true, paired_n:25, paired_md:3.2, paired_sd:5.5},
-  prop:     {x:28, n:100},
+  prop:     {x:28, n:100, cc:false},
   diffprop: {sub:'indep', x1:120, n1:1000, x2:90, n2:1000, n_yy:25, b:15, c:5, n_nn:5},
-  regbeta:  {beta:0.452, se:0.134, df:120},
+  regbeta:  {beta:0.452, se:0.134, df:120, expBeta:false},
   poisson:  {x:7, T:1000},
   variance: {n:30, s:11},
-  corr:     {r:0.42, n:60}
+  corr:     {r:0.42, n:60, method:'pearson'}
 };
 
 // ============================================================
@@ -732,6 +732,12 @@ function renderInputs(){
     const s = state.prop;
     html += inputRow('Successes x', `<input type="number" min="0" step="1" value="${s.x}" oninput="state.prop.x=+this.value;recompute()">`);
     html += inputRow('Trials n', `<input type="number" min="1" step="1" value="${s.n}" oninput="state.prop.n=+this.value;recompute()">`);
+    html += inputRow('Continuity correction',
+      `<label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--c-text-soft);cursor:pointer">
+         <input type="checkbox" ${s.cc?'checked':''} onchange="state.prop.cc=this.checked;recompute()" style="vertical-align:middle">
+         Apply continuity correction (matches <code>prop.test()</code> default)
+       </label>`,
+      'Adds ±1/(2n) to the Wald bounds and the Newcombe Method 4 to Wilson — preferred for small n');
   } else if (f === 'diffprop'){
     const s = state.diffprop;
     html += `<div class="submode-tabs">
@@ -762,6 +768,12 @@ function renderInputs(){
     html += inputRow('Estimate β̂', `<input type="number" step="any" value="${s.beta}" oninput="state.regbeta.beta=+this.value;recompute()">`);
     html += inputRow('Standard error SE(β̂)', `<input type="number" step="any" min="0" value="${s.se}" oninput="state.regbeta.se=+this.value;recompute()">`);
     html += inputRow('Residual df', `<input type="number" step="1" min="1" value="${s.df}" oninput="state.regbeta.df=+this.value;recompute()">`);
+    html += inputRow('Show exp(β) CI',
+      `<label style="display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--c-text-soft);cursor:pointer">
+         <input type="checkbox" ${s.expBeta?'checked':''} onchange="state.regbeta.expBeta=this.checked;recompute()" style="vertical-align:middle">
+         Display exp(β̂) and exp(CI) — useful for logistic regression odds ratios
+       </label>`,
+      'Exponentiates the bounds: a coefficient on the log-odds scale becomes an odds ratio');
   } else if (f === 'poisson'){
     const s = state.poisson;
     html += inputRow('Event count x', `<input type="number" step="1" min="0" value="${s.x}" oninput="state.poisson.x=+this.value;recompute()">`);
@@ -772,7 +784,14 @@ function renderInputs(){
     html += inputRow('Sample SD s', `<input type="number" step="any" min="0" value="${s.s}" oninput="state.variance.s=+this.value;recompute()">`);
   } else if (f === 'corr'){
     const s = state.corr;
-    html += inputRow('Sample correlation r', `<input type="number" step="any" min="-1" max="1" value="${s.r}" oninput="state.corr.r=+this.value;recompute()">`);
+    html += inputRow('Correlation type',
+      `<select onchange="state.corr.method=this.value;recompute()">
+         <option value="pearson" ${s.method==='pearson'?'selected':''}>Pearson r — Fisher z (parametric)</option>
+         <option value="spearman" ${s.method==='spearman'?'selected':''}>Spearman ρ — Fisher z (rank-based, approximate)</option>
+         <option value="kendall" ${s.method==='kendall'?'selected':''}>Kendall τ — Fieller-form SE</option>
+       </select>`,
+      'Pearson uses the standard Fisher z; Spearman re-uses the same z-transform (asymptotic, slight bias); Kendall has its own SE formula');
+    html += inputRow('Sample correlation', `<input type="number" step="any" min="-1" max="1" value="${s.r}" oninput="state.corr.r=+this.value;recompute()">`);
     html += inputRow('Sample size n', `<input type="number" min="4" step="1" value="${s.n}" oninput="state.corr.n=+this.value;recompute()">`);
   }
   $('flavor-inputs').innerHTML = html;
@@ -860,18 +879,36 @@ md + <span class="fn">c</span>(<span class="number">-1</span>, <span class="numb
 <span class="comment"># Or: t.test(x_after, x_before, paired = TRUE, conf.level = ${confLevel})$conf.int</span>`;
     }
   } else if (f === 'prop'){
-    const {x, n} = state.prop;
+    const {x, n, cc} = state.prop;
     if (n < 1 || x < 0 || x > n){
       callouts.push({icon:'⚠️', cls:'danger', text:'Need 0 ≤ x ≤ n and n ≥ 1.'});
     } else {
       const p = x/n;
-      // Wilson
+      const ccAdj = cc ? 1/(2*n) : 0;
+      // Wilson (no CC)
       const wDen = 1 + z*z/n;
       const wCenter = (p + z*z/(2*n))/wDen;
       const wHalf = z*Math.sqrt(p*(1-p)/n + z*z/(4*n*n))/wDen;
-      const wilson = [wCenter - wHalf, wCenter + wHalf];
-      // Wald
-      const wald = [p - z*Math.sqrt(p*(1-p)/n), p + z*Math.sqrt(p*(1-p)/n)];
+      const wilsonRaw = [wCenter - wHalf, wCenter + wHalf];
+      // Wilson with continuity correction (Newcombe Method 4)
+      // Lower = max(0, [2np + z² − {z·√(z² − 1/n + 4np(1−p) + (4p − 2)) + 1}] / [2(n + z²)])
+      // Upper = min(1, [2np + z² + {z·√(z² − 1/n + 4np(1−p) − (4p − 2)) + 1}] / [2(n + z²)])
+      // Reference: Newcombe (1998) Stat. Med. 17:857-872, Method 4.
+      function wilsonCC(){
+        const denom = 2 * (n + z*z);
+        const base = 2*n*p + z*z;
+        const innerLo = z*z - 1/n + 4*n*p*(1-p) + (4*p - 2);
+        const innerHi = z*z - 1/n + 4*n*p*(1-p) - (4*p - 2);
+        const lo = (x === 0) ? 0 : Math.max(0, (base - (z*Math.sqrt(Math.max(0,innerLo)) + 1)) / denom);
+        const hi = (x === n) ? 1 : Math.min(1, (base + (z*Math.sqrt(Math.max(0,innerHi)) + 1)) / denom);
+        return [lo, hi];
+      }
+      const wilson = cc ? wilsonCC() : wilsonRaw;
+      // Wald (with optional continuity correction)
+      const seWald = Math.sqrt(p*(1-p)/n);
+      const waldLo = Math.max(0, p - z*seWald - ccAdj);
+      const waldHi = Math.min(1, p + z*seWald + ccAdj);
+      const wald = [waldLo, waldHi];
       // Clopper-Pearson
       const cpLo = x === 0 ? 0 : qbeta(a/2, x, n - x + 1);
       const cpHi = x === n ? 1 : qbeta(1 - a/2, x + 1, n - x);
@@ -884,20 +921,22 @@ md + <span class="fn">c</span>(<span class="number">-1</span>, <span class="numb
       const jLo = x === 0 ? 0 : qbeta(a/2, x + 0.5, n - x + 0.5);
       const jHi = x === n ? 1 : qbeta(1 - a/2, x + 0.5, n - x + 0.5);
       // Display Wilson as primary
-      result = {est:p, lo:wilson[0], hi:wilson[1], half:(wilson[1]-wilson[0])/2, dfNote:`Wilson method · ${x}/${n} = ${fmt(p,4)}`};
+      const wilsonLabel = cc ? 'Wilson with continuity correction' : 'Wilson method';
+      result = {est:p, lo:wilson[0], hi:wilson[1], half:(wilson[1]-wilson[0])/2, dfNote:`${wilsonLabel} · ${x}/${n} = ${fmt(p,4)}`};
       methods = {
-        title:'All methods compared',
+        title: cc ? 'All methods compared (CC = continuity correction applied to Wilson and Wald)' : 'All methods compared',
         rows:[
-          {name:'Wilson score', sub:'recommended default · best coverage', lo:wilson[0], hi:wilson[1], hi_:'highlight'},
+          {name: cc ? 'Wilson score (CC)' : 'Wilson score', sub:'recommended default · best coverage', lo:wilson[0], hi:wilson[1], hi_:'highlight'},
           {name:'Clopper-Pearson exact', sub:'guaranteed ≥ nominal coverage', lo:cpLo, hi:cpHi},
           {name:'Agresti-Coull', sub:'add z² pseudo-trials, then Wald', lo:Math.max(0,ac[0]), hi:Math.min(1,ac[1])},
           {name:'Jeffreys', sub:'Bayesian, Beta(½,½) prior', lo:jLo, hi:jHi},
-          {name:'Wald (normal)', sub:'textbook formula · misleading near 0/1', lo:Math.max(0,wald[0]), hi:Math.min(1,wald[1])}
+          {name: cc ? 'Wald with CC' : 'Wald (normal)', sub: cc ? '± 1/(2n) added to bounds' : 'textbook formula · misleading near 0/1', lo:wald[0], hi:wald[1]}
         ]
       };
-      summary = `From <strong>${x}/${n} = ${fmt(p*100,1)}%</strong>, the <strong>Wilson ${fmt(confLevel*100,1)}% CI</strong> is <strong>[${fmt(wilson[0]*100,2)}%, ${fmt(wilson[1]*100,2)}%]</strong>. See full method comparison below.`;
-      rcode = `<span class="comment"># Wilson CI (recommended)</span>
-<span class="fn">prop.test</span>(x = <span class="number">${x}</span>, n = <span class="number">${n}</span>, conf.level = <span class="number">${confLevel}</span>, correct = <span class="keyword">FALSE</span>)$conf.int
+      const summaryMethod = cc ? `Wilson (CC) ${fmt(confLevel*100,1)}% CI` : `Wilson ${fmt(confLevel*100,1)}% CI`;
+      summary = `From <strong>${x}/${n} = ${fmt(p*100,1)}%</strong>, the <strong>${summaryMethod}</strong> is <strong>[${fmt(wilson[0]*100,2)}%, ${fmt(wilson[1]*100,2)}%]</strong>. See full method comparison below.`;
+      rcode = `<span class="comment"># Wilson CI (${cc ? 'with' : 'without'} continuity correction)</span>
+<span class="fn">prop.test</span>(x = <span class="number">${x}</span>, n = <span class="number">${n}</span>, conf.level = <span class="number">${confLevel}</span>, correct = <span class="keyword">${cc ? 'TRUE' : 'FALSE'}</span>)$conf.int
 
 <span class="comment"># Clopper-Pearson exact</span>
 <span class="fn">binom.test</span>(x = <span class="number">${x}</span>, n = <span class="number">${n}</span>, conf.level = <span class="number">${confLevel}</span>)$conf.int
@@ -973,7 +1012,7 @@ p_diff + <span class="fn">c</span>(<span class="number">-1</span>, <span class="
       if (b + cc < 10) callouts.push({icon:'🔬', cls:'', text:`Few discordant pairs (b + c = ${b + cc}). McNemar χ² approximation is rough — consider an exact binomial test on the discordant pairs.`});
     }
   } else if (f === 'regbeta'){
-    const {beta, se, df} = state.regbeta;
+    const {beta, se, df, expBeta} = state.regbeta;
     if (df < 1 || se <= 0){ callouts.push({icon:'⚠️', cls:'danger', text:'Need df ≥ 1 and SE > 0.'}); }
     else {
       const tc = qt(1 - a/2, df);
@@ -981,13 +1020,31 @@ p_diff + <span class="fn">c</span>(<span class="number">-1</span>, <span class="
       const lo = beta - half, hi = beta + half;
       result = {est: beta, lo, hi, half, se, critical:tc, dfNote:`t crit (df=${df}) = ${fmt(tc,3)}`};
       const includesZero = lo <= 0 && hi >= 0;
-      summary = `Coefficient β̂ = <strong>${fmt(beta,4)}</strong>, SE = ${fmt(se,4)}, df = ${df}. <strong>${fmt(confLevel*100,1)}% CI</strong>: <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>. ${includesZero ? `Includes 0 → not significant at α = ${fmt(a,3)}.` : `Excludes 0 → significant at α = ${fmt(a,3)}.`}`;
+      let summaryExtra = '';
+      if (expBeta){
+        const orEst = Math.exp(beta), orLo = Math.exp(lo), orHi = Math.exp(hi);
+        summaryExtra = ` On the exp(β) scale (e.g., logistic regression odds ratio): <strong>OR = ${fmt(orEst,4)}</strong>, 95% CI <strong>[${fmt(orLo,4)}, ${fmt(orHi,4)}]</strong>.`;
+        // Add the exp scale as a methods row so it's clearly visible
+        methods = {
+          title:'Coefficient on linear and exp scales',
+          rows:[
+            {name:'β̂ (linear)', sub:'reported by lm/glm summary', lo, hi, hi_:'highlight'},
+            {name:'exp(β̂) (odds ratio scale)', sub:'useful for logistic regression', lo:orLo, hi:orHi}
+          ]
+        };
+      }
+      summary = `Coefficient β̂ = <strong>${fmt(beta,4)}</strong>, SE = ${fmt(se,4)}, df = ${df}. <strong>${fmt(confLevel*100,1)}% CI</strong>: <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>. ${includesZero ? `Includes 0 → not significant at α = ${fmt(a,3)}.` : `Excludes 0 → significant at α = ${fmt(a,3)}.`}${summaryExtra}`;
       rcode = `<span class="comment"># From a fitted model:</span>
 <span class="fn">confint</span>(fit, parm = <span class="string">"x"</span>, level = <span class="number">${confLevel}</span>)
 
 <span class="comment"># Manual:</span>
 beta &lt;- <span class="number">${beta}</span>; se &lt;- <span class="number">${se}</span>; df &lt;- <span class="number">${df}</span>
-beta + <span class="fn">c</span>(<span class="number">-1</span>, <span class="number">1</span>) * <span class="fn">qt</span>(<span class="number">${1-a/2}</span>, df) * se`;
+ci &lt;- beta + <span class="fn">c</span>(<span class="number">-1</span>, <span class="number">1</span>) * <span class="fn">qt</span>(<span class="number">${1-a/2}</span>, df) * se
+ci${expBeta ? `
+
+<span class="comment"># Odds-ratio scale (logistic regression)</span>
+<span class="fn">exp</span>(ci)
+<span class="comment"># Or directly: exp(confint(fit, parm = "x", level = ${confLevel}))</span>` : ''}`;
     }
   } else if (f === 'poisson'){
     const {x, T} = state.poisson;
@@ -1046,19 +1103,49 @@ sd_ci   <span class="comment"># 95% CI for sigma</span>`;
       callouts.push({icon:'⚠️', cls:'', text:`<strong>Heavy normality assumption.</strong> The χ² CI for variance is very sensitive to non-normality — outliers and skew break it. Check a Q-Q plot first.`});
     }
   } else if (f === 'corr'){
-    const {r, n} = state.corr;
+    const {r, n, method} = state.corr;
     if (n < 4 || r < -1 || r > 1){ callouts.push({icon:'⚠️', cls:'danger', text:'Need −1 ≤ r ≤ 1 and n ≥ 4.'}); }
+    else if (method === 'kendall'){
+      // Kendall τ: Fieller-form asymptotic SE.
+      //   SE(τ) = √( 2(2n + 5) / (9 n (n − 1)) )
+      // CI is symmetric on τ itself (no z-transform), clipped to [−1, 1].
+      if (n < 5){
+        callouts.push({icon:'⚠️', cls:'danger', text:'Kendall τ CI needs n ≥ 5.'});
+      } else {
+        const seTau = Math.sqrt(2 * (2*n + 5) / (9 * n * (n - 1)));
+        const half = z * seTau;
+        const lo = Math.max(-1, r - half), hi = Math.min(1, r + half);
+        result = {est:r, lo, hi, half, se:seTau, critical:z, dfNote:`Kendall τ — SE = √(2(2n+5)/(9n(n−1))) ≈ ${fmt(seTau,4)}`};
+        summary = `Sample Kendall τ = <strong>${fmt(r,4)}</strong>, n = <strong>${n}</strong>. Using the Fieller-form asymptotic SE = ${fmt(seTau,4)}, the <strong>${fmt(confLevel*100,1)}% CI for τ</strong> is <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>. (No Fisher-z transform — Kendall has its own variance formula.)`;
+        rcode = `<span class="comment"># Kendall τ CI via Fieller-form asymptotic SE</span>
+tau &lt;- <span class="number">${r}</span>; n &lt;- <span class="number">${n}</span>
+se_tau &lt;- <span class="fn">sqrt</span>(<span class="number">2</span>*(<span class="number">2</span>*n + <span class="number">5</span>) / (<span class="number">9</span>*n*(n - <span class="number">1</span>)))
+tau + <span class="fn">c</span>(<span class="number">-1</span>, <span class="number">1</span>) * <span class="fn">qnorm</span>(<span class="number">${1-a/2}</span>) * se_tau
+
+<span class="comment"># Or with cor.test on raw data:</span>
+<span class="comment"># cor.test(x, y, method = "kendall", conf.level = ${confLevel})</span>
+<span class="comment"># Note: cor.test does not return a CI for Kendall by default.</span>`;
+      }
+    }
     else if (Math.abs(r) === 1){
       callouts.push({icon:'⚠️', cls:'', text:'r = ±1 — Fisher z is infinite, CI degenerates to a point.'});
       result = {est:r, lo:r, hi:r, half:0, dfNote:'r = ±1 (degenerate)'};
     } else {
+      // Pearson — Fisher z; Spearman — same z-transform as an asymptotic
+      // approximation. Fieller (1957) suggested SE_z ≈ 1.06/√(n−3) for
+      // Spearman; we keep the standard 1/√(n−3) and flag the caveat in
+      // the summary.
       const zr = Math.atanh(r);
       const seZ = 1/Math.sqrt(n - 3);
       const zLo = zr - z*seZ, zHi = zr + z*seZ;
       const lo = Math.tanh(zLo), hi = Math.tanh(zHi);
-      result = {est:r, lo, hi, half:(hi-lo)/2, dfNote:`Fisher z = ${fmt(zr,4)}, SE_z = ${fmt(seZ,4)}`};
-      summary = `Sample correlation r = <strong>${fmt(r,4)}</strong>, n = <strong>${n}</strong>. After Fisher's z transform, the <strong>${fmt(confLevel*100,1)}% CI for ρ</strong> is <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>.`;
-      rcode = `<span class="comment"># Fisher z CI for Pearson correlation</span>
+      const isSpearman = method === 'spearman';
+      const symLabel = isSpearman ? 'ρ (Spearman)' : 'ρ (Pearson)';
+      result = {est:r, lo, hi, half:(hi-lo)/2, dfNote:`Fisher z = ${fmt(zr,4)}, SE_z = ${fmt(seZ,4)}${isSpearman ? ' (Spearman approx)' : ''}`};
+      summary = isSpearman
+        ? `Sample Spearman ρ = <strong>${fmt(r,4)}</strong>, n = <strong>${n}</strong>. The Fisher z-transform is an <em>approximate</em> CI for Spearman (variance = 1/(n−3) is the Pearson result; small bias for Spearman). <strong>${fmt(confLevel*100,1)}% CI for ${symLabel}</strong>: <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>.`
+        : `Sample correlation r = <strong>${fmt(r,4)}</strong>, n = <strong>${n}</strong>. After Fisher's z transform, the <strong>${fmt(confLevel*100,1)}% CI for ${symLabel}</strong> is <strong>[${fmt(lo,4)}, ${fmt(hi,4)}]</strong>.`;
+      rcode = `<span class="comment"># Fisher z CI for ${isSpearman ? 'Spearman ρ (approximate — same form as Pearson)' : 'Pearson correlation'}</span>
 r &lt;- <span class="number">${r}</span>; n &lt;- <span class="number">${n}</span>
 z_r &lt;- <span class="fn">atanh</span>(r)
 se_z &lt;- <span class="number">1</span>/<span class="fn">sqrt</span>(n - <span class="number">3</span>)
@@ -1066,7 +1153,7 @@ ci_z &lt;- z_r + <span class="fn">c</span>(<span class="number">-1</span>, <span
 <span class="fn">tanh</span>(ci_z)
 
 <span class="comment"># Or with cor.test on raw data:</span>
-<span class="comment"># cor.test(x, y, conf.level = ${confLevel})$conf.int</span>`;
+<span class="comment"># cor.test(x, y, method = "${isSpearman ? 'spearman' : 'pearson'}", conf.level = ${confLevel})$conf.int</span>`;
     }
   }
 
@@ -1325,7 +1412,17 @@ window.runSmokeTests = function(){
     {desc:"qbeta(0.025, 28, 73) ≈ 0.1948 (Clopper-Pearson lower for 28/100)", fn:()=>qbeta(0.025, 28, 73), expect:0.1948, tol:1e-3},
     {desc:"pt(2, 30) ≈ 0.97247", fn:()=>pt(2, 30), expect:0.97247, tol:1e-3},
     {desc:"pnorm(1.96) ≈ 0.97500", fn:()=>pnorm(1.96), expect:0.97500, tol:1e-4},
-    {desc:"Wilson CI for 28/100 ≈ [0.20143, 0.37388]", fn:()=>{ const w = wilsonCI(28, 100, 1.96); return Math.abs(w[0]-0.20143)+Math.abs(w[1]-0.37388) < 1e-3 ? 1 : 0; }, expect:1, tol:1e-3}
+    {desc:"Wilson CI for 28/100 ≈ [0.20143, 0.37388]", fn:()=>{ const w = wilsonCI(28, 100, 1.96); return Math.abs(w[0]-0.20143)+Math.abs(w[1]-0.37388) < 1e-3 ? 1 : 0; }, expect:1, tol:1e-3},
+    // Round-2 — Kendall τ Fieller-form SE: n=20, τ=0.3 → SE = √(2·45/(9·20·19))
+    {desc:"Kendall SE for n=20 ≈ 0.1622",
+     fn:()=>Math.sqrt(2*(2*20+5)/(9*20*19)), expect:0.16222, tol:1e-3},
+    // Round-2 — Spearman uses Fisher-z on r=0.3, n=20: bounds ≈ ±0.4 around z(0.3)=0.3095
+    {desc:"Spearman r=0.3, n=20 → Fisher-z CI lower ≈ −0.16",
+     fn:()=>{ const zr=Math.atanh(0.3), se=1/Math.sqrt(17); return Math.tanh(zr - 1.96*se); },
+     expect:-0.157, tol:0.01},
+    {desc:"Spearman r=0.3, n=20 → Fisher-z CI upper ≈ 0.66",
+     fn:()=>{ const zr=Math.atanh(0.3), se=1/Math.sqrt(17); return Math.tanh(zr + 1.96*se); },
+     expect:0.660, tol:0.01}
   ];
   console.group('CI Calculator smoke tests');
   let pass = 0;

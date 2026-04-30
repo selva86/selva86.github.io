@@ -149,6 +149,8 @@
   svg.qq .point{fill:var(--c-accent);stroke:var(--c-accent-deep);stroke-width:0.5;opacity:0.8}
   svg.qq text{font-family:'IBM Plex Mono',monospace;font-size:10.5px;fill:var(--c-text-mute)}
   svg.qq text.label{fill:var(--c-text);font-size:11.5px;font-weight:600}
+  svg.qq .hbar{fill:var(--c-accent);fill-opacity:0.55;stroke:var(--c-accent-deep);stroke-width:0.5}
+  svg.qq .ndcurve{fill:none;stroke:var(--c-warn);stroke-width:1.5}
 
   /* Other tests table */
   table.other-tests{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
@@ -326,9 +328,24 @@
         <div class="verdict" id="primary-verdict">—</div>
       </div>
 
+      <!-- Skew / kurtosis dedicated cards (paste-data mode only) -->
+      <div class="results-card" id="shape-cards" style="display:none">
+        <div class="rc-title">Shape diagnostics</div>
+        <div class="results-grid" id="shape-grid"></div>
+      </div>
+
       <div class="qq-wrap" id="qq-wrap" style="display:none">
-        <div class="qq-title"><span>Q-Q plot · sample quantiles vs. theoretical normal</span><span id="qq-meta" style="font-family:'IBM Plex Mono',monospace;color:var(--c-text-mute)"></span></div>
-        <svg class="qq" id="qq-svg" viewBox="0 0 600 340" preserveAspectRatio="none"></svg>
+        <div class="qq-title"><span>Q-Q plot &amp; histogram · sample distribution vs. normal</span><span id="qq-meta" style="font-family:'IBM Plex Mono',monospace;color:var(--c-text-mute)"></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+          <div>
+            <div style="font-size:10.5px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Q-Q plot</div>
+            <svg class="qq" id="qq-svg" viewBox="0 0 600 340" preserveAspectRatio="none"></svg>
+          </div>
+          <div>
+            <div style="font-size:10.5px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Histogram + normal density</div>
+            <svg class="qq" id="hist-svg" viewBox="0 0 600 340" preserveAspectRatio="none"></svg>
+          </div>
+        </div>
       </div>
 
       <div class="results-card" id="other-tests-card" style="display:none">
@@ -614,6 +631,46 @@ function jarqueBera(x){
 }
 
 // ============================================================
+// D'Agostino-Pearson K² omnibus test
+// K² = Z(√b₁)² + Z(b₂)² ~ χ²(2) under H₀
+// √b₁ transformed via D'Agostino (1970); b₂ via Anscombe-Glynn (1983).
+// ============================================================
+function dAgostinoPearson(x){
+  const n = x.length;
+  if (n < 8) return null;  // transformations break down at very small n
+  const mean = x.reduce((a,b)=>a+b,0)/n;
+  let m2 = 0, m3 = 0, m4 = 0;
+  for (const v of x){ const d = v - mean; m2 += d*d; m3 += d*d*d; m4 += d*d*d*d; }
+  m2 /= n; m3 /= n; m4 /= n;
+  if (m2 === 0) return null;
+  const sqrtB1 = m3 / Math.pow(m2, 1.5);     // sample skewness g1
+  const b2 = m4 / (m2*m2);                    // sample kurtosis (raw, not excess)
+
+  // ---- D'Agostino (1970) Z-transform of √b₁ ----
+  const Y = sqrtB1 * Math.sqrt(((n+1)*(n+3)) / (6*(n-2)));
+  const beta2_b1 = (3*(n*n + 27*n - 70)*(n+1)*(n+3)) / ((n-2)*(n+5)*(n+7)*(n+9));
+  const W2 = -1 + Math.sqrt(2*(beta2_b1 - 1));
+  const delta = 1 / Math.sqrt(Math.log(Math.sqrt(W2)));
+  const alpha = Math.sqrt(2 / (W2 - 1));
+  const Zb1 = delta * Math.log(Y/alpha + Math.sqrt((Y/alpha)*(Y/alpha) + 1));
+
+  // ---- Anscombe-Glynn (1983) Z-transform of b₂ ----
+  const meanB2 = 3*(n-1)/(n+1);
+  const varB2 = (24*n*(n-2)*(n-3)) / ((n+1)*(n+1)*(n+3)*(n+5));
+  const xVal = (b2 - meanB2) / Math.sqrt(varB2);
+  const sqrtBeta1B2 = (6*(n*n - 5*n + 2) / ((n+7)*(n+9))) * Math.sqrt((6*(n+3)*(n+5)) / (n*(n-2)*(n-3)));
+  const A = 6 + (8/sqrtBeta1B2) * (2/sqrtBeta1B2 + Math.sqrt(1 + 4/(sqrtBeta1B2*sqrtBeta1B2)));
+  const inner = (1 - 2/A) / (1 + xVal*Math.sqrt(2/(A-4)));
+  // cube root preserving sign
+  const cbrt = (v) => Math.cbrt ? Math.cbrt(v) : (v >= 0 ? Math.pow(v, 1/3) : -Math.pow(-v, 1/3));
+  const Zb2 = ((1 - 2/(9*A)) - cbrt(inner)) / Math.sqrt(2/(9*A));
+
+  const K2 = Zb1*Zb1 + Zb2*Zb2;
+  const p = chiSqUpper(K2, 2);
+  return {K2, Zb1, Zb2, skew:sqrtB1, exKurt:b2-3, p};
+}
+
+// ============================================================
 // Lilliefors (KS-based)
 // ============================================================
 function lilliefors(x){
@@ -699,6 +756,7 @@ function recompute(){
   $('qq-wrap').style.display = 'none';
   $('other-tests-card').style.display = 'none';
   $('r-code-wrap').style.display = 'none';
+  if ($('shape-cards')) $('shape-cards').style.display = 'none';
 
   if (n < 3){
     $('summary').textContent = 'Enter or paste at least 3 numeric values.';
@@ -718,6 +776,7 @@ function recompute(){
   const ad = andersonDarling(x);
   const jb = jarqueBera(x);
   const lil = lilliefors(x);
+  const dap = dAgostinoPearson(x);
 
   // Identify primary test
   const cls = reco.cls;
@@ -748,15 +807,32 @@ function recompute(){
     $('primary-verdict').innerHTML = verdictHtml;
   }
 
-  // Q-Q plot
+  // Q-Q plot + histogram
   $('qq-wrap').style.display = '';
   renderQQ(x);
+  renderHistogram(x);
+
+  // Shape diagnostics cards (skewness, excess kurtosis with verdicts)
+  if (jb){
+    const skew = jb.skew, exKurt = jb.kurt;
+    const skewVerdict = Math.abs(skew) < 0.5 ? 'approximately symmetric' : (Math.abs(skew) < 1 ? 'moderately skewed' : 'highly skewed');
+    const kurtVerdict = Math.abs(exKurt) < 0.5 ? 'mesokurtic (normal-like)' : (exKurt >= 1 ? 'leptokurtic (heavy-tailed)' : (exKurt <= -1 ? 'platykurtic (light-tailed)' : (exKurt > 0 ? 'slightly heavy-tailed' : 'slightly light-tailed')));
+    $('shape-cards').style.display = '';
+    $('shape-grid').innerHTML = `
+      <div class="stat-card"><div class="stat-name">skewness (g₁)</div><div class="stat-value">${fmt(skew,4)}</div><div style="font-size:11.5px;color:var(--c-text-mute);margin-top:3px">${skewVerdict}</div></div>
+      <div class="stat-card"><div class="stat-name">excess kurtosis (g₂)</div><div class="stat-value">${fmt(exKurt,4)}</div><div style="font-size:11.5px;color:var(--c-text-mute);margin-top:3px">${kurtVerdict}</div></div>
+      ${dap ? `<div class="stat-card"><div class="stat-name">D'Agostino K²</div><div class="stat-value">${fmt(dap.K2,4)}</div><div style="font-size:11.5px;color:var(--c-text-mute);margin-top:3px">p = ${fmtSci(dap.p)}</div></div>` : ''}
+    `;
+  } else {
+    $('shape-cards').style.display = 'none';
+  }
 
   // Other tests
   const otherRows = [];
   if (sw && cls !== 'shapiro' && cls !== 'qq') otherRows.push({name:'Shapiro-Wilk (W)', sub:'Royston AS R94', stat:sw.W, p:sw.p});
   if (ad && cls !== 'ad') otherRows.push({name:'Anderson-Darling (A²)', sub:'modified, Stephens 1986', stat:ad.A2, p:ad.p});
   if (jb) otherRows.push({name:'Jarque-Bera (JB)', sub:`skew=${fmt(jb.skew,3)}, excess kurt=${fmt(jb.kurt,3)}`, stat:jb.JB, p:jb.p});
+  if (dap) otherRows.push({name:`D'Agostino-Pearson (K²)`, sub:`omnibus skew + kurt; n ≥ 8`, stat:dap.K2, p:dap.p});
   if (lil) otherRows.push({name:'Lilliefors (D)', sub:'KS with corrected critical values', stat:lil.D, p:lil.p});
   if (otherRows.length){
     $('other-tests-card').style.display = '';
@@ -869,6 +945,85 @@ function renderQQ(x){
 
   $('qq-svg').innerHTML = svg;
   $('qq-meta').textContent = `n = ${n} · sample mean = ${fmt(mean,3)} · SD = ${fmt(sd,3)}`;
+}
+
+// ============================================================
+// Histogram with normal-density overlay
+// ~Sturges' rule: k = ceil(log2(n) + 1), capped at 20.
+// ============================================================
+function renderHistogram(x){
+  const n = x.length;
+  if (n < 3){ $('hist-svg').innerHTML = ''; return; }
+  const mean = x.reduce((a,b)=>a+b,0)/n;
+  const sd = Math.sqrt(x.reduce((s,v)=>s+(v-mean)*(v-mean),0)/(n-1));
+  if (sd === 0){ $('hist-svg').innerHTML = ''; return; }
+  let k = Math.ceil(Math.log2(n) + 1);
+  if (k < 5) k = 5;
+  if (k > 20) k = 20;
+
+  const xMin = Math.min(...x), xMax = Math.max(...x);
+  // Slightly extend so curve tails fit
+  const pad = (xMax - xMin) * 0.02 || 1;
+  const lo = xMin - pad, hi = xMax + pad;
+  const binW = (hi - lo) / k;
+  const counts = new Array(k).fill(0);
+  for (const v of x){
+    let bi = Math.floor((v - lo) / binW);
+    if (bi < 0) bi = 0;
+    if (bi >= k) bi = k - 1;
+    counts[bi]++;
+  }
+  const maxCount = Math.max(...counts);
+
+  const W = 600, H = 340, padL = 50, padR = 14, padT = 14, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xToPx = v => padL + ((v - lo) / (hi - lo)) * plotW;
+  const yCountToPx = c => padT + plotH - (c / maxCount) * plotH;
+
+  let svg = '';
+  // Axes
+  svg += `<line x1="${padL}" y1="${padT+plotH}" x2="${padL+plotW}" y2="${padT+plotH}" class="axis" />`;
+  svg += `<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" class="axis" />`;
+  // x-axis ticks
+  for (let i = 0; i <= 4; i++){
+    const tx = lo + i*(hi-lo)/4;
+    const px = xToPx(tx);
+    svg += `<line x1="${px}" y1="${padT+plotH}" x2="${px}" y2="${padT+plotH+4}" class="axis" />`;
+    svg += `<text x="${px}" y="${padT+plotH+18}" text-anchor="middle">${fmt(tx,2)}</text>`;
+  }
+  // y-axis ticks (count)
+  for (let i = 0; i <= 4; i++){
+    const cy = (i*maxCount/4);
+    const py = yCountToPx(cy);
+    svg += `<line x1="${padL-4}" y1="${py}" x2="${padL}" y2="${py}" class="axis" />`;
+    svg += `<text x="${padL-7}" y="${py+4}" text-anchor="end">${Math.round(cy)}</text>`;
+  }
+  // Bars
+  for (let i = 0; i < k; i++){
+    if (counts[i] === 0) continue;
+    const x0 = xToPx(lo + i*binW), x1 = xToPx(lo + (i+1)*binW);
+    const y0 = yCountToPx(counts[i]), y1 = padT + plotH;
+    svg += `<rect class="hbar" x="${x0+0.5}" y="${y0}" width="${Math.max(0,(x1-x0)-1)}" height="${y1-y0}" />`;
+  }
+  // Normal density curve (scaled to histogram height)
+  // Density at x: (1/(sd*sqrt(2π))) * exp(-0.5*((x-mean)/sd)²)
+  // Bin-expected count at bin midpoint: n * binW * density.
+  const points = [];
+  const SAMPLES = 80;
+  for (let i = 0; i <= SAMPLES; i++){
+    const xv = lo + (i/SAMPLES)*(hi - lo);
+    const z = (xv - mean) / sd;
+    const dens = Math.exp(-0.5*z*z) / (sd * Math.sqrt(2*Math.PI));
+    const expectedCount = n * binW * dens;
+    points.push([xToPx(xv), yCountToPx(Math.min(expectedCount, maxCount))]);
+  }
+  const path = points.map((p,i)=> (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  svg += `<path class="ndcurve" d="${path}" />`;
+  // Axis labels
+  svg += `<text x="${padL + plotW/2}" y="${H - 6}" text-anchor="middle" class="label">Value</text>`;
+  svg += `<text x="${14}" y="${padT + plotH/2}" text-anchor="middle" class="label" transform="rotate(-90, 14, ${padT + plotH/2})">Count</text>`;
+
+  $('hist-svg').innerHTML = svg;
 }
 
 function quantile(sortedArr, p){

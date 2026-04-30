@@ -373,6 +373,18 @@
       <button class="mode-tab" data-input-mode="paste" onclick="setInputMode('paste')">Paste R output</button>
     </div>
 
+    <div class="form-row">
+      <label>Confidence level <small>for accuracy CI</small></label>
+      <div class="form-control">
+        <select id="conf-level" onchange="recompute()">
+          <option value="0.80">80%</option>
+          <option value="0.90">90%</option>
+          <option value="0.95" selected>95%</option>
+          <option value="0.99">99%</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Manual mode -->
     <div id="manual-mode">
       <div class="form-row">
@@ -402,7 +414,7 @@
 
     <!-- Paste mode -->
     <div id="paste-mode" style="display:none">
-      <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 8px;line-height:1.5">Paste output from <code>caret::confusionMatrix()</code> or any whitespace-separated k×k matrix.</p>
+      <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 8px;line-height:1.5">Paste output from <code>caret::confusionMatrix()</code>, sklearn <code>confusion_matrix()</code> (numpy <code>[[a b]\n [c d]]</code> or Python list <code>[[a,b],[c,d]]</code>), or any whitespace-separated k×k matrix.</p>
       <textarea class="paste-box" id="cm-paste" placeholder="          Reference
 Prediction No  Yes
        No  85    5
@@ -614,8 +626,32 @@ function setInputMode(m){
 }
 
 // ============================================================
-// Paste parser (caret-style or generic k×k whitespace)
+// Paste parser (caret-style, sklearn/numpy, Python lists, or generic k×k whitespace)
 // ============================================================
+// Parse sklearn confusion_matrix output:
+//   numpy: [[85  5]\n [ 3  7]]
+//   python list: [[85, 5], [3, 7]]
+function parseSklearnMatrix(text){
+  // Strip outer brackets and 'array(...)' wrapper
+  let s = text.replace(/array\s*\(/g, '').replace(/\)/g, '');
+  // Find all bracketed rows (innermost): match each [...]
+  const rowMatches = s.match(/\[[^\[\]]*\]/g);
+  if (!rowMatches || rowMatches.length < 2) return null;
+  const rows = [];
+  for (const rm of rowMatches){
+    const inner = rm.slice(1, -1);
+    const tokens = inner.split(/[\s,]+/).filter(Boolean);
+    const nums = [];
+    for (const t of tokens){
+      if (/^-?\d+(\.\d+)?$/.test(t)) nums.push(parseInt(t, 10));
+      else return null;  // non-numeric token, not a clean matrix
+    }
+    if (nums.length === 0) continue;
+    rows.push(nums);
+  }
+  return rows.length >= 2 ? rows : null;
+}
+
 function parsePasteAndRecompute(){
   pasteParseError = null;
   const text = $('cm-paste').value.trim();
@@ -624,6 +660,22 @@ function parsePasteAndRecompute(){
     $('paste-errors').innerHTML = `<div class="parse-error">${pasteParseError}</div>`;
     recompute();
     return;
+  }
+  // Try sklearn / numpy / Python-list style first: [[a, b], [c, d]] or [[a b]\n [c d]]
+  if (/\[\s*\[/.test(text)){
+    const sklearnRows = parseSklearnMatrix(text);
+    if (sklearnRows && sklearnRows.length >= 2){
+      const sk = sklearnRows.length;
+      if (sklearnRows.every(r => r.length === sk)){
+        $('paste-errors').innerHTML = '';
+        k = sk;
+        matrix = sklearnRows;
+        classNames = Array.from({length:k}, (_,i) => 'Class '+(i+1));
+        positiveIdx = 0;
+        recompute();
+        return;
+      }
+    }
   }
   // Try caret-style: look for "Prediction" line + class header
   const lines = text.split(/\r?\n/);
@@ -709,7 +761,7 @@ function binaryStats(pos){
   const N = TP + FP + FN + TN;
 
   const accuracy = N > 0 ? (TP + TN) / N : NaN;
-  const ci = wilsonCI(TP + TN, N, 0.95);
+  const ci = wilsonCI(TP + TN, N, getConfLevel());
   const sensitivity = (TP + FN) > 0 ? TP / (TP + FN) : NaN;
   const specificity = (TN + FP) > 0 ? TN / (TN + FP) : NaN;
   const precision   = (TP + FP) > 0 ? TP / (TP + FP) : NaN;
@@ -741,10 +793,33 @@ function fBeta(p, r, beta){
   return (1 + b2) * p * r / denom;
 }
 
+// Inverse normal CDF (Acklam approximation) — used to derive z for any confidence level
+function qnorm(p){
+  if (p <= 0 || p >= 1) return NaN;
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const plow=0.02425, phigh=1-plow;
+  let q, r;
+  if (p < plow){ q = Math.sqrt(-2*Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if (p <= phigh){ q = p - 0.5; r = q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1); }
+  q = Math.sqrt(-2*Math.log(1-p));
+  return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+}
+function getConfLevel(){
+  const el = document.getElementById('conf-level');
+  const v = el ? parseFloat(el.value) : 0.95;
+  return isFinite(v) ? v : 0.95;
+}
+
 // Wilson score CI
 function wilsonCI(x, n, conf){
   if (n === 0) return [NaN, NaN];
-  const z = (conf === 0.95) ? 1.959963984540054 : 1.96;
+  const alpha = 1 - conf;
+  const z = qnorm(1 - alpha/2);
   const p = x / n;
   const zsq = z*z;
   const denom = 1 + zsq/n;
@@ -779,7 +854,7 @@ function multiclassStats(){
     perClass.push({name:classNames[i], TP, FP, FN, TN, support, sensitivity, specificity, precision, f1});
   }
   const accuracy = N > 0 ? correct / N : NaN;
-  const ci = wilsonCI(correct, N, 0.95);
+  const ci = wilsonCI(correct, N, getConfLevel());
   // Macro means (over classes)
   const finiteMean = arr => {
     const f = arr.filter(x => isFinite(x));
@@ -800,9 +875,31 @@ function multiclassStats(){
   const po = accuracy;
   const pe = N > 0 ? rowSums.reduce((s,r,i)=>s + (r * colSums[i])/(N*N), 0) : NaN;
   const kappa = (1 - pe) > 0 ? (po - pe) / (1 - pe) : NaN;
+  // Weighted kappa (linear and quadratic) for ordinal classes — meaningful when k >= 3.
+  // E[i][j] = expected counts under independence = rowSums[i] * colSums[j] / N
+  // kappa_w = 1 - sum(w * O) / sum(w * E)
+  let kappaLin = NaN, kappaQuad = NaN;
+  if (k >= 3 && N > 0){
+    const denom = (k - 1);
+    const denom2 = denom * denom;
+    let numL = 0, denL = 0, numQ = 0, denQ = 0;
+    for (let i = 0; i < k; i++){
+      for (let j = 0; j < k; j++){
+        const O = matrix[i][j] || 0;
+        const E = rowSums[i] * colSums[j] / N;
+        const dij = Math.abs(i - j);
+        const wL = dij / denom;
+        const wQ = (dij * dij) / denom2;
+        numL += wL * O; denL += wL * E;
+        numQ += wQ * O; denQ += wQ * E;
+      }
+    }
+    kappaLin  = denL > 0 ? 1 - numL / denL : NaN;
+    kappaQuad = denQ > 0 ? 1 - numQ / denQ : NaN;
+  }
   // Balanced accuracy
   const balAcc = finiteMean(perClass.map(x => x.sensitivity));
-  return {N, correct, accuracy, ci, perClass, macroPrec, macroRecall, macroF1, weightedPrec, weightedRecall, weightedF1, kappa, balAcc};
+  return {N, correct, accuracy, ci, perClass, macroPrec, macroRecall, macroF1, weightedPrec, weightedRecall, weightedF1, kappa, kappaLin, kappaQuad, balAcc};
 }
 
 // ============================================================
@@ -918,7 +1015,7 @@ function renderBinary(){
   html += `</div></div>`;
   // Aggregate
   html += `<div class="metrics-section"><div class="metrics-section-title">Aggregate</div><div class="metrics-grid">`;
-  html += metricCardPct(`Accuracy <small style="font-size:9px;color:var(--c-text-mute)">95% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy(s));
+  html += metricCardPct(`Accuracy <small style="font-size:9px;color:var(--c-text-mute)">${Math.round(getConfLevel()*100)}% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy(s));
   html += metricCardPct('Balanced acc.', s.balAcc, '(sens + spec)/2', toneBal(s.balAcc));
   html += metricCard('F1', fmt(s.f1,3), 'harmonic mean P&R', toneF1(s.f1));
   html += metricCard('MCC', fmt(s.mcc,3), '−1 to 1', toneMCC(s.mcc));
@@ -966,7 +1063,7 @@ function renderMulticlass(){
   // Metrics grid
   let html = '';
   html += `<div class="metrics-section"><div class="metrics-section-title">Aggregate</div><div class="metrics-grid">`;
-  html += metricCardPct(`Overall accuracy <small style="font-size:9px;color:var(--c-text-mute)">95% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy({accuracy:s.accuracy, prevalence:0.5}));
+  html += metricCardPct(`Overall accuracy <small style="font-size:9px;color:var(--c-text-mute)">${Math.round(getConfLevel()*100)}% CI</small>`, s.accuracy, `[${pct(s.ci[0],1)}, ${pct(s.ci[1],1)}]`, toneAccuracy({accuracy:s.accuracy, prevalence:0.5}));
   html += metricCardPct('Balanced acc.', s.balAcc, 'mean per-class recall', toneBal(s.balAcc));
   html += metricCard('Cohen κ', fmt(s.kappa,3), kappaLabel(s.kappa), toneKappa(s.kappa));
   html += `</div></div>`;
@@ -978,6 +1075,14 @@ function renderMulticlass(){
   html += metricCardPct('Weighted recall', s.weightedRecall, 'support-weighted');
   html += metricCard('Weighted F1', fmt(s.weightedF1,3), 'support-weighted');
   html += `</div></div>`;
+  // Weighted kappa card for ordinal multi-class (k >= 3)
+  if (k >= 3 && (isFinite(s.kappaLin) || isFinite(s.kappaQuad))){
+    html += `<div class="metrics-section"><div class="metrics-section-title">Cohen's κ (weighted) <small style="font-weight:400;color:var(--c-text-mute)">— for ordinal classes; penalises distant disagreements more</small></div><div class="metrics-grid">`;
+    html += metricCard('Linear-weighted κ', fmt(s.kappaLin,3), 'wᵢⱼ = |i−j|/(k−1)', toneKappa(s.kappaLin));
+    html += metricCard('Quadratic-weighted κ', fmt(s.kappaQuad,3), 'wᵢⱼ = ((i−j)/(k−1))²', toneKappa(s.kappaQuad));
+    html += metricCard('Unweighted κ', fmt(s.kappa,3), 'baseline (compare above)', toneKappa(s.kappa));
+    html += `</div></div>`;
+  }
   $('metrics-area').innerHTML = html;
 
   // Per-class table

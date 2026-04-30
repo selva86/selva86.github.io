@@ -337,12 +337,24 @@
     <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 10px;line-height:1.5">Copy directly from your R console. Stray prompts (<code>&gt;</code>) or whitespace are OK.</p>
     <textarea class="paste-box" id="lm-input" placeholder="Coefficients:
             Estimate Std. Error t value Pr(>|t|)
-(Intercept) ...     ...        ...     ..."  oninput="parseAndRender()"></textarea>
+(Intercept) ...     ...        ...     ...
+
+Tip: paste two summary(lm()) outputs separated by a line containing only --- to compare models side by side."  oninput="parseAndRender()"></textarea>
     <div class="paste-meta">
       <span id="parse-status">Awaiting paste…</span>
       <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--c-text-mute)" id="parse-detail"></span>
     </div>
     <div id="parse-errors"></div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--c-text-soft);margin-top:12px;flex-wrap:wrap">
+      <label for="ci-level" style="font-weight:600;color:var(--c-text)">Confidence level:</label>
+      <select id="ci-level" onchange="parseAndRender()" style="padding:5px 8px;font-size:12.5px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-bg);color:var(--c-text)">
+        <option value="80">80%</option>
+        <option value="90">90%</option>
+        <option value="95" selected>95%</option>
+        <option value="99">99%</option>
+      </select>
+      <span style="color:var(--c-text-mute)">CIs: estimate ± t<sub>α/2, df</sub> · SE</span>
+    </div>
   </aside>
 
   <main class="ws-output">
@@ -374,6 +386,13 @@
     </div>
   </div>
 
+  <!-- Side-by-side comparison panel -->
+  <div id="compare-panel" style="display:none;margin-bottom:18px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:var(--c-text-mute);text-transform:uppercase;margin-bottom:8px">Model A vs Model B</div>
+    <div id="compare-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"></div>
+    <div id="compare-verdict" style="margin-top:14px;font-size:13.5px;line-height:1.6;color:var(--c-text-soft)"></div>
+  </div>
+
   <!-- Model fit summary card -->
   <div class="card" id="fit-card" style="display:none">
     <h2 class="card-title">Model fit at a glance</h2>
@@ -383,10 +402,10 @@
     <div class="r-code-block">
       <button class="copy-btn" onclick="copyCode()">Copy</button>
 <pre id="r-code"><span class="comment"># Useful follow-ups after summary(lm)</span>
-<span class="fn">confint</span>(fit)              <span class="comment"># 95% CIs for coefficients</span>
+<span class="fn">confint</span>(fit, level = <span class="number">0.95</span>)  <span class="comment"># CIs for coefficients</span>
 <span class="fn">par</span>(mfrow = <span class="fn">c</span>(<span class="number">2</span>, <span class="number">2</span>)); <span class="fn">plot</span>(fit)  <span class="comment"># diagnostic plots</span>
 <span class="keyword">library</span>(<span class="fn">car</span>); <span class="fn">vif</span>(fit)  <span class="comment"># multicollinearity (≥2 predictors)</span>
-<span class="keyword">library</span>(<span class="fn">broom</span>); <span class="fn">tidy</span>(fit, conf.int = <span class="keyword">TRUE</span>)
+<span class="keyword">library</span>(<span class="fn">broom</span>); <span class="fn">tidy</span>(fit, conf.int = <span class="keyword">TRUE</span>, conf.level = <span class="number">0.95</span>)
 <span class="fn">glance</span>(fit)               <span class="comment"># one-row model summary</span></pre>
     </div>
 
@@ -450,6 +469,53 @@
 <script>
 function $(id){ return document.getElementById(id); }
 function fmt(x, d){ d = d ?? 4; if (!isFinite(x)) return '—'; return Number(x).toFixed(d).replace(/\.?0+$/,''); }
+
+// ============================================================
+// Quantile helpers (qnorm + qt)
+// ============================================================
+// Standard-normal inverse CDF (Beasley–Springer–Moro). Accurate to ~1e-9.
+function qnorm(p){
+  if (!(p > 0 && p < 1)) return NaN;
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+              1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+              6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+             -2.549732539343734e+00,  4.374664141464968e+00,  2.938163982698783e+00];
+  const d = [ 7.784695709041462e-03,  3.224671290700398e-01,  2.445134137142996e+00,
+              3.754408661907416e+00];
+  const pl = 0.02425, ph = 1 - pl;
+  let q, r;
+  if (p < pl){
+    q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else if (p <= ph){
+    q = p - 0.5; r = q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  } else {
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+}
+// Student-t quantile via Cornish-Fisher correction off qnorm.
+// Accurate to within ~0.5% for df >= 5 at typical CI levels (80–99%).
+function qt(p, df){
+  if (!isFinite(df) || df <= 0) return NaN;
+  if (df > 1000) return qnorm(p);
+  const z = qnorm(p);
+  // Cornish-Fisher 4-term expansion (Fisher 1925)
+  const z2 = z*z, z3 = z*z2, z5 = z3*z2, z7 = z5*z2;
+  const c1 = (z3 + z) / 4;
+  const c2 = (5*z5 + 16*z3 + 3*z) / 96;
+  const c3 = (3*z7 + 19*z5 + 17*z3 - 15*z) / 384;
+  return z + c1/df + c2/(df*df) + c3/(df*df*df);
+}
+function getCiLevel(){
+  const el = $('ci-level');
+  if (!el) return 0.95;
+  const v = parseFloat(el.value);
+  return isFinite(v) ? v/100 : 0.95;
+}
 
 // ============================================================
 // Parser for summary(lm) output
@@ -698,8 +764,41 @@ function modelDecision(parsed){
 // ============================================================
 // Render
 // ============================================================
+// Split input on a stand-alone "---" line that is NOT the R signif-codes
+// underline (which is followed by "Signif. codes" or sits inside the
+// coefficients block). We treat a separator line that has BOTH a Call:
+// after it and another Call: before it as a model-comparison split.
+function splitModelsForCompare(text){
+  if (!text) return [text];
+  const lines = text.split(/\r?\n/);
+  const callIdxs = [];
+  lines.forEach((l, i) => { if (/^Call:/i.test(l.trim())) callIdxs.push(i); });
+  if (callIdxs.length < 2) return [text];
+  // Find the first "---" line that sits BETWEEN two Call: blocks.
+  for (let i = callIdxs[0]+1; i < callIdxs[callIdxs.length-1]; i++){
+    const t = lines[i].trim();
+    if (/^-{3,}\s*$/.test(t)){
+      // make sure the next non-empty line is NOT "Signif. codes"
+      let j = i+1;
+      while (j < lines.length && lines[j].trim() === '') j++;
+      if (j < lines.length && /^Signif/i.test(lines[j].trim())) continue;
+      return [lines.slice(0, i).join('\n'), lines.slice(i+1).join('\n')];
+    }
+  }
+  return [text];
+}
+
 function parseAndRender(){
   const text = $('lm-input').value;
+  // Multi-model comparison?
+  const parts = splitModelsForCompare(text);
+  if (parts.length === 2){
+    renderComparison(parts[0], parts[1]);
+    return;
+  }
+  // Hide compare panel if previously shown
+  const cmp = $('compare-panel'); if (cmp) cmp.style.display = 'none';
+
   const parsed = parseLmSummary(text);
   if (!parsed){
     $('parse-status').textContent = 'Awaiting paste…';
@@ -766,11 +865,20 @@ function parseAndRender(){
     parsedHtml += `<div style="margin-bottom:14px;color:var(--c-text)">${escapeHtml(parsed.call)}</div>`;
   }
   if (parsed.coefficients.length > 0){
-    parsedHtml += `<div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Coefficients</div>`;
-    parsedHtml += '<table class="coef-table"><thead><tr><th>name</th><th class="num">estimate</th><th class="num">SE</th><th class="num">t</th><th class="num">p</th></tr></thead><tbody>';
+    const ciLevel = getCiLevel();
+    const ciPct = Math.round(ciLevel*100);
+    const alpha = 1 - ciLevel;
+    const tCrit = (parsed.df && parsed.df > 0) ? qt(1 - alpha/2, parsed.df) : null;
+    parsedHtml += `<div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Coefficients <span style="text-transform:none;letter-spacing:0;color:var(--c-text-mute);font-size:10.5px">(CI = ${ciPct}%${tCrit?`, t<sub>crit</sub>=${fmt(tCrit,3)}`:''})</span></div>`;
+    parsedHtml += `<table class="coef-table"><thead><tr><th>name</th><th class="num">estimate</th><th class="num">SE</th><th class="num">t</th><th class="num">p</th><th class="num">lower ${ciPct}%</th><th class="num">upper ${ciPct}%</th></tr></thead><tbody>`;
     parsed.coefficients.forEach(c => {
       const cls = c.aliased ? 'aliased' : '';
-      parsedHtml += `<tr class="${cls}"><td>${escapeHtml(c.name)}</td><td class="num">${c.aliased?'NA':fmt(c.estimate,4)}</td><td class="num">${fmt(c.se,4)}</td><td class="num">${fmt(c.t,2)}</td><td class="num">${fmt(c.p,4)}${c.sig?`<span class="sig-stars">${c.sig}</span>`:''}</td></tr>`;
+      let lo = '—', hi = '—';
+      if (!c.aliased && tCrit && isFinite(c.estimate) && isFinite(c.se)){
+        lo = fmt(c.estimate - tCrit*c.se, 4);
+        hi = fmt(c.estimate + tCrit*c.se, 4);
+      }
+      parsedHtml += `<tr class="${cls}"><td>${escapeHtml(c.name)}</td><td class="num">${c.aliased?'NA':fmt(c.estimate,4)}</td><td class="num">${fmt(c.se,4)}</td><td class="num">${fmt(c.t,2)}</td><td class="num">${fmt(c.p,4)}${c.sig?`<span class="sig-stars">${c.sig}</span>`:''}</td><td class="num">${lo}</td><td class="num">${hi}</td></tr>`;
     });
     parsedHtml += '</tbody></table>';
   }
@@ -806,9 +914,93 @@ function parseAndRender(){
     if (parsed.pmodel < 0.05) fitText += `The F-test rejects "no relationship" at α=0.05 (p = ${fmt(parsed.pmodel,4)}).`;
     else fitText += `The F-test fails to reject "no relationship" (p = ${fmt(parsed.pmodel,4)}); treat individual coefficients with caution.`;
     $('fit-interp').innerHTML = fitText;
+
+    // Refresh R code so confint(level=…) matches the selector
+    const ciL = getCiLevel();
+    const rcode = `<span class="comment"># Useful follow-ups after summary(lm)</span>\n<span class="fn">confint</span>(fit, level = <span class="number">${ciL}</span>)  <span class="comment"># ${Math.round(ciL*100)}% CIs for coefficients</span>\n<span class="fn">par</span>(mfrow = <span class="fn">c</span>(<span class="number">2</span>, <span class="number">2</span>)); <span class="fn">plot</span>(fit)  <span class="comment"># diagnostic plots</span>\n<span class="keyword">library</span>(<span class="fn">car</span>); <span class="fn">vif</span>(fit)  <span class="comment"># multicollinearity (≥2 predictors)</span>\n<span class="keyword">library</span>(<span class="fn">broom</span>); <span class="fn">tidy</span>(fit, conf.int = <span class="keyword">TRUE</span>, conf.level = <span class="number">${ciL}</span>)\n<span class="fn">glance</span>(fit)               <span class="comment"># one-row model summary</span>`;
+    $('r-code').innerHTML = rcode;
   } else {
     $('fit-card').style.display = 'none';
   }
+}
+
+// Approximate AIC for an lm fit from RSE + df + k.
+// AIC_R = n * log(RSS/n) + 2*(k+1) where k = #coefficients.
+// We need n (n = df + k). RSS = RSE^2 * df.
+function approxAICfromLm(parsed){
+  if (!parsed || parsed.rse == null || parsed.df == null) return null;
+  const k = parsed.coefficients.length;
+  const n = parsed.df + k;
+  if (n <= 0) return null;
+  const rss = parsed.rse * parsed.rse * parsed.df;
+  if (!(rss > 0)) return null;
+  // R's stats::AIC uses 2*(k+1) (incl. variance) and adds n*log(2*pi)+n
+  // Constant offset cancels in ΔAIC, so we use the comparable kernel:
+  return n * Math.log(rss/n) + 2*(k+1);
+}
+
+function renderComparison(textA, textB){
+  const A = parseLmSummary(textA), B = parseLmSummary(textB);
+  $('parse-status').innerHTML = `<span style="color:var(--c-success)">✓ Comparing 2 models</span>`;
+  $('parse-detail').textContent = `A: ${A?.coefficients.length||0} coef · B: ${B?.coefficients.length||0} coef`;
+  $('parse-errors').innerHTML = '';
+  $('decision-card').style.display = 'none';
+  $('result-cols').style.display = 'none';
+  $('fit-card').style.display = 'none';
+  $('callouts-area').innerHTML = '';
+  $('summary').innerHTML = `Comparing two pasted models. Below: side-by-side fit metrics with the better value highlighted.`;
+
+  const aicA = approxAICfromLm(A), aicB = approxAICfromLm(B);
+  const r2A = A?.r2 ?? null, r2B = B?.r2 ?? null;
+  const ar2A = A?.ar2 ?? null, ar2B = B?.ar2 ?? null;
+  const fA = A?.f ?? null, fB = B?.f ?? null;
+  const pA = A?.pmodel ?? null, pB = B?.pmodel ?? null;
+
+  function cell(label, va, vb, betterFn, fmtter){
+    const ff = fmtter || (x => x===null?'—':fmt(x,4));
+    let aClass = '', bClass = '';
+    if (va !== null && vb !== null && betterFn){
+      const winner = betterFn(va, vb);
+      if (winner === 'A') aClass = 'cmp-win';
+      else if (winner === 'B') bClass = 'cmp-win';
+    }
+    return {label, va:ff(va), vb:ff(vb), aClass, bClass};
+  }
+
+  const rows = [
+    cell('R²', r2A, r2B, (a,b) => a>b?'A':(b>a?'B':null)),
+    cell('Adj R²', ar2A, ar2B, (a,b) => a>b?'A':(b>a?'B':null)),
+    cell('F-statistic', fA, fB, (a,b) => a>b?'A':(b>a?'B':null), x => x===null?'—':fmt(x,3)),
+    cell('F p-value', pA, pB, (a,b) => a<b?'A':(b<a?'B':null), x => x===null?'—':fmt(x,5)),
+    cell('AIC (approx)', aicA, aicB, (a,b) => a<b?'A':(b<a?'B':null), x => x===null?'—':fmt(x,2)),
+    cell('Coefficients', A?.coefficients.length||0, B?.coefficients.length||0, null),
+    cell('Residual df', A?.df ?? null, B?.df ?? null, null, x => x===null?'—':String(x))
+  ];
+
+  let html = '<div style="border:1px solid var(--c-border);border-radius:8px;background:var(--c-bg);overflow:hidden">';
+  html += '<table style="width:100%;border-collapse:collapse;font-family:\'IBM Plex Mono\',monospace;font-size:12.5px"><thead><tr><th style="text-align:left;padding:8px 12px;background:var(--c-bg-alt);border-bottom:1px solid var(--c-border);font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.04em">Metric</th><th style="text-align:right;padding:8px 12px;background:var(--c-bg-alt);border-bottom:1px solid var(--c-border);font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.04em">Model A</th><th style="text-align:right;padding:8px 12px;background:var(--c-bg-alt);border-bottom:1px solid var(--c-border);font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.04em">Model B</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    const winStyle = 'background:var(--c-success-soft);font-weight:600;color:var(--c-success)';
+    html += `<tr><td style="padding:8px 12px;border-bottom:1px solid var(--c-border-soft);font-family:'IBM Plex Sans',sans-serif;font-size:13px">${r.label}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid var(--c-border-soft);${r.aClass==='cmp-win'?winStyle:''}">${r.va}</td><td style="padding:8px 12px;text-align:right;border-bottom:1px solid var(--c-border-soft);${r.bClass==='cmp-win'?winStyle:''}">${r.vb}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  // Verdict line
+  const wins = {A:0, B:0};
+  rows.forEach(r => { if (r.aClass==='cmp-win') wins.A++; else if (r.bClass==='cmp-win') wins.B++; });
+  let verdict = '';
+  if (wins.A > wins.B) verdict = `<strong>Model A</strong> wins on ${wins.A} metric${wins.A>1?'s':''} vs ${wins.B}.`;
+  else if (wins.B > wins.A) verdict = `<strong>Model B</strong> wins on ${wins.B} metric${wins.B>1?'s':''} vs ${wins.A}.`;
+  else verdict = `Models are roughly tied on the parsed metrics (${wins.A}-${wins.B}).`;
+  if (aicA !== null && aicB !== null){
+    const dA = Math.abs(aicA - aicB);
+    verdict += ` ΔAIC ≈ ${fmt(dA,2)}; ${dA < 2 ? 'no meaningful difference (Δ<2).' : (dA < 7 ? 'modest preference for the lower-AIC model.' : 'substantial preference for the lower-AIC model (Δ≥7).')}`;
+  }
+  verdict += ` <em>Caveat:</em> AIC here is computed from RSE/df/k and is comparable only when both models use the same dataset and outcome.`;
+
+  $('compare-grid').innerHTML = html;
+  $('compare-verdict').innerHTML = verdict;
+  $('compare-panel').style.display = '';
 }
 
 function escapeHtml(s){
@@ -1000,7 +1192,13 @@ window.runSmokeTests = function(){
     {desc:"Parses factor: 5 coefficients (intercept + 3 levels + age)", fn:()=>parseLmSummary(SCENARIOS.factor.output).coefficients.length, expect:5},
     {desc:"Weak model: F p-value parsed > 0.5", fn:()=>parseLmSummary(SCENARIOS.weak.output).pmodel > 0.5 ? 1 : 0, expect:1},
     {desc:"pVerdict(0.001) is 'strong'", fn:()=>pVerdict(0.001).label==='strong'?1:0, expect:1},
-    {desc:"pVerdict(0.5) is 'no evidence'", fn:()=>pVerdict(0.5).label==='no evidence'?1:0, expect:1}
+    {desc:"pVerdict(0.5) is 'no evidence'", fn:()=>pVerdict(0.5).label==='no evidence'?1:0, expect:1},
+    {desc:"qnorm(0.975) ≈ 1.96", fn:()=>qnorm(0.975), expect:1.95996},
+    {desc:"qt(0.975, 20) ≈ 2.086", fn:()=>qt(0.975, 20), expect:2.086},
+    {desc:"qt(0.975, 10) ≈ 2.228", fn:()=>qt(0.975, 10), expect:2.228},
+    {desc:"qt(0.95, 30) ≈ 1.697", fn:()=>qt(0.95, 30), expect:1.697},
+    {desc:"qt 95% CI for 2.5±0.5, df=20 lower ≈ 1.46",
+      fn:()=>{const t=qt(0.975,20);return 2.5 - t*0.5;}, expect:1.457}
   ];
   console.group('lm() Interpreter smoke tests');
   let pass = 0;

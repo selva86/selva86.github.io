@@ -838,6 +838,17 @@
         </div>
         <div></div>
       </div>
+
+      <div class="form-row">
+        <label class="form-label" for="p-allocation">
+          Variant B traffic share
+          <small class="form-help">Fraction of traffic sent to B. 0.5 = even 50/50 split. Unequal splits need more total traffic — variance scales as 1 / (k · (1−k)).</small>
+        </label>
+        <div class="form-control">
+          <input type="number" id="p-allocation" min="0.05" max="0.95" step="0.05" value="0.5" oninput="recomputePlan()">
+        </div>
+        <div></div>
+      </div>
     </aside>
 
     <main class="ws-output">
@@ -1106,6 +1117,32 @@ h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's e
       </div>
     </div>
 
+    <!-- Sample Ratio Mismatch (SRM) check — only meaningful in proportion mode where n1, n2 carry split info -->
+    <div class="card" id="srm-card" style="display:none;padding:16px 20px;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <strong>Sample Ratio Mismatch (SRM) check</strong>
+          <div style="font-size:12px;color:var(--c-text-soft);margin-top:2px">
+            χ² test that the observed split matches the expected allocation. SRM signals broken randomization or biased exposure.
+          </div>
+        </div>
+        <label style="font-size:13px;color:var(--c-text-soft);display:flex;align-items:center;gap:6px;white-space:nowrap">
+          Expected B share
+          <input type="number" id="srm-expected" min="0.01" max="0.99" step="0.01" value="0.5"
+                 style="width:80px" oninput="recomputeAnalyze()">
+        </label>
+      </div>
+      <div id="srm-output" style="margin-top:10px;font-size:14px"></div>
+    </div>
+
+    <!-- Sequential testing / peeking warning -->
+    <div class="callout" id="peeking-callout" style="display:none;margin-top:12px;padding:12px 16px;border-left:3px solid #f59e0b;background:rgba(245,158,11,0.08);border-radius:6px;font-size:13px;color:var(--c-text-soft)">
+      <strong style="color:var(--c-text)">Heads up — multiple looks inflate false positives.</strong>
+      Looking at this calculator multiple times during the test inflates your false-positive rate beyond α.
+      If you've peeked &gt;3 times, consider sequential corrections (e.g.,
+      <a href="/sequential-testing/">Pocock or O'Brien-Fleming</a>) or pre-register a single look.
+    </div>
+
     <div class="risk-reward" id="analyze-risk-reward">
       <div class="risk-reward-input">
         <label for="a-revenue">💰 Revenue per conversion ($, optional)</label>
@@ -1182,6 +1219,32 @@ h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's e
     <!-- BAYESIAN -->
     <div class="card result-card" id="result-bayes" style="display:none">
       <span class="result-tag">Bayesian analysis</span>
+
+      <div class="form-row" style="margin-bottom:12px">
+        <label class="form-label" for="bayes-prior" style="font-size:13px">
+          Prior
+          <small class="form-help">Beta(α, β) prior on each conversion rate. Uniform is the standard non-informative choice; Jeffreys is invariant under reparameterization. "Custom" lets you encode previous knowledge.</small>
+        </label>
+        <div class="form-control" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="bayes-prior" onchange="onBayesPriorChange()">
+            <option value="uniform" selected>Uniform — Beta(1, 1)</option>
+            <option value="jeffreys">Jeffreys — Beta(0.5, 0.5)</option>
+            <option value="custom">Custom — specify α, β</option>
+          </select>
+          <span id="bayes-prior-custom" style="display:none;gap:6px;align-items:center">
+            <label style="font-size:12px;color:var(--c-text-soft)">α
+              <input type="number" id="bayes-alpha" min="0.001" step="0.1" value="1" style="width:70px"
+                     oninput="recomputeAnalyze()">
+            </label>
+            <label style="font-size:12px;color:var(--c-text-soft)">β
+              <input type="number" id="bayes-beta" min="0.001" step="0.1" value="1" style="width:70px"
+                     oninput="recomputeAnalyze()">
+            </label>
+          </span>
+        </div>
+        <div></div>
+      </div>
+
       <div class="result-primary">
         <span class="result-num" id="bayes-prob">—</span>
         <span class="result-unit">probability B is better</span>
@@ -1469,19 +1532,32 @@ function welchTTest(mean1, sd1, n1, mean2, sd2, n2, alpha){
   };
 }
 
-// Sample size for two-proportion z-test, equal allocation. Returns n per
-// group. Uses Cohen's h on the arcsine scale so the answer matches the
-// `pwr.2p.test` R code printed alongside the result. The previous
-// raw-difference formula gave answers ~2× off near rare-event baselines
-// (e.g. p1=0.05 vs p2=0.06).
-function sampleSizeTwoProp(p1, p2, alpha, power, tail){
+// Sample size for two-proportion z-test. Default is equal allocation;
+// pass `share` (Variant B's traffic fraction k, 0<k<1) for unequal splits.
+// Uses Cohen's h on the arcsine scale so the answer matches `pwr.2p.test`
+// (or `pwr.2p2n.test` when allocation is unequal).
+//
+// Equal allocation: returns n per arm (total = 2·n).
+// Unequal allocation: returns {nA, nB, total} object — variance scales
+//   by 1 / (4·k·(1−k)) relative to even split, since
+//   1/n₁ + 1/n₂ = 1 / (N · k · (1−k))   with N = nA + nB.
+function sampleSizeTwoProp(p1, p2, alpha, power, tail, share){
   if (p1 < 0 || p1 > 1 || p2 < 0 || p2 > 1) return NaN;
   const h = 2 * (Math.asin(Math.sqrt(p2)) - Math.asin(Math.sqrt(p1)));
   if (h === 0) return Infinity;
   const zA = qnorm(1 - alpha/tail);
   const zB = qnorm(power);
-  const n = Math.pow(zA + zB, 2) / (h * h);
-  return Math.ceil(n);
+  const nEq = Math.pow(zA + zB, 2) / (h * h);  // n per arm at 50/50
+
+  const k = (typeof share === 'number' && share > 0 && share < 1) ? share : 0.5;
+  if (Math.abs(k - 0.5) < 1e-9) return Math.ceil(nEq);
+
+  // Unequal allocation. Total N such that 1/(N(1-k)) + 1/(Nk) = 2/nEq:
+  //   N = nEq / (2·k·(1−k))
+  const total = nEq / (2 * k * (1 - k));
+  const nA = Math.ceil(total * (1 - k));
+  const nB = Math.ceil(total * k);
+  return { nA, nB, total: nA + nB, nEq: Math.ceil(nEq) };
 }
 
 // Two-proportion z-test (with pooled variance under H0)
@@ -1533,10 +1609,50 @@ function rbeta(alpha, beta){
   return x / (x+y);
 }
 
-// Bayesian beta-binomial analysis (10k posterior draws)
-function bayesAnalysis(c1, n1, c2, n2, nDraws = 10000){
-  const a1 = 1 + c1, b1 = 1 + n1 - c1;
-  const a2 = 1 + c2, b2 = 1 + n2 - c2;
+// SRM (Sample Ratio Mismatch) check. df = 1 for two arms, so we use the
+// z² ↔ χ²(1) identity: p = 2·(1 − Φ(√χ²)). expectedShare is the *expected*
+// fraction routed to variant B (default 0.5).
+function srmTest(n1, n2, expectedShare){
+  const k = (typeof expectedShare === 'number' && expectedShare > 0 && expectedShare < 1) ? expectedShare : 0.5;
+  const N = n1 + n2;
+  if (!(N > 0)) return null;
+  const E1 = N * (1 - k), E2 = N * k;
+  const chi2 = (n1 - E1)*(n1 - E1)/E1 + (n2 - E2)*(n2 - E2)/E2;
+  const p = 2 * (1 - pnorm(Math.sqrt(chi2)));   // df=1 → χ² = z²
+  return { chi2, p, expectedN1: E1, expectedN2: E2, expectedShare: k };
+}
+
+// Resolve the active Bayesian prior from the UI selector.
+function getBayesPrior(){
+  const sel = $('bayes-prior');
+  if (!sel) return { a: 1, b: 1, label: 'Beta(1, 1)' };
+  if (sel.value === 'jeffreys') return { a: 0.5, b: 0.5, label: 'Beta(0.5, 0.5) — Jeffreys' };
+  if (sel.value === 'custom'){
+    const a = parseFloat($('bayes-alpha').value);
+    const b = parseFloat($('bayes-beta').value);
+    return {
+      a: (isFinite(a) && a > 0) ? a : 1,
+      b: (isFinite(b) && b > 0) ? b : 1,
+      label: `Beta(${(isFinite(a)&&a>0)?a:1}, ${(isFinite(b)&&b>0)?b:1}) — custom`
+    };
+  }
+  return { a: 1, b: 1, label: 'Beta(1, 1) — uniform' };
+}
+
+function onBayesPriorChange(){
+  const sel = $('bayes-prior');
+  if (!sel) return;
+  $('bayes-prior-custom').style.display = (sel.value === 'custom') ? 'inline-flex' : 'none';
+  recomputeAnalyze();
+}
+
+// Bayesian beta-binomial analysis (10k posterior draws). Optional `prior`
+// is an object {a, b} encoding the Beta prior shared by both arms.
+function bayesAnalysis(c1, n1, c2, n2, nDraws = 10000, prior){
+  const pa = (prior && prior.a > 0) ? prior.a : 1;
+  const pb = (prior && prior.b > 0) ? prior.b : 1;
+  const a1 = pa + c1, b1 = pb + n1 - c1;
+  const a2 = pa + c2, b2 = pb + n2 - c2;
   const draws = new Array(nDraws);
   let bBeatsA = 0, sumDiff = 0;
   for (let i=0; i<nDraws; i++){
@@ -1701,17 +1817,30 @@ function recomputePlan(){
   else p2 = p1 * (1 + mde);
   if (p2 >= 1 || p2 <= 0){ showInvalid('p-mde'); return clearPlan('The implied target rate must stay between 0 and 1.'); }
 
-  const n = sampleSizeTwoProp(p1, p2, alpha, power, tail);
-  if (!isFinite(n)){ return clearPlan('Couldn\'t compute — check inputs.'); }
+  // Allocation share for variant B (default 0.5)
+  const shareRaw = parseFloat($('p-allocation').value);
+  const share = (isFinite(shareRaw) && shareRaw > 0 && shareRaw < 1) ? shareRaw : 0.5;
+  const result = sampleSizeTwoProp(p1, p2, alpha, power, tail, share);
+  if (!isFinite(result) && typeof result !== 'object'){ return clearPlan('Couldn\'t compute — check inputs.'); }
 
-  $('r-n-per-variant').textContent = fmtNum(n);
+  // Unify equal vs unequal output shapes
+  let nA, nB, totalN, perVariantLabel;
+  if (typeof result === 'object'){
+    nA = result.nA; nB = result.nB; totalN = result.total;
+    perVariantLabel = `A: ${fmtNum(nA)} · B: ${fmtNum(nB)}`;
+  } else {
+    nA = result; nB = result; totalN = result * 2;
+    perVariantLabel = fmtNum(result);
+  }
+
+  $('r-n-per-variant').textContent = perVariantLabel;
   animateNumber($('r-n-per-variant'));
-  $('r-n-total').textContent = fmtNum(n*2);
+  $('r-n-total').textContent = fmtNum(totalN);
   $('r-p2').textContent = fmtPct(p2, 2);
   $('r-lift').textContent = fmtPct(p2-p1, 2) + ' (abs)';
 
   if (traffic && traffic > 0){
-    const days = (n*2) / traffic;
+    const days = totalN / traffic;
     if (days < 1) $('r-duration').textContent = '<1 day';
     else if (days < 60) $('r-duration').textContent = days.toFixed(1) + ' days';
     else $('r-duration').textContent = (days/30).toFixed(1) + ' months';
@@ -1719,13 +1848,19 @@ function recomputePlan(){
     $('r-duration').textContent = '— (set traffic)';
   }
 
-  $('r-n-desc').innerHTML = `Expose ${fmtNum(n)} visitors to each variant (${fmtNum(n*2)} total) for an ${(power*100).toFixed(0)}% chance of detecting a ${fmtPct(p2-p1,2)} absolute lift if it's real.`;
+  const allocBlurb = (Math.abs(share - 0.5) < 1e-9)
+    ? `${fmtNum(nA)} per variant (${fmtNum(totalN)} total)`
+    : `${fmtNum(nA)} for A and ${fmtNum(nB)} for B (${fmtNum(totalN)} total, ${(share*100).toFixed(0)}% share to B)`;
+  $('r-n-desc').innerHTML = `Expose ${allocBlurb} for an ${(power*100).toFixed(0)}% chance of detecting a ${fmtPct(p2-p1,2)} absolute lift if it's real.`;
 
-  updatePlanSummary(p1, p2, n, alpha, power, traffic);
+  // updatePlanSummary still expects "n per arm" — pass nA at even split, otherwise total/2
+  updatePlanSummary(p1, p2, (typeof result === 'object' ? Math.round(totalN/2) : nA), alpha, power, traffic);
   updateRiskReward();
 
-  // R code update
-  $('r-code-plan').innerHTML = `<span class="comment"># Compute sample size for a two-proportion z-test</span>
+  // R code update — branch on allocation
+  const isEven = Math.abs(share - 0.5) < 1e-9;
+  const rCode = isEven
+    ? `<span class="comment"># Compute sample size for a two-proportion z-test</span>
 <span class="keyword">library</span>(<span class="fn">pwr</span>)
 
 p1 &lt;- <span class="number">${p1}</span>      <span class="comment"># baseline</span>
@@ -1737,7 +1872,22 @@ h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's e
   sig.level  = <span class="number">${alpha}</span>,
   power      = <span class="number">${power}</span>,
   alternative = <span class="string">"${tail===2?'two.sided':'greater'}"</span>
+)`
+    : `<span class="comment"># Two-proportion z-test, unequal allocation (B share = ${(share*100).toFixed(0)}%)</span>
+<span class="keyword">library</span>(<span class="fn">pwr</span>)
+
+p1 &lt;- <span class="number">${p1}</span>      <span class="comment"># baseline</span>
+p2 &lt;- <span class="number">${p2.toFixed(4)}</span>      <span class="comment"># expected with treatment</span>
+h  &lt;- <span class="fn">ES.h</span>(p1, p2)
+
+<span class="fn">pwr.2p2n.test</span>(
+  h          = h,
+  n1         = <span class="number">${nA}</span>,
+  n2         = <span class="number">${nB}</span>,
+  sig.level  = <span class="number">${alpha}</span>,
+  alternative = <span class="string">"${tail===2?'two.sided':'greater'}"</span>
 )`;
+  $('r-code-plan').innerHTML = rCode;
 
   // Sensitivity chart
   drawSensitivity(p1, alpha, power, tail);
@@ -1905,6 +2055,13 @@ function recomputeAnalyze(){
   $('a-rate1').textContent = fmtPct(c1/n1, 2);
   $('a-rate2').textContent = fmtPct(c2/n2, 2);
 
+  // SRM card (proportion mode)
+  renderSrmCheck(n1, n2);
+
+  // Sequential testing / peeking warning — always show in Analyze pane.
+  const peekEl = $('peeking-callout');
+  if (peekEl) peekEl.style.display = '';
+
   // Frequentist
   const f = twoPropTest(c1, n1, c2, n2);
 
@@ -1966,7 +2123,8 @@ function recomputeAnalyze(){
 
   // Bayesian (only if visible to save cycles)
   if (view === 'bayesian'){
-    const b = bayesAnalysis(c1, n1, c2, n2, 10000);
+    const prior = getBayesPrior();
+    const b = bayesAnalysis(c1, n1, c2, n2, 10000, prior);
     $('bayes-prob').textContent = (b.probBeatsA*100).toFixed(1) + '%';
     animateNumber($('bayes-prob'));
     $('bayes-prob').className = 'result-num ' + (b.probBeatsA > 0.95 ? 'ok' : (b.probBeatsA < 0.05 ? 'warn' : ''));
@@ -1974,7 +2132,7 @@ function recomputeAnalyze(){
     $('bayes-mean').textContent = (b.meanDiff*100).toFixed(2) + 'pp';
     $('bayes-loss-a').textContent = (b.lossPickA*100).toFixed(3) + 'pp';
     $('bayes-loss-b').textContent = (b.lossPickB*100).toFixed(3) + 'pp';
-    $('bayes-desc').innerHTML = `After seeing your data and using a non-informative prior, there's a <strong>${(b.probBeatsA*100).toFixed(1)}%</strong> probability that B's true conversion rate is higher than A's.`;
+    $('bayes-desc').innerHTML = `Using a <strong>${prior.label}</strong> prior, there's a <strong>${(b.probBeatsA*100).toFixed(1)}%</strong> probability that B's true conversion rate is higher than A's.`;
 
     const bv = $('bayes-verdict');
     bv.className = 'verdict';
@@ -1991,7 +2149,7 @@ function recomputeAnalyze(){
 
     drawPosterior(b);
     $('r-code-bayes').innerHTML = `<span class="comment"># Bayesian via beta-binomial conjugate</span>
-<span class="comment"># Prior Beta(1,1) is uniform / non-informative</span>
+<span class="comment"># Prior: ${prior.label}</span>
 <span class="keyword">set.seed</span>(<span class="number">42</span>)
 post_a &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${b.a1}</span>, <span class="number">${b.b1}</span>)
 post_b &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <span class="number">${b.a2}</span>, <span class="number">${b.b2}</span>)
@@ -2008,6 +2166,43 @@ function clearAnalyze(msg){
   $('freq-lift').textContent = '—';
   $('freq-ci').textContent='—';$('freq-z').textContent='—';$('freq-p').textContent='—';$('freq-rel').textContent='—';
   $('freq-desc').textContent = msg || '';
+  // Hide SRM card and peeking callout when inputs are invalid
+  const srm = $('srm-card'); if (srm) srm.style.display = 'none';
+  const peek = $('peeking-callout'); if (peek) peek.style.display = 'none';
+}
+
+// Render the SRM (Sample Ratio Mismatch) χ² check below the decision card.
+function renderSrmCheck(n1, n2){
+  const card = $('srm-card');
+  const out = $('srm-output');
+  if (!card || !out) return;
+  // Only meaningful in proportion mode where n1, n2 are the per-arm exposure counts.
+  if (state.metricType.analyze !== 'prop'){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  const expRaw = parseFloat($('srm-expected').value);
+  const k = (isFinite(expRaw) && expRaw > 0 && expRaw < 1) ? expRaw : 0.5;
+  const r = srmTest(n1, n2, k);
+  if (!r){ out.textContent = '—'; return; }
+  const N = n1 + n2;
+  const flagged = r.p < 0.001;
+  const colour = flagged ? '#dc2626' : (r.p < 0.05 ? '#f59e0b' : '#16a34a');
+  const headline = flagged
+    ? `<span style="color:#dc2626"><strong>⚠️ Sample ratio mismatch — your randomization may be broken.</strong></span>`
+    : (r.p < 0.05
+        ? `<span style="color:#f59e0b">Borderline split — investigate exposure logging.</span>`
+        : `<span style="color:#16a34a">Split looks healthy.</span>`);
+  out.innerHTML = `
+    ${headline}
+    <div style="margin-top:6px;font-size:13px;color:var(--c-text-soft)">
+      Observed split: A = ${fmtNum(n1)} (${((n1/N)*100).toFixed(2)}%) ·
+      B = ${fmtNum(n2)} (${((n2/N)*100).toFixed(2)}%) ·
+      expected B = ${(k*100).toFixed(0)}% (E[A] = ${fmtNum(Math.round(r.expectedN1))}, E[B] = ${fmtNum(Math.round(r.expectedN2))})
+    </div>
+    <div style="margin-top:4px;font-size:13px"><span style="color:${colour}">χ² = ${r.chi2.toFixed(3)}, df = 1, p = ${r.p < 0.0001 ? '<0.0001' : r.p.toFixed(4)}</span></div>
+  `;
 }
 
 // Continuous-mean Analyze computation. Welch's two-sample t-test with
@@ -2022,6 +2217,10 @@ function recomputeAnalyzeCont(){
   if ([n1,m1,s1,n2,m2,s2].some(x => isNaN(x))) return clearAnalyze('Enter all six numbers above.');
   if (n1 < 2 || n2 < 2) return clearAnalyze('Each arm needs at least 2 users.');
   if (s1 <= 0 || s2 <= 0) return clearAnalyze('Standard deviations must be > 0.');
+
+  // SRM is conversion-rate specific; hide in continuous mode. Peeking warning still applies.
+  const srmCardEl = $('srm-card'); if (srmCardEl) srmCardEl.style.display = 'none';
+  const peekEl = $('peeking-callout'); if (peekEl) peekEl.style.display = '';
 
   const f = welchTTest(m1, s1, n1, m2, s2, n2, alpha);
 
@@ -2738,6 +2937,15 @@ window.runSmokeTests = function(){
      fn:()=>welchTTest(100,20,50,110,22,50,0.05).ciHigh, expect:18.35, tol:0.15},
     {desc:'Sample size for continuous: μ=100,σ=20,MDE=10,α=0.05,power=0.80,two-sided ≈ 64',
      fn:()=>sampleSizeTwoMean(100, 20, 10, 0.05, 0.80, 2), expect:63, tol:3},
+    // Round-2 — SRM χ² spot check: n1=520, n2=480, expected 0.5 → χ² = 1.6
+    {desc:'SRM: n1=520, n2=480, expected=0.5 → χ² ≈ 1.6',
+     fn:()=>srmTest(520, 480, 0.5).chi2, expect:1.6, tol:0.001},
+    {desc:'SRM: n1=520, n2=480 → p ≈ 0.206 (not significant)',
+     fn:()=>srmTest(520, 480, 0.5).p, expect:0.2059, tol:0.005},
+    // Round-2 — allocation 70/30, h with p1=0.05, p2≈0.05+ small, returns object
+    {desc:'sampleSizeTwoProp with 70/30 share returns object with nA, nB, total',
+     fn:()=>{const r = sampleSizeTwoProp(0.10, 0.13, 0.05, 0.80, 2, 0.30); return (typeof r === 'object' && r.nA && r.nB) ? 1 : 0;},
+     expect:1, tol:0.5},
   ];
   console.group('A/B Calculator smoke tests');
   let passed = 0;

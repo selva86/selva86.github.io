@@ -385,6 +385,21 @@ glm(formula = y ~ x1 + x2, family = binomial(link = &quot;logit&quot;), data = d
         <option value="inverse.gaussian-1/mu^2">inverse.gaussian(1/mu^2)</option>
       </select>
     </div>
+    <div class="family-override">
+      <label for="ci-level">Confidence level:</label>
+      <select id="ci-level" onchange="parseAndRender()">
+        <option value="80">80%</option>
+        <option value="90">90%</option>
+        <option value="95" selected>95%</option>
+        <option value="99">99%</option>
+      </select>
+      <span style="color:var(--c-text-mute);font-weight:400">Wald CI: β ± z<sub>α/2</sub>·SE</span>
+    </div>
+    <div class="family-override" id="nobs-row" style="display:none">
+      <label for="nobs-input">n (observations):</label>
+      <input type="number" id="nobs-input" min="1" step="1" placeholder="e.g. 891" oninput="parseAndRender()" style="padding:5px 8px;font-size:12.5px;border:1px solid var(--c-border);border-radius:5px;background:var(--c-bg);color:var(--c-text);width:110px">
+      <span style="color:var(--c-text-mute);font-weight:400">for Cox-Snell / Nagelkerke R²</span>
+    </div>
   </aside>
 
   <main class="ws-output">
@@ -521,6 +536,47 @@ const FAMILIES = {
   'negbin-log':        {family:'negbin',       link:'log',      label:'Negative binomial (glm.nb, log)', icon:'🔢', exp:true, scale:'rate'},
   'inverse.gaussian-1/mu^2':{family:'inverse.gaussian',link:'1/mu^2',label:'inverse.gaussian(1/mu^2)',icon:'🎯',exp:false,scale:'inverse-sq'}
 };
+
+// ============================================================
+// Standard-normal inverse CDF (Beasley–Springer–Moro)
+// ============================================================
+function qnorm(p){
+  if (!(p > 0 && p < 1)) return NaN;
+  const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+              1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+  const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+              6.680131188771972e+01, -1.328068155288572e+01];
+  const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+             -2.549732539343734e+00,  4.374664141464968e+00,  2.938163982698783e+00];
+  const d = [ 7.784695709041462e-03,  3.224671290700398e-01,  2.445134137142996e+00,
+              3.754408661907416e+00];
+  const pl = 0.02425, ph = 1 - pl;
+  let q, r;
+  if (p < pl){
+    q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else if (p <= ph){
+    q = p - 0.5; r = q*q;
+    return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+  } else {
+    q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+}
+function getCiLevel(){
+  const el = $('ci-level');
+  if (!el) return 0.95;
+  const v = parseFloat(el.value);
+  return isFinite(v) ? v/100 : 0.95;
+}
+function getNObs(parsed){
+  const el = $('nobs-input');
+  const v = el ? parseFloat(el.value) : NaN;
+  if (isFinite(v) && v > 0) return Math.round(v);
+  // Try to infer from null df + 1 (binomial: nullDf = n - 1)
+  if (parsed && parsed.nullDf != null) return parsed.nullDf + 1;
+  return null;
+}
 
 function detectFamily(callLine){
   if (!callLine) return null;
@@ -1021,13 +1077,24 @@ function parseAndRender(){
     parsedHtml += `<div style="margin-bottom:14px;color:var(--c-text);word-break:break-word">${escapeHtml(parsed.call)}</div>`;
   }
   if (parsed.coefficients.length > 0){
-    parsedHtml += `<div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Coefficients</div>`;
+    const ciLevel = getCiLevel();
+    const ciPct = Math.round(ciLevel*100);
+    const zCrit = qnorm(1 - (1-ciLevel)/2);
     const expCol = fam && fam.exp;
-    parsedHtml += '<table class="coef-table"><thead><tr><th>name</th><th class="num">estimate</th>' + (expCol?`<th class="num">${fam.scale==='odds'?'OR':'RR'}</th>`:'') + '<th class="num">SE</th><th class="num">p</th></tr></thead><tbody>';
+    const expLabel = fam ? (fam.scale==='odds'?'OR':(fam.scale==='rate'?'RR':'exp(β)')) : 'exp(β)';
+    parsedHtml += `<div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">Coefficients <span style="text-transform:none;letter-spacing:0;color:var(--c-text-mute);font-size:10.5px">(CI = ${ciPct}%, z<sub>crit</sub>=${fmt(zCrit,3)})</span></div>`;
+    parsedHtml += '<table class="coef-table"><thead><tr><th>name</th><th class="num">estimate</th>' + (expCol?`<th class="num">${expLabel}</th>`:'') + '<th class="num">SE</th><th class="num">p</th>' + `<th class="num">lower ${ciPct}%</th><th class="num">upper ${ciPct}%</th>` + (expCol?`<th class="num">${expLabel} ${ciPct}% CI</th>`:'') + '</tr></thead><tbody>';
     parsed.coefficients.forEach(c => {
       const cls = c.aliased ? 'aliased' : '';
       const expVal = expCol && !c.aliased ? fmt(Math.exp(c.estimate),3) : '';
-      parsedHtml += `<tr class="${cls}"><td>${escapeHtml(c.name)}</td><td class="num">${c.aliased?'NA':fmt(c.estimate,4)}</td>` + (expCol?`<td class="num exp-col">${expVal}</td>`:'') + `<td class="num">${fmt(c.se,4)}</td><td class="num">${fmt(c.p,4)}${c.sig?`<span class="sig-stars">${c.sig}</span>`:''}</td></tr>`;
+      let lo='—', hi='—', expCI='—';
+      if (!c.aliased && isFinite(c.estimate) && isFinite(c.se)){
+        const loV = c.estimate - zCrit*c.se;
+        const hiV = c.estimate + zCrit*c.se;
+        lo = fmt(loV, 4); hi = fmt(hiV, 4);
+        if (expCol) expCI = `(${fmt(Math.exp(loV),3)}, ${fmt(Math.exp(hiV),3)})`;
+      }
+      parsedHtml += `<tr class="${cls}"><td>${escapeHtml(c.name)}</td><td class="num">${c.aliased?'NA':fmt(c.estimate,4)}</td>` + (expCol?`<td class="num exp-col">${expVal}</td>`:'') + `<td class="num">${fmt(c.se,4)}</td><td class="num">${fmt(c.p,4)}${c.sig?`<span class="sig-stars">${c.sig}</span>`:''}</td><td class="num">${lo}</td><td class="num">${hi}</td>` + (expCol?`<td class="num exp-col">${expCI}</td>`:'') + `</tr>`;
     });
     parsedHtml += '</tbody></table>';
   }
@@ -1048,6 +1115,12 @@ function parseAndRender(){
   });
   $('interp-view').innerHTML = interpHtml || '<div class="empty-state">No coefficients parsed.</div>';
 
+  // Show n_obs input row only for binomial families
+  const nobsRow = $('nobs-row');
+  if (nobsRow){
+    nobsRow.style.display = (fam && fam.family === 'binomial') ? '' : 'none';
+  }
+
   // Fit card
   if (parsed.nullDev !== null && parsed.residDev !== null && parsed.nullDev > 0){
     $('fit-card').style.display = '';
@@ -1055,36 +1128,75 @@ function parseAndRender(){
     const lr = parsed.nullDev - parsed.residDev;
     const dfDiff = (parsed.nullDf||0) - (parsed.residDf||0);
     const lrP = (dfDiff > 0 && lr >= 0) ? chiSqUpper(lr, dfDiff) : null;
-    $('fit-grid').innerHTML = `
-      <div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">Pseudo-R² (McFadden)</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(mcf,3)}</div></div>
+
+    // Cox-Snell + Nagelkerke (binomial only)
+    let coxSnell = null, nagelkerke = null, nObs = null;
+    if (fam && fam.family === 'binomial'){
+      nObs = getNObs(parsed);
+      if (nObs && nObs > 0){
+        coxSnell = 1 - Math.exp(-(parsed.nullDev - parsed.residDev) / nObs);
+        const denom = 1 - Math.exp(-parsed.nullDev / nObs);
+        if (denom > 0) nagelkerke = coxSnell / denom;
+      }
+    }
+
+    let gridHtml = `
+      <div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">McFadden R²</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(mcf,3)}</div></div>`;
+    if (coxSnell !== null){
+      gridHtml += `<div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">Cox-Snell R²</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(coxSnell,3)}</div></div>`;
+      gridHtml += `<div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">Nagelkerke R²</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(nagelkerke,3)}</div></div>`;
+    }
+    gridHtml += `
       <div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">LR χ²</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(lr,2)} <span style="font-size:12px;color:var(--c-text-mute)">on ${dfDiff} df</span></div></div>
       <div style="padding:12px 14px;border-right:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">LR p-value</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${lrP===null?'—':fmt(lrP,5)}</div></div>
       <div style="padding:12px 14px"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">AIC</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(parsed.aic,2)}</div></div>`;
+
+    // Dispersion card for count families
+    if (fam && (fam.family === 'poisson' || fam.family === 'quasipoisson' || fam.family === 'negbin') && parsed.residDf > 0){
+      const ratio = parsed.residDev / parsed.residDf;
+      let verdict, vColor;
+      if (ratio < 1.2){ verdict = 'OK (≈1)'; vColor = 'var(--c-success)'; }
+      else if (ratio < 1.5){ verdict = 'Mild over-dispersion'; vColor = 'var(--c-warn)'; }
+      else { verdict = 'Strong over-dispersion'; vColor = 'var(--c-danger)'; }
+      gridHtml += `<div style="padding:12px 14px;border-left:1px solid var(--c-border-soft)"><div style="font-size:11px;color:var(--c-text-mute);text-transform:uppercase;letter-spacing:0.05em">Dispersion (D/df)</div><div style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:var(--c-text);margin-top:4px">${fmt(ratio,2)}</div><div style="font-size:11px;color:${vColor};margin-top:2px;font-weight:600">${verdict}</div></div>`;
+    }
+
+    $('fit-grid').innerHTML = gridHtml;
     let fitText = '';
     if (mcf > 0.40) fitText = `McFadden pseudo-R² = ${fmt(mcf,3)} — very strong fit by GLM standards. `;
     else if (mcf > 0.20) fitText = `McFadden pseudo-R² = ${fmt(mcf,3)} — solid fit; values in this range are typical for "good" logistic / Poisson models. `;
     else if (mcf > 0.05) fitText = `McFadden pseudo-R² = ${fmt(mcf,3)} — modest fit, but the predictors are doing real work. `;
     else fitText = `McFadden pseudo-R² = ${fmt(mcf,3)} — the model barely improves over the null. `;
-    if (lrP !== null && lrP < 0.05) fitText += `The likelihood-ratio test rejects "all coefficients zero" (p = ${fmt(lrP,4)}).`;
-    else if (lrP !== null) fitText += `The likelihood-ratio test does not reject the null (p = ${fmt(lrP,4)}).`;
+    if (lrP !== null && lrP < 0.05) fitText += `The likelihood-ratio test rejects "all coefficients zero" (p = ${fmt(lrP,4)}). `;
+    else if (lrP !== null) fitText += `The likelihood-ratio test does not reject the null (p = ${fmt(lrP,4)}). `;
+    if (coxSnell !== null && nagelkerke !== null){
+      fitText += `Cox-Snell R² = ${fmt(coxSnell,3)} (max < 1); Nagelkerke R² = ${fmt(nagelkerke,3)} rescales to [0, 1]. `;
+      const inferred = !$('nobs-input').value;
+      if (inferred) fitText += `<small style="color:var(--c-text-mute)">(n = ${nObs} inferred from null df + 1; override above if your data are aggregated.)</small>`;
+    } else if (fam && fam.family === 'binomial'){
+      fitText += `<em>Tip:</em> enter <strong>n</strong> above to compute Cox-Snell and Nagelkerke pseudo-R². `;
+    }
     $('fit-interp').innerHTML = fitText;
 
-    // Update R code with detected family
+    // Update R code with detected family + chosen CI level
     if (fam){
-      const famR = fam.family + (fam.link ? `(link = "${fam.link}")` : '');
+      const ciL = getCiLevel();
+      const ciPctR = Math.round(ciL*100);
       const rcode = `<span class="comment"># Refit and inspect</span>
 fit &lt;- <span class="fn">glm</span>(${escapeHtml(formulaFromCall(parsed.call) || 'y ~ x1 + x2')}, family = <span class="fn">${fam.family}</span>(link = <span class="string">"${fam.link}"</span>), data = ${escapeHtml(dataFromCall(parsed.call) || 'df')})
 <span class="fn">summary</span>(fit)
 
 <span class="comment"># Useful follow-ups</span>
 ${fam.exp ? `<span class="fn">exp</span>(<span class="fn">coef</span>(fit))                       <span class="comment"># ${fam.scale==='odds'?'odds ratios':'rate ratios'}</span>
-<span class="fn">exp</span>(<span class="fn">confint</span>(fit))                    <span class="comment"># 95% CIs on the ${fam.scale==='odds'?'OR':'RR'} scale</span>
-` : ''}<span class="number">1</span> - fit$deviance / fit$null.deviance   <span class="comment"># McFadden pseudo-R²</span>
-<span class="keyword">library</span>(<span class="fn">broom</span>); <span class="fn">tidy</span>(fit, exponentiate = <span class="keyword">${fam.exp?'TRUE':'FALSE'}</span>, conf.int = <span class="keyword">TRUE</span>)
+<span class="fn">exp</span>(<span class="fn">confint</span>(fit, level = <span class="number">${ciL}</span>))   <span class="comment"># ${ciPctR}% CIs on the ${fam.scale==='odds'?'OR':'RR'} scale</span>
+` : `<span class="fn">confint</span>(fit, level = <span class="number">${ciL}</span>)            <span class="comment"># ${ciPctR}% CIs on the link scale</span>
+`}<span class="number">1</span> - fit$deviance / fit$null.deviance   <span class="comment"># McFadden pseudo-R²</span>
+<span class="keyword">library</span>(<span class="fn">broom</span>); <span class="fn">tidy</span>(fit, exponentiate = <span class="keyword">${fam.exp?'TRUE':'FALSE'}</span>, conf.int = <span class="keyword">TRUE</span>, conf.level = <span class="number">${ciL}</span>)
 ${fam.family === 'binomial' ? `\n<span class="comment"># Logistic-specific</span>
 <span class="keyword">library</span>(<span class="fn">performance</span>); <span class="fn">performance_hosmer</span>(fit)
-<span class="keyword">library</span>(<span class="fn">pROC</span>); <span class="fn">roc</span>(fit$y, fit$fitted.values)` : ''}${fam.family === 'poisson' ? `\n<span class="comment"># Poisson-specific</span>
-fit$deviance / fit$df.residual         <span class="comment"># dispersion check</span>
+<span class="keyword">library</span>(<span class="fn">DescTools</span>); <span class="fn">PseudoR2</span>(fit, which = <span class="fn">c</span>(<span class="string">"CoxSnell"</span>, <span class="string">"Nagelkerke"</span>, <span class="string">"McFadden"</span>))
+<span class="keyword">library</span>(<span class="fn">pROC</span>); <span class="fn">roc</span>(fit$y, fit$fitted.values)` : ''}${(fam.family === 'poisson' || fam.family === 'quasipoisson' || fam.family === 'negbin') ? `\n<span class="comment"># Count-data dispersion</span>
+fit$deviance / fit$df.residual         <span class="comment"># residual deviance / df</span>
 <span class="keyword">library</span>(<span class="fn">AER</span>); <span class="fn">dispersiontest</span>(fit)` : ''}`;
       $('r-code').innerHTML = rcode;
     }
@@ -1355,7 +1467,17 @@ window.runSmokeTests = function(){
     {desc:"Overdisp: ratio > 1.5", fn:()=>{const p=parseGlmSummary(SCENARIOS.overdisp.output);return p.residDev/p.residDf > 1.5 ? 1 : 0}, expect:1},
     {desc:"Separation: large |estimate|", fn:()=>{const p=parseGlmSummary(SCENARIOS.separation.output);return Math.abs(p.coefficients[0].estimate) > 10 ? 1 : 0}, expect:1},
     {desc:"pVerdict(0.001) is 'strong'", fn:()=>pVerdict(0.001).label==='strong'?1:0, expect:1},
-    {desc:"chiSqUpper(10, 1) ≈ 0.00157", fn:()=>chiSqUpper(10,1), expect:0.00157}
+    {desc:"chiSqUpper(10, 1) ≈ 0.00157", fn:()=>chiSqUpper(10,1), expect:0.00157},
+    {desc:"qnorm(0.975) ≈ 1.95996", fn:()=>qnorm(0.975), expect:1.95996},
+    {desc:"qnorm(0.95) ≈ 1.64485", fn:()=>qnorm(0.95), expect:1.64485},
+    {desc:"Wald 95% lower for β=1.2,SE=0.3 → exp(...) ≈ 1.844",
+      fn:()=>Math.exp(1.2 - qnorm(0.975)*0.3), expect:1.844},
+    {desc:"Wald 95% upper for β=1.2,SE=0.3 → exp(...) ≈ 5.978",
+      fn:()=>Math.exp(1.2 + qnorm(0.975)*0.3), expect:5.978},
+    {desc:"Cox-Snell with D₀=100,D₁=50,n=200 ≈ 0.221",
+      fn:()=>1 - Math.exp(-50/200), expect:0.2212},
+    {desc:"Nagelkerke for above ≈ 0.566",
+      fn:()=>{const cs=1-Math.exp(-50/200); return cs/(1-Math.exp(-100/200));}, expect:0.5615}
   ];
   console.group('glm() Interpreter smoke tests');
   let pass = 0;

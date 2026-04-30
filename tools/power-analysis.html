@@ -509,6 +509,47 @@
       <div></div>
     </div>
 
+    <div class="form-row" id="row-v" style="display:none">
+      <label class="form-label" for="i-v">
+        Residual df (v) <span style="font-weight:400;color:var(--c-text-soft)">— optional</span>
+        <small class="form-help">Override v explicitly. Leave blank to compute v = n − u − 1 from the sample size.</small>
+      </label>
+      <div class="form-control"><input type="number" id="i-v" min="1" step="1" placeholder="n − u − 1" oninput="recompute()"></div>
+      <div></div>
+    </div>
+
+    <div class="form-row" id="row-ratio" style="display:none">
+      <label class="form-label" for="i-ratio">
+        Allocation ratio (n₂ / n₁)
+        <small class="form-help">1.0 = equal n in both groups. 2.0 = group 2 is twice the size. Matches pwr.t2n.test behavior.</small>
+      </label>
+      <div class="form-control"><input type="number" id="i-ratio" min="0.05" step="0.05" value="1.0" oninput="recompute()"></div>
+      <div></div>
+    </div>
+
+    <div class="form-row" id="row-paired" style="display:none">
+      <label class="form-label" for="i-paired">
+        Paired design?
+        <small class="form-help">Toggle on if subjects are measured twice (within-subject pairs). Lets you specify the within-pair correlation.</small>
+      </label>
+      <div class="form-control">
+        <select id="i-paired" onchange="setDesign(currentDesign)">
+          <option value="0" selected>No (one-sample)</option>
+          <option value="1">Yes (paired)</option>
+        </select>
+      </div>
+      <div></div>
+    </div>
+
+    <div class="form-row" id="row-r-paired" style="display:none">
+      <label class="form-label" for="i-r-paired">
+        Within-pair correlation (r)
+        <small class="form-help">Correlation between the two paired measurements. Higher r boosts paired-t power: σ_d = √(2σ²(1−r)).</small>
+      </label>
+      <div class="form-control"><input type="number" id="i-r-paired" min="-0.99" max="0.99" step="0.05" value="0.5" oninput="recompute()"></div>
+      <div></div>
+    </div>
+
     <div class="form-row" id="row-df" style="display:none">
       <label class="form-label" for="i-df">
         Degrees of freedom (df)
@@ -842,13 +883,18 @@ function pt_nc(t, df, ncp){
   return pnorm(z);
 }
 
-// Two-sample t-test, equal n. Two-sided uses t² ~ F(1, df, ncp²).
-// One-sided uses Sankaran noncentral-t (the prior code used a normal
-// approximation that systematically underestimated power at small n).
-function powerTwoSampleT(d, n, alpha, tail){
+// Two-sample t-test. Equal-n by default; pass `ratio` (k = n2/n1 ≠ 1) for
+// unequal allocation (matches pwr.t2n.test). With ratio k:
+//   n1 = n (the "n per group" input), n2 = k·n
+//   df  = n1 + n2 − 2 = n(1 + k) − 2
+//   ncp = |d| · √(n · k / (1 + k))   (equivalent to √(n1·n2/(n1+n2))·d)
+// Two-sided uses t² ~ F(1, df, ncp²); one-sided uses Sankaran noncentral-t.
+function powerTwoSampleT(d, n, alpha, tail, ratio){
   if (n < 2 || d === 0) return alpha;
-  const df = 2*n - 2;
-  const ncp = Math.abs(d) * Math.sqrt(n / 2);
+  const k = (typeof ratio === 'number' && ratio > 0) ? ratio : 1;
+  const n2 = n * k;
+  const df = n + n2 - 2;
+  const ncp = Math.abs(d) * Math.sqrt(n * k / (1 + k));
   if (tail === 1) {
     const tCrit = Math.sqrt(qf(1 - 2*alpha, 1, df));  // qt(1 - α, df)
     return 1 - pt_nc(tCrit, df, ncp);
@@ -880,10 +926,14 @@ function powerAnova(f, k, n, alpha){
 }
 
 // Linear regression R² change (or full model F)
-// u = predictors of interest, n = total sample, includes baseline predictors implicitly
-function powerRegression(f2, u, n, alpha){
-  if (u < 1 || n <= u + 1 || f2 === 0) return alpha;
-  const v = n - u - 1;
+// u = predictors of interest, n = total sample, includes baseline predictors implicitly.
+// If `vOverride` is a finite positive number, use it directly; otherwise compute v = n − u − 1.
+function powerRegression(f2, u, n, alpha, vOverride){
+  if (u < 1 || f2 === 0) return alpha;
+  const v = (typeof vOverride === 'number' && isFinite(vOverride) && vOverride > 0)
+    ? vOverride
+    : (n - u - 1);
+  if (v < 1) return alpha;
   const ncp = f2 * (u + v + 1);
   const fCrit = qf(1 - alpha, u, v);
   return 1 - pf_nc(fCrit, u, v, ncp);
@@ -939,12 +989,60 @@ function powerOneProp(h, n, alpha, tail){
 // ============================================================
 // Generic power-function dispatcher
 // ============================================================
+// Round-2: read extra DOM inputs (allocation ratio, residual-df override,
+// paired toggle, within-pair correlation) and merge them into params.
+function injectExtras(design, params){
+  const out = {...params};
+  const numEl = (id) => {
+    const el = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+    if (!el || el.value === '' || el.value == null) return null;
+    const v = parseFloat(el.value);
+    return isFinite(v) ? v : null;
+  };
+  const selEl = (id) => {
+    const el = (typeof document !== 'undefined') ? document.getElementById(id) : null;
+    return el ? el.value : null;
+  };
+  if (design === 'twoT'){
+    const ratio = numEl('i-ratio');
+    if (ratio && ratio > 0) out.ratio = ratio;
+  }
+  if (design === 'regression'){
+    const v = numEl('i-v');
+    if (v && v > 0) out.vOverride = v;
+  }
+  if (design === 'oneT'){
+    const paired = selEl('i-paired');
+    if (paired === '1'){
+      out.paired = true;
+      const r = numEl('i-r-paired');
+      out.rPaired = (r === null) ? 0 : Math.max(-0.99, Math.min(0.99, r));
+    }
+  }
+  return out;
+}
+
+// Round-2: inject DOM-sourced extras (allocation ratio, v override, paired-r)
+// into the params before dispatching. This lets us add new inputs without
+// modifying recompute(). All extras default to "no-op" if their inputs are
+// absent or invalid.
 function powerFn(design, params){
+  params = injectExtras(design, params);
   switch(design){
-    case 'twoT':       return powerTwoSampleT(params.effect, params.n, params.alpha, params.tail);
-    case 'oneT':       return powerOneSampleT(params.effect, params.n, params.alpha, params.tail);
+    case 'twoT':       return powerTwoSampleT(params.effect, params.n, params.alpha, params.tail, params.ratio);
+    case 'oneT': {
+      // Paired-t adjustment: with within-pair correlation r,
+      //   σ_d = √(2σ²(1−r))  →  d_paired = d / √(2(1−r)).
+      let d = params.effect;
+      if (params.paired){
+        const r = (typeof params.rPaired === 'number') ? params.rPaired : 0;
+        const denom = Math.sqrt(2 * (1 - r));
+        if (denom > 0) d = d / denom;
+      }
+      return powerOneSampleT(d, params.n, params.alpha, params.tail);
+    }
     case 'anova':      return powerAnova(params.effect, params.k, params.n, params.alpha);
-    case 'regression': return powerRegression(params.effect, params.u, params.n, params.alpha);
+    case 'regression': return powerRegression(params.effect, params.u, params.n, params.alpha, params.vOverride);
     case 'correlation':return powerCorr(params.effect, params.n, params.alpha, params.tail);
     case 'chisq':      return powerChisq(params.effect, params.n, params.df, params.alpha);
     case 'twoProp':    return powerTwoProp(params.effect, params.n, params.alpha, params.tail);
@@ -1082,7 +1180,24 @@ function clearScenario(){
 // ============================================================
 let currentDesign = 'twoT', currentSolve = 'n';
 const DESIGN_META = {
-  twoT:        {effectSym:'(Cohen\'s d)', effectHelp:'Standardized mean difference. Cohen\'s small/medium/large = 0.2 / 0.5 / 0.8.', nDetail:'(per group)', nHelp:'Subjects per group. Total = 2 × this for a two-sample design.', sub:'Two independent groups; we compute the unknown quantity below.', tag:effect=>magd(effect,'d'), rcode:r=>`<span class="comment"># Two-sample t-test power analysis</span>
+  twoT:        {effectSym:'(Cohen\'s d)', effectHelp:'Standardized mean difference. Cohen\'s small/medium/large = 0.2 / 0.5 / 0.8.', nDetail:'(per group)', nHelp:'Subjects per group. Total = 2 × this for a two-sample design.', sub:'Two independent groups; we compute the unknown quantity below.', tag:effect=>magd(effect,'d'), rcode:r=>{
+    const ratioEl = (typeof document!=='undefined')?document.getElementById('i-ratio'):null;
+    const ratio = ratioEl ? parseFloat(ratioEl.value) : 1;
+    const useRatio = isFinite(ratio) && ratio > 0 && Math.abs(ratio - 1) > 1e-6;
+    if (useRatio && r.n !== null){
+      const n1 = r.n, n2 = Math.round(n1 * ratio);
+      return `<span class="comment"># Two-sample t-test, unequal allocation (n2 = ${ratio}·n1)</span>
+<span class="keyword">library</span>(<span class="fn">pwr</span>)
+<span class="fn">pwr.t2n.test</span>(
+  n1        = <span class="number">${n1}</span>,
+  n2        = <span class="number">${n2}</span>,
+  d         = ${r.effect===null?'NULL':'<span class="number">'+r.effect+'</span>'},
+  power     = ${r.power===null?'NULL':'<span class="number">'+r.power+'</span>'},
+  sig.level = <span class="number">${r.alpha}</span>,
+  alternative = <span class="string">"${r.tail===2?'two.sided':'greater'}"</span>
+)`;
+    }
+    return `<span class="comment"># Two-sample t-test power analysis</span>
 <span class="keyword">library</span>(<span class="fn">pwr</span>)
 <span class="fn">pwr.t.test</span>(
   d         = ${r.effect===null?'NULL':'<span class="number">'+r.effect+'</span>'},
@@ -1091,16 +1206,28 @@ const DESIGN_META = {
   sig.level = <span class="number">${r.alpha}</span>,
   type      = <span class="string">"two.sample"</span>,
   alternative = <span class="string">"${r.tail===2?'two.sided':'greater'}"</span>
-)`},
-  oneT:        {effectSym:'(Cohen\'s d)', effectHelp:'Standardized mean difference from null. d=0.2/0.5/0.8 = small/medium/large.', nDetail:'', nHelp:'Total subjects (or pairs for paired t).', sub:'One sample (or paired-difference); we compute the unknown quantity.', tag:effect=>magd(effect,'d'), rcode:r=>`<span class="keyword">library</span>(<span class="fn">pwr</span>)
+)`;
+  }},
+  oneT:        {effectSym:'(Cohen\'s d)', effectHelp:'Standardized mean difference from null. d=0.2/0.5/0.8 = small/medium/large.', nDetail:'', nHelp:'Total subjects (or pairs for paired t).', sub:'One sample (or paired-difference); we compute the unknown quantity.', tag:effect=>magd(effect,'d'), rcode:r=>{
+    const pairedEl = (typeof document!=='undefined')?document.getElementById('i-paired'):null;
+    const isPaired = pairedEl && pairedEl.value === '1';
+    const ttype = isPaired ? 'paired' : 'one.sample';
+    let header = '';
+    if (isPaired){
+      const rEl = document.getElementById('i-r-paired');
+      const rho = rEl ? parseFloat(rEl.value) : 0;
+      header = `<span class="comment"># Paired t — within-pair correlation r = ${isFinite(rho)?rho:0}\n# Effective d_paired = d / sqrt(2(1−r))</span>\n`;
+    }
+    return `${header}<span class="keyword">library</span>(<span class="fn">pwr</span>)
 <span class="fn">pwr.t.test</span>(
   d         = ${r.effect===null?'NULL':'<span class="number">'+r.effect+'</span>'},
   n         = ${r.n===null?'NULL':'<span class="number">'+r.n+'</span>'},
   power     = ${r.power===null?'NULL':'<span class="number">'+r.power+'</span>'},
   sig.level = <span class="number">${r.alpha}</span>,
-  type      = <span class="string">"one.sample"</span>,
+  type      = <span class="string">"${ttype}"</span>,
   alternative = <span class="string">"${r.tail===2?'two.sided':'greater'}"</span>
-)`},
+)`;
+  }},
   anova:       {effectSym:'(Cohen\'s f)', effectHelp:'f² is the ratio of between-group variance to within-group variance. f=0.1/0.25/0.4 small/medium/large.', nDetail:'(per group)', nHelp:'Subjects per group. Total N = k × this.', sub:'One-way ANOVA across k groups; equal-n.', tag:effect=>magd(effect,'f'), rcode:r=>`<span class="keyword">library</span>(<span class="fn">pwr</span>)
 <span class="fn">pwr.anova.test</span>(
   k         = <span class="number">${r.k||4}</span>,
@@ -1109,16 +1236,27 @@ const DESIGN_META = {
   power     = ${r.power===null?'NULL':'<span class="number">'+r.power+'</span>'},
   sig.level = <span class="number">${r.alpha}</span>
 )`},
-  regression:  {effectSym:'(Cohen\'s f²)', effectHelp:'For ΔR²: f² = ΔR² / (1−R²_full). f²=0.02/0.15/0.35 small/medium/large.', nDetail:'(total)', nHelp:'Total sample size. Includes baseline predictors.', sub:'Linear regression: do u predictors significantly improve the model?', tag:effect=>magd(effect,'f2'), rcode:r=>`<span class="keyword">library</span>(<span class="fn">pwr</span>)
-u &lt;- <span class="number">${r.u||3}</span>             <span class="comment"># predictors of interest</span>
-v &lt;- ${r.n===null?'NULL':'<span class="number">'+(r.n - (r.u||3) - 1)+'</span>'}       <span class="comment"># residual df = n - u - 1</span>
+  regression:  {effectSym:'(Cohen\'s f²)', effectHelp:'For ΔR²: f² = ΔR² / (1−R²_full). f²=0.02/0.15/0.35 small/medium/large.', nDetail:'(total)', nHelp:'Total sample size. Includes baseline predictors.', sub:'Linear regression: do u predictors significantly improve the model?', tag:effect=>magd(effect,'f2'), rcode:r=>{
+    const vEl = (typeof document!=='undefined')?document.getElementById('i-v'):null;
+    const vRaw = vEl ? parseFloat(vEl.value) : NaN;
+    const vExplicit = isFinite(vRaw) && vRaw > 0 ? Math.round(vRaw) : null;
+    const u = r.u || 3;
+    const vDerived = (r.n === null) ? null : (r.n - u - 1);
+    const v = vExplicit != null ? vExplicit : vDerived;
+    const vNote = vExplicit != null
+      ? `<span class="comment"># residual df (user-supplied)</span>`
+      : `<span class="comment"># residual df = n - u - 1</span>`;
+    return `<span class="keyword">library</span>(<span class="fn">pwr</span>)
+u &lt;- <span class="number">${u}</span>             <span class="comment"># predictors of interest</span>
+v &lt;- ${v===null?'NULL':'<span class="number">'+v+'</span>'}       ${vNote}
 <span class="fn">pwr.f2.test</span>(
   u         = u,
   v         = v,
   f2        = ${r.effect===null?'NULL':'<span class="number">'+r.effect+'</span>'},
   power     = ${r.power===null?'NULL':'<span class="number">'+r.power+'</span>'},
   sig.level = <span class="number">${r.alpha}</span>
-)`},
+)`;
+  }},
   correlation: {effectSym:'(Pearson r)', effectHelp:'Correlation coefficient. r=0.1/0.3/0.5 small/medium/large.', nDetail:'(total)', nHelp:'Total observations. Need n ≥ 4.', sub:'Test whether r differs from 0; total n.', tag:effect=>magd(effect,'r'), rcode:r=>`<span class="keyword">library</span>(<span class="fn">pwr</span>)
 <span class="fn">pwr.r.test</span>(
   r         = ${r.effect===null?'NULL':'<span class="number">'+r.effect+'</span>'},
@@ -1181,7 +1319,14 @@ function setDesign(d){
   $('row-tail').style.display = (d==='twoT' || d==='oneT' || d==='correlation' || d==='twoProp' || d==='oneProp') ? '' : 'none';
   $('row-k').style.display = (d==='anova') ? '' : 'none';
   $('row-u').style.display = (d==='regression') ? '' : 'none';
+  $('row-v').style.display = (d==='regression') ? '' : 'none';
   $('row-df').style.display = (d==='chisq') ? '' : 'none';
+  $('row-ratio').style.display = (d==='twoT') ? '' : 'none';
+  $('row-paired').style.display = (d==='oneT') ? '' : 'none';
+  // Paired-r row only when oneT + paired toggle ON
+  const pairedSel = $('i-paired');
+  const pairedOn = (d==='oneT' && pairedSel && pairedSel.value === '1');
+  $('row-r-paired').style.display = pairedOn ? '' : 'none';
   recompute();
 }
 
@@ -1289,6 +1434,9 @@ function recompute(){
 
   // Sensitivity chart
   drawSensitivity(currentDesign, params);
+
+  // Anatomy live recap
+  renderAnatomyRecap(currentDesign, currentSolve, params, finalEffect, finalN, finalPower);
 }
 
 function clear(msg){
@@ -1298,6 +1446,93 @@ function clear(msg){
   $('mistakes-area').innerHTML = '';
   $('decision-card').style.display = 'none';
   $('summary').textContent = msg || 'Pick a design and fill in inputs.';
+  const slot = $('anatomy-recap');
+  if (slot) slot.innerHTML = `<div class="anatomy-recap-title">Live recap — your inputs plugged in</div><div class="recap-empty">${msg || 'Set design and inputs above to see the derivation chain.'}</div>`;
+}
+
+// ============================================================
+// Anatomy live recap — show the user's actual derivation chain
+// ============================================================
+function renderAnatomyRecap(design, solve, p, finalEffect, finalN, finalPower){
+  const slot = $('anatomy-recap');
+  if (!slot) return;
+  const lines = [];
+  const addLine = (label, value) => lines.push(`<div class="recap-step"><span class="recap-label">${label}</span><span class="recap-value">${value}</span></div>`);
+  const meta = DESIGN_META[design];
+  const designName = {twoT:'Two-sample t', oneT:'One-sample/paired t', anova:`One-way ANOVA (k=${p.k})`, regression:`Linear regression (u=${p.u})`, correlation:'Correlation', chisq:`Chi-square (df=${p.df})`, twoProp:'Two-proportion z', oneProp:'One-proportion z'}[design] || design;
+  const solveLabel = {n:'Sample size n', power:'Power', effect:`Effect size ${meta.effectSym}`}[solve];
+
+  // Inputs line — what the user supplied (knowns)
+  const knownBits = [];
+  if (solve !== 'effect') knownBits.push(`effect = ${fmt3(finalEffect)} ${meta.effectSym}`);
+  if (solve !== 'n') knownBits.push(`n = ${fmtN(finalN)}${meta.nDetail||''}`);
+  if (solve !== 'power') knownBits.push(`power = ${(finalPower*100).toFixed(1)}%`);
+  knownBits.push(`α = ${p.alpha}`);
+  if (design==='twoT' || design==='oneT' || design==='correlation' || design==='twoProp' || design==='oneProp') knownBits.push(`${p.tail===2?'two-sided':'one-sided'}`);
+  if (design==='anova') knownBits.push(`k = ${p.k}`);
+  if (design==='regression') knownBits.push(`u = ${p.u}`);
+  if (design==='chisq') knownBits.push(`df = ${p.df}`);
+
+  addLine('Design', designName);
+  addLine('Solve for', solveLabel);
+  addLine('Inputs', knownBits.join(' · '));
+
+  // ncp / formula chain per design
+  if (design === 'twoT'){
+    const dfV = 2*finalN - 2;
+    const ncp2 = finalEffect*finalEffect * finalN / 2;
+    addLine('df', `2n − 2 = ${dfV}`);
+    addLine('ncp²', `d² · n/2 = ${fmt3(finalEffect)}² · ${fmtN(finalN)}/2 ≈ ${fmt3(ncp2)}`);
+    try { addLine('Critical', `t_{1−α} = √qf(1−α, 1, ${dfV}) ≈ ${fmt3(Math.sqrt(qf(1-p.alpha, 1, dfV)))}`); } catch(_) {}
+  } else if (design === 'oneT'){
+    const dfV = finalN - 1;
+    const ncp2 = finalEffect*finalEffect * finalN;
+    addLine('df', `n − 1 = ${dfV}`);
+    addLine('ncp²', `d² · n = ${fmt3(finalEffect)}² · ${fmtN(finalN)} ≈ ${fmt3(ncp2)}`);
+    try { addLine('Critical', `t_{1−α} = √qf(1−α, 1, ${dfV}) ≈ ${fmt3(Math.sqrt(qf(1-p.alpha, 1, dfV)))}`); } catch(_) {}
+  } else if (design === 'anova'){
+    const dfNum = p.k - 1, dfDen = p.k * finalN - p.k;
+    const ncp = finalEffect*finalEffect * (p.k * finalN);
+    addLine('df', `(k−1, kn−k) = (${dfNum}, ${dfDen})`);
+    addLine('ncp', `f² · (k·n) = ${fmt3(finalEffect)}² · (${p.k}·${fmtN(finalN)}) ≈ ${fmt3(ncp)}`);
+    try { addLine('Critical', `qf(1−α, ${dfNum}, ${dfDen}) ≈ ${fmt3(qf(1-p.alpha, dfNum, dfDen))}`); } catch(_) {}
+  } else if (design === 'regression'){
+    const dfNum = p.u, dfDen = finalN - p.u - 1;
+    const ncp = finalEffect * finalN;
+    addLine('df', `(u, n−u−1) = (${dfNum}, ${dfDen})`);
+    addLine('ncp', `f² · n = ${fmt3(finalEffect)} · ${fmtN(finalN)} ≈ ${fmt3(ncp)}`);
+    try { addLine('Critical', `qf(1−α, ${dfNum}, ${dfDen}) ≈ ${fmt3(qf(1-p.alpha, dfNum, dfDen))}`); } catch(_) {}
+  } else if (design === 'correlation'){
+    const zr = Math.atanh(finalEffect);
+    const seZ = 1/Math.sqrt(finalN - 3);
+    addLine('Fisher z_r', `atanh(${fmt3(finalEffect)}) ≈ ${fmt3(zr)}`);
+    addLine('SE_z', `1/√(n−3) = 1/√${fmtN(finalN-3)} ≈ ${fmt3(seZ)}`);
+    try { addLine('Critical', `z_{1−α/${p.tail===2?2:1}} ≈ ${fmt3(qnorm(1-p.alpha/(p.tail===2?2:1)))}`); } catch(_) {}
+  } else if (design === 'chisq'){
+    const ncp = finalEffect*finalEffect * finalN;
+    addLine('ncp', `w² · N = ${fmt3(finalEffect)}² · ${fmtN(finalN)} ≈ ${fmt3(ncp)}`);
+    try { addLine('Critical', `qchisq(1−α, df=${p.df}) ≈ ${fmt3(qchisq(1-p.alpha, p.df))}`); } catch(_) {}
+  } else if (design === 'twoProp'){
+    const ncp2 = finalEffect*finalEffect * finalN / 2;
+    addLine('ncp²', `h² · n/2 = ${fmt3(finalEffect)}² · ${fmtN(finalN)}/2 ≈ ${fmt3(ncp2)}`);
+    try { addLine('Critical', `z_{1−α/${p.tail===2?2:1}} ≈ ${fmt3(qnorm(1-p.alpha/(p.tail===2?2:1)))}`); } catch(_) {}
+  } else if (design === 'oneProp'){
+    const ncp2 = finalEffect*finalEffect * finalN;
+    addLine('ncp²', `h² · n = ${fmt3(finalEffect)}² · ${fmtN(finalN)} ≈ ${fmt3(ncp2)}`);
+    try { addLine('Critical', `z_{1−α/${p.tail===2?2:1}} ≈ ${fmt3(qnorm(1-p.alpha/(p.tail===2?2:1)))}`); } catch(_) {}
+  }
+
+  // Final answer line — what we solved for
+  if (solve === 'n'){
+    const totalN = (design==='twoT' || design==='anova') ? finalN * (design==='anova' ? p.k : 2) : finalN;
+    addLine('Answer (n)', `Bisect power(n) ≈ ${(finalPower*100).toFixed(0)}% → n = ${fmtN(finalN)}${meta.nDetail||''} (total N = ${fmtN(totalN)})`);
+  } else if (solve === 'power'){
+    addLine('Answer (power)', `1 − P(stat &lt; crit | ncp) ≈ ${(finalPower*100).toFixed(1)}%`);
+  } else {
+    addLine('Answer (effect)', `Bisect power(effect) ≈ ${(finalPower*100).toFixed(0)}% → ${meta.effectSym} = ${fmt3(finalEffect)}`);
+  }
+
+  slot.innerHTML = `<div class="anatomy-recap-title">Live recap — your inputs plugged in</div>${lines.join('')}`;
 }
 
 function renderSummary(design, p, power, total){
@@ -1477,7 +1712,17 @@ window.runSmokeTests = function(){
     {desc:"qf(0.95, 1, 30) ≈ 4.171",
      fn:()=>qf(0.95, 1, 30), expect:4.171, tol:0.01},
     {desc:"qchisq(0.95, 4) ≈ 9.488",
-     fn:()=>qchisq(0.95, 4), expect:9.488, tol:0.01}
+     fn:()=>qchisq(0.95, 4), expect:9.488, tol:0.01},
+    // Round-2 — allocation ratio: equal n with ratio=1 should match prior behavior
+    {desc:"powerTwoSampleT(d=0.5, n=64, ratio=1) ≈ 0.80",
+     fn:()=>powerTwoSampleT(0.5, 64, 0.05, 2, 1), expect:0.80, tol:0.005},
+    // Round-2 — explicit v override: powerRegression with vOverride matches derived
+    {desc:"powerRegression(f2=0.15, u=3, n=75, v=71) ≈ 0.80",
+     fn:()=>powerRegression(0.15, 3, 75, 0.05, 71), expect:0.80, tol:0.02},
+    // Round-2 — paired-t adjusted d at r=0.5 doubles d (denom = √(2·0.5) = 1)
+    {desc:"paired-t with r=0.5 leaves d unchanged (√(2(1−r)) = 1)",
+     fn:()=>powerOneSampleT(0.5/Math.sqrt(2*(1-0.5)), 20, 0.05, 2),
+     expect:powerOneSampleT(0.5, 20, 0.05, 2), tol:1e-6}
   ];
   console.group('Power Analysis smoke tests');
   let pass = 0;

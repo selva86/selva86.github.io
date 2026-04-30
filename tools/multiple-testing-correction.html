@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Multiple Testing Correction · r-statistics.co</title>
-<meta name="description" content="Apply Bonferroni, Holm, Hochberg, BH (FDR), and BY corrections to a vector of p-values. Side-by-side comparison with R code, free, runs in your browser.">
+<meta name="description" content="Apply Bonferroni, Šidák, Holm, Hochberg, BH (FDR), BY and Storey q-value corrections to a vector of p-values. Side-by-side comparison with R code, free, runs in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -568,6 +568,19 @@
     </div>
 
     <div class="form-row">
+      <label class="form-label" for="correlation-assumption">
+        Dependence between tests
+        <small class="form-help">Tunes the recommendation text; doesn't change which methods compute. BY is preferred under strong dependence.</small>
+      </label>
+      <div class="form-control">
+        <select id="correlation-assumption" onchange="recompute()">
+          <option value="independent" selected>Independent / weakly dependent — recommend BH</option>
+          <option value="dependent">Strong / unknown dependence — recommend BY</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
       <label class="form-label" for="i-alpha">
         Significance α
         <small class="form-help">Your false-positive tolerance — what counts as significant after correction. Default 0.05.</small>
@@ -607,7 +620,7 @@
     <div class="results-table-wrap">
       <table class="results-table" id="results-table">
         <thead>
-          <tr><th class="col-idx">Hypothesis</th><th>Original p</th><th>Bonferroni</th><th>Holm</th><th>Hochberg</th><th>BH (FDR)</th><th>BY</th></tr>
+          <tr><th class="col-idx">Hypothesis</th><th>Original p</th><th>Bonferroni</th><th>Šidák</th><th>Holm</th><th>Hochberg</th><th>BH (FDR)</th><th>BY</th><th>q-value</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -655,6 +668,11 @@ p_values &lt;- <span class="fn">c</span>(<span class="number">0.001</span>, <spa
       <div class="me-text">The strictest. Multiplies each p by m (number of tests). Use when even one false positive matters — small confirmatory studies, regulatory submissions.</div>
     </div>
     <div class="method-explainer">
+      <div class="me-name">Šidák</div>
+      <div class="me-controls">controls FWER · slightly more powerful than Bonferroni · independence assumed</div>
+      <div class="me-text">Adjusted p = 1 − (1 − p)<sup>m</sup>. Sits between Bonferroni and Holm in strictness. Optimal under independence; with dependence behaves similarly to Bonferroni in practice.</div>
+    </div>
+    <div class="method-explainer">
       <div class="me-name">Holm</div>
       <div class="me-controls">controls FWER · uniformly more powerful than Bonferroni</div>
       <div class="me-text">Step-down: orders p-values, applies decreasing strictness. Same FWER guarantee as Bonferroni but rejects more tests. Default choice for confirmatory.</div>
@@ -673,6 +691,11 @@ p_values &lt;- <span class="fn">c</span>(<span class="number">0.001</span>, <spa
       <div class="me-name">BY (Benjamini–Yekutieli)</div>
       <div class="me-controls">controls FDR under dependence</div>
       <div class="me-text">A more conservative BH that holds even when tests are arbitrarily dependent. Use when correlations between tests are strong (e.g., genes in the same pathway).</div>
+    </div>
+    <div class="method-explainer">
+      <div class="me-name">q-value (Storey)</div>
+      <div class="me-controls">controls FDR · estimates π̂₀ from data · more powerful than BH when many alternatives</div>
+      <div class="me-text">q-value = π̂₀ × m × p / rank. We estimate π̂₀ (proportion of true nulls) from p-values above 0.5. When many tests are truly alternative, π̂₀ &lt; 1 makes q-values smaller than BH adjusted-p's, recovering more discoveries at the same FDR. Equivalent to BH when π̂₀ = 1.</div>
     </div>
   </div>
 
@@ -706,8 +729,8 @@ p_values &lt;- <span class="fn">c</span>(<span class="number">0.001</span>, <spa
     <dd>Weighted procedures (Genovese-Roeder) — incorporate priors.</dd>
     <dt>You're picking the method after seeing the corrected p-values</dt>
     <dd>Stop. Pick the method first; data go through it. The other order is p-hacking.</dd>
-    <dt>Need Storey's q-value (more powerful BH variant)</dt>
-    <dd><code>qvalue::qvalue()</code> in R — not implemented here.</dd>
+    <dt>Need a richer Storey q-value (with bootstrap π̂₀ smoothing)</dt>
+    <dd>This tool ships a simple λ=0.5 estimator. For full smoothing/bootstrap, use <code>qvalue::qvalue()</code> in R.</dd>
   </dl>
 
   <h2 class="section-h"><span class="h-eyebrow">Bibliography</span>Further reading</h2>
@@ -842,9 +865,42 @@ function parsePvalues(text){
 // ============================================================
 // Correction methods — match R's p.adjust(method=)
 // ============================================================
+// Estimate Storey's pi0 using simple lambda=0.5 method (no smoothing/bootstrap).
+// Returns pi0 in [0.01, 1.0].
+function estimatePi0(p, lambda){
+  const lam = (lambda === undefined) ? 0.5 : lambda;
+  const m = p.length;
+  if (m === 0) return 1.0;
+  const above = p.filter(v => v > lam).length;
+  let pi0 = above / (m * (1 - lam));
+  if (!isFinite(pi0)) pi0 = 1;
+  if (pi0 < 0.01) pi0 = 0.01;
+  if (pi0 > 1.0)  pi0 = 1.0;
+  return pi0;
+}
+
 function pAdjust(p, method){
   const m = p.length;
   if (m === 0) return [];
+  // Storey q-value: q_i = pi0 * m * p_i / rank_i, then enforce monotone-decreasing
+  // from largest p downward (i.e., q_(i) <= q_(i+1) when sorted ascending).
+  if (method === 'qvalue'){
+    const pi0 = estimatePi0(p, 0.5);
+    const order = p.map((v, i) => i).sort((a, b) => p[a] - p[b]);
+    const sorted = order.map(i => p[i]);
+    const q = new Array(m);
+    // Start from largest (i = m-1): q_(m) = min(1, pi0 * p_(m))
+    let last = Math.min(1, pi0 * sorted[m-1]);
+    q[m-1] = last;
+    for (let i = m - 2; i >= 0; i--){
+      const candidate = pi0 * m * sorted[i] / (i + 1);
+      last = Math.min(last, candidate, 1);
+      q[i] = last;
+    }
+    const out = new Array(m);
+    order.forEach((origIdx, sortedIdx) => { out[origIdx] = q[sortedIdx]; });
+    return out;
+  }
   // Order p ascending, keep track of original indices
   const order = p.map((v, i) => i).sort((a, b) => p[a] - p[b]);
   const sorted = order.map(i => p[i]);
@@ -852,6 +908,10 @@ function pAdjust(p, method){
 
   if (method === 'bonferroni'){
     adj = sorted.map(v => Math.min(1, v * m));
+  } else if (method === 'sidak'){
+    // Šidák: 1 − (1 − p)^m, capped at 1; assumes independence; uniformly slightly less
+    // strict than Bonferroni and slightly stricter than Holm.
+    adj = sorted.map(v => Math.min(1, 1 - Math.pow(1 - v, m)));
   } else if (method === 'holm'){
     // adj[i] = max over j ≤ i of min(1, (m - j) * p[j]) ... wait let me re-derive
     // Holm step-down: ordered p_(1) ≤ p_(2) ≤ ... ≤ p_(m)
@@ -985,16 +1045,17 @@ function recompute(){
   if (m === 0){
     $('summary').innerHTML = 'Paste at least one p-value to see corrected results.';
     $('count-grid').innerHTML = '';
-    document.querySelector('#results-table tbody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--c-text-mute);padding:20px">No p-values to show.</td></tr>';
+    document.querySelector('#results-table tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--c-text-mute);padding:20px">No p-values to show.</td></tr>';
     $('reco-card').style.display = 'none';
     $('mistakes-area').innerHTML = '';
     return;
   }
 
-  // Compute each method
-  const methods = ['bonferroni','holm','hochberg','BH','BY'];
+  // Compute each method (sidak between bonferroni & holm; qvalue at end)
+  const methods = ['bonferroni','sidak','holm','hochberg','BH','BY','qvalue'];
   const adj = {};
   methods.forEach(meth => adj[meth] = pAdjust(pVals, meth));
+  const pi0Est = estimatePi0(pVals, 0.5);
 
   // Counts of significant per method
   const counts = {};
@@ -1006,9 +1067,10 @@ function recompute(){
 
   // Counts grid
   const recommended = pickRecommendedMethod(m);
-  const labels = {bonferroni:'Bonferroni', holm:'Holm', hochberg:'Hochberg', BH:'BH (FDR)', BY:'BY'};
+  const labels = {bonferroni:'Bonferroni', sidak:'Šidák', holm:'Holm', hochberg:'Hochberg', BH:'BH (FDR)', BY:'BY', qvalue:'q-value'};
   $('count-grid').innerHTML = `<div class="count-card"><div class="count-method">Uncorrected</div><div class="count-num ${uncorrected===0?'zero':''}">${uncorrected}</div><div class="count-of">of ${m}</div></div>` +
-    methods.map(meth => `<div class="count-card ${meth===recommended?'recommended':''}" data-method="${meth}"><div class="count-method">${labels[meth]}</div><div class="count-num ${counts[meth]===0?'zero':''}">${counts[meth]}</div><div class="count-of">of ${m}</div></div>`).join('');
+    methods.map(meth => `<div class="count-card ${meth===recommended?'recommended':''}" data-method="${meth}"><div class="count-method">${labels[meth]}</div><div class="count-num ${counts[meth]===0?'zero':''}">${counts[meth]}</div><div class="count-of">of ${m}</div></div>`).join('') +
+    `<div class="count-card" title="Storey's estimated proportion of true nulls (lambda=0.5)" style="border-left:3px solid var(--c-accent)"><div class="count-method">π̂₀ (Storey)</div><div class="count-num">${pi0Est.toFixed(2)}</div><div class="count-of">est. true nulls</div></div>`;
 
   // Results table
   const tbody = document.querySelector('#results-table tbody');
@@ -1050,6 +1112,9 @@ p_values &lt;- <span class="fn">c</span>(${pVals.slice(0,15).map(v => `<span cla
 function pickRecommendedMethod(m){
   if (m <= 1) return 'bonferroni';
   if (m <= 6) return 'holm';
+  const depSel = document.getElementById('correlation-assumption');
+  const dep = depSel ? depSel.value : 'independent';
+  if (dep === 'dependent') return 'BY';
   if (m <= 20) return 'BH';
   return 'BH';
 }
@@ -1057,15 +1122,21 @@ function pickRecommendedMethod(m){
 function renderRecommendation(m, alpha, counts){
   const card = $('reco-card');
   card.style.display = '';
+  const depSel = document.getElementById('correlation-assumption');
+  const dep = depSel ? depSel.value : 'independent';
   let cls, icon, title, text;
   if (m <= 6){
     cls = 'holm'; icon = '🎯';
     title = `For ${m} confirmatory test${m>1?'s':''}, Holm is the right default`;
     text = `Holm controls family-wise error rate — the chance of any false positive — and is uniformly more powerful than Bonferroni. Use this when each test is pre-specified and you can't tolerate even one false positive.`;
+  } else if (dep === 'dependent'){
+    cls = 'bh'; icon = '🔗';
+    title = `For ${m} tests under strong/unknown dependence, BY is the safer FDR choice`;
+    text = `BY (Benjamini–Yekutieli) controls FDR even under arbitrary dependence between tests — at the cost of being more conservative than BH. Use this when your tests are strongly correlated (e.g., neighbouring genes, items in the same scale, overlapping sliding windows).`;
   } else if (m <= 20){
     cls = 'bh'; icon = '📊';
     title = `For ${m} tests, BH is a good balance`;
-    text = `BH controls the expected proportion of false discoveries — much more powerful than Bonferroni when you have many tests, but still principled. Default for exploratory work.`;
+    text = `BH controls the expected proportion of false discoveries — much more powerful than Bonferroni when you have many tests, but still principled. Default for exploratory work under independence or weak dependence.`;
   } else {
     cls = 'bh'; icon = '🧬';
     title = `For ${m} tests, BH (or BY) is essential`;
@@ -1079,7 +1150,7 @@ function renderRecommendation(m, alpha, counts){
 
 function renderSummary(m, alpha, counts, uncorrected){
   const recommended = pickRecommendedMethod(m);
-  const labels = {bonferroni:'Bonferroni', holm:'Holm', hochberg:'Hochberg', BH:'BH', BY:'BY'};
+  const labels = {bonferroni:'Bonferroni', sidak:'Šidák', holm:'Holm', hochberg:'Hochberg', BH:'BH', BY:'BY', qvalue:'q-value'};
   $('summary').innerHTML = `You have <strong>${m} p-value${m>1?'s':''}</strong>; ${uncorrected} would be significant uncorrected at α=${alpha}. After ${labels[recommended]} correction (recommended for your situation), <strong>${counts[recommended]} ${counts[recommended]===1?'remains':'remain'}</strong> significant. Bonferroni is most strict (${counts.bonferroni}); BH is most lenient among principled methods (${counts.BH}).`;
 }
 
@@ -1183,7 +1254,19 @@ window.runSmokeTests = function(){
     {desc:"Single p: bonferroni unchanged",
      fn:()=>pAdjust([0.04], 'bonferroni')[0], expect:0.04, tol:1e-6},
     {desc:"All p=1 → all adj=1",
-     fn:()=>pAdjust([1,1,1], 'BH').every(v=>v===1)?1:0, expect:1, tol:0}
+     fn:()=>pAdjust([1,1,1], 'BH').every(v=>v===1)?1:0, expect:1, tol:0},
+    {desc:"Šidák: p=0.05, m=10 → 1 - 0.95^10 ≈ 0.4013",
+     fn:()=>pAdjust([0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05,0.05],'sidak')[0], expect:0.4012631, tol:1e-4},
+    {desc:"Šidák always ≤ Bonferroni",
+     fn:()=>{const ps=[0.001,0.01,0.05,0.1]; const a=pAdjust(ps,'sidak'), b=pAdjust(ps,'bonferroni'); return a.every((v,i)=>v<=b[i]+1e-9)?1:0;}, expect:1, tol:0},
+    {desc:"Storey π̂₀ on uniform-ish vector with all p>0.5 → 1.0",
+     fn:()=>estimatePi0([0.6,0.7,0.8,0.9],0.5), expect:1.0, tol:1e-9},
+    {desc:"Storey π̂₀: only 0.7 & 0.9 are >0.5 → π̂₀ = 2/(10·0.5) = 0.4",
+     fn:()=>estimatePi0([0.001,0.01,0.02,0.05,0.1,0.2,0.3,0.5,0.7,0.9],0.5), expect:0.4, tol:1e-9},
+    {desc:"q-value: ten p-values, q[0.001] = π̂₀·10·0.001/1 = 0.4·0.01 = 0.004",
+     fn:()=>pAdjust([0.001,0.01,0.02,0.05,0.1,0.2,0.3,0.5,0.7,0.9],'qvalue')[0], expect:0.004, tol:1e-6},
+    {desc:"q-value with all p>0.5 → π̂₀=1, q ≥ p",
+     fn:()=>{const ps=[0.6,0.7,0.8]; const q=pAdjust(ps,'qvalue'); return q.every((v,i)=>v>=ps[i]-1e-9)?1:0;}, expect:1, tol:0}
   ];
   console.group('Multiple Testing Correction smoke tests');
   let pass = 0;
