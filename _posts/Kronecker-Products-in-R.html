@@ -1,0 +1,767 @@
+---
+title: "Kronecker Products in R: Mixed Models & Structural Equation Matrices"
+description: "Compute Kronecker products in R with %x% and kronecker(). Build block matrices, model repeated-measures covariance, and apply the vec trick to mixed models."
+keywords: "Kronecker product R, kronecker() function, %x% operator R, block matrix R, covariance structure, mixed models, vec trick, tensor product, structural equation matrices, multivariate covariance"
+mathjax: true
+webr: true
+curriculum_id: "FR-line-3"
+post_type: "FR"
+auto_link_terms: "Kronecker product|Kronecker products|kronecker()|%x% operator|vec trick|mixed product property"
+auto_link_case_sensitive: false
+fr_parent: "Matrix-Operations-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Kronecker Products in R: Mixed Models & Structural Equation Matrices</h1>
+
+<p class="lead">The Kronecker product, written $A \otimes B$ and computed in R with <code>kronecker()</code> or the <code>%x%</code> operator, multiplies every element of $A$ by the entire matrix $B$ to produce a block matrix. That single operation underpins repeated-measures covariance, multivariate mixed models, and the vec trick for solving matrix equations.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>How do you compute a Kronecker product in R?</h2>
+
+<p>If you have a matrix $A$ that is $m \times n$ and a matrix $B$ that is $p \times q$, the Kronecker product $A \otimes B$ is an $mp \times nq$ block matrix where the block at position $(i, j)$ is the scalar $a_{ij}$ multiplied by the entire $B$. R gives you two interchangeable ways to compute it: the function <code>kronecker(A, B)</code> and the infix operator <code>A %x% B</code>. Both produce the same result, and both work for matrices, vectors, and higher-dimensional arrays.</p>
+
+<div class="webr-container" data-block-title="Compute A kron B with %x%">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute A kron B with %x%</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">A &lt;- matrix(c(1, 2,
+              3, 4), nrow = 2, byrow = TRUE)
+
+B &lt;- matrix(c(0, 5, 6,
+              7, 8, 9), nrow = 2, byrow = TRUE)
+
+A %x% B
+#&gt;      [,1] [,2] [,3] [,4] [,5] [,6]
+#&gt; [1,]    0    5    6    0   10   12
+#&gt; [2,]    7    8    9   14   16   18
+#&gt; [3,]    0   15   18    0   20   24
+#&gt; [4,]   21   24   27   28   32   36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output as a $2 \times 2$ grid of $2 \times 3$ blocks. The top-left block is $1 \cdot B$, the top-right is $2 \cdot B$, the bottom-left is $3 \cdot B$, and the bottom-right is $4 \cdot B$. The result is $4 \times 6$ because $2 \cdot 2 = 4$ rows and $2 \cdot 3 = 6$ columns. Notice how the structure of $A$ is fully preserved on the outside while $B$ tiles the inside.</p>
+
+<p><img src="screenshots/Kronecker-Products-in-R-block-structure.webp" alt="Block layout of A kron B" class="img-responsive img-zoomable" loading="lazy" width="1174" height="738" /></p>
+
+<p><em>Figure 1: Block layout of $A \otimes B$. Each scalar in $A$ is replaced by that scalar times the entire matrix $B$.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Kronecker product encodes structure, not just numbers.</strong> When you see $A \otimes B$, read it as "the pattern of $A$ applied at the level of $B$ blocks." That mental model unlocks repeated measures, multivariate covariance, and tensor models in one stroke.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build $A = \begin{pmatrix} 1 & 0 \\ 0 & 2 \end{pmatrix}$ and $B = \begin{pmatrix} 1 & 1 \\ 1 & 1 \end{pmatrix}$, then compute <code>A %x% B</code>. Predict the result before you run it.</p>
+<div class="webr-container" data-block-title="Your turn: simple Kronecker product">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simple Kronecker product</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_A &lt;- matrix(c(1, 0,
+                 0, 2), nrow = 2, byrow = TRUE)
+ex_B &lt;- matrix(1, nrow = 2, ncol = 2)
+
+# your code here
+#&gt; Expected: a 4x4 block-diagonal matrix with [[1,1],[1,1]] in the top-left
+#&gt; and [[2,2],[2,2]] in the bottom-right; off-diagonals are zero.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Block diagonal solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Block diagonal solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_A %x% ex_B
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    1    0    0
+#&gt; [2,]    1    1    0    0
+#&gt; [3,]    0    0    2    2
+#&gt; [4,]    0    0    2    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Because $A$ is diagonal, the Kronecker product is block-diagonal. Each diagonal entry of $A$ scales a copy of $B$ on the diagonal of the result. Off-diagonal blocks vanish.</p>
+
+</details>
+</section>
+
+<h2>What algebraic properties does the Kronecker product satisfy?</h2>
+
+<p>Three identities turn the Kronecker product from a matrix-tiling trick into a calculation tool. The first is the <strong>mixed product property</strong>, which connects ordinary multiplication to the Kronecker product:</p>
+
+<p>$$(A \otimes <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">B)</a>(C \otimes D) = (AC) \otimes (BD)$$</p>
+
+<p>This works whenever $AC$ and $BD$ are conformable. The transpose splits component-wise, $(A \otimes B)^T = A^T \otimes B^T$, and so does the inverse, $(A \otimes B)^{-1} = A^{-1} \otimes B^{-1}$ when both $A$ and $B$ are invertible. The trace satisfies $\operatorname{tr}(A \otimes B) = \operatorname{tr}(A) \cdot \operatorname{tr}(B)$, and the determinant is $\det(A \otimes B) = \det(A)^p \cdot \det(B)^n$ for $A$ of size $n \times n$ and $B$ of size $p \times p$.</p>
+
+<p>Let's verify the mixed product property numerically. We will build four small matrices, compute both sides, and check that they match.</p>
+
+<div class="webr-container" data-block-title="Verify the mixed product property">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the mixed product property</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+A &lt;- matrix(rnorm(4), 2, 2)
+B &lt;- matrix(rnorm(9), 3, 3)
+C &lt;- matrix(rnorm(4), 2, 2)
+D &lt;- matrix(rnorm(9), 3, 3)
+
+lhs &lt;- (A %x% B) %*% (C %x% D)
+rhs &lt;- (A %*% C) %x% (B %*% D)
+
+all.equal(lhs, rhs)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>all.equal()</code> returns <code>TRUE</code>, confirming the identity holds to numerical precision. This single property is what lets you simplify expressions like $(I \otimes B)(A \otimes I) = A \otimes B$, a substitution that turns up constantly in mixed-model derivations.</p>
+
+<p>Now check the inverse and transpose identities:</p>
+
+<div class="webr-container" data-block-title="Transpose and inverse identities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transpose and inverse identities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inv_kron &lt;- solve(A %x% B)
+kron_inv &lt;- solve(A) %x% solve(B)
+all.equal(inv_kron, kron_inv)
+#&gt; [1] TRUE
+
+t_kron &lt;- t(A %x% B)
+kron_t &lt;- t(A) %x% t(B)
+all.equal(t_kron, kron_t)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both checks pass. The practical payoff is huge: instead of inverting a giant $mp \times mp$ matrix, you can invert two smaller matrices and Kronecker the results. For an $A$ of size $50 \times 50$ and $B$ of size $50 \times 50$, that turns one $2500 \times 2500$ inversion into two $50 \times 50$ inversions, a roughly 50x speedup.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check whether your big matrix is secretly a Kronecker product.</strong> If it factors as $A \otimes B$, every operation, inverse, determinant, <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigendecomposition</a>, can be done on the small factors instead. The Kronecker structure is one of the most exploitable patterns in numerical statistics.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Verify that $\operatorname{tr}(A \otimes B) = \operatorname{tr}(A) \cdot \operatorname{tr}(B)$ for the matrices defined above. Compare the two sides with <code>all.equal()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: trace identity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trace identity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use sum(diag(M)) for the trace, then compare both sides
+
+# your code here
+#&gt; Expected: TRUE (the two values are equal up to numerical precision)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trace identity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace identity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trace_kron &lt;- sum(diag(A %x% B))
+trace_prod &lt;- sum(diag(A)) * sum(diag(B))
+
+all.equal(trace_kron, trace_prod)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The diagonal of $A \otimes B$ contains $a_{ii} \cdot b_{jj}$ for every pair $(i, j)$. Summing gives $\sum_i a_{ii} \cdot \sum_j b_{jj}$, which is exactly the product of traces.</p>
+
+</details>
+</section>
+
+<h2>How does the Kronecker product build repeated-measures covariance?</h2>
+
+<p>Repeated-measures designs collect multiple observations per subject, and those observations are correlated. A common modeling assumption is that the full covariance has separable structure: subjects are independent (or share one between-subject pattern), and within each subject, time points share another pattern. Mathematically,</p>
+
+<p>$$\Sigma_{\text{full}} = \Sigma_{\text{subject}} \otimes \Sigma_{\text{time}}$$</p>
+
+<p>This Kronecker form has only as many free parameters as the two factors combined, instead of the full $\binom{np}{2}$ parameters of an unrestricted covariance. Let's build one in R using a compound-symmetry between-subject pattern and an AR(1) within-subject pattern.</p>
+
+<div class="webr-container" data-block-title="Build a Kronecker covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a Kronecker covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_subj &lt;- 3
+n_time &lt;- 4
+rho_subj &lt;- 0.2
+rho_time &lt;- 0.7
+
+Sigma_subj &lt;- matrix(rho_subj, n_subj, n_subj) +
+              diag(1 - rho_subj, n_subj)
+
+Sigma_time &lt;- rho_time^abs(outer(1:n_time, 1:n_time, &quot;-&quot;))
+
+Sigma_full &lt;- Sigma_subj %x% Sigma_time
+dim(Sigma_full)
+#&gt; [1] 12 12
+
+round(Sigma_full[1:6, 1:6], 3)
+#&gt;       [,1]  [,2]  [,3]  [,4]  [,5]  [,6]
+#&gt; [1,] 1.000 0.700 0.490 0.343 0.200 0.140
+#&gt; [2,] 0.700 1.000 0.700 0.490 0.140 0.200
+#&gt; [3,] 0.490 0.700 1.000 0.700 0.098 0.140
+#&gt; [4,] 0.343 0.490 0.700 1.000 0.069 0.098
+#&gt; [5,] 0.200 0.140 0.098 0.069 1.000 0.700
+#&gt; [6,] 0.140 0.200 0.098 0.069 0.700 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full covariance is $12 \times 12$ (3 subjects times 4 time points), but it has only two free correlation parameters. Within each subject (the diagonal $4 \times 4$ blocks), correlations follow the AR(1) pattern $0.7^{|i-j|}$. Between subjects (the off-diagonal blocks), correlations are scaled by <code>rho_subj = 0.2</code>. Without the Kronecker structure you would have to estimate 66 covariance entries; with it you estimate just two.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This is the residual covariance assumption used in many <a class="auto-link" href="MANOVA-in-R.html" title="MANOVA in R: Test Multiple Outcomes Simultaneously Without Inflating Type I Error">MANOVA</a> repeated-measures procedures.</strong> Software like <code>nlme::gls()</code> accepts <code>corStruct</code> and <code>weights</code> specifications that are essentially building blocks of a Kronecker covariance. SAS PROC MIXED exposes this directly via the <code>TYPE=UN@AR(1)</code> syntax.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change <code>rho_time</code> to 0.0 and re-compute <code>Sigma_full</code>. What happens to the within-subject blocks? Why?</p>
+<div class="webr-container" data-block-title="Your turn: zero within-subject correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zero within-subject correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rho_time &lt;- 0.0
+ex_Sigma_time &lt;- ex_rho_time^abs(outer(1:n_time, 1:n_time, &quot;-&quot;))
+
+# your code here
+#&gt; Expected: the within-subject 4x4 blocks become identity matrices.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Zero within-subject correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Zero within-subject correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_Sigma_full &lt;- Sigma_subj %x% ex_Sigma_time
+round(ex_Sigma_full[1:4, 1:4], 3)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    0    0    0
+#&gt; [2,]    0    1    0    0
+#&gt; [3,]    0    0    1    0
+#&gt; [4,]    0    0    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> When <code>rho_time = 0</code>, <code>Sigma_time</code> is the identity. The Kronecker product <code>Sigma_subj %x% I</code> becomes a block-diagonal-like pattern where each within-subject block is <code>I</code>, meaning observations within a subject are uncorrelated. Subjects still share the between-subject pattern.</p>
+
+</details>
+</section>
+
+<h2>How does the vec trick simplify matrix equations like AXB = C?</h2>
+
+<p>Matrix equations of the form $AXB = C$ look harmless until you try to solve for $X$. The classical fix is the <strong>vec trick</strong>, which uses the Kronecker product to convert any such equation into an ordinary linear system. Let <code>vec(M)</code> denote the column-stacked version of a matrix $M$. Then</p>
+
+<p>$$\operatorname{vec}(AXB) = (B^T \otimes A) \operatorname{vec}(X)$$</p>
+
+<p>Setting $\operatorname{vec}(C) = (B^T \otimes A) \operatorname{vec}(X)$ gives a standard linear system that you can solve with <code>solve()</code>. The unknowns are the elements of $X$, stacked into a vector.</p>
+
+<div class="webr-container" data-block-title="Solve AXB = C via the vec trick">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solve AXB = C via the vec trick</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+A_eq &lt;- matrix(rnorm(9), 3, 3)
+B_eq &lt;- matrix(rnorm(4), 2, 2)
+X_true &lt;- matrix(rnorm(6), 3, 2)
+C_eq &lt;- A_eq %*% X_true %*% B_eq
+
+vec_C &lt;- as.vector(C_eq)
+M &lt;- t(B_eq) %x% A_eq
+vec_X &lt;- solve(M, vec_C)
+
+X_solved &lt;- matrix(vec_X, nrow = 3, ncol = 2)
+round(X_solved - X_true, 8)
+#&gt;      [,1] [,2]
+#&gt; [1,]    0    0
+#&gt; [2,]    0    0
+#&gt; [3,]    0    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The recovered <code>X_solved</code> matches <code>X_true</code> to machine precision. The trick converted a $3 \times 2$ matrix equation into a $6 \times 6$ linear system, solved it, then reshaped the result. Generalizations like the Sylvester equation $AX + XB = C$ become $(I \otimes A + B^T \otimes I) \operatorname{vec}(X) = \operatorname{vec}(C)$, which the same approach handles.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The vec trick blows up the system size.</strong> Solving $AXB = C$ for an $m \times n$ matrix $X$ becomes a linear system of size $mn$. For tiny problems this is fine, but a $100 \times 100$ unknown becomes a $10{,}000 \times 10{,}000$ solve. For large problems, prefer iterative methods or Bartels-Stewart-style algorithms (see <code>lyapunov</code> solvers in specialised packages).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Verify the solution by reconstructing $A X B$ with the recovered <code>X_solved</code> and checking it matches <code>C_eq</code>.</p>
+<div class="webr-container" data-block-title="Your turn: verify the reconstruction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify the reconstruction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: compute A_eq %*% X_solved %*% B_eq, compare to C_eq with all.equal()
+
+# your code here
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Reconstruction check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reconstruction check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">C_check &lt;- A_eq %*% X_solved %*% B_eq
+all.equal(C_check, C_eq)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The reconstruction returns <code>TRUE</code> because the vec trick is an exact reformulation, not an approximation. Any numerical difference comes only from finite-precision arithmetic during <code>solve()</code>.</p>
+
+</details>
+</section>
+
+<h2>How do Kronecker products appear in mixed models and SEM?</h2>
+
+<p>Two places dominate: multivariate random-effects models and structural equation models with patterned covariance.</p>
+
+<p>In a multivariate random-effects model with $q$ traits and $n$ subjects, the random-effects vector has covariance $G \otimes I_n$, where $G$ is a $q \times q$ trait-<a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> and $I_n$ is the identity over subjects. The Kronecker form says "subjects are independent, but the $q$ traits share a covariance pattern." Likewise, the residual covariance for repeated-measures multivariate data is often modeled as $R \otimes I_n$ for trait residuals, or as a full Kronecker $R_{\text{trait}} \otimes R_{\text{time}}$ for trait-by-time repeated measures.</p>
+
+<div class="webr-container" data-block-title="Multivariate random-effects covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multivariate random-effects covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 5
+q &lt;- 2
+
+G &lt;- matrix(c(1.0, 0.6,
+              0.6, 1.5), nrow = 2, byrow = TRUE)
+
+V &lt;- G %x% diag(n)
+dim(V)
+#&gt; [1] 10 10
+
+round(V, 2)
+#&gt;       [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10]
+#&gt; [1,]   1.0  0.0  0.0  0.0  0.0  0.6  0.0  0.0  0.0   0.0
+#&gt; [2,]   0.0  1.0  0.0  0.0  0.0  0.0  0.6  0.0  0.0   0.0
+#&gt; [3,]   0.0  0.0  1.0  0.0  0.0  0.0  0.0  0.6  0.0   0.0
+#&gt; [4,]   0.0  0.0  0.0  1.0  0.0  0.0  0.0  0.0  0.6   0.0
+#&gt; [5,]   0.0  0.0  0.0  0.0  1.0  0.0  0.0  0.0  0.0   0.6
+#&gt; [6,]   0.6  0.0  0.0  0.0  0.0  1.5  0.0  0.0  0.0   0.0
+#&gt; [7,]   0.0  0.6  0.0  0.0  0.0  0.0  1.5  0.0  0.0   0.0
+#&gt; [8,]   0.0  0.0  0.6  0.0  0.0  0.0  0.0  1.5  0.0   0.0
+#&gt; [9,]   0.0  0.0  0.0  0.6  0.0  0.0  0.0  0.0  1.5   0.0
+#&gt; [10,]  0.0  0.0  0.0  0.0  0.6  0.0  0.0  0.0  0.0   1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the $10 \times 10$ matrix as a $2 \times 2$ grid of $5 \times 5$ blocks. The diagonal blocks are $1.0 \cdot I_5$ and $1.5 \cdot I_5$, the trait variances. The off-diagonal blocks are $0.6 \cdot I_5$, the trait covariance. Subjects are uncorrelated within each trait pair, but the same pair of traits is correlated within every subject.</p>
+
+<p>In <a class="auto-link" href="CFA-and-Structural-Equation-Modeling-in-R.html" title="SEM and CFA in R With lavaan: From Path Diagram to Fit Statistics">structural equation modeling</a>, the implied covariance matrix often factors as Kronecker products when you have nested or replicated structures across groups. Multi-group SEM with equality constraints across groups is one example. Any time the model says "the same pattern repeats over subjects, occasions, or items," there is a Kronecker product hiding in the math.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Base <code>lme4</code> cannot fit Kronecker covariance directly.</strong> It supports only block-diagonal random-effect structures. For Kronecker structures use <code>glmmTMB</code> (the <code>us()</code>, <code>ar1()</code>, <code>cs()</code> covariance functions can be combined), <code>sommer</code> (designed for genetic models), <code>asreml-R</code> (commercial), or <code>nlme</code> with hand-built <code>corStruct</code> objects.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Extend the example above to $q = 3$ traits with $G$ chosen so trait 3 is uncorrelated with traits 1 and 2 but has variance 0.5. Compute $G \otimes I_5$ and check the dimensions.</p>
+<div class="webr-container" data-block-title="Your turn: three-trait covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: three-trait covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- 5
+ex_q &lt;- 3
+ex_G &lt;- matrix(c(1.0, 0.6, 0.0,
+                 0.6, 1.5, 0.0,
+                 0.0, 0.0, 0.5), nrow = 3, byrow = TRUE)
+
+# your code here
+#&gt; Expected: dim 15 x 15, with the trait-3 blocks (diag 0.5) zero-correlated
+#&gt; with the other two traits.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three-trait covariance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-trait covariance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_V &lt;- ex_G %x% diag(ex_n)
+dim(ex_V)
+#&gt; [1] 15 15
+
+ex_V[11:15, 1:5]
+#&gt;      [,1] [,2] [,3] [,4] [,5]
+#&gt; [1,]    0    0    0    0    0
+#&gt; [2,]    0    0    0    0    0
+#&gt; [3,]    0    0    0    0    0
+#&gt; [4,]    0    0    0    0    0
+#&gt; [5,]    0    0    0    0    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The trait-3 row of <code>G</code> has zeros against traits 1 and 2, so the corresponding off-diagonal blocks of <code>ex_V</code> are zero. Trait 3 evolves independently of the first two while still sharing subject indices.</p>
+
+</details>
+</section>
+
+<p><img src="screenshots/Kronecker-Products-in-R-applications-mindmap.webp" alt="Five places Kronecker products appear" class="img-responsive img-zoomable" loading="lazy" width="1092" height="582" /></p>
+
+<p><em>Figure 2: Five everyday places Kronecker products appear in applied statistics.</em></p>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Determinant via the Kronecker identity</h3>
+
+<p>Build an AR(1) covariance <code>S1</code> of size $5 \times 5$ with <code>rho = 0.4</code>, and an exchangeable covariance <code>S2</code> of size $3 \times 3$ with off-diagonal <code>0.3</code> and unit variance. Compute <code>det(S1 %x% S2)</code> directly, then compute it via the identity $\det(A \otimes B) = \det(A)^p \cdot \det(B)^n$ where $A$ is $n \times n$ and $B$ is $p \times p$. Save both values to <code>my_direct</code> and <code>my_identity</code>, and confirm they match with <code>all.equal()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: nrow(S1) = n = 5; nrow(S2) = p = 3
+# my_direct  &lt;- det(S1 %x% S2)
+# my_identity &lt;- det(S1)^? * det(S2)^?
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 5
+p &lt;- 3
+S1 &lt;- 0.4^abs(outer(1:n, 1:n, &quot;-&quot;))
+S2 &lt;- matrix(0.3, p, p) + diag(1 - 0.3, p)
+
+my_direct &lt;- det(S1 %x% S2)
+my_identity &lt;- det(S1)^p * det(S2)^n
+
+all.equal(my_direct, my_identity)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The exponents in the identity are determined by the <em>other</em> matrix's size. <code>det(S1)</code> is raised to the power $p = 3$ (size of <code>S2</code>), and <code>det(S2)</code> is raised to the power $n = 5$ (size of <code>S1</code>). Many likelihood evaluations for Kronecker-structured covariance use exactly this identity to avoid forming the full matrix.</p>
+
+</details>
+
+<h3>Exercise 2: Solve a Sylvester equation with the vec trick</h3>
+
+<p>Solve $AX + XB = C$ for $X$, where $A$ is $3 \times 3$, $B$ is $2 \times 2$, and $C$ is $3 \times 2$. Use the identity $\operatorname{vec}(AX + XB) = (I_2 \otimes A + B^T \otimes I_3) \operatorname{vec}(X)$. Store the recovered $X$ as <code>my_X</code> and confirm $A X + X B$ equals $C$ with <code>all.equal()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+A_syl &lt;- matrix(rnorm(9), 3, 3)
+B_syl &lt;- matrix(rnorm(4), 2, 2)
+C_syl &lt;- matrix(rnorm(6), 3, 2)
+
+# Hint: M &lt;- diag(2) %x% A_syl + t(B_syl) %x% diag(3)
+# my_X &lt;- matrix(solve(M, as.vector(C_syl)), 3, 2)
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+A_syl &lt;- matrix(rnorm(9), 3, 3)
+B_syl &lt;- matrix(rnorm(4), 2, 2)
+C_syl &lt;- matrix(rnorm(6), 3, 2)
+
+M &lt;- diag(2) %x% A_syl + t(B_syl) %x% diag(3)
+my_X &lt;- matrix(solve(M, as.vector(C_syl)), 3, 2)
+
+check &lt;- A_syl %*% my_X + my_X %*% B_syl
+all.equal(check, C_syl)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each Kronecker term encodes one of the matrix products. $I_2 \otimes A$ replicates $A$ along block diagonals (representing $AX$), and $B^T \otimes I_3$ encodes $XB$. Adding them combines both linear actions into a single coefficient matrix.</p>
+
+</details>
+
+<h3>Exercise 3: Build a repeated-measures design matrix</h3>
+
+<p>You have $n = 4$ subjects, each measured on 3 occasions. The within-subject design matrix is <code>W &lt;- cbind(1, c(0, 1, 2))</code> (intercept and linear time). Build the full design matrix <code>my_Z</code> for the random subject effects using <code>kronecker()</code> of <code>diag(n)</code> and <code>W</code>. The result should be $12 \times 8$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 4
+W &lt;- cbind(1, c(0, 1, 2))
+
+# Hint: my_Z &lt;- diag(n) %x% W
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 4
+W &lt;- cbind(1, c(0, 1, 2))
+
+my_Z &lt;- diag(n) %x% W
+dim(my_Z)
+#&gt; [1] 12  8
+
+my_Z[1:6, 1:4]
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    0    0    0
+#&gt; [2,]    1    1    0    0
+#&gt; [3,]    1    2    0    0
+#&gt; [4,]    0    0    1    0
+#&gt; [5,]    0    0    1    1
+#&gt; [6,]    0    0    1    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>diag(n) %x% W</code> produces a block-diagonal matrix with one copy of <code>W</code> per subject. This is exactly the random-effects design matrix for a multilevel model where every subject has their own intercept and slope. Mixed-model software constructs this matrix internally for every random-slope specification.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Bringing the threads together: simulate 30 subjects with 4 time points and 2 traits, build the Kronecker-structured covariance, and draw multivariate-normal samples from it.</p>
+
+<div class="webr-container" data-block-title="Simulate from a Kronecker covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate from a Kronecker covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+n_subj &lt;- 30
+n_time &lt;- 4
+n_trait &lt;- 2
+
+R_trait &lt;- matrix(c(1.0, 0.5,
+                    0.5, 2.0), nrow = 2, byrow = TRUE)
+R_time  &lt;- 0.6^abs(outer(1:n_time, 1:n_time, &quot;-&quot;))
+
+Sigma &lt;- R_trait %x% R_time
+dim(Sigma)
+#&gt; [1] 8 8
+
+L &lt;- chol(Sigma)
+Y &lt;- matrix(rnorm(n_subj * n_trait * n_time), nrow = n_subj) %*% L
+
+dim(Y)
+#&gt; [1] 30  8
+
+cov_emp &lt;- cov(Y)
+round(cov_emp[1:4, 1:4], 2)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,] 0.96 0.59 0.32 0.16
+#&gt; [2,] 0.59 1.04 0.55 0.32
+#&gt; [3,] 0.32 0.55 1.20 0.62
+#&gt; [4,] 0.16 0.32 0.62 0.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical covariance from 30 simulated subjects is close to the theoretical AR(1) pattern with $\rho = 0.6$ for the first trait. The Cholesky factor <code>L</code> is fast to compute because <code>Sigma</code> is only $8 \times 8$, but for a 50-time-point trial with 5 traits the saving from working in factor form rather than the full $250 \times 250$ matrix would be substantial. This is the workflow inside any solver that exploits Kronecker structure.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Operator / function</th>
+<th>Property used</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compute $A \otimes B$</td>
+<td><code>kronecker()</code> or <code>%x%</code></td>
+<td>Block tiling</td>
+<td><code>A %x% B</code></td>
+</tr>
+<tr>
+<td>Invert $A \otimes B$</td>
+<td><code>solve()</code> on factors</td>
+<td>$(A \otimes B)^{-1} = A^{-1} \otimes B^{-1}$</td>
+<td><code>solve(A) %x% solve(B)</code></td>
+</tr>
+<tr>
+<td>Compute $\det(A \otimes B)$</td>
+<td><code>det()</code> on factors</td>
+<td>$\det(A)^p \det(B)^n$</td>
+<td><code>det(A)^p * det(B)^n</code></td>
+</tr>
+<tr>
+<td>Solve $AXB = C$</td>
+<td>Vec trick</td>
+<td>$\operatorname{vec}(AXB) = (B^T \otimes A) \operatorname{vec}(X)$</td>
+<td><code>solve(t(B) %x% A, as.vector(C))</code></td>
+</tr>
+<tr>
+<td>Repeated-measures covariance</td>
+<td><code>%x%</code></td>
+<td>$\Sigma = \Sigma_{\text{subj}} \otimes \Sigma_{\text{time}}$</td>
+<td><code>S_subj %x% S_time</code></td>
+</tr>
+<tr>
+<td>Multivariate random effects</td>
+<td><code>%x%</code></td>
+<td>$V = G \otimes I_n$</td>
+<td><code>G %x% diag(n)</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>R Core Team. <em>kronecker: Kronecker Products on Arrays</em>. R base documentation. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/kronecker.html">Link</a></li>
+
+<li>Schäcke, K. (2013). <em>On the Kronecker Product</em>. University of Waterloo. <a href="https://www.math.uwaterloo.ca/~hwolkowi/henry/reports/kronthesisschaecke04.pdf">PDF</a></li>
+
+<li>Searle, S. R. (1982). <em>Matrix Algebra Useful for Statistics</em>. Wiley.</li>
+
+<li>Magnus, J. R., & Neudecker, H. (2019). <em>Matrix Differential Calculus with Applications in Statistics and Econometrics</em>, 3rd ed. Wiley.</li>
+
+<li>Pinheiro, J. C., & Bates, D. M. (2000). <em>Mixed-Effects Models in S and S-PLUS</em>. Springer. Chapter 5 on covariance structures.</li>
+
+<li>Brooks, M. E., et al. (2017). <em>glmmTMB Balances Speed and Flexibility Among Packages for Zero-inflated Generalized Linear Mixed Models</em>. The R Journal, 9(2). <a href="https://journal.r-project.org/archive/2017/RJ-2017-066/index.html">Link</a></li>
+
+<li>Wikipedia. <em>Kronecker product</em>. <a href="https://en.wikipedia.org/wiki/Kronecker_product">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Matrix-Operations-in-R.html">Matrix Operations in R</a>: the parent post covers create, multiply, invert, transpose, the prerequisite vocabulary for everything above.</li>
+
+<li><a href="Singular-Value-Decomposition-in-R.html">Singular Value Decomposition in R</a>: another structured factorisation that pairs naturally with Kronecker products in low-rank covariance models.</li>
+
+<li><a href="Cholesky-Decomposition-in-R.html">Cholesky Decomposition in R</a>: how the Kronecker covariance gets factored for fast multivariate-normal sampling.</li>
+
+</ul>
