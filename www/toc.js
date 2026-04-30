@@ -40,7 +40,8 @@ function saveStarted(s) {
 // Progress lifecycle for the current page:
 //   1. On load: mark as `started` (unless already `visited`).
 //   2. On reaching ~80% scroll depth: promote to `visited`.
-//   3. Update last-visited pointer for the continue-reading chip.
+//   3. Roll the prior last-visited pointer into rstat_continue (read by the
+//      sidebar chip), then write the current page as the new last-visited.
 (function() {
   var page = window.location.pathname.split('/').pop() || 'index.html';
   if (!page) return;
@@ -51,6 +52,16 @@ function saveStarted(s) {
     saveStarted(started);
   }
   try {
+    // Roll prior last-visited into "continue" slot — but only if it points
+    // to a different page than the one we're now on. This is what the
+    // sidebar chip reads. Update last-visited only after reading it.
+    var priorRaw = localStorage.getItem('rstat_last_visited');
+    if (priorRaw) {
+      var prior = JSON.parse(priorRaw);
+      if (prior && prior.href && prior.href !== page) {
+        localStorage.setItem('rstat_continue', priorRaw);
+      }
+    }
     var title = document.title.replace(/\s*[\|—\-].*$/, '').trim() || page;
     localStorage.setItem('rstat_last_visited', JSON.stringify({ href: page, title: title, ts: Date.now() }));
   } catch(e) {}
@@ -111,7 +122,9 @@ function saveStarted(s) {
     else if (started[href]) dot.classList.add('started');
   });
 
-  // Section meta: "visited / total" per section
+  // Section meta: "started+visited / total" per section.
+  // The current page counts as touched (it's `started` even on first load),
+  // so a freshly-landed reader sees "1 / N" instead of an empty header.
   sidebarEl.querySelectorAll('.sidebar-section').forEach(function(section) {
     var meta = section.querySelector('[data-section-meta]');
     if (!meta) return;
@@ -121,17 +134,19 @@ function saveStarted(s) {
     var done = 0;
     links.forEach(function(a) {
       var href = a.getAttribute('href');
-      if (href && visited[href]) done++;
+      if (!href) return;
+      if (visited[href] || started[href] || href === currentPage) done++;
     });
     if (done > 0) meta.textContent = done + ' / ' + total;
   });
 
-  // Continue-reading chip: link to most recently visited page (skip if it's the current page)
+  // Continue-reading chip: link to the page visited just before this one.
+  // Reads rstat_continue (rolled forward from rstat_last_visited at page load).
   (function() {
     var chip = sidebarEl.querySelector('[data-continue-chip]');
     if (!chip) return;
     var raw;
-    try { raw = localStorage.getItem('rstat_last_visited'); } catch(e) { return; }
+    try { raw = localStorage.getItem('rstat_continue'); } catch(e) { return; }
     if (!raw) return;
     try {
       var lv = JSON.parse(raw);
