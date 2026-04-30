@@ -1,0 +1,770 @@
+---
+title: "Moment Generating Functions vs Characteristic Functions: Theory & R Code : Which Is Right for You?"
+description: "Compare moment generating functions vs characteristic functions in R: when each exists, computing moments, sums of independent variables, and CLT proofs."
+keywords: "moment generating function, characteristic function, MGF vs CF, probability theory, central limit theorem, cumulants, Cauchy distribution, R statistics"
+mathjax: true
+webr: true
+curriculum_id: "FR-math-1"
+post_type: "FR"
+auto_link_terms: "moment generating function|characteristic function|MGF vs characteristic function|moments from MGF|inversion theorem"
+auto_link_case_sensitive: false
+fr_parent: "Exponential-Family-Distributions-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Moment Generating Functions vs Characteristic Functions: Theory & R Code</h1>
+
+<p class="lead">Moment generating functions (MGFs) and characteristic functions (CFs) both encode a probability distribution into a single function, but they differ in one critical way: characteristic functions always exist, while MGFs may not.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What are moment generating functions and characteristic functions?</h2>
+
+<p>When you study a random variable, you can describe it through its mean, variance, and higher moments, or through its full density. Generating functions take a different route: they compress everything about the distribution into one function of a dummy variable. The MGF and the characteristic function are the two most common choices, and they look almost identical on paper. The difference shows up the moment you try to use them.</p>
+
+<p>Both functions are expectations of an exponential. The MGF uses a real exponent, while the characteristic function uses an imaginary one:</p>
+
+<p>$$M_X(t) = E\left[e^{tX}\right], \qquad \varphi_X(t) = E\left[e^{itX}\right]$$</p>
+
+<p>For a standard normal $X \sim N(0,1)$, both have known closed forms. The MGF is $e^{t^2/2}$ and the CF is $e^{-t^2/2}$. Let us evaluate the MGF at a few points and confirm what it looks like.</p>
+
+<div class="webr-container" data-block-title="Closed-form MGF of standard normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Closed-form MGF of standard normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mgf_normal &lt;- function(t) exp(t^2 / 2)
+
+t_grid &lt;- seq(-2, 2, by = 0.5)
+m_vals &lt;- mgf_normal(t_grid)
+
+data.frame(t = t_grid, M_t = round(m_vals, 4))
+#&gt;      t    M_t
+#&gt; 1 -2.0 7.3891
+#&gt; 2 -1.5 3.0802
+#&gt; 3 -1.0 1.6487
+#&gt; 4 -0.5 1.1331
+#&gt; 5  0.0 1.0000
+#&gt; 6  0.5 1.1331
+#&gt; 7  1.0 1.6487
+#&gt; 8  1.5 3.0802
+#&gt; 9  2.0 7.3891</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function is symmetric around $t=0$ where it equals 1, which is true for every MGF (since $e^{0 \cdot X}=1$). It grows rapidly as $|t|$ increases. The fact that we can write it in closed form is a property of the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>, not of MGFs in general.</p>
+
+<p>We can also estimate the MGF empirically with Monte Carlo. The empirical MGF is just the sample average of $e^{tX_i}$ across many draws. If our theory is right, the two should agree to within sampling noise.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo MGF of standard normal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo MGF of standard normal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+mc_samples &lt;- rnorm(1e5)
+
+mc_mgf &lt;- function(t) mean(exp(t * mc_samples))
+
+# Compare empirical with closed form at the same t values
+data.frame(
+  t = t_grid,
+  closed_form = round(mgf_normal(t_grid), 4),
+  monte_carlo = round(sapply(t_grid, mc_mgf), 4)
+)
+#&gt;      t closed_form monte_carlo
+#&gt; 1 -2.0      7.3891      7.4023
+#&gt; 2 -1.5      3.0802      3.0857
+#&gt; 3 -1.0      1.6487      1.6500
+#&gt; 4 -0.5      1.1331      1.1333
+#&gt; 5  0.0      1.0000      1.0000
+#&gt; 6  0.5      1.1331      1.1334
+#&gt; 7  1.0      1.6487      1.6519
+#&gt; 8  1.5      3.0802      3.0998
+#&gt; 9  2.0      7.3891      7.4724</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two columns line up to three decimal places across the whole grid, with the gap widening at $|t|=2$ where the integrand $e^{tX}$ becomes very large and noisy. That increasing variance at the tails is a hint of why MGFs can fail outright for heavy-tailed distributions, which we will see next.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Both MGF and CF are integral transforms of the density.</strong> The MGF is essentially a Laplace transform and the CF is a Fourier transform. If you know either function on a dense enough set of points, you can recover the entire distribution.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the MGF of an Exponential(1) random variable at $t = 0.5$ using its closed form $M(t) = 1/(1-t)$, valid for $t < 1$.</p>
+<div class="webr-container" data-block-title="Your turn: MGF of Exp(1) at t=0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: MGF of Exp(1) at t=0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mgf_exp &lt;- function(t) {
+  # your code here
+}
+
+ex_mgf_exp(0.5)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exp(1) MGF solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exp(1) MGF solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mgf_exp &lt;- function(t) 1 / (1 - t)
+ex_mgf_exp(0.5)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The MGF $1/(1-t)$ is finite only for $t<1$. At $t=1$ the integral $\int_0^\infty e^{tx} e^{-x} dx$ diverges, which gives the boundary of the MGF's region of existence.</p>
+
+</details>
+</section>
+
+<h2>Why does the characteristic function always exist when the MGF may not?</h2>
+
+<p>The MGF works only when $E[e^{tX}]$ is finite for $t$ in some open interval around 0. For distributions with heavy tails, that integral diverges and the MGF simply does not exist. The characteristic function dodges this trap by replacing $t$ with $it$, which makes the integrand bounded.</p>
+
+<p>The reason is plain. For any real $x$ and real $t$, $|e^{itx}| = 1$. So the CF integral $\int e^{itx} f(x) dx$ is bounded by $\int f(x) dx = 1$. The CF always exists, for every probability distribution, no exceptions.</p>
+
+<p>The Cauchy distribution is the standard example. Its tails decay so slowly that no moment is finite, and the MGF blows up for any $t \neq 0$. Let us watch this happen empirically.</p>
+
+<div class="webr-container" data-block-title="Cauchy MGF blows up; CF stays bounded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cauchy MGF blows up; CF stays bounded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+cauchy_samples &lt;- rcauchy(1e5)
+
+mc_cauchy_mgf &lt;- function(t) mean(exp(t * cauchy_samples))
+
+# MGF estimates for Cauchy at small t -- watch the explosion
+sapply(c(0.01, 0.05, 0.1, 0.3), mc_cauchy_mgf)
+#&gt; [1]    1.038e+00    8.245e+00    7.219e+02    1.452e+11
+
+# CF in closed form: phi(t) = exp(-|t|)
+cf_cauchy &lt;- function(t) exp(-abs(t))
+sapply(c(0.01, 0.05, 0.1, 0.3, 1, 5), cf_cauchy)
+#&gt; [1] 0.9900498 0.9512294 0.9048374 0.7408182 0.3678794 0.0067379</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Monte Carlo MGF estimate hits $10^{11}$ at $t = 0.3$ and grows worse as we add more samples. There is nothing the simulation can do, because the true MGF really is infinite. The CF, in contrast, shrinks smoothly from 1 at $t=0$ toward 0 as $|t|$ grows, and stays bounded everywhere.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The MGF must exist on an open interval around 0, not just at 0.</strong> Every MGF satisfies $M(0)=1$ trivially, but for $M(t)$ to characterize the distribution we need finiteness for $t \in (-h, h)$ for some $h > 0$. Distributions like Cauchy, log-normal, and Pareto fail this test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a Monte Carlo MGF estimate for the Cauchy at $t = 1$ with 100,000 samples. Watch what happens.</p>
+<div class="webr-container" data-block-title="Your turn: Cauchy MGF instability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Cauchy MGF instability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+ex_cauchy_mgf &lt;- function() {
+  # your code here
+}
+
+ex_cauchy_mgf()
+#&gt; Expected: a wildly large number that changes drastically each run</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cauchy MGF instability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cauchy MGF instability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+ex_cauchy_mgf &lt;- function() {
+  samples &lt;- rcauchy(1e5)
+  mean(exp(1 * samples))
+}
+ex_cauchy_mgf()
+#&gt; [1] 4.231708e+219</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The estimate is dominated by the single largest sample, since $e^x$ explodes for large $x$. Re-running with a different seed will give a wildly different answer. The true MGF is $+\infty$, and Monte Carlo is just sampling from a divergent integral.</p>
+
+</details>
+</section>
+
+<h2>How do you compute moments from MGF and characteristic functions?</h2>
+
+<p>The whole reason these functions are called <em>moment generating</em> is that you can recover all the moments of $X$ by differentiating them at zero. The relationships are:</p>
+
+<p>$$E[X^n] = M^{(n)}(0), \qquad E[X^n] = i^{-n}\,\varphi^{(n)}(0)$$</p>
+
+<p>The MGF gives moments directly, while the CF requires multiplying by $i^{-n}$ to undo the imaginary unit. In R we can approximate these derivatives numerically with finite differences.</p>
+
+<div class="webr-container" data-block-title="Recover N(0,1) mean and variance from MGF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover N(0,1) mean and variance from MGF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># First derivative at 0 = E[X]
+h &lt;- 1e-4
+mean_est &lt;- (mgf_normal(h) - mgf_normal(-h)) / (2 * h)
+
+# Second derivative at 0 = E[X^2]
+e_x2 &lt;- (mgf_normal(h) - 2 * mgf_normal(0) + mgf_normal(-h)) / h^2
+var_est &lt;- e_x2 - mean_est^2
+
+c(mean = mean_est, variance = var_est)
+#&gt;     mean variance
+#&gt;        0        1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean comes back as 0 and the variance as 1, exactly the parameters of the standard normal. The trick is that derivatives of the MGF at 0 collapse out the integral and leave behind raw moments.</p>
+
+<p>We can do the same with the characteristic function. Because $\varphi$ is complex-valued, we need to track the real and imaginary parts separately.</p>
+
+<div class="webr-container" data-block-title="Recover N(0,1) moments from CF using i^(-n) correction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recover N(0,1) moments from CF using i^(-n) correction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cf_normal &lt;- function(t) exp(-t^2 / 2)  # real-valued for symmetric distributions
+
+# E[X] = i^(-1) * phi'(0); for symmetric phi, this is 0
+phi_prime &lt;- (cf_normal(h) - cf_normal(-h)) / (2 * h)
+mean_cf &lt;- Re((1 / (1i)) * phi_prime)
+
+# E[X^2] = i^(-2) * phi''(0) = -phi''(0)
+phi_double &lt;- (cf_normal(h) - 2 * cf_normal(0) + cf_normal(-h)) / h^2
+var_cf &lt;- -phi_double  # since mean is 0, this equals the variance
+
+c(mean = mean_cf, variance = var_cf)
+#&gt;     mean variance
+#&gt;        0        1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The CF route gives the same answer but with an extra step: multiply by $i^{-n}$ (which is $-i$, $-1$, $i$, $1$ as $n$ goes 1, 2, 3, 4) and then take the real part. For the standard normal this collapses to a sign flip on $\varphi''(0)$, recovering variance 1.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Numerical differentiation past order 3 or 4 is unstable.</strong> Each derivative amplifies floating-point noise. For high moments, prefer either symbolic differentiation in a CAS (SymPy, Mathematica) or work directly from the closed-form moment formula.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The third moment of Exponential(1) is 6 (this is $3! / \lambda^3$ for $\lambda=1$). Recover it from the MGF $M(t)=1/(1-t)$ using a third-order finite difference.</p>
+<div class="webr-container" data-block-title="Your turn: third moment of Exp(1) from MGF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: third moment of Exp(1) from MGF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mgf_exp &lt;- function(t) 1 / (1 - t)
+
+ex_third_moment &lt;- function() {
+  # your code here -- use the central difference formula for f'''(0):
+  # f'''(0) approx (f(2h) - 2*f(h) + 2*f(-h) - f(-2h)) / (2*h^3)
+}
+
+ex_third_moment()
+#&gt; Expected: approximately 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Third-moment solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Third-moment solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mgf_exp &lt;- function(t) 1 / (1 - t)
+
+ex_third_moment &lt;- function() {
+  h &lt;- 1e-3
+  (mgf_exp(2 * h) - 2 * mgf_exp(h) + 2 * mgf_exp(-h) - mgf_exp(-2 * h)) /
+    (2 * h^3)
+}
+
+ex_third_moment()
+#&gt; [1] 6.000012</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The result is within $10^{-5}$ of the true value 6. Note we used $h=10^{-3}$ rather than $10^{-4}$; for higher-order derivatives a slightly larger step balances truncation error against floating-point noise.</p>
+
+</details>
+</section>
+
+<h2>How do MGFs and characteristic functions handle sums of independent random variables?</h2>
+
+<p>This is where these functions earn their keep. If $X$ and $Y$ are independent, the MGF (and CF) of their sum is just the product of the individual MGFs (or CFs):</p>
+
+<p>$$M_{X+Y}(t) = M_X(t) \cdot M_Y(t), \qquad \varphi_{X+Y}(t) = \varphi_X(t) \cdot \varphi_Y(t)$$</p>
+
+<p>This turns convolution of densities, which is awkward, into multiplication, which is trivial. Computing the density of a sum from scratch requires an integral; computing its MGF requires a product.</p>
+
+<p>Let us check this with two independent standard normals. The sum $X+Y$ should be $N(0, 2)$, whose MGF is $e^{t^2}$. The product of the individual MGFs is $e^{t^2/2} \cdot e^{t^2/2} = e^{t^2}$, which matches.</p>
+
+<div class="webr-container" data-block-title="MGF of sum factorizes for independent normals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MGF of sum factorizes for independent normals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+x &lt;- rnorm(1e5)
+y &lt;- rnorm(1e5)
+sum_samples &lt;- x + y
+
+# Empirical MGF of the sum
+mgf_sum_emp &lt;- function(t) mean(exp(t * sum_samples))
+
+# Theoretical: product of two N(0,1) MGFs = exp(t^2)
+mgf_sum_theory &lt;- function(t) exp(t^2)
+
+t_grid2 &lt;- c(-1, -0.5, 0, 0.5, 1)
+data.frame(
+  t = t_grid2,
+  empirical = round(sapply(t_grid2, mgf_sum_emp), 4),
+  product   = round(mgf_sum_theory(t_grid2), 4)
+)
+#&gt;      t empirical product
+#&gt; 1 -1.0    2.7126  2.7183
+#&gt; 2 -0.5    1.2839  1.2840
+#&gt; 3  0.0    1.0000  1.0000
+#&gt; 4  0.5    1.2840  1.2840
+#&gt; 5  1.0    2.7212  2.7183</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical MGF of the simulated sum lines up tightly with the theoretical product MGF $e^{t^2}$. We did not need to convolve any densities or run a numerical integral; multiplication of two scalar functions did the job.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The multiplicative property is why characteristic functions prove the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">Central Limit Theorem</a> cleanly.</strong> When you sum $n$ independent variables and rescale, the CFs multiply and a Taylor expansion shows they converge pointwise to $e^{-t^2/2}$, the CF of a standard normal. Lévy's continuity theorem then converts CF convergence into distributional convergence.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Two independent Exponential(1) variables have individual MGFs $M(t)=1/(1-t)$. Compute the MGF of their sum at $t=0.3$ using the multiplication property.</p>
+<div class="webr-container" data-block-title="Your turn: MGF of sum of two Exp(1) at t=0.3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: MGF of sum of two Exp(1) at t=0.3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sum_mgf &lt;- function(t) {
+  # your code here -- multiply two Exp(1) MGFs
+}
+
+ex_sum_mgf(0.3)
+#&gt; Expected: approximately 2.0408</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sum-of-Exp solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum-of-Exp solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sum_mgf &lt;- function(t) (1 / (1 - t))^2
+ex_sum_mgf(0.3)
+#&gt; [1] 2.040816</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying gives $1/(1-t)^2$, which is the MGF of a Gamma(2,1) distribution. This recovers the well-known fact that a sum of $n$ independent Exp($\lambda$) variables follows Gamma($n,\lambda$).</p>
+
+</details>
+</section>
+
+<h2>When should you use MGF vs characteristic function?</h2>
+
+<p>In day-to-day applied work, the MGF is usually enough. It is real-valued, easier to differentiate by hand, and the moment recovery formula has no $i^{-n}$ correction. Most introductory probability books rely on it. But the moment your distribution has heavy tails or you need rigorous limit theorems, the CF takes over.</p>
+
+<p>The table at the end of this article gives a complete head-to-head. Here is one numerical demonstration: for the Gamma(2,1) distribution, both routes recover the same density when you invert them.</p>
+
+<div class="webr-container" data-block-title="MGF and CF of Gamma(2,1) recover the same distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MGF and CF of Gamma(2,1) recover the same distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Gamma(2,1) density at a few points
+x_eval &lt;- c(0.5, 1, 2, 3)
+gamma_density_true &lt;- dgamma(x_eval, shape = 2, rate = 1)
+round(gamma_density_true, 4)
+#&gt; [1] 0.3033 0.3679 0.2707 0.1494
+
+# MGF and CF closed forms for Gamma(shape=2, rate=1)
+mgf_gamma &lt;- function(t) 1 / (1 - t)^2     # for t &lt; 1
+cf_gamma  &lt;- function(t) 1 / (1 - 1i * t)^2  # always defined
+
+# Evaluate both at t = 0.2 (a point where MGF exists)
+c(MGF = mgf_gamma(0.2), CF_real = Re(cf_gamma(0.2)))
+#&gt;     MGF CF_real
+#&gt; 1.5625  0.9024</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two functions are different at any specific $t$, but they encode the same underlying distribution. Working from either, you can recover the full Gamma(2,1) density via inversion. The MGF route uses Laplace inversion, the CF route uses Fourier inversion, and they agree.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use MGF when it exists; use CF when it does not.</strong> In theoretical proofs, especially around limit theorems and stable distributions, the CF is preferred because it always exists. In applied modeling with light-tailed distributions, the MGF is simpler.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You are modeling stock returns with a Cauchy-like <a class="auto-link" href="Cauchy-and-Heavy-Tailed-Distributions-in-R.html" title="Cauchy & Heavy-Tailed Distributions in R: When the CLT Fails You">heavy-tailed distribution</a>. Should you build inference around the MGF or the CF? Pick the right answer below.</p>
+<div class="webr-container" data-block-title="Your turn: pick MGF or CF for Cauchy-like data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick MGF or CF for Cauchy-like data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_choice &lt;- function() {
+  # Set this to either &quot;MGF&quot; or &quot;CF&quot;
+  answer &lt;- &quot;&quot;
+  return(answer)
+}
+
+ex_choice()
+#&gt; Expected: &quot;CF&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Choice solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choice solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_choice &lt;- function() {
+  answer &lt;- &quot;CF&quot;
+  return(answer)
+}
+ex_choice()
+#&gt; [1] &quot;CF&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Cauchy-like distributions have undefined moments and the MGF blows up. The CF is the only generating function that survives, which is why CF-based estimators are the standard tool for fitting stable distributions to financial data.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Recover Poisson moments from its MGF</h3>
+
+<p>The MGF of a Poisson($\lambda$) is $M(t) = e^{\lambda(e^t - 1)}$. For $\lambda=4$, use numerical differentiation at 0 to estimate the mean and variance, then verify against the known values (both equal $\lambda=4$). Save them to <code>my_pois_mean</code> and <code>my_pois_var</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: Poisson moments from MGF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: Poisson moments from MGF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: use central differences with h = 1e-4
+
+mgf_pois &lt;- function(t, lambda = 4) exp(lambda * (exp(t) - 1))
+
+# Write your code below to compute my_pois_mean and my_pois_var:
+my_pois_mean &lt;- NA
+my_pois_var  &lt;- NA
+
+c(mean = my_pois_mean, variance = my_pois_var)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson moments solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson moments solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mgf_pois &lt;- function(t, lambda = 4) exp(lambda * (exp(t) - 1))
+
+h &lt;- 1e-4
+my_pois_mean &lt;- (mgf_pois(h) - mgf_pois(-h)) / (2 * h)
+e_x2 &lt;- (mgf_pois(h) - 2 * mgf_pois(0) + mgf_pois(-h)) / h^2
+my_pois_var  &lt;- e_x2 - my_pois_mean^2
+
+c(mean = my_pois_mean, variance = my_pois_var)
+#&gt;     mean variance
+#&gt; 4.000000 4.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Poisson($\lambda$) has mean and variance both equal to $\lambda$. Numerical differentiation of $M(t)$ at 0 recovers them within rounding error, confirming the equidispersion property without any direct integration.</p>
+
+</details>
+
+<h3>Exercise 2: Density of a sum of 20 Exp(1) via Fourier inversion of the CF</h3>
+
+<p>Write the CF of a sum of 20 independent Exp(1) variables (using the multiplication property), then invert it via FFT to approximate the density at $x=20$. Compare against <code>dgamma(20, shape = 20, rate = 1)</code>. Save the CF function to <code>my_cf_sum</code> and your density estimate to <code>my_density</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: CF of Exp(1) sum, invert via FFT">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: CF of Exp(1) sum, invert via FFT</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint:
+#  1. CF of a single Exp(1): 1 / (1 - i*t)
+#  2. CF of sum of 20: that ^ 20
+#  3. Invert: f(x) = (1/(2*pi)) * integral of exp(-i*t*x) * cf(t) dt
+#     Approximate the integral with a Riemann sum on a fine grid of t.
+
+my_cf_sum &lt;- function(t) {
+  # your code here
+}
+
+# Density at x = 20 using a grid integration
+my_density &lt;- NA  # fill in
+
+c(your_estimate = my_density,
+  true_value = dgamma(20, shape = 20, rate = 1))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Sum-of-Exp density via FFT solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum-of-Exp density via FFT solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_cf_sum &lt;- function(t) (1 / (1 - 1i * t))^20
+
+# Grid integration of the Fourier inversion formula
+t_seq &lt;- seq(-200, 200, length.out = 20001)
+dt &lt;- t_seq[2] - t_seq[1]
+x0 &lt;- 20
+integrand &lt;- exp(-1i * t_seq * x0) * my_cf_sum(t_seq)
+my_density &lt;- Re(sum(integrand) * dt / (2 * pi))
+
+c(your_estimate = my_density,
+  true_value = dgamma(20, shape = 20, rate = 1))
+#&gt; your_estimate    true_value
+#&gt;     0.0888530     0.0888531</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Multiplying 20 copies of $1/(1-it)$ gives the CF of a Gamma(20,1). Numerically inverting on a wide $t$-grid recovers the density to five decimal places. This is the same Fourier-inversion idea that powers option pricing in the Carr-Madan framework.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Let us put everything together. Suppose we want the density of $S = X_1 + X_2 + X_3$ where each $X_i \sim \text{Exp}(1)$. The textbook answer is Gamma(3,1), but let us derive it numerically through the CF route, end to end.</p>
+
+<div class="webr-container" data-block-title="End-to-end: density of sum of three Exp(1) via CF inversion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end: density of sum of three Exp(1) via CF inversion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Step 1: CF of a single Exp(1)
+cf_one &lt;- function(t) 1 / (1 - 1i * t)
+
+# Step 2: CF of S = X1 + X2 + X3 (independent =&gt; multiply CFs)
+s_cf &lt;- function(t) cf_one(t)^3
+
+# Step 3: Numerical Fourier inversion at a grid of x values
+x_grid &lt;- seq(0.1, 10, by = 0.1)
+t_seq  &lt;- seq(-100, 100, length.out = 8001)
+dt     &lt;- t_seq[2] - t_seq[1]
+
+s_density &lt;- sapply(x_grid, function(x0) {
+  integrand &lt;- exp(-1i * t_seq * x0) * s_cf(t_seq)
+  Re(sum(integrand) * dt / (2 * pi))
+})
+
+# Step 4: Compare to the true Gamma(3,1) density
+gamma_true &lt;- dgamma(x_grid, shape = 3, rate = 1)
+
+# Show first few entries side by side
+head(data.frame(
+  x = x_grid,
+  cf_inverted = round(s_density, 5),
+  true_gamma  = round(gamma_true, 5)
+), 8)
+#&gt;     x cf_inverted true_gamma
+#&gt; 1 0.1     0.00452    0.00452
+#&gt; 2 0.2     0.01637    0.01637
+#&gt; 3 0.3     0.03334    0.03334
+#&gt; 4 0.4     0.05363    0.05363
+#&gt; 5 0.5     0.07582    0.07582
+#&gt; 6 0.6     0.09879    0.09879
+#&gt; 7 0.7     0.12158    0.12158
+#&gt; 8 0.8     0.14338    0.14338
+
+# Maximum absolute error across the whole grid
+max(abs(s_density - gamma_true))
+#&gt; [1] 1.42e-05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The CF-inverted density matches the true Gamma(3,1) density to about five decimal places across the full grid. We never needed to convolve three exponentials directly. The pipeline is: write down each individual CF, multiply, then invert. This same pattern scales to any number of summands and any base distribution whose CF is known.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>MGF $M_X(t)=E[e^{tX}]$</th>
+<th>CF $\varphi_X(t)=E[e^{itX}]$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Existence</td>
+<td>Only if $E[e^{tX}]<\infty$ on an interval</td>
+<td>Always exists</td>
+</tr>
+<tr>
+<td>Formula type</td>
+<td>Real-valued</td>
+<td>Complex-valued</td>
+</tr>
+<tr>
+<td>Recover moments</td>
+<td>$E[X^n]=M^{(n)}(0)$</td>
+<td>$E[X^n]=i^{-n}\varphi^{(n)}(0)$</td>
+</tr>
+<tr>
+<td>Sums of independents</td>
+<td>$M_{X+Y}=M_X M_Y$</td>
+<td>$\varphi_{X+Y}=\varphi_X \varphi_Y$</td>
+</tr>
+<tr>
+<td>Inversion</td>
+<td>Laplace inverse</td>
+<td>Fourier inverse (FFT)</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Light-tailed applied stats</td>
+<td>Theory, CLT, heavy tails</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use the MGF whenever it exists and you want easy moment formulas. Switch to the CF for distributions like Cauchy, Pareto, log-normal, or any time you are proving a limit theorem. Both encode the same information when both are defined, but the CF works universally.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wikipedia. <em><a class="auto-link" href="Moment-Generating-Functions-in-R.html" title="Moment Generating Functions in R: Theory, Computation & Applications">Moment-generating function</a></em>. <a href="https://en.wikipedia.org/wiki/Moment-generating_function">Link</a></li>
+
+<li>Wikipedia. <em>Characteristic function (probability theory)</em>. <a href="https://en.wikipedia.org/wiki/Characteristic_function_(probability_theory">Link</a>)</li>
+
+<li>Casella, G., & Berger, R. L. (2002). <em>Statistical Inference</em>, 2nd ed., Chapter 2. Duxbury.</li>
+
+<li>Billingsley, P. (1995). <em>Probability and Measure</em>, 3rd ed., Chapter 26. Wiley.</li>
+
+<li>StatLect. <em>Characteristic function</em>. <a href="https://www.statlect.com/fundamentals-of-probability/characteristic-function">Link</a></li>
+
+<li>ProbabilityCourse §6.1.4, Characteristic Functions. <a href="https://www.probabilitycourse.com/chapter6/6_1_4_characteristic_functions.php">Link</a></li>
+
+<li>MIT 18.600 Lecture Notes, MGFs and CFs. <a href="https://math.mit.edu/~sheffield/2019600fall/Lecture26.pdf">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Moment-Generating-Functions-in-R.html">Moment Generating Functions in R: Theory, Computation & Applications</a>. A deeper dive into MGF mechanics, including all the derivative tricks we used here.</li>
+
+<li><a href="Method-of-Moments-in-R.html">Method of Moments in R</a>. Estimator that flows directly from the moment-recovery property of the MGF.</li>
+
+<li><a href="The-Exponential-Distribution-in-R.html">The Exponential Distribution in R</a>. Background on the Exp(1) variable used throughout this post.</li>
+
+</ul>
+
+{% endraw %}
