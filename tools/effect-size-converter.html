@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/main.min.css?h=6dc6f6d7">
+<link rel="stylesheet" href="/css/main.min.css?h=34f60765">
 <style>
   :root{
     --c-text:#0d1117;--c-text-soft:#4a5160;--c-text-mute:#757a87;
@@ -239,17 +239,7 @@
   .mistake-warn strong{color:var(--c-warn);font-weight:700}
   html.dark .mistake-warn{background:rgba(245,158,11,0.12);color:var(--c-text)}
 
-  /* ===== R code block ===== */
-  .r-code-block{margin-top:18px;background:var(--c-mono);color:#e2e8f0;border-radius:10px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.65;overflow-x:auto;position:relative}
-  .r-code-block::before{content:'R';position:absolute;top:8px;right:60px;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#fbbf24;background:rgba(251,191,36,0.15);padding:2px 7px;border-radius:99px}
-  .r-code-block .copy-btn{position:absolute;top:6px;right:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#cbd5e1;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
-  .r-code-block .copy-btn:hover{background:rgba(255,255,255,0.16)}
-  .r-code-block .copy-btn.copied{background:var(--c-success);color:#fff;border-color:transparent}
-  .r-code-block .keyword{color:#c084fc}
-  .r-code-block .string{color:#86efac}
-  .r-code-block .comment{color:#94a3b8;font-style:italic}
-  .r-code-block .number{color:#fdba74}
-  .r-code-block .fn{color:#7dd3fc}
+  /* ===== R code block — styled by /css/main.css (.r-code-block) ===== */
 
   /* ===== Action row ===== */
   .action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--c-border-soft)}
@@ -896,7 +886,7 @@ function setConvType(t){
 // ============================================================
 function recompute(){
   let d = NaN, n1 = NaN, n2 = NaN, sourceLabel = '', sourceDesc = '';
-  let p1 = NaN, p2 = NaN;
+  let p1 = NaN, p2 = NaN, customR = NaN;
   document.querySelectorAll('.form-control input').forEach(i => i.classList.remove('invalid'));
 
   if (currentShape === 'meansSds'){
@@ -933,10 +923,17 @@ function recompute(){
     if ([t,df,n1,n2].some(x => isNaN(x))) return clear();
     if (df < 1) return clear('df must be ≥ 1.');
     if (n1 < 2 || n2 < 2) return clear('Each group needs ≥ 2 subjects.');
-    // d = t * sqrt(n1+n2)/sqrt(n1*n2*df/(n1+n2-2)) (approx for two-sample t with pooled var)
     d = t * Math.sqrt((n1+n2) / (n1*n2));   // standard formula for equal-variance two-sample t
+    // r from t directly using df — the textbook formula r = t / √(t² + df).
+    // This is more faithful to a Welch-t (where df differs from n₁+n₂−2)
+    // than going through d → r would be.
+    customR = t / Math.sqrt(t*t + df);
+    const expectedDf = n1 + n2 - 2;
+    const dfNote = (Math.abs(df - expectedDf) > 0.5)
+      ? ` (df = ${df} differs from pooled n₁+n₂−2 = ${expectedDf} — looks like a Welch / unequal-variance t.)`
+      : '';
     sourceLabel = `t = ${fmt2(t)}, df = ${df}, n₁ = ${n1}, n₂ = ${n2}`;
-    sourceDesc = `Two-sample t-statistic translated to Cohen's d.`;
+    sourceDesc = `Two-sample t-statistic translated to Cohen's d.${dfNote}`;
   }
 
   if (!isFinite(d)) return clear();
@@ -945,7 +942,9 @@ function recompute(){
 
   // Conversions
   const N = n1 + n2;
-  const r = (currentShape === 'rN') ? num('rIn') : dToR(d, n1, n2);
+  const r = (currentShape === 'rN') ? num('rIn')
+          : (!isNaN(customR)) ? customR
+          : dToR(d, n1, n2);
   const eta = r*r;
   const ciD = dCi(dShown, n1, n2, ciLevel);
   const ciR = rCi(r, N, ciLevel);

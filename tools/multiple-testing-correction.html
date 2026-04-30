@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/main.min.css?h=6dc6f6d7">
+<link rel="stylesheet" href="/css/main.min.css?h=34f60765">
 <style>
   :root{
     /* Design System v3 — research/publication · cool near-white + deep ink accent */
@@ -228,17 +228,7 @@
   .mistake-warn strong{color:var(--c-warn);font-weight:700}
   html.dark .mistake-warn{background:rgba(245,158,11,0.12);color:var(--c-text)}
 
-  /* R code */
-  .r-code-block{margin-top:18px;background:var(--c-mono);color:#e2e8f0;border-radius:10px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.65;overflow-x:auto;position:relative}
-  .r-code-block::before{content:'R';position:absolute;top:8px;right:60px;font-size:9px;font-weight:700;letter-spacing:0.1em;color:#fbbf24;background:rgba(251,191,36,0.15);padding:2px 7px;border-radius:99px}
-  .r-code-block .copy-btn{position:absolute;top:6px;right:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);color:#cbd5e1;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer}
-  .r-code-block .copy-btn:hover{background:rgba(255,255,255,0.16)}
-  .r-code-block .copy-btn.copied{background:var(--c-success);color:#fff;border-color:transparent}
-  .r-code-block .keyword{color:#c084fc}
-  .r-code-block .string{color:#86efac}
-  .r-code-block .comment{color:#94a3b8;font-style:italic}
-  .r-code-block .number{color:#fdba74}
-  .r-code-block .fn{color:#7dd3fc}
+  /* R code block — styled by /css/main.css (.r-code-block) */
 
   /* Method explainer cards */
   .method-explainer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:14px 0}
@@ -564,7 +554,7 @@
   <div class="workshop">
   <aside class="ws-inputs">
     <span class="ws-section-tag">Your p-values</span>
-    <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 10px;line-height:1.5">Paste however you have them — newline, comma, tab, semicolon all work. Scientific notation (1e-5) is fine.</p>
+    <p style="font-size:12.5px;color:var(--c-text-mute);margin:0 0 10px;line-height:1.5">Paste however you have them — newline, comma, tab, semicolon all work. Scientific notation (1e-5) is fine. Optional: prefix each line with a label, e.g. <code style="font-size:11.5px">Gene_BRCA1: 0.001</code>.</p>
     <div class="paste-wrap">
       <textarea class="paste-box" id="p-input" placeholder="0.001
 0.012
@@ -617,7 +607,7 @@
     <div class="results-table-wrap">
       <table class="results-table" id="results-table">
         <thead>
-          <tr><th class="col-idx">#</th><th>Original p</th><th>Bonferroni</th><th>Holm</th><th>Hochberg</th><th>BH (FDR)</th><th>BY</th></tr>
+          <tr><th class="col-idx">Hypothesis</th><th>Original p</th><th>Bonferroni</th><th>Holm</th><th>Hochberg</th><th>BH (FDR)</th><th>BY</th></tr>
         </thead>
         <tbody></tbody>
       </table>
@@ -802,22 +792,51 @@ function $(id){ return document.getElementById(id); }
 // Parse the paste box — tolerant of CSV / TSV / newline / semicolons / mixed
 // ============================================================
 function parsePvalues(text){
-  if (!text) return {ok:[], errors:[]};
-  // Split on any whitespace, comma, semicolon, tab
-  const tokens = text.split(/[\s,;]+/).filter(t => t.length > 0);
+  if (!text) return {ok:[], labels:[], errors:[]};
   const ok = [];
+  const labels = [];
   const errors = [];
-  tokens.forEach((tok, i) => {
-    // Allow scientific notation, decimal, locale comma decimal
-    let cleaned = tok.replace(/^[(\[\{]|[)\]\}]$/g, '');
-    // If it has a comma but no dot, treat comma as decimal separator
+  // Detect "labeled" mode: any line that contains a label-like prefix
+  // (non-numeric token followed by a separator and a number). When ANY
+  // line is labeled, treat each line as one (label, p) pair; otherwise
+  // fall back to flat token splitting (compat with the old behavior).
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const labeled = lines.some(l => /^[^\d\-+.eE\s,;]/.test(l) && /[\s,;:\t]\s*[\d.eE+\-]+\s*$/.test(l));
+  function tryNum(raw){
+    let cleaned = raw.replace(/^[(\[\{]|[)\]\}]$/g, '');
     if (cleaned.includes(',') && !cleaned.includes('.')) cleaned = cleaned.replace(',', '.');
     const v = parseFloat(cleaned);
-    if (isNaN(v)) errors.push({i, tok, msg:'not a number'});
-    else if (v < 0 || v > 1) errors.push({i, tok, msg:'out of [0, 1]'});
-    else ok.push(v);
-  });
-  return {ok, errors};
+    return isNaN(v) ? null : v;
+  }
+  if (labeled) {
+    lines.forEach((line, i) => {
+      // Split on the LAST separator: take rightmost numeric token as p,
+      // everything before it as the hypothesis label.
+      const m = line.match(/^(.*?)[\s,;:\t]+([+\-]?[\d.eE+\-]+)\s*$/);
+      if (!m) {
+        // Try a bare number with no label
+        const v = tryNum(line);
+        if (v !== null && v >= 0 && v <= 1) { ok.push(v); labels.push(`H${ok.length}`); }
+        else errors.push({i, tok:line, msg:'cannot parse label + p-value'});
+        return;
+      }
+      const label = m[1].trim() || `H${i+1}`;
+      const v = tryNum(m[2]);
+      if (v === null) errors.push({i, tok:line, msg:'p-value not numeric'});
+      else if (v < 0 || v > 1) errors.push({i, tok:line, msg:'p-value out of [0, 1]'});
+      else { ok.push(v); labels.push(label); }
+    });
+  } else {
+    // Flat mode — original behavior.
+    const tokens = text.split(/[\s,;]+/).filter(t => t.length > 0);
+    tokens.forEach((tok, i) => {
+      const v = tryNum(tok);
+      if (v === null) errors.push({i, tok, msg:'not a number'});
+      else if (v < 0 || v > 1) errors.push({i, tok, msg:'out of [0, 1]'});
+      else { ok.push(v); labels.push(`H${ok.length}`); }
+    });
+  }
+  return {ok, labels, errors};
 }
 
 // ============================================================
@@ -956,7 +975,7 @@ let originalIndices = null;
 let currentSort = 'original';
 function recompute(){
   const text = $('p-input').value;
-  const {ok: pVals, errors} = parsePvalues(text);
+  const {ok: pVals, labels: pLabels, errors} = parsePvalues(text);
   const m = pVals.length;
   $('parsed-count').textContent = m;
   $('parse-warning').textContent = errors.length > 0 ? `⚠️ ${errors.length} value${errors.length>1?'s':''} skipped: ${errors.slice(0,3).map(e => `"${e.tok}" (${e.msg})`).join(', ')}` : '';
@@ -1001,7 +1020,8 @@ function recompute(){
       const sig = a <= alpha;
       return `<td class="${sig?'sig':'nonsig'}">${a.toFixed(5)}${sig?' ✓':''}</td>`;
     }).join('');
-    return `<tr><td class="col-idx">${i+1}</td><td><strong>${pVals[i].toExponential(3).replace(/e([+-])(\d)$/,'e$10$2')}</strong></td>${sigCells}</tr>`;
+    const lbl = (pLabels && pLabels[i]) ? pLabels[i] : `H${i+1}`;
+    return `<tr><td class="col-idx" title="${lbl.replace(/"/g,'&quot;')}">${lbl}</td><td><strong>${pVals[i].toExponential(3).replace(/e([+-])(\d)$/,'e$10$2')}</strong></td>${sigCells}</tr>`;
   }).join('');
 
   // Plain-English summary
