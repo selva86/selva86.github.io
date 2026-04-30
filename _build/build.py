@@ -356,13 +356,23 @@ def render_sidebar_html(sections, current_slug):
         i0, sec0, items0, _ = rendered_sections[0]
         rendered_sections[0] = (i0, sec0, items0, True)
 
-    parts = ['<ul class="sidebar-menu list-unstyled">']
+    parts = []
+    parts.append(
+        '<div class="continue-chip" data-continue-chip>'
+        '<span class="chip-label">Continue reading</span>'
+        '<a href="#" data-continue-link></a>'
+        '</div>'
+    )
+    parts.append('<ul class="sidebar-menu list-unstyled">')
     for i, section, items, section_active in rendered_sections:
         sec_class = 'sidebar-section expanded' if section_active else 'sidebar-section'
         title = _esc_html(section.get('title', ''))
         parts.append(f'<li class="{sec_class}">')
         parts.append('<div class="sidebar-section-header">')
-        parts.append(f'<span class="sidebar-chevron">&#9656;</span> {title}')
+        parts.append(
+            f'<span class="sidebar-chevron">&#9656;</span> {title}'
+            f'<span class="section-meta" data-section-meta></span>'
+        )
         parts.append('</div>')
         parts.append('<ul class="sidebar-section-items list-unstyled">')
 
