@@ -140,23 +140,36 @@ function saveStarted(s) {
     if (done > 0) meta.textContent = done + ' / ' + total;
   });
 
-  // Continue-reading chip: link to the page visited just before this one.
-  // Reads rstat_continue (rolled forward from rstat_last_visited at page load).
+  // Continue-reading chip + end-of-page block: both point to the page
+  // visited just before this one. rstat_continue is rolled forward from
+  // rstat_last_visited at page load (see top of file).
   (function() {
-    var chip = sidebarEl.querySelector('[data-continue-chip]');
-    if (!chip) return;
     var raw;
     try { raw = localStorage.getItem('rstat_continue'); } catch(e) { return; }
     if (!raw) return;
-    try {
-      var lv = JSON.parse(raw);
-      if (!lv || !lv.href || lv.href === currentPage) return;
-      var link = chip.querySelector('[data-continue-link]');
-      if (!link) return;
-      link.href = lv.href;
-      link.textContent = lv.title || lv.href;
-      chip.classList.add('has-link');
-    } catch(e) {}
+    var lv;
+    try { lv = JSON.parse(raw); } catch(e) { return; }
+    if (!lv || !lv.href || lv.href === currentPage) return;
+
+    var chip = sidebarEl.querySelector('[data-continue-chip]');
+    if (chip) {
+      var chipLink = chip.querySelector('[data-continue-link]');
+      if (chipLink) {
+        chipLink.href = lv.href;
+        chipLink.textContent = lv.title || lv.href;
+        chip.classList.add('has-link');
+      }
+    }
+
+    var bottomBlock = document.querySelector('[data-continue-block]');
+    if (bottomBlock) {
+      var bottomLink = bottomBlock.querySelector('[data-continue-link]');
+      if (bottomLink) {
+        bottomLink.href = lv.href;
+        bottomLink.textContent = lv.title || lv.href;
+        bottomBlock.classList.add('has-link');
+      }
+    }
   })();
 
   // Apply collapsed-subsection state from localStorage

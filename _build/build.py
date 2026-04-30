@@ -910,7 +910,17 @@ def build_post(
             slug, meta, slug_to_subpath, subpath_to_slugs or {},
             sidebar_map or {}, post_titles or {}, reading_time_cache or {},
         )
+    # Continue-Reading placeholder — toc.js fills it from rstat_continue
+    # (the prior page in the user's trail). Stays display:none on first
+    # visit, so the section only appears once the reader has a trail.
+    continue_reading_html = (
+        '<aside class="continue-reading-block" data-continue-block>'
+        '<div class="cr-eyebrow">Continue Reading</div>'
+        '<a class="cr-link" data-continue-link href="#"></a>'
+        '</aside>'
+    )
     content_with_breadcrumb = breadcrumb_html + '\n' + content
+    content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
     if related_html:
         content_with_breadcrumb = content_with_breadcrumb + '\n' + related_html
     if prev_next_html:
