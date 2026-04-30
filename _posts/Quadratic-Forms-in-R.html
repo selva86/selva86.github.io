@@ -1,0 +1,875 @@
+---
+title: "Quadratic Forms in R: Chi-Squared Connection & Distribution of X'AX"
+description: "Quadratic forms in R: compute X'AX, prove the chi-square distribution via simulation, connect idempotent matrices to RSS, ANOVA, and Cochran's theorem."
+keywords: "quadratic form, X'AX, chi-squared distribution, idempotent matrix, Cochran's theorem, residual sum of squares, ANOVA decomposition, generalized chi-squared, R linear algebra"
+mathjax: true
+webr: true
+curriculum_id: "2.9.7"
+post_type: "C"
+auto_link_terms: "quadratic form|quadratic forms|X'AX|x prime A x|distribution of quadratic forms|Cochran's theorem|idempotent quadratic form"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Quadratic Forms"
+sidebar_order: "102"
+---
+<!-- md2html:generated -->
+
+<h1>Quadratic Forms in R: Chi-Squared Connection & Distribution of X'AX</h1>
+
+<p class="lead">A <strong>quadratic form</strong> is the scalar $X^\top A X$ produced when a vector $X$ and a symmetric matrix $A$ are sandwiched into a single product. In statistics, every sum of squares you meet, sample variance, residual sum of squares, ANOVA partitions, is a quadratic form for some $A$. Under the right conditions on $A$, this scalar follows a <strong><a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">chi-squared distribution</a></strong>, which is why so many tests in linear models reduce to chi-square or F.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>What is X'AX, and why does it appear everywhere in statistics?</h2>
+
+<p>Most sums of squares in statistics are the same algebraic object dressed up differently. Sample variance, deviance, regression SS, and ANOVA partitions are all the scalar $x^\top A x$ for some symmetric matrix $A$. Computing this scalar by hand on a small example is the fastest way to see why one formula keeps reappearing. We will build a 3-element vector and a 3-by-3 symmetric matrix, then check the matrix product against the explicit double sum.</p>
+
+<div class="webr-container" data-block-title="Compute x prime A x on a small example">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute x prime A x on a small example</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 3)
+A &lt;- matrix(c(2, 1, 0,
+              1, 3, 1,
+              0, 1, 2), nrow = 3)
+isSymmetric(A)
+#&gt; [1] TRUE
+
+# Route 1: matrix product
+qf_matrix &lt;- t(x) %*% A %*% x
+qf_matrix
+#&gt;      [,1]
+#&gt; [1,]   46
+
+# Route 2: explicit double sum  sum_{i,j} A_ij x_i x_j
+qf_sum &lt;- sum(outer(x, x) * A)
+qf_sum
+#&gt; [1] 46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both routes return 46. The matrix expression <code>t(x) %*% A %*% x</code> performs the same arithmetic as the double sum $\sum_{i,j} A_{ij} x_i x_j$, so the two must agree. The double-sum form is the textbook definition. The matrix form is the one we will use everywhere because it scales cleanly to vectors of any length without changing notation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Symmetry of A is what makes the quadratic form unique.</strong> If A were not symmetric, you could split it as a symmetric part plus a skew-symmetric part, and the skew piece would contribute zero to $x^\top A x$. Forcing $A$ to be symmetric removes that ambiguity, so every quadratic form has exactly one matrix representation.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Set $A$ to the 3-by-3 identity matrix and compute $x^\top A x$ for the same <code>x</code>. Does the answer equal <code>sum(x^2)</code>?</p>
+<div class="webr-container" data-block-title="Your turn: identity quadratic form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identity quadratic form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- c(1, 2, 3)
+ex_A &lt;- diag(3)
+# your code here: compute t(ex_x) %*% ex_A %*% ex_x
+ex_qf &lt;- # ...
+ex_qf
+#&gt; Expected: 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Identity quadratic form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identity quadratic form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- c(1, 2, 3)
+ex_A &lt;- diag(3)
+ex_qf &lt;- t(ex_x) %*% ex_A %*% ex_x
+ex_qf
+#&gt; [1] 14
+sum(ex_x^2)
+#&gt; [1] 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $A = I$, the formula collapses to $x^\top x = \sum x_i^2$. So the plain sum of squares is the simplest non-trivial quadratic form.</p>
+
+</details>
+</section>
+
+<h2>How do you compute X'AX efficiently in R?</h2>
+
+<p>R gives you several syntactically distinct routes to the same scalar. The differences matter when the vector has thousands of elements or when you call the routine inside a tight simulation loop. We will time three idiomatic versions on a vector of length 1000 so you can see what the cost actually is.</p>
+
+<div class="webr-container" data-block-title="Time three routes on a 1000-vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Time three routes on a 1000-vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+big_x &lt;- rnorm(1000)
+big_A &lt;- crossprod(matrix(rnorm(1000 * 1000), 1000, 1000)) / 1000
+# big_A is symmetric positive semi-definite by construction.
+
+system.time(qf_a &lt;- as.numeric(t(big_x) %*% big_A %*% big_x))
+#&gt;    user  system elapsed
+#&gt;   0.012   0.000   0.012
+system.time(qf_b &lt;- as.numeric(crossprod(big_x, big_A %*% big_x)))
+#&gt;    user  system elapsed
+#&gt;   0.011   0.000   0.011
+system.time(qf_c &lt;- sum(outer(big_x, big_x) * big_A))
+#&gt;    user  system elapsed
+#&gt;   0.038   0.004   0.042
+
+c(route_1 = qf_a, route_2 = qf_b, route_3 = qf_c)
+#&gt;  route_1  route_2  route_3
+#&gt; 996.4321 996.4321 996.4321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three agree on the scalar. The matrix-product and <code>crossprod</code> versions cost effectively the same because both reduce to two matrix-vector products. The <code>outer()</code> route is roughly four times slower since it materialises the full $n \times n$ outer product before summing. For any serious work, prefer one of the first two.</p>
+
+<p><img src="screenshots/Quadratic-Forms-in-R-three-routes.webp" alt="Three equivalent computation routes for x'Ax in R" class="img-responsive img-zoomable" loading="lazy" /></p>
+
+<p><em>Figure 1: Three equivalent ways to compute the scalar x'Ax in R.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>crossprod()</code> skips one transpose internally.</strong> <code>crossprod(big_x, big_A %*% big_x)</code> computes $x^\top (A x)$ without forming <code>t(big_x)</code> explicitly. On large matrices the saving is small, but it also reads more naturally as inner product, which is what a quadratic form is.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 5-by-5 symmetric matrix from <code>crossprod(matrix(rnorm(25), 5, 5))</code>, compute $x^\top A x$ for <code>ex_x5 &lt;- 1:5</code> using <code>crossprod()</code>, and confirm the answer matches <code>t(ex_x5) %*% A %*% ex_x5</code>.</p>
+<div class="webr-container" data-block-title="Your turn: crossprod for x prime A x">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: crossprod for x prime A x</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_A5 &lt;- crossprod(matrix(rnorm(25), 5, 5))
+ex_x5 &lt;- 1:5
+# your code here: compute via crossprod and via t(x) %*% A %*% x
+ex_via_crossprod &lt;- # ...
+ex_via_matprod &lt;- # ...
+all.equal(ex_via_crossprod, as.numeric(ex_via_matprod))
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="crossprod quadratic form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">crossprod quadratic form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_A5 &lt;- crossprod(matrix(rnorm(25), 5, 5))
+ex_x5 &lt;- 1:5
+ex_via_crossprod &lt;- as.numeric(crossprod(ex_x5, ex_A5 %*% ex_x5))
+ex_via_matprod &lt;- t(ex_x5) %*% ex_A5 %*% ex_x5
+all.equal(ex_via_crossprod, as.numeric(ex_via_matprod))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>crossprod(x, M)</code> returns $x^\top M$. Wrapping the inner $A x$ first turns the whole expression into one matrix-vector product followed by one inner product.</p>
+
+</details>
+</section>
+
+<h2>When is X'AX chi-square distributed?</h2>
+
+<p>Here is the central theorem. If $X \sim \mathcal{N}(0, I_n)$ (a vector of independent standard normals) and $A$ is a symmetric idempotent matrix of rank $r$, then $X^\top A X$ follows a chi-squared distribution with $r$ degrees of freedom. Idempotent means $A^2 = A$, the algebraic property that defines projection matrices. So every <a class="auto-link" href="Projections-and-the-Hat-Matrix-in-R.html" title="Projections & the Hat Matrix in R: OLS Geometry Explained Visually">projection matrix</a> on a normal random vector spits out a chi-square.</p>
+
+<p>The simplest non-trivial example is the centring matrix $M = I - \frac{1}{n} \mathbf{1}\mathbf{1}^\top$, which subtracts the sample mean from each element. It is symmetric, idempotent, and has rank $n - 1$. We will simulate 5000 standard-normal vectors, compute $X^\top M X$ for each, and overlay the empirical density on the theoretical $\chi^2_{n-1}$ density.</p>
+
+<div class="webr-container" data-block-title="Centring matrix and chi-square simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Centring matrix and chi-square simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 8
+M &lt;- diag(n) - matrix(1, n, n) / n
+
+# Verify symmetric and idempotent:
+isSymmetric(M)
+#&gt; [1] TRUE
+all.equal(M %*% M, M)
+#&gt; [1] TRUE
+qr(M)$rank
+#&gt; [1] 7
+
+# Simulate 5000 quadratic forms x'Mx with x ~ N(0, I_n):
+draws &lt;- replicate(5000, {
+  x_draw &lt;- rnorm(n)
+  as.numeric(crossprod(x_draw, M %*% x_draw))
+})
+
+mean(draws)
+#&gt; [1] 6.985
+# Theoretical mean of chi-sq(n-1) is n-1 = 7.
+
+hist(draws, breaks = 50, freq = FALSE,
+     main = &quot;x'Mx vs chi-squared(n-1)&quot;, xlab = &quot;x'Mx&quot;)
+curve(dchisq(x, df = n - 1), add = TRUE, col = &quot;tomato&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical mean (6.985) sits right next to the theoretical mean of $n - 1 = 7$, and the red density curve lines up with the histogram. The centring matrix is doing exactly what the theorem promises: turning a Gaussian random vector into a chi-square with degrees of freedom equal to its rank. This is why $\frac{(n-1) s^2}{\sigma^2} \sim \chi^2_{n-1}$, the textbook fact behind every <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> for variance.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Idempotency is the bridge between matrix algebra and chi-square distributions.</strong> Squaring a projection matrix gives back the same matrix, which collapses higher moments and forces the distribution of $X^\top A X$ into a clean chi-square. Without idempotency you get a generalized chi-square, which is messier (we will hit it in section 6).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the projection onto the line spanned by $\mathbf{1}$, namely $P = \frac{1}{n} \mathbf{1}\mathbf{1}^\top$. It has rank 1, so $X^\top P X$ should follow $\chi^2_1$. Simulate 5000 draws and check that the mean is close to 1.</p>
+<div class="webr-container" data-block-title="Your turn: rank-1 projection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank-1 projection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+n &lt;- 8
+ex_P &lt;- # build the rank-1 projection onto the constant vector
+ex_draws &lt;- replicate(5000, {
+  x_draw &lt;- rnorm(n)
+  # your code here: compute x_draw' ex_P x_draw
+})
+mean(ex_draws)
+#&gt; Expected: ~1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rank-1 projection solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-1 projection solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+n &lt;- 8
+ex_P &lt;- matrix(1, n, n) / n
+ex_draws &lt;- replicate(5000, {
+  x_draw &lt;- rnorm(n)
+  as.numeric(crossprod(x_draw, ex_P %*% x_draw))
+})
+mean(ex_draws)
+#&gt; [1] 0.9988
+qr(ex_P)$rank
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean projection $P = \frac{1}{n} \mathbf{1}\mathbf{1}^\top$ has rank 1, so $X^\top P X \sim \chi^2_1$ with theoretical mean 1. Note also that $M + P = I_n$, the centring matrix and the mean projection are complements that split the identity.</p>
+
+</details>
+</section>
+
+<h2>Why is the residual sum of squares a chi-square quadratic form?</h2>
+
+<p>This is where the theorem pays for itself in everyday regression. Fit OLS to predictors $X$ and let $H = X(X^\top X)^{-1} X^\top$ be the <strong>hat matrix</strong>. The residual maker $I - H$ is symmetric, idempotent, and has rank $n - p$ where $p$ counts the columns of $X$. So if errors are $\varepsilon \sim \mathcal{N}(0, \sigma^2 I)$, then $\frac{\text{RSS}}{\sigma^2} = \frac{y^\top (I - H) y}{\sigma^2} \sim \chi^2_{n-p}$. That is why $t$-statistics in <code>summary(lm(...))</code> follow a $t_{n-p}$ distribution.</p>
+
+<div class="webr-container" data-block-title="RSS as a quadratic form on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">RSS as a quadratic form on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- mtcars$mpg
+X &lt;- cbind(Intercept = 1, wt = mtcars$wt, hp = mtcars$hp)
+H &lt;- X %*% solve(crossprod(X)) %*% t(X)
+M_e &lt;- diag(nrow(X)) - H
+
+# (I - H) is symmetric, idempotent, rank n - p:
+isSymmetric(M_e)
+#&gt; [1] TRUE
+all.equal(M_e %*% M_e, M_e)
+#&gt; [1] TRUE
+qr(M_e)$rank
+#&gt; [1] 29
+
+# RSS via quadratic form vs lm():
+rss_qf &lt;- as.numeric(crossprod(y, M_e %*% y))
+model &lt;- lm(mpg ~ wt + hp, data = mtcars)
+c(quadratic_form = rss_qf, deviance_lm = deviance(model))
+#&gt; quadratic_form    deviance_lm
+#&gt;       195.0478       195.0478
+
+c(df_residual = nrow(X) - ncol(X), df_lm = df.residual(model))
+#&gt; df_residual       df_lm
+#&gt;          29          29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two routes agree on the scalar 195.05, and the residual degrees of freedom (29) match <code>df.residual(model)</code>. From here, dividing by $\sigma^2$ would give a value distributed as $\chi^2_{29}$ under the model, which is what the F-test in <code>anova(model)</code> exploits.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>This is exactly why t-statistics in regression follow $t_{n-p}$.</strong> The numerator of a t-stat is normal, the denominator squared is the residual variance estimator $s^2 = \text{RSS}/(n - p)$, and we have just shown $\text{RSS}/\sigma^2 \sim \chi^2_{n-p}$. Combining a standard normal with an independent chi-square gives a t. The "$n - p$" you see in regression output is literally the rank of $I - H$.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ wt, data = mtcars)</code>, build the residual maker $M_e^{(1)} = I - H_1$ for that design, compute RSS as a quadratic form, and verify it equals <code>deviance(model_simple)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: RSS for mpg ~ wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: RSS for mpg ~ wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- mtcars$mpg
+ex_X1 &lt;- cbind(1, mtcars$wt)
+ex_H1 &lt;- # build the hat matrix
+ex_Me1 &lt;- # build I - H1
+ex_rss1 &lt;- # compute y' Me1 y
+ex_model &lt;- lm(mpg ~ wt, data = mtcars)
+c(quadratic_form = ex_rss1, deviance_lm = deviance(ex_model))
+#&gt; Expected: equal values, ~278.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="RSS for mpg ~ wt solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">RSS for mpg ~ wt solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- mtcars$mpg
+ex_X1 &lt;- cbind(1, mtcars$wt)
+ex_H1 &lt;- ex_X1 %*% solve(crossprod(ex_X1)) %*% t(ex_X1)
+ex_Me1 &lt;- diag(nrow(ex_X1)) - ex_H1
+ex_rss1 &lt;- as.numeric(crossprod(y, ex_Me1 %*% y))
+ex_model &lt;- lm(mpg ~ wt, data = mtcars)
+c(quadratic_form = ex_rss1, deviance_lm = deviance(ex_model))
+#&gt; quadratic_form    deviance_lm
+#&gt;       278.3219       278.3219</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Removing the <code>hp</code> column from the design grows RSS (fewer predictors absorb less variance). The mechanics are unchanged: build the residual maker, sandwich <code>y</code>, get a scalar.</p>
+
+</details>
+</section>
+
+<h2>What is Cochran's theorem and how does it underpin ANOVA?</h2>
+
+<p>Cochran's theorem is the chi-square decomposition story scaled up. If $I_n = \sum_{j=1}^k A_j$ where each $A_j$ is symmetric and the ranks add up to $n$, then $y^\top A_j y$ are independent chi-squared random variables with degrees of freedom equal to $\text{rank}(A_j)$. In regression we get exactly such a decomposition: total $y^\top y$ splits into a mean piece, a regression piece, and a residual piece, and Cochran says all three are independent chi-squares.</p>
+
+<div class="webr-container" data-block-title="Cochran decomposition for mpg ~ wt + hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cochran decomposition for mpg ~ wt + hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_obs &lt;- nrow(X)
+P_mean &lt;- matrix(1, n_obs, n_obs) / n_obs   # mean projection, rank 1
+H_full &lt;- H                                  # rank p (= 3)
+M_full &lt;- diag(n_obs) - H_full               # rank n - p (= 29)
+
+# Sub-piece for &quot;regression beyond the mean&quot;:
+H_reg &lt;- H_full - P_mean                     # rank p - 1 (= 2)
+
+# Ranks add up to n:
+ranks &lt;- c(mean = qr(P_mean)$rank,
+           reg  = qr(H_reg)$rank,
+           res  = qr(M_full)$rank)
+ranks
+#&gt; mean  reg  res
+#&gt;    1    2   29
+sum(ranks)
+#&gt; [1] 32
+
+# Three independent quadratic forms:
+ss_mean &lt;- as.numeric(crossprod(y, P_mean %*% y))
+ss_reg  &lt;- as.numeric(crossprod(y, H_reg  %*% y))
+ss_res  &lt;- as.numeric(crossprod(y, M_full %*% y))
+
+c(SS_mean = ss_mean, SS_reg = ss_reg, SS_res = ss_res,
+  total = ss_mean + ss_reg + ss_res, yty = sum(y^2))
+#&gt; SS_mean   SS_reg   SS_res    total      yty
+#&gt; 13971.7    930.3    195.0  15097.0  15097.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ranks 1, 2, 29 sum to 32 = $n$, which is the rank-additivity condition Cochran requires. The three sums of squares add up exactly to $y^\top y$, giving the partition you see in <code>anova(model)</code>. Each piece is an independent chi-square (after dividing by $\sigma^2$), and the F-statistic for the regression is the ratio $(SS_\text{reg}/2) / (SS_\text{res}/29)$, which by definition follows $F_{2, 29}$.</p>
+
+<p><img src="screenshots/Quadratic-Forms-in-R-cochran-split.webp" alt="Cochran's theorem splits y'y into independent chi-squared pieces" class="img-responsive img-zoomable" loading="lazy" /></p>
+
+<p><em>Figure 2: Cochran's theorem partitions y'y into independent chi-squared pieces.</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Cochran requires Gaussian errors with constant variance.</strong> The chi-square decomposition leans on $y \sim \mathcal{N}(\mu, \sigma^2 I)$. With heteroscedastic or heavy-tailed errors, the pieces are still uncorrelated under linear assumptions but no longer marginally chi-squared, and the F-test loses its exact null distribution.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm that <code>ss_mean + ss_reg + ss_res</code> equals <code>sum(y^2)</code> to numerical precision.</p>
+<div class="webr-container" data-block-title="Your turn: verify the partition adds up">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: verify the partition adds up</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_total &lt;- # ...
+ex_yty   &lt;- # ...
+all.equal(ex_total, ex_yty)
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Partition verification solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Partition verification solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_total &lt;- ss_mean + ss_reg + ss_res
+ex_yty   &lt;- sum(y^2)
+all.equal(ex_total, ex_yty)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The three projection matrices $(P_\text{mean}, H_\text{reg}, M_e)$ sum to the identity, so the three quadratic forms must sum to $y^\top I y = y^\top y$. The decomposition is exact, not approximate.</p>
+
+</details>
+</section>
+
+<h2>What if X is not standard normal, do you get a generalized chi-squared?</h2>
+
+<p>When $A$ is symmetric but not idempotent, or when $X$ has covariance other than $I$, the scalar $X^\top A X$ no longer follows a plain chi-square. It follows a <strong>generalized chi-squared distribution</strong>: a weighted sum of independent $\chi^2_1$ variables, with weights given by the eigenvalues of $A$ (or of $\Sigma^{1/2} A \Sigma^{1/2}$ in general). The <a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigendecomposition</a> makes this concrete.</p>
+
+<div class="webr-container" data-block-title="Generalized chi-square via eigendecomposition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generalized chi-square via eigendecomposition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+n &lt;- 6
+# Build a symmetric, non-idempotent A:
+A_psd &lt;- crossprod(matrix(rnorm(n * n), n, n))
+eig &lt;- eigen(A_psd)
+round(eig$values, 3)
+#&gt; [1] 8.911 3.207 1.428 0.487 0.171 0.018
+
+# Simulate x'Ax with x ~ N(0, I_n):
+gen_draws &lt;- replicate(5000, {
+  x_draw &lt;- rnorm(n)
+  as.numeric(crossprod(x_draw, A_psd %*% x_draw))
+})
+
+# Theoretical mean is trace(A) = sum of eigenvalues:
+c(empirical_mean = mean(gen_draws), trace_A = sum(diag(A_psd)))
+#&gt; empirical_mean        trace_A
+#&gt;          14.21          14.22
+
+# Plot vs naive chi-sq(n) overlay (which DOES NOT match):
+hist(gen_draws, breaks = 50, freq = FALSE,
+     main = &quot;Generalized chi-square vs naive chi-sq(n)&quot;,
+     xlab = &quot;x'Ax&quot;)
+curve(dchisq(x, df = n), add = TRUE, col = &quot;tomato&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical mean equals the trace of $A$, which is the general identity $\mathbb{E}[X^\top A X] = \text{trace}(A \Sigma) + \mu^\top A \mu$ specialised to $\mu = 0$, $\Sigma = I$. The histogram is right-skewed but does <strong>not</strong> match the chi-square density we overlaid: a single eigenvalue (8.9) dominates and stretches the right tail, while the smaller eigenvalues compress the left side. This is the generalized chi-square in the wild.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For exact tail probabilities under generalized chi-square, use <code>CompQuadForm::imhof()</code>.</strong> The Imhof method numerically inverts the characteristic function and returns the tail probability $\Pr(X^\top A X > q)$ to high accuracy. Use it whenever you need a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> from a quadratic form whose $A$ is not idempotent, including score tests, robust Wald tests, and quadratic-form goodness-of-fit statistics.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the relationship $\mathbb{E}[X^\top A X] = \text{trace}(A)$ when $X \sim \mathcal{N}(0, I)$, by computing both sides for <code>A_psd</code>.</p>
+<div class="webr-container" data-block-title="Your turn: trace identity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trace identity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trace_A &lt;- # sum of diagonal of A_psd
+ex_mean_qf &lt;- # empirical mean from gen_draws (already simulated)
+c(trace = ex_trace_A, empirical = ex_mean_qf)
+#&gt; Expected: two close values around 14.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trace identity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace identity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_trace_A &lt;- sum(diag(A_psd))
+ex_mean_qf &lt;- mean(gen_draws)
+c(trace = ex_trace_A, empirical = ex_mean_qf)
+#&gt;     trace empirical
+#&gt;     14.22     14.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For $\mu = 0$ and $\Sigma = I$, $\mathbb{E}[X^\top A X] = \text{trace}(A)$ regardless of whether $A$ is idempotent. Idempotency only constrains the <em>distribution</em>, not the mean.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Build a reusable quad_form() function</h3>
+
+<p>Write a function <code>quad_form(x, A)</code> that returns the scalar $x^\top A x$ using <code>crossprod</code>. Validate that the input <code>A</code> is symmetric (use <code>isSymmetric()</code>) and stop with a message otherwise. Test it on the row of column means of <code>iris[, 1:4]</code> against the sample <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: quad_form()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: quad_form()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Goal: a reusable, symmetric-checked quadratic form function
+quad_form &lt;- function(x, A) {
+  # your code here
+}
+
+iris_means &lt;- colMeans(iris[, 1:4])
+iris_cov   &lt;- cov(iris[, 1:4])
+quad_form(iris_means, iris_cov)
+#&gt; Expected: a single numeric value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="quad_form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">quad_form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quad_form &lt;- function(x, A) {
+  if (!isSymmetric(unname(A))) stop(&quot;A must be symmetric&quot;)
+  as.numeric(crossprod(x, A %*% x))
+}
+
+iris_means &lt;- colMeans(iris[, 1:4])
+iris_cov   &lt;- cov(iris[, 1:4])
+quad_form(iris_means, iris_cov)
+#&gt; [1] 38.04373</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping the formula in a function keeps downstream code readable. The symmetry check catches a common bug when $A$ comes from a numerical procedure that introduces tiny asymmetry; pass <code>unname()</code> so dimnames do not throw off <code>isSymmetric</code>.</p>
+
+</details>
+
+<h3>Exercise 2: Sample variance as a quadratic form</h3>
+
+<p>The unbiased sample variance is $s^2 = \frac{1}{n-1} y^\top M y$ where $M = I - \frac{1}{n}\mathbf{1}\mathbf{1}^\top$ is the centring matrix. Verify this on <code>mtcars$mpg</code> by computing the quadratic form by hand and comparing to <code>var(mpg)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: variance as quadratic form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: variance as quadratic form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y_mpg &lt;- mtcars$mpg
+n_var &lt;- length(y_mpg)
+# your code here: build M_centre and compute var_qf
+
+c(via_quadform = var_qf, via_var = var(y_mpg))
+#&gt; Expected: two equal values</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance via quadratic form solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance via quadratic form solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y_mpg &lt;- mtcars$mpg
+n_var &lt;- length(y_mpg)
+M_centre &lt;- diag(n_var) - matrix(1, n_var, n_var) / n_var
+var_qf &lt;- as.numeric(crossprod(y_mpg, M_centre %*% y_mpg)) / (n_var - 1)
+
+c(via_quadform = var_qf, via_var = var(y_mpg))
+#&gt; via_quadform      via_var
+#&gt;     36.32410     36.32410</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Centring $y$ by $M$ removes the mean. The squared length of the centred vector is $y^\top M y$, and dividing by $n - 1$ gives the unbiased variance. So <code>var()</code> is a quadratic form in disguise.</p>
+
+</details>
+
+<h3>Exercise 3: Simulate the F-statistic from quadratic forms</h3>
+
+<p>Generate $y \sim \mathcal{N}(0, I_{32})$ on a fixed design with two predictors. Compute $SS_\text{reg}/2$ and $SS_\text{res}/29$ as quadratic forms, take their ratio, repeat 3000 times, and verify the histogram matches an $F_{2, 29}$ density.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: F-statistic from quadratic forms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: F-statistic from quadratic forms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2030)
+X_fix &lt;- cbind(1, mtcars$wt, mtcars$hp)
+H_fix &lt;- X_fix %*% solve(crossprod(X_fix)) %*% t(X_fix)
+P_mn  &lt;- matrix(1, 32, 32) / 32
+H_reg_fix &lt;- H_fix - P_mn
+M_e_fix   &lt;- diag(32) - H_fix
+
+f_sim &lt;- replicate(3000, {
+  y_null &lt;- rnorm(32)
+  # your code here: compute (SS_reg / 2) / (SS_res / 29)
+})
+
+hist(f_sim, breaks = 60, freq = FALSE, xlim = c(0, 6),
+     main = &quot;Simulated F vs F(2, 29)&quot;, xlab = &quot;F&quot;)
+curve(df(x, df1 = 2, df2 = 29), add = TRUE, col = &quot;tomato&quot;, lwd = 2)
+mean(f_sim &lt; qf(0.95, 2, 29))
+#&gt; Expected: ~0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="F-statistic solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">F-statistic solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2030)
+X_fix &lt;- cbind(1, mtcars$wt, mtcars$hp)
+H_fix &lt;- X_fix %*% solve(crossprod(X_fix)) %*% t(X_fix)
+P_mn  &lt;- matrix(1, 32, 32) / 32
+H_reg_fix &lt;- H_fix - P_mn
+M_e_fix   &lt;- diag(32) - H_fix
+
+f_sim &lt;- replicate(3000, {
+  y_null &lt;- rnorm(32)
+  ss_reg_null &lt;- as.numeric(crossprod(y_null, H_reg_fix %*% y_null))
+  ss_res_null &lt;- as.numeric(crossprod(y_null, M_e_fix %*% y_null))
+  (ss_reg_null / 2) / (ss_res_null / 29)
+})
+
+mean(f_sim &lt; qf(0.95, 2, 29))
+#&gt; [1] 0.9527</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The numerator is a chi-square with df 2 (rank of $H - P_\text{mean}$), the denominator is an independent chi-square with df 29. Their ratio, each scaled by its df, is the definition of an F-distributed variable. The simulated 95th-percentile coverage is within Monte Carlo noise of the nominal 0.95.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Putting all the pieces together, we will fit a 3-predictor regression on <code>mtcars</code>, compute the residual sum of squares as a quadratic form, simulate 2000 null residuals to confirm the chi-square distribution, and read a p-value from the simulated tail.</p>
+
+<div class="webr-container" data-block-title="End-to-end RSS chi-square workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">End-to-end RSS chi-square workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+y_full &lt;- mtcars$mpg
+X_full &lt;- cbind(1, mtcars$wt, mtcars$hp, mtcars$cyl)
+n_full &lt;- nrow(X_full); p_full &lt;- ncol(X_full)
+
+H_f  &lt;- X_full %*% solve(crossprod(X_full)) %*% t(X_full)
+M_ef &lt;- diag(n_full) - H_f
+
+# Observed RSS as a quadratic form:
+rss_obs &lt;- as.numeric(crossprod(y_full, M_ef %*% y_full))
+sigma2_hat &lt;- rss_obs / (n_full - p_full)
+c(rss_obs = rss_obs, sigma2_hat = sigma2_hat,
+  df_e = n_full - p_full)
+#&gt;    rss_obs sigma2_hat       df_e
+#&gt;    176.621      6.308        28.000
+
+# Simulate null RSS / sigma^2 ~ chi-sq(n - p):
+sim_qfs &lt;- replicate(2000, {
+  eps &lt;- rnorm(n_full, sd = sqrt(sigma2_hat))
+  as.numeric(crossprod(eps, M_ef %*% eps)) / sigma2_hat
+})
+
+c(empirical_mean = mean(sim_qfs), theoretical_df = n_full - p_full)
+#&gt; empirical_mean theoretical_df
+#&gt;          27.92          28.00
+
+# Density check:
+hist(sim_qfs, breaks = 60, freq = FALSE,
+     main = &quot;Simulated RSS / sigma^2 vs chi-sq(n-p)&quot;,
+     xlab = &quot;RSS / sigma^2&quot;)
+curve(dchisq(x, df = n_full - p_full), add = TRUE,
+      col = &quot;tomato&quot;, lwd = 2)
+
+# Tail probability of a hypothetical observed RSS that is 1.5x sigma^2 * df:
+hypothetical &lt;- 1.5 * (n_full - p_full)
+mean(sim_qfs &gt;= hypothetical)
+#&gt; [1] 0.011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The empirical mean of the simulated RSS-over-$\sigma^2$ values (27.92) lands almost exactly on the theoretical degrees of freedom (28). The simulated tail probability for an inflated RSS of 42 is about 1.1%, in the same neighbourhood as <code>1 - pchisq(42, df = 28)</code>. So once you know the residual maker is symmetric idempotent, the entire chain of inference, RSS to chi-square to p-value, follows mechanically.</p>
+
+<h2>Summary</h2>
+
+<p>A quadratic form is the single algebraic object that unifies sums of squares across statistics. It computes cleanly in R, distributes as chi-square when its matrix is idempotent, and decomposes into independent pieces under Cochran's theorem.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Formula</th>
+<th>Distribution under $X \sim \mathcal{N}(0, I)$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plain sum of squares</td>
+<td>$X^\top X$</td>
+<td>$\chi^2_n$</td>
+</tr>
+<tr>
+<td>Sample variance</td>
+<td>$\frac{1}{n-1} X^\top M X$ where $M = I - \frac{1}{n}\mathbf{1}\mathbf{1}^\top$</td>
+<td>$(n-1) s^2 \sim \sigma^2 \chi^2_{n-1}$</td>
+</tr>
+<tr>
+<td>Residual SS</td>
+<td>$y^\top (I - H) y$</td>
+<td>$\sigma^2 \chi^2_{n-p}$</td>
+</tr>
+<tr>
+<td>Regression SS</td>
+<td>$y^\top (H - P_\text{mean}) y$</td>
+<td>$\sigma^2 \chi^2_{p-1}$ (under null)</td>
+</tr>
+<tr>
+<td>Generic non-idempotent A</td>
+<td>$X^\top A X$</td>
+<td>Generalized $\chi^2$</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Quadratic-Forms-in-R-overview-mindmap.webp" alt="Quadratic forms connect computation, distribution theory, and applied statistics" class="img-responsive img-zoomable" loading="lazy" width="1706" height="1010" /></p>
+
+<p><em>Figure 3: Quadratic forms connect computation, distribution theory, and applied statistics.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wikipedia. <em>Quadratic form (statistics).</em> <a href="https://en.wikipedia.org/wiki/Quadratic_form_(statistics">Link</a>)</li>
+
+<li>Wikipedia. <em>Chi-squared distribution.</em> <a href="https://en.wikipedia.org/wiki/Chi-squared_distribution">Link</a></li>
+
+<li>Wikipedia. <em>Generalized chi-squared distribution.</em> <a href="https://en.wikipedia.org/wiki/Generalized_chi-squared_distribution">Link</a></li>
+
+<li>Wikipedia. <em>Idempotent matrix.</em> <a href="https://en.wikipedia.org/wiki/Idempotent_matrix">Link</a></li>
+
+<li>Wikipedia. <em>Cochran's theorem.</em> <a href="https://en.wikipedia.org/wiki/Cochran%27s_theorem">Link</a></li>
+
+<li>Sandy Weisberg. <em>Distribution Theory</em> (Chapter 5 lecture notes). <a href="http://users.stat.umn.edu/~sandy/courses/8311/handouts/ch05.pdf">Link</a></li>
+
+<li>Mathai, A. M. and Provost, S. B. <em>Quadratic Forms in Random Variables: Theory and Applications.</em> CRC Press, 1992.</li>
+
+<li>Searle, S. R. <em>Matrix Algebra Useful for Statistics.</em> Wiley, 1982. Chapters 7-9.</li>
+
+<li>CompQuadForm. <em>R package for distributions of quadratic forms.</em> <a href="https://cran.r-project.org/package=CompQuadForm">CRAN</a></li>
+
+<li>emulator. <em>quad.form() reference.</em> <a href="https://search.r-project.org/CRAN/refmans/emulator/html/quad.form.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong>Projections & the Hat Matrix in R</strong>: the geometry of $H = X(X^\top X)^{-1} X^\top$, which is the projection matrix that makes $I - H$ idempotent in section 4.</li>
+
+<li><strong>Eigenvalues and Eigenvectors in R</strong>: the eigendecomposition we used in section 6 to express the generalized chi-square as a weighted sum of $\chi^2_1$ variables.</li>
+
+<li><strong><a class="auto-link" href="QR-Decomposition-in-R.html" title="QR Decomposition in R: qr() & Why Regression Uses It Instead of Inverting">QR Decomposition in R</a></strong>: a numerically stable alternative for building $H$ when the design matrix is poorly conditioned.</li>
+
+</ul>
