@@ -1172,7 +1172,7 @@ h  &lt;- <span class="fn">ES.h</span>(p1, p2)  <span class="comment"># Cohen's e
 
       <div class="result-grid">
         <div class="result-stat">
-          <div class="result-stat-label">95% CI for lift</div>
+          <div class="result-stat-label" id="freq-ci-label">95% CI for lift</div>
           <div class="result-stat-value" id="freq-ci">—</div>
         </div>
         <div class="result-stat">
@@ -1363,6 +1363,8 @@ post_b &lt;- <span class="fn">rbeta</span>(<span class="number">1e5</span>, <spa
     <li><a href="/bayesian-ab/">Why Bayesian A/B testing is winning</a> — a friendly primer.</li>
     <li><a href="/statistical-power/">Statistical power, explained</a> — the most important concept most people misunderstand.</li>
   </ul>
+  <p class="numerical-accuracy-note" style="margin:24px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5;border-top:1px solid var(--c-border-soft);padding-top:12px">Numerical accuracy: distribution functions accurate to ~10⁻⁷ (Hart's algorithm for normal, Cornish-Fisher for t).</p>
+
 
 </div>
 
@@ -1561,19 +1563,21 @@ function sampleSizeTwoProp(p1, p2, alpha, power, tail, share){
 }
 
 // Two-proportion z-test (with pooled variance under H0)
-function twoPropTest(c1, n1, c2, n2){
+function twoPropTest(c1, n1, c2, n2, alpha){
+  const a = (typeof alpha === 'number' && alpha > 0 && alpha < 1) ? alpha : 0.05;
   const p1 = c1/n1, p2 = c2/n2;
   const pPool = (c1+c2) / (n1+n2);
   const se = Math.sqrt(pPool*(1-pPool)*(1/n1 + 1/n2));
   const z = (p2 - p1) / se;
   const pTwoSided = 2 * (1 - pnorm(Math.abs(z)));
-  // CI for p2 - p1 using unpooled variance (Wald)
+  // CI for p2 - p1 using unpooled variance (Wald) at the (1 - alpha) level
   const seCi = Math.sqrt(p1*(1-p1)/n1 + p2*(1-p2)/n2);
-  const z95 = qnorm(0.975);
+  const zCrit = qnorm(1 - a/2);
   return {
     p1, p2, diff: p2-p1, relDiff: (p2-p1)/p1, z, p: pTwoSided,
-    ciLow: (p2-p1) - z95*seCi,
-    ciHigh: (p2-p1) + z95*seCi
+    ciLow: (p2-p1) - zCrit*seCi,
+    ciHigh: (p2-p1) + zCrit*seCi,
+    ciLevel: 1 - a
   };
 }
 
@@ -2062,8 +2066,8 @@ function recomputeAnalyze(){
   const peekEl = $('peeking-callout');
   if (peekEl) peekEl.style.display = '';
 
-  // Frequentist
-  const f = twoPropTest(c1, n1, c2, n2);
+  // Frequentist (CI level matches the alpha selector)
+  const f = twoPropTest(c1, n1, c2, n2, alpha);
 
   // Plain-English summary + decision card + mistakes detection (always)
   updateAnalyzeSummary(c1, n1, c2, n2, f, alpha);
@@ -2080,6 +2084,8 @@ function recomputeAnalyze(){
   $('freq-p2-text').textContent = fmtPct(f.p2, 2);
   $('freq-desc').innerHTML = `Variant B converts at <strong>${fmtPct(f.p2,2)}</strong> vs <strong>${fmtPct(f.p1,2)}</strong> for A — a ${(f.diff*100).toFixed(2)}pp absolute lift, or ${f.relDiff>=0?'+':''}${(f.relDiff*100).toFixed(1)}% relative.`;
   $('freq-ci').textContent = `[${(f.ciLow*100).toFixed(2)}, ${(f.ciHigh*100).toFixed(2)}]pp`;
+  const ciLabelEl = $('freq-ci-label');
+  if (ciLabelEl && typeof f.ciLevel === 'number') ciLabelEl.textContent = `${Math.round(f.ciLevel*100)}% CI for lift`;
   $('freq-z').textContent = f.z.toFixed(3);
   $('freq-p').textContent = f.p < 0.0001 ? '<0.0001' : f.p.toFixed(4);
   $('freq-rel').textContent = (f.relDiff>=0?'+':'')+(f.relDiff*100).toFixed(1) + '%';
@@ -2844,7 +2850,8 @@ function updateAnalyzeRiskReward(){
   const n1 = num('a-n1'), c1 = num('a-c1'), n2 = num('a-n2'), c2 = num('a-c2');
   if ([n1,c1,n2,c2].some(x => isNaN(x) || x<=0)) { wrap.classList.remove('has-value'); return; }
 
-  const f = twoPropTest(c1, n1, c2, n2);
+  const aRR = parseFloat(($('a-alpha')||{}).value);
+  const f = twoPropTest(c1, n1, c2, n2, aRR);
   // Annual traffic: assume same as observed total over the test period as a proxy
   // For simplicity, frame as "per 100k visitors": more universal
   const visitorsRef = 100000;

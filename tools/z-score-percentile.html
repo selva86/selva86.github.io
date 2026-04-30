@@ -363,6 +363,8 @@ Two-tailed:  P(|Z| ≥ |z|) = 2(1 − Φ(|z|))</div>
     <li><a href="/percentiles/">Percentiles vs. z-scores</a> — when to use each, and the 68-95-99.7 rule.</li>
     <li><a href="/p-values/">p-values from a normal table</a> — one and two-tailed reasoning.</li>
   </ul>
+  <p class="numerical-accuracy-note" style="margin:24px 0 0;font-size:11.5px;color:var(--c-text-mute);font-style:italic;line-height:1.5;border-top:1px solid var(--c-border-soft);padding-top:12px">Numerical accuracy: distribution functions accurate to ~10⁻⁷ (Hart's algorithm for normal, Cornish-Fisher for t).</p>
+
 </div>
 
 <div class="toast-area" id="toast-area"></div>
@@ -456,6 +458,11 @@ function renderInputs(){
     html += inputRow('z-score', `<input type="number" step="any" value="${s.z}" oninput="state.zPct.z=+this.value;recompute()">`);
   } else if (m === 'pctZ'){
     html += inputRow('Percentile', `<input type="number" step="any" min="0" max="100" value="${s.pct}" oninput="setPercentile(this.value)">`, '0–100 (e.g., 95) or 0–1 (e.g., 0.95) — auto-detected');
+    html += inputRow('Treat input as', `<select onchange="state.pctZ.scaleMode=this.value;recompute()">
+      <option value="auto" ${(s.scaleMode||'auto')==='auto'?'selected':''}>Auto-detect (≤1 → fraction)</option>
+      <option value="percentage" ${s.scaleMode==='percentage'?'selected':''}>Percentage (0–100)</option>
+      <option value="fraction" ${s.scaleMode==='fraction'?'selected':''}>Fraction (0–1)</option>
+    </select>`, 'Override auto-detect when the input is exactly 1.0 (ambiguous).');
     html += inputRow('Tail', `<select onchange="state.pctZ.tail=this.value;recompute()">
       <option value="left" ${(s.tail||'left')==='left'?'selected':''}>Left tail: p = P(Z ≤ z)</option>
       <option value="right" ${s.tail==='right'?'selected':''}>Right tail: p = P(Z ≥ z)</option>
@@ -482,8 +489,12 @@ function setPercentile(v){
   const num = parseFloat(v);
   if (!isFinite(num)) return;
   state.pctZ.pct = num;
-  // Auto-detect 0-1 vs 0-100
-  state.pctZ.isFraction = num > 0 && num <= 1;
+  // Auto-detect 0-1 vs 0-100 (only when scaleMode is "auto" or unset).
+  // Override via the explicit scaleMode toggle: 'percentage' | 'fraction' | 'auto'.
+  const mode = state.pctZ.scaleMode || 'auto';
+  if (mode === 'fraction')        state.pctZ.isFraction = true;
+  else if (mode === 'percentage') state.pctZ.isFraction = false;
+  else                            state.pctZ.isFraction = num > 0 && num < 1;  // strict <1: 1.0 treated as percent under auto
   recompute();
 }
 
@@ -541,7 +552,8 @@ z &lt;- (x - mu) / sigma
     if (Math.abs(z) > 8) callouts.push({icon:'🔬', text:`|z| &gt; 8 — tail probability is essentially 0; values shown in scientific notation.`});
   } else if (m === 'pctZ'){
     let p = state.pctZ.pct;
-    const isFraction = state.pctZ.isFraction || p <= 1;
+    const _scaleMode = state.pctZ.scaleMode || 'auto';
+    const isFraction = _scaleMode === 'fraction' ? true : (_scaleMode === 'percentage' ? false : (state.pctZ.isFraction || p < 1));
     if (!isFraction) p = p / 100;
     if (p <= 0 || p >= 1){ callouts.push({icon:'⚠️', text:'Percentile must be strictly between 0 and 1 (or 0% and 100%).'}); }
     else {
@@ -659,7 +671,8 @@ function renderAnatomyRecap(){
     addLine('Two-tailed', `2·(1 − Φ(|z|)) ≈ ${fmt(2*Math.min(left,right),5)}`);
   } else if (m === 'pctZ'){
     let p = state.pctZ.pct;
-    const isFraction = state.pctZ.isFraction || p <= 1;
+    const _scaleMode = state.pctZ.scaleMode || 'auto';
+    const isFraction = _scaleMode === 'fraction' ? true : (_scaleMode === 'percentage' ? false : (state.pctZ.isFraction || p < 1));
     const pNorm = isFraction ? p : p/100;
     if (pNorm <= 0 || pNorm >= 1){ slot.innerHTML = `<div class="anatomy-recap-title">Live recap</div><div class="recap-empty">Percentile must be between 0 and 1 (or 0% and 100%).</div>`; return; }
     const z = qnorm(pNorm);
@@ -873,7 +886,8 @@ function applyRoundTwoOverlays(){
   // --- percentile → z, explicit tail ---
   if (m === 'pctZ'){
     let p = state.pctZ.pct;
-    const isFraction = state.pctZ.isFraction || p <= 1;
+    const _scaleMode = state.pctZ.scaleMode || 'auto';
+    const isFraction = _scaleMode === 'fraction' ? true : (_scaleMode === 'percentage' ? false : (state.pctZ.isFraction || p < 1));
     if (!isFraction) p = p / 100;
     if (!(p > 0 && p < 1)) return;
     const tail = state.pctZ.tail || 'left';
