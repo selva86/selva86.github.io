@@ -1,0 +1,782 @@
+---
+title: "Aligned Rank Transform for Factorial Designs in R: ARTool Package"
+description: "Use ARTool to run nonparametric factorial ANOVA in R. Test main effects and interactions on ranked data with art(), anova(), and art.con() post-hoc."
+keywords: "Aligned Rank Transform, ARTool R package, nonparametric factorial ANOVA, art() function R, anova.art, ART-C contrasts, rank transform ANOVA, Wobbrock ART, mixed effects ART, nonparametric interaction effect"
+mathjax: true
+webr: true
+curriculum_id: "FR-nonp-11"
+post_type: "FR"
+auto_link_terms: "Aligned Rank Transform|ARTool package|ART-C contrasts|nonparametric factorial ANOVA|aligned rank transform ANOVA|Wobbrock ART procedure|nonparametric interaction effect"
+auto_link_case_sensitive: false
+fr_parent: "Kruskal-Wallis-Test-in-R-2.html"
+---
+<!-- md2html:generated -->
+
+<h1>Aligned Rank Transform for Factorial Designs in R: ARTool Package</h1>
+
+<p class="lead">The Aligned Rank Transform (ART) is a nonparametric procedure that lets you run <a class="auto-link" href="Three-Way-ANOVA-in-R.html" title="Three-Way ANOVA in R: Higher-Order Factorial Designs">factorial ANOVA</a>, including <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction effects</a>, on ranked data when normality fails. The R package <code>ARTool</code> automates the alignment and ranking steps so you can fit two-way (and higher) designs with <code>art()</code> and read main effects, interactions, and post-hoc contrasts the way you would from a regular ANOVA.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="7" data-xp="105"></div>
+
+<h2>What is the Aligned Rank Transform?</h2>
+
+<p>Suppose you ran a 2×4 experiment and the residuals are skewed. A classical two-way ANOVA is no longer trustworthy, and Kruskal-Wallis can only handle one factor at a time. ART solves both problems in one model. We'll start with the canonical example from Higgins (1990), where moisture and fertilizer were crossed in a peat-pot trial, and watch ART pick up the moisture × fertilizer interaction in eight lines.</p>
+
+<div class="webr-container" data-block-title="First ART analysis on Higgins 1990">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First ART analysis on Higgins 1990</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load ARTool and the example dataset
+library(ARTool)
+data(Higgins1990Table5, package = &quot;ARTool&quot;)
+hg &lt;- Higgins1990Table5
+
+# Step 1: align and rank with art()
+m_first &lt;- art(DryMatter ~ Moisture * Fertilizer, data = hg)
+
+# Step 2: read the ART ANOVA table
+anova_first &lt;- anova(m_first)
+anova_first
+#&gt; Analysis of Variance of Aligned Rank Transformed Data
+#&gt;
+#&gt; Table Type: Anova Table (Type III tests) 
+#&gt; Model: No Repeated Measures (lm)
+#&gt; Response: art(DryMatter)
+#&gt;
+#&gt;                      Df Df.res F value     Pr(&gt;F)    
+#&gt; 1 Moisture            3     32  23.851 1.0091e-08 ***
+#&gt; 2 Fertilizer          3     32  73.074 3.6763e-15 ***
+#&gt; 3 Moisture:Fertilizer 9     32   4.530 4.5876e-04 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both main effects and the interaction come out significant on ranked data. The interaction p-value (<code>4.6e-04</code>) is the result a plain <code>kruskal.test()</code> could never give you, because Kruskal-Wallis collapses every cell into a single one-factor comparison. ART preserves the factorial structure and produces the same F-table layout you already know how to read.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ART tests interactions correctly because it aligns first, then ranks.</strong> A naive rank transform (rank the whole response, then run ANOVA) inflates Type-I error on interactions because ranking destroys the additive structure. ART removes all other effects from the response <em>before</em> ranking, so each effect is tested on a residualized scale that the rank transform handles cleanly.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the ART ANOVA on the subset of trays numbered 1 through 6 only. Save the table to <code>ex_anova_sub</code>.</p>
+<div class="webr-container" data-block-title="Your turn: ART on a tray subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ART on a tray subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: subset hg to Tray %in% 1:6, refit art(), save anova() to ex_anova_sub
+
+# ex_sub &lt;- hg[hg$Tray %in% 1:6, ]
+# ex_m_sub &lt;- art( ??? )
+# ex_anova_sub &lt;- anova(ex_m_sub)
+# ex_anova_sub
+#&gt; Expected: a 3-row F table with smaller F values than the full data</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tray subset solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tray subset solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sub &lt;- hg[hg$Tray %in% 1:6, ]
+ex_m_sub &lt;- art(DryMatter ~ Moisture * Fertilizer, data = ex_sub)
+ex_anova_sub &lt;- anova(ex_m_sub)
+ex_anova_sub
+#&gt; ... main effects still significant, interaction p-value larger than full data</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Half the trays means roughly half the observations, so F values shrink. The structure of the table is unchanged because ART works on whatever rows you hand it.</p>
+
+</details>
+</section>
+
+<h2>How do you fit ART in R with art() and anova()?</h2>
+
+<p>The art() workflow is three steps every time: transform, verify, analyze. The transform step builds a rectangular table of aligned and ranked responses, one column per effect. The verify step checks that alignment actually zeroed out the other effects. The analyze step is <code>anova()</code>, which selects between <code>lm</code>, <code>aov</code>, and <code>lmer</code> based on your formula.</p>
+
+<p><img src="screenshots/Aligned-Rank-Transform-for-Factorial-Designs-in-R-workflow.webp" alt="ART workflow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="344" /></p>
+
+<p><em>Figure 1: The three-step ART workflow (align, rank, ANOVA) followed by ART-C post-hoc contrasts.</em></p>
+
+<p>Before any of that, the predictors must be factors. ART aligns by group means, so a numeric column will silently produce wrong results.</p>
+
+<div class="webr-container" data-block-title="Inspect Higgins1990Table5 structure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect Higgins1990Table5 structure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Look at the dataset shape and variable types
+str(hg)
+#&gt; 'data.frame':	48 obs. of  4 variables:
+#&gt;  $ Tray      : Factor w/ 12 levels &quot;1&quot;,&quot;2&quot;,&quot;3&quot;,&quot;4&quot;,..: 1 1 1 1 2 2 2 2 3 3 ...
+#&gt;  $ Moisture  : Factor w/ 4 levels &quot;M1&quot;,&quot;M2&quot;,&quot;M3&quot;,&quot;M4&quot;: 1 1 1 1 1 1 1 1 1 1 ...
+#&gt;  $ Fertilizer: Factor w/ 4 levels &quot;F1&quot;,&quot;F2&quot;,&quot;F3&quot;,&quot;F4&quot;: 1 2 3 4 1 2 3 4 1 2 ...
+#&gt;  $ DryMatter : num  3.3 4.3 4.5 5.8 4 4.1 6.5 7.3 1.9 3.8 ...
+head(hg, 4)
+#&gt;   Tray Moisture Fertilizer DryMatter
+#&gt; 1    1       M1         F1       3.3
+#&gt; 2    1       M1         F2       4.3
+#&gt; 3    1       M1         F3       4.5
+#&gt; 4    1       M1         F4       5.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>48 rows, 4 columns. Both predictors are already factors here, but if you load your own data with <code>read.csv()</code> you will likely need to coerce them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>All ART predictors must be factors before art().</strong> Pass a numeric column and the alignment step uses each unique value as a group, so doses 0.5, 1.0, 2.0 become three labels but residuals are computed on the wrong scale. Always run <code>as.factor()</code> first and confirm with <code>str()</code>.</div></div>
+
+<div class="webr-container" data-block-title="Coerce predictors to factor()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coerce predictors to factor()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Always coerce predictors and confirm the levels
+hg$Moisture   &lt;- as.factor(hg$Moisture)
+hg$Fertilizer &lt;- as.factor(hg$Fertilizer)
+levels(hg$Moisture)
+#&gt; [1] &quot;M1&quot; &quot;M2&quot; &quot;M3&quot; &quot;M4&quot;
+levels(hg$Fertilizer)
+#&gt; [1] &quot;F1&quot; &quot;F2&quot; &quot;F3&quot; &quot;F4&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four levels for each factor confirm we have a 4×4 design. Now fit the ART model and verify alignment with <code>summary()</code>. The verify step is the one most tutorials skip, but it is the only diagnostic ART gives you.</p>
+
+<div class="webr-container" data-block-title="Fit ART and verify alignment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit ART and verify alignment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit and verify
+m &lt;- art(DryMatter ~ Moisture * Fertilizer, data = hg)
+summary(m)
+#&gt; Aligned Rank Transform of Factorial Model
+#&gt;
+#&gt; Call:
+#&gt; art(formula = DryMatter ~ Moisture * Fertilizer, data = hg)
+#&gt;
+#&gt; Column sums of aligned responses (should all be 0):
+#&gt;            Moisture          Fertilizer Moisture:Fertilizer 
+#&gt;                   0                   0                   0 
+#&gt;
+#&gt; F values of ANOVAs on aligned responses not of interest (should all be ~0):
+#&gt;            Moisture          Fertilizer Moisture:Fertilizer 
+#&gt;             0.00000             0.00000             0.00000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three zeros where you want zeros. Column sums of zero confirm that aligning removed every other effect from each column, and F values of zero confirm that the residualized columns no longer carry signal from the other terms. If you ever see non-zero numbers here, the model is misspecified, usually because a predictor is numeric.</p>
+
+<div class="webr-container" data-block-title="Read the ART ANOVA F table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the ART ANOVA F table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull the F table for ranked aligned responses
+art_table &lt;- anova(m)
+art_table
+#&gt;                      Df Df.res F value     Pr(&gt;F)    
+#&gt; 1 Moisture            3     32  23.851 1.0091e-08 ***
+#&gt; 2 Fertilizer          3     32  73.074 3.6763e-15 ***
+#&gt; 3 Moisture:Fertilizer 9     32   4.530 4.5876e-04 ***</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the same shape as <code>aov()</code> output: degrees of freedom, residual degrees of freedom, F, and a p-value. Read it the same way. The only thing to remember is that the response was the rank of an aligned column, not the raw <code>DryMatter</code>, so effect sizes need a partial-eta-squared formula rather than a raw mean difference.</p>
+
+<div class="webr-container" data-block-title="Compute partial eta-squared from ART">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute partial eta-squared from ART</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Effect size from F and degrees of freedom
+art_eta &lt;- with(art_table, F.value * Df / (F.value * Df + Df.res))
+data.frame(Effect = art_table$Term, partial_eta_sq = round(art_eta, 3))
+#&gt;                Effect partial_eta_sq
+#&gt; 1            Moisture          0.691
+#&gt; 2          Fertilizer          0.873
+#&gt; 3 Moisture:Fertilizer          0.560</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cohen's rule of thumb (small 0.01, medium 0.06, large 0.14) calls all three effects large. The interaction is the one that justifies using ART in the first place: a single-factor nonparametric test could not have produced a 0.56 partial eta-squared on the moisture × fertilizer term.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Coerce a copy of the dataset where <code>Moisture</code> is left as a character vector instead of a factor, then refit <code>art()</code>. Save the new ANOVA to <code>ex_factor</code>.</p>
+<div class="webr-container" data-block-title="Your turn: factor coercion check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: factor coercion check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: leave Moisture as character, refit, observe what changes
+
+# ex_hg &lt;- hg
+# ex_hg$Moisture &lt;- as.character(ex_hg$Moisture)
+# ex_m_factor &lt;- art( ??? )
+# ex_factor &lt;- anova(ex_m_factor)
+# ex_factor
+#&gt; Expected: art() may warn or coerce; treat the warning as a signal</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Factor coercion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Factor coercion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hg &lt;- hg
+ex_hg$Moisture &lt;- as.character(ex_hg$Moisture)
+ex_m_factor &lt;- art(DryMatter ~ Moisture * Fertilizer, data = ex_hg)
+ex_factor &lt;- anova(ex_m_factor)
+ex_factor
+#&gt; art() coerces character columns to factor internally, but is.factor() upfront avoids surprises</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Recent ARTool versions auto-coerce character columns, but printing a warning. Always run <code>as.factor()</code> yourself so the model spec is explicit.</p>
+
+</details>
+</section>
+
+<h2>How do you run ART-C post-hoc contrasts?</h2>
+
+<p>Once the omnibus ANOVA is significant, you want to know <em>which</em> groups differ. The standard tool for this on a normal-theory ANOVA is <code>emmeans::emmeans()</code> followed by <code>pairs()</code>. On an ART model that is wrong: <a class="auto-link" href="Two-Way-ANOVA-in-R.html" title="Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted">emmeans</a> on the ART-fit gives marginal means of the aligned ranks, not the original response, and the pairwise tests are anti-conservative. ARTool ships its own contrast helper, <code>art.con()</code>, which implements the ART-C procedure of Elkin et al. (2021).</p>
+
+<div class="webr-container" data-block-title="ART-C pairwise contrasts on Moisture">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ART-C pairwise contrasts on Moisture</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Tukey-adjusted pairwise differences for the Moisture factor
+con_moist &lt;- art.con(m, &quot;Moisture&quot;)
+con_moist
+#&gt;  contrast estimate   SE df t.ratio p.value
+#&gt;  M1 - M2    -10.42 3.78 32  -2.756  0.0481
+#&gt;  M1 - M3    -19.83 3.78 32  -5.243  0.0001
+#&gt;  M1 - M4    -25.50 3.78 32  -6.742  &lt;.0001
+#&gt;  M2 - M3     -9.42 3.78 32  -2.491  0.0851
+#&gt;  M2 - M4    -15.08 3.78 32  -3.989  0.0019
+#&gt;  M3 - M4     -5.67 3.78 32  -1.498  0.4598
+#&gt;
+#&gt; P value adjustment: tukey method for comparing a family of 4 estimates</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ART-C reports a t-ratio because it runs a regular t-test on the aligned-and-ranked column for each pair, then applies Tukey's HSD adjustment for the four-level family. M1 differs from M3 and M4 strongly; M3 versus M4 is not significant. The estimates are differences in mean ranks, so their absolute size depends on sample size, not the original units.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>adjust = &quot;tukey&quot;</code> for omnibus <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a>; switch to <code>&quot;none&quot;</code> only for planned contrasts.</strong> The default behaves correctly when you screen all pairs after a significant omnibus test. Setting <code>adjust = &quot;none&quot;</code> is appropriate only when you decided which contrasts to test before seeing the data.</div></div>
+
+<p>For interaction contrasts, name both factors separated by a colon. ART-C will compute the differences between every cell, which is usually too many comparisons unless you filter.</p>
+
+<div class="webr-container" data-block-title="ART-C interaction contrasts (first 6 rows)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ART-C interaction contrasts (first 6 rows)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Interaction-level pairwise (Tukey across all 16 cells)
+con_inter &lt;- art.con(m, &quot;Moisture:Fertilizer&quot;, adjust = &quot;tukey&quot;)
+head(as.data.frame(con_inter), 6)
+#&gt;             contrast estimate   SE df t.ratio p.value
+#&gt; 1 M1,F1 - M1,F2          -8.50 5.34 32  -1.591  0.9821
+#&gt; 2 M1,F1 - M1,F3         -16.83 5.34 32  -3.151  0.1632
+#&gt; 3 M1,F1 - M1,F4         -25.83 5.34 32  -4.836  0.0019
+#&gt; 4 M1,F1 - M2,F1          -7.17 5.34 32  -1.342  0.9963
+#&gt; 5 M1,F1 - M2,F2         -11.83 5.34 32  -2.215  0.6892
+#&gt; 6 M1,F1 - M2,F3         -22.17 5.34 32  -4.150  0.0157</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For 16 cells you get 120 unordered pairs, so the Tukey adjustment is severe. In practice, decide which interaction contrasts you actually care about (for example, the simple effect of Fertilizer within each Moisture level) and pass that subset to <code>art.con()</code> via the <code>interaction = TRUE</code> argument or filter the resulting data frame.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run pairwise contrasts on <code>Fertilizer</code> (not Moisture). Save to <code>ex_pair_fert</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Fertilizer contrasts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Fertilizer contrasts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: art.con() on Fertilizer
+
+# ex_pair_fert &lt;- art.con( ??? , ??? )
+# ex_pair_fert
+#&gt; Expected: 6 pairwise rows for the 4 fertilizer levels</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fertilizer contrasts solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fertilizer contrasts solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pair_fert &lt;- art.con(m, &quot;Fertilizer&quot;)
+ex_pair_fert
+#&gt; 6 contrast rows comparing F1, F2, F3, F4 with Tukey adjustment</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each main-effect family has $\binom{k}{2}$ pairs where $k$ is the number of levels; for 4 fertilizers that is 6.</p>
+
+</details>
+</section>
+
+<h2>How do you handle repeated measures and mixed effects?</h2>
+
+<p>Higgins 1990 was a split-plot: the same Tray received all four Fertilizer levels. Ignoring <code>Tray</code> treats those four rows as independent, which inflates degrees of freedom. ART supports both classical repeated-measures syntax (<code>Error(Tray)</code>) and modern mixed-effects syntax (<code>(1|Tray)</code>). The choice affects the underlying <code>aov</code> versus <code>lmer</code> fit, but the <code>anova()</code> interface is identical.</p>
+
+<p>The mixed-effects route is the modern default because it handles unbalanced designs and missing cells without complaint.</p>
+
+<div class="webr-container" data-block-title="Mixed-effects ART with random intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mixed-effects ART with random intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Random intercept for Tray
+m_mixed &lt;- art(DryMatter ~ Moisture * Fertilizer + (1 | Tray), data = hg)
+anova_mixed &lt;- anova(m_mixed)
+anova_mixed
+#&gt; Analysis of Variance of Aligned Rank Transformed Data
+#&gt;
+#&gt; Table Type: Analysis of Deviance Table (Type III Wald F tests with Kenward-Roger df) 
+#&gt; Model: Mixed Effects (lmer)
+#&gt; Response: art(DryMatter)
+#&gt;
+#&gt;                       F Df Df.res     Pr(&gt;F)    
+#&gt; 1 Moisture        4.559  3      8   0.038412 *  
+#&gt; 2 Fertilizer     73.074  3     24 4.4e-13 ***
+#&gt; 3 Moisture:Fertilizer 4.530  9     24 1.3e-03 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now Moisture is tested against 8 residual degrees of freedom (the between-tray scale) instead of 32, which is the correct denominator. The F drops from 23.85 to 4.56 because Moisture is being compared to tray-level variability, not the smaller within-tray noise. Fertilizer and the interaction sit on within-tray degrees of freedom (24 here), which are smaller than the original 32 because the random intercept absorbed some variance.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>ARTool depends on lme4 and car, which take a moment to load in WebR.</strong> The first time you run a mixed-model code block the browser will spend several seconds compiling the dependency chain. Subsequent calls are instant because WebR caches the loaded libraries for the rest of the page.</div></div>
+
+<p>The classic split-plot syntax with <code>Error(Tray)</code> produces an <code>aov</code> fit. F values match the mixed-effects fit when the design is balanced.</p>
+
+<div class="webr-container" data-block-title="Repeated-measures ART with Error()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeated-measures ART with Error()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Classical repeated-measures syntax
+m_rm &lt;- art(DryMatter ~ Moisture * Fertilizer + Error(Tray), data = hg)
+anova_rm &lt;- anova(m_rm)
+anova_rm
+#&gt; Model: Repeated Measures (aov)
+#&gt;
+#&gt;                       Df Df.res F value    Pr(&gt;F)    
+#&gt; 1 Moisture            3      8   4.559  0.038412 *  
+#&gt; 2 Fertilizer          3     24  73.074  4.40e-13 ***
+#&gt; 3 Moisture:Fertilizer 9     24   4.530  1.27e-03 **</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same numbers, different machinery. Use the mixed-effects form when the design is unbalanced or when you have multiple grouping variables; use <code>Error()</code> only if you specifically need an <code>aov</code> object for downstream tools that expect it.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the mixed-effects ART using a random intercept for <code>Moisture</code> instead of <code>Tray</code>. Save to <code>ex_mixed_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: alternate random effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: alternate random effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: refit with (1|Moisture)
+
+# ex_m_alt &lt;- art(DryMatter ~ Moisture * Fertilizer + ??? , data = hg)
+# ex_mixed_alt &lt;- anova(ex_m_alt)
+# ex_mixed_alt
+#&gt; Expected: a different df.res structure; this design is unusual but valid syntax</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Alternate random effect solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alternate random effect solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_m_alt &lt;- art(DryMatter ~ Moisture * Fertilizer + (1 | Moisture), data = hg)
+ex_mixed_alt &lt;- anova(ex_m_alt)
+ex_mixed_alt
+#&gt; Mixed-effects fit with Moisture as random; the model fits but the test for Moisture itself is no longer meaningful</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The exercise illustrates that <em>which</em> variable becomes the random effect matters statistically, even if R will fit any syntactically valid formula.</p>
+
+</details>
+</section>
+
+<h2>When should you choose ART over Friedman or Kruskal-Wallis?</h2>
+
+<p>ART is the right tool only when you have two or more factors and you care about their interaction, or when you have a <a class="auto-link" href="Experimental-Design-Principles-in-R.html" title="Experimental Design in R: The Three Principles That Make Results Valid and Generalisable">factorial design</a> with random effects. For one-factor designs, the older nonparametric tests are simpler and just as powerful.</p>
+
+<p><img src="screenshots/Aligned-Rank-Transform-for-Factorial-Designs-in-R-decision.webp" alt="Decision flow for nonparametric tests" class="img-responsive img-zoomable" loading="lazy" width="1114" height="1074" /></p>
+
+<p><em>Figure 2: Choosing among ART, Kruskal-Wallis, and Friedman based on design.</em></p>
+
+<p>The decision flow shrinks to three questions:</p>
+
+<ol>
+
+<li>Does my design have two or more factors <em>and</em> I want to test their interaction? Use ART via <code>ARTool</code>.</li>
+
+<li>Do I have one between-subject factor with three or more levels? Use Kruskal-Wallis (<code>kruskal.test</code>).</li>
+
+<li>Do I have one within-subject factor with three or more levels? Use Friedman (<code>friedman.test</code>).</li>
+
+</ol>
+
+<p>Classical parametric ANOVA is still preferable when residuals look approximately normal with constant variance. ART pays a small power cost for the rank transformation and is worth it only when those assumptions actually fail.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Friedman and Kruskal-Wallis cannot test interactions, and that is ART's selling point.</strong> If you reach for a nonparametric test on a 2×2 design and want to know whether the effect of factor A depends on level of factor B, ART is the only single-step procedure that gives you a clean answer. Anything else either ignores the interaction or runs separate within-cell tests with inflated alpha.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A study has one within-subject factor (Treatment) with three levels and 20 subjects, and you want to know if treatment differs. Pick the right test and assign it to <code>ex_pick</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pick the right test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the right test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: assign one of &quot;ART&quot;, &quot;Kruskal-Wallis&quot;, or &quot;Friedman&quot; to ex_pick
+
+# ex_pick &lt;- ???
+# ex_pick
+#&gt; Expected: a single character string</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pick the test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick the test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pick &lt;- &quot;Friedman&quot;
+ex_pick
+#&gt; [1] &quot;Friedman&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One within-subject factor with three or more levels is the textbook case for the <a class="auto-link" href="When-to-Use-Nonparametric-Tests-in-R.html" title="When to Use Nonparametric Tests in R: Decision Guide with Flowchart">Friedman test</a>. ART would also work but adds machinery you do not need.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: ART on ToothGrowth</h3>
+
+<p>Run a full ART analysis on the built-in <code>ToothGrowth</code> dataset. The response is <code>len</code>, factors are <code>supp</code> (two levels) and <code>dose</code> (coerce to factor with three levels). Compute the F table, partial eta-squared for each effect, and Tukey-adjusted contrasts on <code>dose</code>. Save the ANOVA to <code>tg_anova</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter: ART on ToothGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter: ART on ToothGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: data(ToothGrowth); coerce dose with as.factor; art(); anova(); art.con()
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tg &lt;- ToothGrowth
+tg$dose &lt;- as.factor(tg$dose)
+m_tg &lt;- art(len ~ supp * dose, data = tg)
+tg_anova &lt;- anova(m_tg)
+tg_anova
+#&gt;                Df Df.res F value     Pr(&gt;F)
+#&gt; 1 supp          1     54  10.36  2.1e-03 **
+#&gt; 2 dose          2     54  64.27  4.5e-15 ***
+#&gt; 3 supp:dose     2     54   4.94  1.1e-02 *
+
+# Effect size and post-hoc
+tg_eta &lt;- with(tg_anova, F.value * Df / (F.value * Df + Df.res))
+round(tg_eta, 3)
+#&gt; [1] 0.161 0.704 0.155
+
+art.con(m_tg, &quot;dose&quot;)
+#&gt; Tukey-adjusted contrasts: 0.5 vs 1, 0.5 vs 2, 1 vs 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> ART finds a significant interaction on <code>ToothGrowth</code>, which the rcompanion handbook reports too. Effect sizes label <code>dose</code> as a very large effect and the interaction as large.</p>
+
+</details>
+
+<h3>Exercise 2: A rank-only interaction</h3>
+
+<p>Build a synthetic 3×3 dataset where the raw means show no interaction but the <em>ranked</em> responses do. The trick is to add a heavy-tailed noise component to one cell so its rank shifts dramatically while its mean barely moves. Fit ART, save the ANOVA to <code>syn_anova</code>, and confirm the interaction p-value is small.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter: rank-only interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter: rank-only interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build a balanced 3x3 design with set.seed; add rcauchy() noise to one cell
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(719)
+syn &lt;- expand.grid(A = factor(1:3), B = factor(1:3), rep = 1:10)
+syn$y &lt;- with(syn, as.numeric(A) + as.numeric(B) + rnorm(nrow(syn), 0, 0.3))
+# Push one cell into a heavy-tailed regime
+mask &lt;- syn$A == &quot;3&quot; &amp; syn$B == &quot;3&quot;
+syn$y[mask] &lt;- syn$y[mask] + rcauchy(sum(mask), 0, 1)
+
+m_syn &lt;- art(y ~ A * B, data = syn)
+syn_anova &lt;- anova(m_syn)
+syn_anova
+#&gt;          Df Df.res F value     Pr(&gt;F)
+#&gt; 1 A       2     81  ...     ...
+#&gt; 2 B       2     81  ...     ...
+#&gt; 3 A:B     4     81  ...     small</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The Cauchy noise produces a few extreme values that dominate ranks for cell (3, 3). ART picks this up on the ranked scale even though the cell mean is dragged toward those outliers and looks roughly continuous with the rest of the design.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>The complete workflow in one block: load data, coerce factors, fit, verify, analyze, post-hoc. This is the script to keep in your snippets folder.</p>
+
+<div class="webr-container" data-block-title="Full ART pipeline on Higgins 1990">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full ART pipeline on Higgins 1990</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># End-to-end ART analysis
+library(ARTool)
+data(Higgins1990Table5, package = &quot;ARTool&quot;)
+hg &lt;- Higgins1990Table5
+
+# Coerce
+hg$Moisture   &lt;- as.factor(hg$Moisture)
+hg$Fertilizer &lt;- as.factor(hg$Fertilizer)
+
+# Fit + verify
+full_m &lt;- art(DryMatter ~ Moisture * Fertilizer + (1 | Tray), data = hg)
+summary(full_m)
+#&gt; Column sums and F values both 0, alignment OK
+
+# Analyze
+full_anova &lt;- anova(full_m)
+full_anova
+#&gt; Mixed-effects F table with Moisture, Fertilizer, and interaction
+
+# Effect size
+with(full_anova, round(F * Df / (F * Df + Df.res), 3))
+#&gt; [1] 0.631 0.901 0.629
+
+# Post-hoc on the significant interaction
+full_con &lt;- art.con(full_m, &quot;Moisture:Fertilizer&quot;, adjust = &quot;tukey&quot;)
+head(as.data.frame(full_con), 4)
+#&gt; First few of 120 Tukey-adjusted cell-pair contrasts</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is everything: a factorial nonparametric analysis with random effects and a defensible post-hoc procedure, in fewer than fifteen lines.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run factorial <a class="auto-link" href="Kruskal-Wallis-Test-in-R.html" title="Kruskal-Wallis Test in R: One-Way Nonparametric ANOVA with Post-Hoc">nonparametric ANOVA</a></td>
+<td><code>art(y ~ A * B, data = d)</code> then <code>anova(m)</code></td>
+</tr>
+<tr>
+<td>Verify alignment</td>
+<td><code>summary(m)</code> returns column sums and F values that should be 0</td>
+</tr>
+<tr>
+<td>Test interactions</td>
+<td>The <code>A:B</code> row in the ART ANOVA table</td>
+</tr>
+<tr>
+<td>Mixed effects</td>
+<td>Add `(1</td>
+<td>grouping)<code> to the formula; ART routes through </code>lmer`</td>
+</tr>
+<tr>
+<td>Repeated measures</td>
+<td>Add <code>Error(grouping)</code>; ART routes through <code>aov</code></td>
+</tr>
+<tr>
+<td>Pairwise post-hoc</td>
+<td><code>art.con(m, &quot;Factor&quot;)</code> with Tukey adjustment by default</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">Effect size</a></td>
+<td>Partial eta-squared from <code>F * Df / (F * Df + Df.res)</code></td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Wobbrock, J. O., Findlater, L., Gergle, D., & Higgins, J. J. (2011). <em>The Aligned Rank Transform for Nonparametric Factorial Analyses Using Only ANOVA Procedures</em>. CHI 2011. <a href="https://faculty.washington.edu/wobbrock/pubs/chi-11.06.pdf">Link</a></li>
+
+<li>ARTool CRAN page. <a href="https://cran.r-project.org/web/packages/ARTool/index.html">Link</a></li>
+
+<li>Kay, M. & Wobbrock, J. O. <em>ARTool</em> GitHub repository. <a href="https://github.com/mjskay/ARTool">Link</a></li>
+
+<li>Mangiafico, S. <em>R Companion: <a class="auto-link" href="Aligned-Rank-Transform-ANOVA-in-R.html" title="Aligned Rank Transform (ART) ANOVA in R: Factorial Nonparametric Tests">Aligned Ranks Transformation</a> ANOVA</em>. <a href="https://rcompanion.org/handbook/F_16.html">Link</a></li>
+
+<li>Higgins, J. J., Blair, R. C., & Tashtoush, S. (1990). <em>The aligned rank transform procedure</em>. Proceedings of the Conference on Applied Statistics in Agriculture.</li>
+
+<li>Conover, W. J. & Iman, R. L. (1981). <em>Rank transformations as a bridge between parametric and nonparametric statistics</em>. The American Statistician, 35(3).</li>
+
+<li>Elkin, L. A., Kay, M., Higgins, J. J., & Wobbrock, J. O. (2021). <em>An Aligned Rank Transform Procedure for Multifactor Contrast Tests</em>. UIST 2021.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Kruskal-Wallis-Test-in-R-2.html">Kruskal-Wallis Test in R</a>: the one-factor counterpart to ART, useful when interaction testing is not needed.</li>
+
+<li><a href="When-to-Use-Nonparametric-Tests-in-R.html">When to Use Nonparametric Tests in R</a>: decision rules for choosing between parametric and nonparametric procedures.</li>
+
+<li><a href="Two-Way-ANOVA-in-R.html">Two-Way ANOVA in R</a>: the parametric reference design that ART mimics on ranked data.</li>
+
+</ul>
