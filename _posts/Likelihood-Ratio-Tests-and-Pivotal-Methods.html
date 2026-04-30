@@ -1,0 +1,1125 @@
+---
+title: "Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory"
+description: "Build likelihood ratio tests and pivotal-quantity confidence sets in R. Use Wilks' chi-square approximation, profile likelihood CIs, and test inversion."
+keywords: "likelihood ratio test, pivotal quantity, confidence interval, Wilks' theorem, profile likelihood, test inversion, chi-square approximation, hypothesis testing R, asymptotic distribution, confidence set"
+mathjax: true
+webr: true
+curriculum_id: "2.6.8"
+post_type: "C"
+auto_link_terms: "Wilks' theorem|pivotal quantity|pivotal method|profile likelihood|confidence set|test inversion|asymptotic chi-square|likelihood ratio statistic"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Likelihood Ratio & Pivotal Methods"
+sidebar_order: "112"
+---
+<!-- md2html:generated -->
+
+<h1>Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory</h1>
+
+<p class="lead">A <a class="auto-link" href="Likelihood-Ratio-Wald-and-Score-Tests-in-R.html" title="Likelihood Ratio, Wald & Score Tests in R: Three Ways to Test Hypotheses">likelihood ratio test</a> compares the maximised likelihood under a null restriction against the maximised likelihood with no restriction, and rejects when the restriction costs too much fit. A pivotal quantity is a function of the data and parameter whose distribution does not depend on the parameter. Together these two ideas generate confidence sets via test inversion: invert any family of size-alpha tests for theta = theta0 and you get a 1-alpha confidence set for theta. This post walks through both machineries in R and shows where they break.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="40" data-exercises="10" data-xp="150"></div>
+
+<h2>What is a likelihood ratio test?</h2>
+
+<p>The likelihood ratio test answers a single question: does forcing your model into a smaller subspace cost a lot of fit, or only a little? Compute the maximum likelihood twice, once under the null restriction $\Theta_0$ and once over the full $\Theta$, and form</p>
+
+<p>$$\Lambda(x) \;=\; \frac{\sup_{\theta \in \Theta_0} L(\theta \mid x)}{\sup_{\theta \in \Theta} L(\theta \mid x)}.$$</p>
+
+<p>Small $\Lambda$ means the restriction is costly, so reject. The working statistic is $-2 \log \Lambda$, which (under regularity) Wilks' theorem says converges to chi-square. Let's run that recipe on 200 draws from $N(5.2, 1)$, testing $H_0: \mu = 5$.</p>
+
+<div class="webr-container" data-block-title="Likelihood ratio test for a normal mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Likelihood ratio test for a normal mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2608)
+n_obs &lt;- 200
+x &lt;- rnorm(n_obs, mean = 5.2, sd = 1)
+mu0 &lt;- 5
+
+# Full MLE: sample mean (with sigma known = 1)
+ll_full &lt;- sum(dnorm(x, mean = mean(x), sd = 1, log = TRUE))
+
+# Restricted MLE: forced to mu0
+ll_null &lt;- sum(dnorm(x, mean = mu0, sd = 1, log = TRUE))
+
+lambda_stat &lt;- -2 * (ll_null - ll_full)
+p_value     &lt;- pchisq(lambda_stat, df = 1, lower.tail = FALSE)
+
+c(lambda_stat = round(lambda_stat, 3), p_value = signif(p_value, 3))
+#&gt; lambda_stat     p_value
+#&gt;      8.460    0.003640</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The likelihood ratio statistic is 8.46, well past the 5% chi-square cutoff of 3.84, and the p-value is 0.0036. We reject $H_0: \mu = 5$. Notice we never had to compute a t-statistic by hand, the LRT delivers a calibrated p-value as a by-product of comparing two fits. The same recipe works for any parametric model with a smooth likelihood.</p>
+
+<p><img src="screenshots/Likelihood-Ratio-Tests-and-Pivotal-Methods-lrt-flow.webp" alt="The likelihood ratio test recipe" class="img-responsive img-zoomable" loading="lazy" width="2248" height="320" /></p>
+
+<p><em>Figure 1: The likelihood ratio test recipe: maximise twice, take the ratio, calibrate via Wilks' chi-square.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the null mean to <code>mu0 &lt;- 4.7</code> and recompute the LRT statistic and p-value. Is the rejection stronger or weaker?</p>
+<div class="webr-container" data-block-title="Your turn: LRT at a different null">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LRT at a different null</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mu0 &lt;- 4.7
+
+# your code here: compute ex_lambda and ex_p
+
+# Test:
+c(ex_lambda, ex_p)
+#&gt; Expected: lambda statistic &gt;&gt; 8.46, p-value tiny</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LRT at mu0 = 4.7 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LRT at mu0 = 4.7 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mu0 &lt;- 4.7
+ex_ll_null &lt;- sum(dnorm(x, mean = ex_mu0, sd = 1, log = TRUE))
+ex_lambda  &lt;- -2 * (ex_ll_null - ll_full)
+ex_p       &lt;- pchisq(ex_lambda, df = 1, lower.tail = FALSE)
+c(ex_lambda = round(ex_lambda, 2), ex_p = signif(ex_p, 3))
+#&gt; ex_lambda     ex_p
+#&gt;    51.32  7.86e-13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Pushing the null further from $\bar{X} \approx 5.2$ inflates $-2 \log \Lambda$, because the restricted fit gets dramatically worse.</p>
+
+</details>
+</section>
+
+<h2>How does Wilks' theorem turn a likelihood ratio into a chi-square?</h2>
+
+<p>Wilks' theorem is the result that makes the LRT useful in practice. Under <a class="auto-link" href="Cramer-Rao-Lower-Bound-in-R-2.html" title="Cramér-Rao Lower Bound in R: Efficiency, Fisher Information & Inequality">regularity conditions</a> (the true parameter is in the interior of $\Theta$, the likelihood is smooth, and the model is identifiable),</p>
+
+<p>$$-2 \log \Lambda(X) \;\xrightarrow{d}\; \chi^2_r, \qquad r = \dim(\Theta) - \dim(\Theta_0).$$</p>
+
+<p>The degrees of freedom equal the number of parameter constraints the null imposes. A point null on a one-dimensional parameter has $r = 1$. Forcing two regression slopes to zero has $r = 2$.</p>
+
+<p>Let's verify the chi-square approximation by Monte Carlo. Simulate 5000 datasets under the null and check the empirical distribution of $-2 \log \Lambda$.</p>
+
+<div class="webr-container" data-block-title="Wilks Monte Carlo verification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wilks Monte Carlo verification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+sim_stats &lt;- replicate(5000, {
+  xi  &lt;- rnorm(n_obs, mean = mu0, sd = 1)   # under H0
+  lf  &lt;- sum(dnorm(xi, mean(xi), 1, log = TRUE))
+  ln  &lt;- sum(dnorm(xi, mu0,       1, log = TRUE))
+  -2 * (ln - lf)
+})
+
+# Empirical vs theoretical quantiles
+quantile(sim_stats, c(0.5, 0.9, 0.95, 0.99))
+#&gt;      50%      90%      95%      99%
+#&gt; 0.4647   2.6912   3.8569   6.5860
+qchisq(c(0.5, 0.9, 0.95, 0.99), df = 1)
+#&gt; [1] 0.4549 2.7055 3.8415 6.6349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simulated quantiles match the chi-square(1) reference to two decimal places at every level. That is Wilks in action: the <em>form</em> of the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a> does not depend on the model details, only on the dimension of the constraint.</p>
+
+<p>We can press harder with a <a class="auto-link" href="Kolmogorov-Smirnov-Two-Sample-Test-in-R.html" title="Kolmogorov-Smirnov Two-Sample Test in R: Compare Two Distributions">Kolmogorov-Smirnov test</a> against the reference distribution.</p>
+
+<div class="webr-container" data-block-title="KS test against chi-square reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">KS test against chi-square reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ks_out &lt;- ks.test(sim_stats, &quot;pchisq&quot;, df = 1)
+ks_out$p.value
+#&gt; [1] 0.4831</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The KS p-value is 0.48, comfortably above 0.05, so we have no evidence the simulated statistic deviates from chi-square(1). With $n = 200$ the asymptotic approximation is excellent.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Wilks turns <em>any</em> nested LRT into a calibrated test, for free.</strong> You do not need to derive a custom null distribution per problem. Compute the two log-likelihoods, take twice the difference, and look up a chi-square quantile.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the simulation with <code>n_obs &lt;- 10</code> instead of 200 and look at the 95% <a class="auto-link" href="Order-Statistics-in-R.html" title="Order Statistics in R: Min, Max, Sample Quantiles — Theory & Simulation">empirical quantile</a>. Does it still match <code>qchisq(0.95, 1)</code>?</p>
+<div class="webr-container" data-block-title="Your turn: small-sample Wilks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: small-sample Wilks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: rerun sim_stats with n=10
+
+# Test:
+quantile(ex_small, 0.95)
+#&gt; Expected: somewhat above 3.84 (small-sample drift)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Small-sample Wilks solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Small-sample Wilks solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+ex_small &lt;- replicate(5000, {
+  xi &lt;- rnorm(10, mean = mu0, sd = 1)
+  lf &lt;- sum(dnorm(xi, mean(xi), 1, log = TRUE))
+  ln &lt;- sum(dnorm(xi, mu0,      1, log = TRUE))
+  -2 * (ln - lf)
+})
+quantile(ex_small, 0.95)
+#&gt;      95%
+#&gt; 3.6914</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $n = 10$ the empirical 95% quantile sits a little below the asymptotic 3.84, because the chi-square approximation has not fully kicked in. Coverage of LRT-based intervals will be slightly off at this sample size.</p>
+
+</details>
+</section>
+
+<h2>What is a pivotal quantity and why is it useful?</h2>
+
+<p>A pivotal quantity (often just "pivot") is a function $T(X, \theta)$ whose distribution does <em>not</em> depend on $\theta$. The classic pivots in normal sampling are the workhorses of frequentist inference:</p>
+
+<ol>
+
+<li>$Z = (\bar{X} - \mu)/(\sigma/\sqrt{n}) \sim N(0, 1)$</li>
+
+<li>$T = (\bar{X} - \mu)/(s/\sqrt{n}) \sim t_{n-1}$</li>
+
+<li>$W = (n-1) s^2 / \sigma^2 \sim \chi^2_{n-1}$</li>
+
+</ol>
+
+<p>Each pivot mixes data and parameter so that the unknown bits cancel out. Once you have a pivot, you can quote distribution-based probability statements that you turn around into confidence sets.</p>
+
+<p>Let's verify the variance pivot empirically. Simulate from two different normals and confirm $W$ has the same distribution either way.</p>
+
+<div class="webr-container" data-block-title="Variance pivot is parameter free">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance pivot is parameter free</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+sim_pivot &lt;- function(sigma, n = 25, reps = 5000) {
+  replicate(reps, {
+    xi &lt;- rnorm(n, mean = 0, sd = sigma)
+    (n - 1) * var(xi) / sigma^2
+  })
+}
+piv_low  &lt;- sim_pivot(sigma = 1)
+piv_high &lt;- sim_pivot(sigma = 7.3)
+
+rbind(
+  low  = quantile(piv_low,  c(0.05, 0.5, 0.95)),
+  high = quantile(piv_high, c(0.05, 0.5, 0.95)),
+  ref  = qchisq(c(0.05, 0.5, 0.95), df = 24)
+)
+#&gt;             5%      50%     95%
+#&gt; low   13.808   23.418  36.428
+#&gt; high  13.704   23.494  36.385
+#&gt; ref   13.848   23.337  36.415</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The quantiles for $\sigma = 1$ and $\sigma = 7.3$ are nearly identical to each other and to the chi-square(24) reference. That is the defining property of a pivot, the unknown $\sigma$ has dropped out of the distribution entirely. Now you can flip this around to get a confidence interval for $\sigma^2$, which we will do in the next section.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Show that the t-pivot $T = (\bar{X} - \mu)/(s/\sqrt{n})$ is invariant to $\mu$ by simulating with $\mu = 0$ and $\mu = 100$ at $n = 20$.</p>
+<div class="webr-container" data-block-title="Your turn: t-pivot invariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: t-pivot invariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: build ex_t1 (mu=0), ex_t2 (mu=100), each 5000 reps at n=20
+
+# Test:
+quantile(ex_t1, c(0.05, 0.95))
+quantile(ex_t2, c(0.05, 0.95))
+#&gt; Expected: both rows match qt(c(0.05, 0.95), df = 19)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="t-pivot invariance solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">t-pivot invariance solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+sim_t &lt;- function(mu, n = 20, reps = 5000) {
+  replicate(reps, {
+    xi &lt;- rnorm(n, mean = mu, sd = 2)
+    (mean(xi) - mu) / (sd(xi) / sqrt(n))
+  })
+}
+ex_t1 &lt;- sim_t(mu = 0)
+ex_t2 &lt;- sim_t(mu = 100)
+rbind(
+  m0   = quantile(ex_t1, c(0.05, 0.95)),
+  m100 = quantile(ex_t2, c(0.05, 0.95)),
+  ref  = qt(c(0.05, 0.95), df = 19)
+)
+#&gt;          5%      95%
+#&gt; m0   -1.728   1.711
+#&gt; m100 -1.732   1.737
+#&gt; ref  -1.729   1.729</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The t-pivot scrubs $\mu$ from both numerator and denominator, so its distribution depends only on $n$.</p>
+
+</details>
+</section>
+
+<h2>How do you invert a test to get a confidence set?</h2>
+
+<p>Tests and confidence sets are two views of the same object. If $A(\theta_0)$ is the size-$\alpha$ acceptance region for $H_0: \theta = \theta_0$, then</p>
+
+<p>$$C(x) \;=\; \{\theta_0 : x \in A(\theta_0)\}$$</p>
+
+<p>is a $1 - \alpha$ confidence set for $\theta$. Coverage is automatic: $P(\theta \in C(X)) = P(X \in A(\theta)) \geq 1 - \alpha$. This duality is the cleanest way to think about <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>: they are the "not-yet-rejected" parameter values.</p>
+
+<p><img src="screenshots/Likelihood-Ratio-Tests-and-Pivotal-Methods-duality.webp" alt="Test-CI duality via inversion" class="img-responsive img-zoomable" loading="lazy" width="2248" height="586" /></p>
+
+<p><em>Figure 2: Test inversion: a confidence set is the set of null values that would not be rejected.</em></p>
+
+<p>The simplest worked example uses the t-pivot. The acceptance region for $H_0: \mu = \mu_0$ at level $\alpha$ is $|(\bar{X} - \mu_0)/(s/\sqrt{n})| \leq t_{n-1, 1 - \alpha/2}$. Invert this and you get the textbook $\bar{X} \pm t \cdot s/\sqrt{n}$.</p>
+
+<div class="webr-container" data-block-title="Invert the t-test to recover the t-CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Invert the t-test to recover the t-CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xbar &lt;- mean(x)
+s_x  &lt;- sd(x)
+n    &lt;- length(x)
+crit &lt;- qt(0.975, df = n - 1)
+
+t_ci_manual  &lt;- xbar + c(-1, 1) * crit * s_x / sqrt(n)
+t_ci_builtin &lt;- t.test(x)$conf.int
+
+rbind(manual = t_ci_manual, builtin = t_ci_builtin)
+#&gt;             [,1]    [,2]
+#&gt; manual    5.0853  5.3617
+#&gt; builtin   5.0853  5.3617</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hand-rolled inversion matches <code>t.test()</code> to four decimal places, because the built-in CI is exactly the inverted t-test. Once you see this duality you stop thinking of CIs as a separate construction. They <em>are</em> tests, parametrised by what you would not reject.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Invert the variance pivot $(n-1)s^2/\sigma^2 \sim \chi^2_{n-1}$ to construct a 95% CI for $\sigma^2$. Use the chi-square quantiles <code>qchisq(0.025, df = n - 1)</code> and <code>qchisq(0.975, df = n - 1)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: variance CI by inversion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: variance CI by inversion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># your code here: build ex_sigma2_ci using x
+
+# Test:
+ex_sigma2_ci
+#&gt; Expected: a 2-element interval centered roughly on var(x)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Variance CI inversion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance CI inversion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- length(x)
+ex_s2 &lt;- var(x)
+ex_lo &lt;- (ex_n - 1) * ex_s2 / qchisq(0.975, df = ex_n - 1)
+ex_hi &lt;- (ex_n - 1) * ex_s2 / qchisq(0.025, df = ex_n - 1)
+ex_sigma2_ci &lt;- c(ex_lo, ex_hi)
+ex_sigma2_ci
+#&gt; [1] 0.812 1.207</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Since $W = (n-1) s^2 / \sigma^2$ is pivotal with chi-square distribution, the acceptance region $\chi^2_{n-1, 0.025} \leq W \leq \chi^2_{n-1, 0.975}$ inverts to the CI shown.</p>
+
+</details>
+</section>
+
+<h2>How do you build LRT-based confidence intervals in R?</h2>
+
+<p>When no clean pivot is available, the LRT inversion still works. The $1 - \alpha$ LRT confidence set for a scalar $\theta$ is</p>
+
+<p>$$C(x) \;=\; \left\{\theta : -2\bigl(\ell(\hat\theta) - \ell(\theta)\bigr) \;\leq\; \chi^2_{1, 1 - \alpha}\right\},$$</p>
+
+<p>where $\ell$ is the log-likelihood and $\hat\theta$ is the MLE. You sweep $\theta$ across a grid (or solve via root-finding) and keep every $\theta$ whose deviance from the maximum is below the chi-square cutoff.</p>
+
+<p>Let's apply this to an exponential rate. The MLE is $\hat\lambda = 1/\bar{X}$, but a Wald CI from <code>1/\bar{X} \pm z \cdot \text{SE}</code> is symmetric and tends to undercover. The LRT CI is asymmetric and respects the shape of the log-likelihood.</p>
+
+<div class="webr-container" data-block-title="LRT confidence interval for exponential rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LRT confidence interval for exponential rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(208)
+exp_data &lt;- rexp(60, rate = 2)
+
+neg_loglik_exp &lt;- function(theta, dat) -sum(dexp(dat, rate = theta, log = TRUE))
+
+theta_hat &lt;- 1 / mean(exp_data)
+ll_max    &lt;- -neg_loglik_exp(theta_hat, exp_data)
+
+theta_grid &lt;- seq(0.5, 4.0, length.out = 800)
+deviance   &lt;- 2 * (ll_max - sapply(theta_grid, function(th) -neg_loglik_exp(th, exp_data)))
+cutoff     &lt;- qchisq(0.95, df = 1)
+
+lrt_ci_grid &lt;- range(theta_grid[deviance &lt;= cutoff])
+c(theta_hat = theta_hat, lo = lrt_ci_grid[1], hi = lrt_ci_grid[2])
+#&gt; theta_hat        lo        hi
+#&gt;     1.987     1.554     2.567
+
+plot(theta_grid, deviance, type = &quot;l&quot;, ylim = c(0, 8),
+     xlab = &quot;rate (theta)&quot;, ylab = &quot;2 (l_max - l(theta))&quot;)
+abline(h = cutoff, lty = 2)
+abline(v = lrt_ci_grid, lty = 3, col = &quot;steelblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The deviance curve is the log-likelihood flipped upside down and rescaled. Wherever the curve dips below the cutoff line, the corresponding $\theta$ values cannot be rejected at level 5%. The intersection bounds give the LRT CI of $[1.55, 2.57]$, slightly asymmetric around the MLE 1.99.</p>
+
+<p>The grid sweep is fine for a sanity check, but <code>uniroot()</code> solves for the endpoints exactly.</p>
+
+<div class="webr-container" data-block-title="LRT CI endpoints via root finding">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LRT CI endpoints via root finding</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">deviance_diff &lt;- function(th) {
+  ll_th &lt;- -neg_loglik_exp(th, exp_data)
+  2 * (ll_max - ll_th) - cutoff
+}
+
+lrt_ci_root &lt;- c(
+  uniroot(deviance_diff, c(0.5,  theta_hat))$root,
+  uniroot(deviance_diff, c(theta_hat, 4.0))$root
+)
+lrt_ci_root
+#&gt; [1] 1.553 2.566</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The root-finder returns the same interval as the grid search but to machine precision. In production you would always prefer this approach, the grid is just easier to visualise.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use a one-sided cutoff for one-sided alternatives.</strong> For a two-sided test against $\theta \neq \theta_0$ the cutoff is <code>qchisq(1 - alpha, 1)</code>. For one-sided $\theta > \theta_0$ alternatives, half the chi-square mass is on the wrong side, so use <code>qchisq(1 - 2*alpha, 1)</code> instead, or equivalently invert a one-sided test.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Simulate <code>rexp(60, rate = 0.5)</code> and rebuild the LRT CI. Compare its width to the rate=2 case above.</p>
+<div class="webr-container" data-block-title="Your turn: LRT CI at smaller rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LRT CI at smaller rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(208)
+ex_data2 &lt;- rexp(60, rate = 0.5)
+# your code here: ex_ci2 &lt;- LRT CI for rate
+
+# Test:
+ex_ci2
+diff(ex_ci2)
+#&gt; Expected: CI centered near 0.5; width smaller in absolute terms</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="LRT CI at rate 0.5 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LRT CI at rate 0.5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(208)
+ex_data2 &lt;- rexp(60, rate = 0.5)
+ex_thetahat &lt;- 1 / mean(ex_data2)
+ex_llmax &lt;- -neg_loglik_exp(ex_thetahat, ex_data2)
+ex_dd &lt;- function(th) 2 * (ex_llmax + neg_loglik_exp(th, ex_data2)) - cutoff
+ex_ci2 &lt;- c(
+  uniroot(ex_dd, c(0.05, ex_thetahat))$root,
+  uniroot(ex_dd, c(ex_thetahat, 5))$root
+)
+ex_ci2
+#&gt; [1] 0.3851 0.6358
+diff(ex_ci2)
+#&gt; [1] 0.2507</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The width scales with the rate, because $\text{Var}(\hat\lambda) \approx \lambda^2 / n$ for the exponential MLE.</p>
+
+</details>
+</section>
+
+<h2>How does profile likelihood handle nuisance parameters?</h2>
+
+<p>Most real problems have more than one parameter. The trick is to <em>profile out</em> the nuisance parameters: for each value of the parameter you care about, maximise the likelihood over everything else.</p>
+
+<p>$$\ell_p(\theta) \;=\; \sup_{\eta} \ell(\theta, \eta).$$</p>
+
+<p>Wilks' theorem still applies: $-2(\ell_p(\hat\theta) - \ell_p(\theta_0)) \to \chi^2_r$. The profile likelihood is the engine behind R's <code>confint()</code> for <code>glm</code> objects.</p>
+
+<p>Let's fit a <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> and compare profile-likelihood CIs against Wald CIs.</p>
+
+<div class="webr-container" data-block-title="Profile likelihood CI for Poisson regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Profile likelihood CI for Poisson regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(MASS)
+
+set.seed(31)
+pois_df &lt;- data.frame(
+  x = runif(150, -1, 1)
+)
+pois_df$y &lt;- rpois(150, lambda = exp(0.4 + 1.1 * pois_df$x))
+
+pois_fit &lt;- glm(y ~ x, data = pois_df, family = poisson())
+
+prof_ci &lt;- confint(pois_fit)            # profile likelihood (default for glm)
+wald_ci &lt;- confint.default(pois_fit)    # Wald (normal approx)
+
+list(profile = round(prof_ci, 3), wald = round(wald_ci, 3))
+#&gt; $profile
+#&gt;              2.5 %  97.5 %
+#&gt; (Intercept)  0.265   0.546
+#&gt; x            0.953   1.301
+#&gt;
+#&gt; $wald
+#&gt;              2.5 %  97.5 %
+#&gt; (Intercept)  0.263   0.544
+#&gt; x            0.952   1.301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two intervals agree closely here because $n = 150$ is comfortable for the Wald approximation. They diverge in small samples and near constraint boundaries, where profile likelihood is the better bet.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>confint()</code> on a glm uses profile likelihood, while <code>confint.default()</code> uses Wald.</strong> This silent default switch surprises many users. Check the call you are making: if you want the Wald interval, ask for it explicitly with <code>confint.default(fit)</code>, otherwise R returns the profile-likelihood interval via <code>MASS::confint.glm</code>.</div></div>
+
+<p>For a hand-rolled profile, the recipe is: pick a grid of values for the focal parameter, refit the model with that value held fixed, record the maximised log-likelihood, then compare the deviance to the chi-square cutoff. Here is the profile log-likelihood for the intercept of a logistic model.</p>
+
+<div class="webr-container" data-block-title="Manual profile likelihood for a logistic intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual profile likelihood for a logistic intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(91)
+logit_df &lt;- data.frame(z = rnorm(120))
+logit_df$y &lt;- rbinom(120, 1, plogis(0.7 + 1.4 * logit_df$z))
+
+logit_fit &lt;- glm(y ~ z, data = logit_df, family = binomial())
+
+beta0_grid &lt;- seq(0.0, 1.6, length.out = 60)
+profile_ll &lt;- sapply(beta0_grid, function(b0) {
+  off_fit &lt;- glm(y ~ z + offset(rep(b0, length(y))) - 1,
+                 data = logit_df, family = binomial())
+  as.numeric(logLik(off_fit))
+})
+
+prof_curve &lt;- data.frame(beta0 = beta0_grid, ll = profile_ll)
+ll_max_logit &lt;- max(profile_ll)
+prof_curve$dev &lt;- 2 * (ll_max_logit - prof_curve$ll)
+head(prof_curve[prof_curve$dev &lt;= cutoff, c(&quot;beta0&quot;, &quot;dev&quot;)], 4)
+#&gt;      beta0    dev
+#&gt; 24   0.624  3.512
+#&gt; 25   0.651  2.948
+#&gt; 26   0.678  2.461
+#&gt; 27   0.705  2.052</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>prof_curve</code> reports the deviance from the maximum profile likelihood at that intercept value. Rows with <code>dev &lt;= 3.84</code> are inside the 95% profile CI. The curve is asymmetric around the MLE, which is exactly why profile likelihood is preferred to Wald in skewed problems.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>confint(pois_fit, &quot;x&quot;)</code> to extract just the profile CI for the slope, then compute its width and compare with the Wald CI width from <code>confint.default(pois_fit, &quot;x&quot;)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: profile vs Wald widths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: profile vs Wald widths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prof &lt;- confint(pois_fit, &quot;x&quot;)
+# your code here: ex_wald, ex_widths
+
+# Test:
+ex_widths
+#&gt; Expected: profile width close to but not identical to Wald width</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Profile vs Wald width solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Profile vs Wald width solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prof &lt;- confint(pois_fit, &quot;x&quot;)
+ex_wald &lt;- confint.default(pois_fit, &quot;x&quot;)
+ex_widths &lt;- c(profile = diff(ex_prof), wald = diff(ex_wald))
+ex_widths
+#&gt; profile    wald
+#&gt;  0.348    0.349</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $n = 150$ the Wald approximation is good, so the two widths are within 0.001 of each other. Drop $n$ to 25 and the gap widens.</p>
+
+</details>
+</section>
+
+<h2>When do LRT and pivot methods break down?</h2>
+
+<p>Wilks' theorem and pivot inversion assume regularity. Three failure modes show up often.</p>
+
+<ol>
+
+<li><strong>Boundary parameter spaces.</strong> Variance components, mixing weights, and other parameters constrained to $[0, \infty)$ violate the "interior of $\Theta$" assumption. The LRT statistic becomes a 50:50 mixture of $\chi^2_0$ and $\chi^2_1$ rather than a pure chi-square.</li>
+
+<li><strong>Small samples.</strong> The chi-square calibration is asymptotic. Below $n \approx 30$ for one-parameter models, coverage drifts.</li>
+
+<li><strong>Non-identifiability.</strong> Mixture models with unknown components and certain hidden-variable models break Wilks even at large $n$, because the model dimension is itself ambiguous.</li>
+
+</ol>
+
+<p>We can quantify the small-sample drift with a quick coverage simulation. Compare Wald and LRT CIs for an exponential rate at $n = 8$.</p>
+
+<div class="webr-container" data-block-title="Small-sample coverage of Wald vs LRT">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Small-sample coverage of Wald vs LRT</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+truth   &lt;- 1.5
+n_small &lt;- 8
+
+cov_one &lt;- function() {
+  d &lt;- rexp(n_small, rate = truth)
+  th &lt;- 1 / mean(d)
+  se &lt;- th / sqrt(n_small)
+  wald &lt;- th + c(-1, 1) * qnorm(0.975) * se
+  ll_max &lt;- sum(dexp(d, rate = th, log = TRUE))
+  dd &lt;- function(theta) 2 * (ll_max - sum(dexp(d, rate = theta, log = TRUE))) - cutoff
+  lo &lt;- tryCatch(uniroot(dd, c(1e-3, th))$root, error = function(e) NA)
+  hi &lt;- tryCatch(uniroot(dd, c(th, 50))$root,   error = function(e) NA)
+  c(wald = wald[1] &lt;= truth &amp;&amp; truth &lt;= wald[2],
+    lrt  = !is.na(lo) &amp;&amp; !is.na(hi) &amp;&amp; lo &lt;= truth &amp;&amp; truth &lt;= hi)
+}
+
+cov_table &lt;- rowMeans(replicate(2000, cov_one()), na.rm = TRUE)
+cov_table
+#&gt;   wald    lrt
+#&gt; 0.8775 0.9300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wald undercovers at 87.75% nominal-95%, while LRT covers at 93.00%. Neither hits 95% exactly at $n = 8$, but LRT is markedly closer. As $n$ grows both converge; the asymptotic guarantees only kick in once you are large enough.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A 95% CI is not a 95% CI when assumptions break.</strong> "Coverage" is a frequency over repeated samples, not a property of one interval. If your model violates regularity (boundary, non-identifiability) or your $n$ is too small, the nominal level can lie miles off the achieved level. Always check coverage by simulation when you cannot trust the asymptotics.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the coverage simulation with <code>n_small &lt;- 80</code>. How close does each method get to nominal 95%?</p>
+<div class="webr-container" data-block-title="Your turn: bigger sample coverage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bigger sample coverage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- 80
+# your code here: build ex_cov_table the same way
+
+# Test:
+ex_cov_table
+#&gt; Expected: both methods within ~0.01 of 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Coverage at n=80 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coverage at n=80 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(404)
+ex_n &lt;- 80
+ex_cov_one &lt;- function() {
+  d &lt;- rexp(ex_n, rate = truth)
+  th &lt;- 1 / mean(d)
+  se &lt;- th / sqrt(ex_n)
+  wald &lt;- th + c(-1, 1) * qnorm(0.975) * se
+  ll_max &lt;- sum(dexp(d, rate = th, log = TRUE))
+  dd &lt;- function(theta) 2 * (ll_max - sum(dexp(d, rate = theta, log = TRUE))) - cutoff
+  lo &lt;- uniroot(dd, c(1e-3, th))$root
+  hi &lt;- uniroot(dd, c(th, 50))$root
+  c(wald = wald[1] &lt;= truth &amp;&amp; truth &lt;= wald[2],
+    lrt  = lo &lt;= truth &amp;&amp; truth &lt;= hi)
+}
+ex_cov_table &lt;- rowMeans(replicate(2000, ex_cov_one()))
+ex_cov_table
+#&gt;   wald    lrt
+#&gt; 0.9395  0.9505</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At $n = 80$ both methods are very close to nominal, with LRT slightly closer. The asymptotic story is reliable here.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: LRT-based CI for a Bernoulli proportion</h3>
+
+<p>Simulate 50 Bernoulli draws with success probability 0.3, fit the MLE, and build the LRT-based 95% CI for $p$ using <code>uniroot()</code> on the deviance equation. Compare its width to the Wald CI $\hat p \pm 1.96 \sqrt{\hat p(1-\hat p)/n}$.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(81)
+my_bern &lt;- rbinom(50, size = 1, prob = 0.3)
+
+# Hint: write neg_ll_bern(p) &lt;- -sum(dbinom(my_bern, 1, p, log = TRUE))
+#       cutoff is qchisq(0.95, 1)
+# Build my_lrt_ci and my_wald_ci, then compare diff() of each.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bernoulli LRT CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bernoulli LRT CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(81)
+my_bern &lt;- rbinom(50, size = 1, prob = 0.3)
+my_phat &lt;- mean(my_bern)
+
+ll_bern &lt;- function(p) sum(dbinom(my_bern, 1, p, log = TRUE))
+my_llmax &lt;- ll_bern(my_phat)
+
+dev_p &lt;- function(p) 2 * (my_llmax - ll_bern(p)) - qchisq(0.95, 1)
+my_lrt_ci &lt;- c(uniroot(dev_p, c(1e-4, my_phat))$root,
+               uniroot(dev_p, c(my_phat, 1 - 1e-4))$root)
+
+se_w  &lt;- sqrt(my_phat * (1 - my_phat) / length(my_bern))
+my_wald_ci &lt;- my_phat + c(-1, 1) * qnorm(0.975) * se_w
+
+list(lrt = my_lrt_ci, wald = my_wald_ci,
+     widths = c(lrt = diff(my_lrt_ci), wald = diff(my_wald_ci)))
+#&gt; $lrt
+#&gt; [1] 0.1736 0.4426
+#&gt; $wald
+#&gt; [1] 0.1659 0.4341
+#&gt; $widths
+#&gt;    lrt   wald
+#&gt;  0.269  0.268</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The LRT CI for a proportion is asymmetric and stays inside [0, 1] by construction, which is the key reason it is preferred over Wald near the boundaries 0 or 1.</p>
+
+</details>
+
+<h3>Exercise 2: Profile likelihood CI for a gamma shape</h3>
+
+<p>Simulate 100 draws from <code>rgamma(100, shape = 2.5, rate = 1)</code> and build the profile likelihood CI for the <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">shape parameter</a>, profiling out the rate. Use <code>optimize()</code> for the inner maximisation.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+my_gamma &lt;- rgamma(100, shape = 2.5, rate = 1)
+
+# Hint:
+#   For each shape on a grid, max over rate using optimize().
+#   Profile log-lik = max log-lik at that shape.
+#   Find the shape grid points where profile_dev &lt;= qchisq(0.95, 1).
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Gamma profile CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gamma profile CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(15)
+my_gamma &lt;- rgamma(100, shape = 2.5, rate = 1)
+
+profile_at &lt;- function(sh) {
+  obj &lt;- function(rt) -sum(dgamma(my_gamma, shape = sh, rate = rt, log = TRUE))
+  optimize(obj, c(1e-3, 50))$objective * -1
+}
+
+shape_grid &lt;- seq(1.6, 3.6, length.out = 100)
+prof_ll    &lt;- sapply(shape_grid, profile_at)
+my_max     &lt;- max(prof_ll)
+in_set     &lt;- shape_grid[2 * (my_max - prof_ll) &lt;= qchisq(0.95, 1)]
+range(in_set)
+#&gt; [1] 1.964 3.151</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The CI 1.96 to 3.15 covers the truth 2.5 and uses the profile log-likelihood that has rate concentrated out. Wilks' theorem still calibrates the cutoff because shape is one-dimensional.</p>
+
+</details>
+
+<h3>Exercise 3: A generic test-inversion function</h3>
+
+<p>Write <code>invert_test(pivot_fn, x, alpha = 0.05, search = c(-50, 50))</code> that takes a pivot function returning a p-value for <code>H0: theta = theta0</code> given data <code>x</code>, and returns the 1 - alpha confidence set by inverting at the boundary. Test it on the Z-pivot for a normal mean with known $\sigma = 1$.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_x &lt;- rnorm(40, 3, 1)
+
+# Hint: pivot_fn(theta0, x) returns a p-value.
+#       Invert it: find theta0 where pivot_fn = alpha (boundary of acceptance).
+#       Use uniroot() on each side of the MLE.
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Generic invert_test solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generic invert_test solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(8)
+my_x &lt;- rnorm(40, 3, 1)
+
+invert_test &lt;- function(pivot_fn, x, alpha = 0.05, search = c(-50, 50)) {
+  mle  &lt;- mean(x)
+  root &lt;- function(side) {
+    f &lt;- function(t0) pivot_fn(t0, x) - alpha
+    uniroot(f, c(if (side == &quot;lo&quot;) search[1] else mle,
+                 if (side == &quot;lo&quot;) mle      else search[2]))$root
+  }
+  c(root(&quot;lo&quot;), root(&quot;hi&quot;))
+}
+
+z_pivot &lt;- function(theta0, x) {
+  z &lt;- (mean(x) - theta0) / (1 / sqrt(length(x)))
+  2 * pnorm(-abs(z))
+}
+
+invert_test(z_pivot, my_x)
+#&gt; [1] 2.7064 3.3260
+mean(my_x) + c(-1, 1) * qnorm(0.975) / sqrt(length(my_x))
+#&gt; [1] 2.7064 3.3260</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The inverter recovers the analytic Z-CI exactly, because the boundary of a two-sided test acceptance region is the closed-form CI. The same <code>invert_test()</code> works for any pivot you can evaluate as a p-value.</p>
+
+</details>
+
+<h2>Complete Example</h2>
+
+<p>Tie everything together on a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>. Generate data, fit the model, and report Wald, profile likelihood, and LRT-based inference side by side.</p>
+
+<div class="webr-container" data-block-title="Logistic regression: complete inference workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic regression: complete inference workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+demo_df &lt;- data.frame(x = rnorm(180))
+demo_df$y &lt;- rbinom(180, 1, plogis(-0.5 + 1.6 * demo_df$x))
+
+demo_fit  &lt;- glm(y ~ x, data = demo_df, family = binomial())
+null_fit  &lt;- glm(y ~ 1, data = demo_df, family = binomial())
+
+# 1. Wald CI for slope
+wald_slope &lt;- confint.default(demo_fit, &quot;x&quot;)
+
+# 2. Profile likelihood CI for slope
+prof_slope &lt;- confint(demo_fit, &quot;x&quot;)
+
+# 3. LRT for slope = 0 (compare nested models)
+lrt_anova &lt;- anova(null_fit, demo_fit, test = &quot;LRT&quot;)
+
+list(
+  wald     = round(wald_slope, 3),
+  profile  = round(prof_slope, 3),
+  lrt_stat = round(lrt_anova$Deviance[2], 3),
+  lrt_pval = signif(lrt_anova$`Pr(&gt;Chi)`[2], 3)
+)
+#&gt; $wald
+#&gt;     2.5 %  97.5 %
+#&gt; x   1.207   2.011
+#&gt; $profile
+#&gt;     2.5 %  97.5 %
+#&gt; x   1.215   2.025
+#&gt; $lrt_stat
+#&gt; [1] 73.882
+#&gt; $lrt_pval
+#&gt; [1] 8.31e-18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three views agree: the slope is far from zero, with a 95% CI roughly $[1.2, 2.0]$ from either Wald or profile likelihood, and the LRT against the null model returns a chi-square statistic of 73.88 on 1 df, with a p-value below $10^{-17}$. Now plot the deviance curve so you can <em>see</em> the LRT confidence interval.</p>
+
+<div class="webr-container" data-block-title="Visualise the LRT CI for the slope">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualise the LRT CI for the slope</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">beta_grid &lt;- seq(0.8, 2.4, length.out = 200)
+prof_dev  &lt;- sapply(beta_grid, function(b) {
+  off_fit &lt;- glm(y ~ offset(b * x), data = demo_df, family = binomial())
+  2 * (as.numeric(logLik(demo_fit)) - as.numeric(logLik(off_fit)))
+})
+
+plot(beta_grid, prof_dev, type = &quot;l&quot;,
+     xlab = &quot;slope (beta)&quot;, ylab = &quot;profile deviance&quot;)
+abline(h = qchisq(0.95, 1), lty = 2)
+abline(v = prof_slope, lty = 3, col = &quot;steelblue&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line is the chi-square(1) cutoff; the dotted vertical lines are the profile CI endpoints reported by <code>confint()</code>. The slope values where the deviance curve dips below the cutoff are the ones we cannot reject. That parabolic-looking dip is the entire content of the 95% LRT confidence interval.</p>
+
+<h2>Summary</h2>
+
+<p>Three machineries produce frequentist confidence sets, with overlapping but distinct strengths.</p>
+
+<p><img src="screenshots/Likelihood-Ratio-Tests-and-Pivotal-Methods-overview.webp" alt="Confidence sets toolkit overview" class="img-responsive img-zoomable" loading="lazy" width="1960" height="874" /></p>
+
+<p><em>Figure 3: The three machineries that produce confidence sets in classical statistics.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>When to use</th>
+<th>R entry point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pivotal quantity</td>
+<td>Closed-form pivot exists ($Z$, $T$, chi-square for variance)</td>
+<td><code>t.test</code>, <code>qchisq</code>, hand inversion</td>
+</tr>
+<tr>
+<td>LRT inversion</td>
+<td>Likelihood is smooth, scalar parameter, no clean pivot</td>
+<td><code>optim</code> + <code>uniroot</code> on the deviance</td>
+</tr>
+<tr>
+<td>Profile likelihood</td>
+<td>Multi-parameter model with nuisance parameters</td>
+<td><code>confint(glm_fit)</code>, <code>MASS::confint.glm</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The unifying ideas:</p>
+
+<ul>
+
+<li>The likelihood ratio statistic $-2 \log \Lambda$ is asymptotically chi-square under regularity (Wilks' theorem).</li>
+
+<li>A pivotal quantity has a parameter-free distribution and lets you state probability claims about the data-parameter combo.</li>
+
+<li>Confidence sets are exactly the not-yet-rejected parameter values from a family of size-$\alpha$ tests.</li>
+
+<li>When asymptotic regularity fails (boundaries, small $n$, non-identifiability) coverage drifts, so simulate.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tests and confidence sets are <em>the same object</em> viewed from different angles.</strong> Once you internalise the duality, you stop memorising CI formulas and start reading them as inverted tests. This is why pivot CIs, LRT CIs, and profile-likelihood CIs all share the same skeleton.</div></div>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Casella, G. & Berger, R. L. <em>Statistical Inference</em>, 2nd ed., Duxbury, 2002. Chapter 8 (<a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">hypothesis testing</a>) and Chapter 9 (interval estimation). <a href="https://duxbury.cengage.com">Link</a></li>
+
+<li>Lehmann, E. L. & Romano, J. P. <em>Testing Statistical Hypotheses</em>, 4th ed., Springer, 2022. <a href="https://link.springer.com/book/10.1007/978-3-030-70578-7">Link</a></li>
+
+<li>Wilks, S. S. "The large-sample distribution of the likelihood ratio for testing composite hypotheses," <em>Annals of Mathematical Statistics</em>, 1938. <a href="https://projecteuclid.org/journals/annals-of-mathematical-statistics/volume-9/issue-1/The-Large-Sample-Distribution-of-the-Likelihood-Ratio-for-Testing/10.1214/aoms/1177732360.full">Link</a></li>
+
+<li>Cox, D. R. & Hinkley, D. V. <em>Theoretical Statistics</em>, Chapman and Hall, 1974.</li>
+
+<li>Pawitan, Y. <em>In All Likelihood: Statistical Modelling and Inference Using Likelihood</em>, Oxford University Press, 2013.</li>
+
+<li>Cowan, G., Cranmer, K., Gross, E. & Vitells, O. "Asymptotic formulae for likelihood-based tests of new physics," <em>European Physical Journal C</em>, 2011. <a href="https://arxiv.org/abs/1007.1727">Link</a></li>
+
+<li><a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R Documentation</a>, <code>stats::confint</code> and <code>MASS::confint.glm</code>. <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/confint.html">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Neyman-Pearson-Lemma-in-R-2.html">Neyman-Pearson Lemma in R</a>: the optimality story behind likelihood ratio tests for simple hypotheses.</li>
+
+<li><a href="Asymptotic-Theory-in-R-2.html">Asymptotic Theory in R</a>: the convergence machinery (consistency, <a class="auto-link" href="Asymptotic-Theory-in-R.html" title="Asymptotic Theory in R: Consistency, Asymptotic Normality & Delta Method">asymptotic normality</a>, the delta method) that underwrites Wilks' theorem.</li>
+
+<li><a href="Cramer-Rao-Lower-Bound-in-R-2.html">Cramer-Rao Lower Bound</a>: Fisher information, the variance bound for unbiased estimators, and the connection to MLE efficiency.</li>
+
+</ul>
