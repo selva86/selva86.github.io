@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/main.min.css?h=34f60765">
+<link rel="stylesheet" href="/css/main.min.css?h=a865cdcd">
 <style>
   :root{
     --c-text:#0d1117;--c-text-soft:#4a5160;--c-text-mute:#757a87;
@@ -311,6 +311,10 @@
 
   <!-- Flavor picker -->
   <div class="flavor-picker" id="flavor-picker"></div>
+
+  <!-- Context band — narrative + scenario chips for the active flavor.
+       Re-rendered by renderContextBand() whenever the flavor changes. -->
+  <div class="context-band" id="context-band"></div>
 
   <!-- Workshop -->
   <div class="workshop">
@@ -672,6 +676,186 @@ function renderFlavorPicker(){
 function setFlavor(k){
   activeFlavor = k;
   renderFlavorPicker();
+  renderInputs();
+  renderContextBand();
+  recompute();
+}
+
+// ============================================================
+// Context band — connects the abstract flavor to a real-world use,
+// shows which input plays which role, and offers click-to-load
+// scenarios so the user can explore concrete examples.
+// ============================================================
+const FLAVOR_CONTEXT = {
+  mean: {
+    titleSuffix: 'CI for a single mean',
+    useCase: 'You measured a numeric value on a sample (test scores, weights, response times) and want a range for the true population average.',
+    inputMap: [
+      { code: 'n',  desc: 'sample size' },
+      { code: 'x̄', desc: 'sample mean' },
+      { code: 's',  desc: 'sample standard deviation' },
+    ],
+    output: 'A range like 67.9 to 76.1 with 95% confidence — the band of plausible values for the true mean.',
+    scenarios: [
+      { name: 'Test scores · n=30, mean=72, SD=11',     state: { n: 30,  mean: 72,    sd: 11    } },
+      { name: 'Lab weights · n=12, mean=4.85, SD=0.34', state: { n: 12,  mean: 4.85,  sd: 0.34  } },
+      { name: 'Response time · n=120, mean=240, SD=58', state: { n: 120, mean: 240,   sd: 58    } },
+      { name: 'Customer ratings · n=50, mean=4.2, SD=0.8', state: { n: 50, mean: 4.2, sd: 0.8 } },
+    ],
+  },
+  diffmean: {
+    titleSuffix: 'CI for a difference of means',
+    useCase: 'You compared two groups (control vs treatment, before vs after) on a numeric outcome and want a range for the true gap.',
+    inputMap: [
+      { code: 'n₁ x̄₁ s₁', desc: 'group 1 size, mean, SD' },
+      { code: 'n₂ x̄₂ s₂', desc: 'group 2 size, mean, SD' },
+      { code: 'paired',     desc: 'switch sub-mode if it\'s the same subjects pre/post' },
+    ],
+    output: 'A range like (2.1, 5.7) with 95% confidence — plausible values for the true between-group difference.',
+    scenarios: [
+      { name: 'Drug vs placebo · 50/50, Δ=4',     state: { sub:'indep', n1:50, m1:72, s1:11, n2:50, m2:68, s2:9, welch:true } },
+      { name: 'A/B test (continuous) · 200/200',  state: { sub:'indep', n1:200, m1:42, s1:18, n2:200, m2:46, s2:22, welch:true } },
+      { name: 'Before/after · 25 pairs',          state: { sub:'paired', paired_n:25, paired_md:3.2, paired_sd:5.5 } },
+      { name: 'Method A vs B · small, n=12 ea.',  state: { sub:'indep', n1:12, m1:8.5, s1:1.2, n2:12, m2:9.1, s2:1.6, welch:true } },
+    ],
+  },
+  prop: {
+    titleSuffix: 'CI for a single proportion',
+    useCase: 'You measured a yes/no outcome on a sample (conversions, defects, recommend rate) and want a range for the true population rate.',
+    inputMap: [
+      { code: 'x', desc: 'number of "yes" outcomes' },
+      { code: 'n', desc: 'total sample size' },
+    ],
+    output: 'A range like 19% to 38% with 95% confidence, plus side-by-side Wilson, Wald, Clopper-Pearson and others.',
+    scenarios: [
+      { name: 'Survey · 28 yes of 100',          state: { x: 28, n: 100  } },
+      { name: 'QC: defects · 5 of 200',          state: { x: 5,  n: 200  } },
+      { name: 'Conversion · 47 of 1000',         state: { x: 47, n: 1000 } },
+      { name: 'Pass rate · 95 of 120 students',  state: { x: 95, n: 120  } },
+    ],
+  },
+  diffprop: {
+    titleSuffix: 'CI for a difference of proportions',
+    useCase: 'You compared yes/no rates between two groups (A/B test, treated vs untreated) and want a range for the true gap. Independent samples by default; paired (McNemar) for the same subjects measured twice.',
+    inputMap: [
+      { code: 'x₁ n₁', desc: 'group 1: yeses / total' },
+      { code: 'x₂ n₂', desc: 'group 2: yeses / total' },
+      { code: 'paired', desc: 'switch sub-mode for matched-pair or pre/post yes-no data' },
+    ],
+    output: 'A range like (0.04, 0.16) for the true difference — plus McNemar χ² when paired.',
+    scenarios: [
+      { name: 'A/B test · 120/1000 vs 150/1000',   state: { sub:'indep', x1:120, n1:1000, x2:150, n2:1000 } },
+      { name: 'Trial: cure rate · 32/50 vs 18/45', state: { sub:'indep', x1:32,  n1:50,   x2:18,  n2:45   } },
+      { name: 'Paired: pre/post · b=15, c=5, n=50', state: { sub:'paired', n_yy:25, b:15, c:5, n_nn:5 } },
+      { name: 'Page-A vs Page-B · 230/2000 each',  state: { sub:'indep', x1:230, n1:2000, x2:280, n2:2000 } },
+    ],
+  },
+  regbeta: {
+    titleSuffix: 'CI for a regression coefficient',
+    useCase: 'You ran a regression and want a CI for one of the slopes (β). For logistic regression, toggle "Show exp(β) CI" to get the odds ratio.',
+    inputMap: [
+      { code: 'β̂',  desc: 'estimated coefficient (from summary())' },
+      { code: 'SE', desc: 'standard error of β̂' },
+      { code: 'df', desc: 'residual degrees of freedom' },
+    ],
+    output: 'A range like (0.18, 0.43) for β. Doesn\'t cross 0 → significant at the chosen level. Toggle exp(β) for log-link models.',
+    scenarios: [
+      { name: 'OLS slope · β=0.31, SE=0.07, df=145', state: { beta: 0.31, se: 0.07, df: 145 } },
+      { name: 'Logistic · β=0.85, SE=0.21, df=298',   state: { beta: 0.85, se: 0.21, df: 298, expBeta: true } },
+      { name: 'Small-n · β=2.1, SE=0.9, df=18',       state: { beta: 2.1,  se: 0.9,  df: 18  } },
+      { name: 'Tiny effect · β=0.04, SE=0.03, df=500',state: { beta: 0.04, se: 0.03, df: 500 } },
+    ],
+  },
+  poisson: {
+    titleSuffix: 'CI for a Poisson rate',
+    useCase: 'You counted events over a fixed exposure (incidents per 1000 patient-days, errors per shift) and want a CI for the true rate.',
+    inputMap: [
+      { code: 'x', desc: 'observed event count' },
+      { code: 'T', desc: 'exposure (time, area, person-years)' },
+    ],
+    output: 'An exact (Garwood/χ²) CI for the rate λ̂ = x/T, plus a Wald CI for comparison.',
+    scenarios: [
+      { name: 'Adverse events · 7 in 1000 person-yr', state: { x: 7,   T: 1000 } },
+      { name: 'Defects per shift · 12 in 80 hrs',     state: { x: 12,  T: 80   } },
+      { name: 'Rare event · 1 in 250',                state: { x: 1,   T: 250  } },
+      { name: 'High count · 84 in 14 days',           state: { x: 84,  T: 14   } },
+    ],
+  },
+  variance: {
+    titleSuffix: 'CI for a variance / SD',
+    useCase: 'You want to bound how spread out a population is (process variability, measurement noise). Assumes the underlying data are roughly normal — sensitive to that assumption.',
+    inputMap: [
+      { code: 'n', desc: 'sample size' },
+      { code: 's', desc: 'sample standard deviation' },
+    ],
+    output: 'A χ²-based CI for variance, plus its square root for SD. Don\'t trust if a Q-Q plot looks bad.',
+    scenarios: [
+      { name: 'Process · n=30, SD=2.4',  state: { n: 30, sd: 2.4 } },
+      { name: 'Lab · n=12, SD=0.34',     state: { n: 12, sd: 0.34 } },
+      { name: 'Survey · n=120, SD=0.8',  state: { n: 120, sd: 0.8 } },
+      { name: 'Small-n · n=8, SD=5.2',   state: { n: 8,  sd: 5.2 } },
+    ],
+  },
+  corr: {
+    titleSuffix: 'CI for a correlation',
+    useCase: 'You computed a correlation between two variables and want a CI for the true population value. Pick Pearson, Spearman, or Kendall to match the test you ran.',
+    inputMap: [
+      { code: 'r',     desc: 'observed correlation, between -1 and +1' },
+      { code: 'n',     desc: 'pairs of observations' },
+      { code: 'method', desc: 'Pearson (default), Spearman, or Kendall' },
+    ],
+    output: 'A Fisher-z CI like (0.21, 0.62) for Pearson/Spearman, or a Fieller-form CI for Kendall.',
+    scenarios: [
+      { name: 'Strong positive · r=0.65, n=40',   state: { r: 0.65, n: 40,  method:'pearson' } },
+      { name: 'Weak association · r=0.18, n=200', state: { r: 0.18, n: 200, method:'pearson' } },
+      { name: 'Spearman rank · r=0.42, n=60',     state: { r: 0.42, n: 60,  method:'spearman' } },
+      { name: 'Kendall · τ=0.29, n=80',           state: { r: 0.29, n: 80,  method:'kendall'  } },
+    ],
+  },
+};
+
+function renderContextBand(){
+  const band = $('context-band');
+  if (!band) return;
+  const ctx = FLAVOR_CONTEXT[activeFlavor];
+  if (!ctx){
+    band.innerHTML = '';
+    band.style.display = 'none';
+    return;
+  }
+  const flavorName = (FLAVORS.find(f => f.key === activeFlavor) || {}).name || activeFlavor;
+  const inputMapHtml = ctx.inputMap.map(m =>
+    `<li><code>${m.code}</code>${m.desc}</li>`
+  ).join('');
+  const scenarioHtml = ctx.scenarios.map((sc, i) =>
+    `<button class="scenario-btn" type="button" onclick="applyFlavorScenario(${i})">${sc.name}</button>`
+  ).join('');
+  band.innerHTML = `
+    <div class="context-band-eyebrow">${flavorName.toUpperCase()} · ${ctx.titleSuffix}</div>
+    <div class="context-band-grid">
+      <div>
+        <h4>Use when</h4>
+        <p>${ctx.useCase}</p>
+        <h4>In your inputs</h4>
+        <ul class="input-map">${inputMapHtml}</ul>
+        <h4>What you'll get</h4>
+        <p>${ctx.output}</p>
+      </div>
+      <div>
+        <h4>Try a scenario</h4>
+        <div class="scenario-list">${scenarioHtml}</div>
+      </div>
+    </div>
+  `;
+  band.style.display = '';
+}
+
+function applyFlavorScenario(idx){
+  const ctx = FLAVOR_CONTEXT[activeFlavor];
+  if (!ctx) return;
+  const sc = ctx.scenarios[idx];
+  if (!sc) return;
+  Object.assign(state[activeFlavor], sc.state);
   renderInputs();
   recompute();
 }
@@ -1372,6 +1556,7 @@ function loadScenario(key){
   }
   renderFlavorPicker();
   renderInputs();
+  renderContextBand();
   recompute();
   toast(`Loaded: ${s.name}`);
 }

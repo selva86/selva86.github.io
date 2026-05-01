@@ -1753,6 +1753,31 @@ def patch_tool_pages(sections, asset_hrefs):
     body_open_re = re.compile(r'<body[^>]*>', re.IGNORECASE)
     body_close_re = re.compile(r'</body>', re.IGNORECASE)
 
+    main_css_hash_re = re.compile(
+        r'(<link[^>]+href="/[^"]*main(?:\.min)?\.css)\?h=[a-f0-9]+',
+        re.IGNORECASE,
+    )
+    toc_js_hash_re = re.compile(
+        r'(<script[^>]+src="/[^"]*toc(?:\.min)?\.js)\?h=[a-f0-9]+',
+        re.IGNORECASE,
+    )
+
+    def _refresh_cache_busts(html):
+        """Update the ?h= query strings on main.css / toc.js links so
+        already-patched tools pick up newly-built assets."""
+        new_main = '/' + main_css_href
+        new_toc = '/' + toc_js_href
+        # Just bump the existing ?h= portions to match what asset_hrefs has.
+        new_html = main_css_hash_re.sub(lambda m: m.group(1) + (
+            new_main.split('?', 1)[1] if '?' in new_main else ''
+        ).replace('h=', '?h=') if '?h=' in new_main else m.group(1), html)
+        # Simpler: just replace the entire main.css link with the fresh href
+        link_re = re.compile(r'<link rel="stylesheet" href="/[^"]*main(?:\.min)?\.css[^"]*">', re.IGNORECASE)
+        new_html = link_re.sub(f'<link rel="stylesheet" href="/{main_css_href}">', new_html, count=1)
+        toc_link_re = re.compile(r'<script defer src="/[^"]*toc(?:\.min)?\.js[^"]*"></script>', re.IGNORECASE)
+        new_html = toc_link_re.sub(f'<script defer src="/{toc_js_href}"></script>', new_html, count=1)
+        return new_html
+
     for fname in sorted(os.listdir(tools_dir)):
         if not fname.endswith('.html'):
             continue
@@ -1760,8 +1785,14 @@ def patch_tool_pages(sections, asset_hrefs):
         with open(path, encoding='utf-8') as f:
             html = f.read()
 
-        # Skip if already patched (idempotent)
+        # Already-patched tools: just refresh the cache-bust hashes so the
+        # browser picks up newly-rebuilt main.css / toc.js. Skip the rest
+        # of the (idempotent) injection.
         if 'data-tool-chrome="injected"' in html:
+            new_html = _refresh_cache_busts(html)
+            if new_html != html:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(new_html)
             continue
 
         # 1. Inject main.css link BEFORE the tool's inline <style>, so the
