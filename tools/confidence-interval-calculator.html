@@ -346,6 +346,15 @@
   .shell > details.section > summary{list-style:none !important;cursor:pointer;padding:22px 28px;display:flex;align-items:center;gap:12px;transition:background 0.12s;background:transparent !important;border-bottom:none}
   .shell > details.section > summary::-webkit-details-marker{display:none !important}
   .shell > details.section > summary::marker{content:'' !important}
+  /* Chevron on the LEFT of summary text (mock has it on the right but
+     user prefers left). The default ::after rule from main.css is
+     overridden to none; ::before injects the marker before content. */
+  .shell > details.section > summary::after{content:none !important}
+  .shell > details.section > summary::before{content:'▸';font-size:14px;color:var(--c-text-mute);transition:transform 0.18s;display:inline-block;margin-right:2px;flex-shrink:0}
+  .shell > details.section[open] > summary::before{transform:rotate(90deg)}
+  /* Tight stacking: make adjacent details flush — no double-line gap. */
+  .shell > details.section + details.section{border-top:1px solid var(--c-border-soft)}
+  .shell > details.section{margin:0}
   .shell > details.section > summary::-webkit-details-marker{display:none}
   .shell > details.section > summary::after{content:'▸';margin-left:auto;font-size:14px;color:var(--c-text-mute);transition:transform 0.18s}
   .shell > details.section[open] > summary::after{transform:rotate(90deg)}
@@ -1325,7 +1334,15 @@ function renderVizSliders(){
   const container = document.getElementById('viz-sliders');
   if (!cfg || !container){ if(container) container.innerHTML=''; return; }
   const ranges = cfg.ranges(vizState);
-  container.innerHTML = cfg.inputs.map(inp => {
+  // Confidence-level control (drives the page-level confLevel so the
+  // workshop's column-C output stays in sync with the plot).
+  const confRow = `
+    <div class="viz-slider-row">
+      <label><span class="vsym">α</span>conf</label>
+      <input type="range" min="0.50" max="0.999" step="0.005" value="${confLevel}" oninput="onVizConf(this.value)">
+      <span class="vval" id="viz-val-conf">${(confLevel*100).toFixed(1)}%</span>
+    </div>`;
+  container.innerHTML = confRow + cfg.inputs.map(inp => {
     const range = ranges[inp.key] || [0, 100];
     const min = range[0], max = range[1];
     const step = inp.step || (inp.decimals ? Math.pow(10, -inp.decimals) : (max-min)/100);
@@ -1337,6 +1354,18 @@ function renderVizSliders(){
         <span class="vval" id="viz-val-${inp.key}">${fmtViz(val, inp.decimals)}</span>
       </div>`;
   }).join('');
+}
+
+function onVizConf(v){
+  const c = +v;
+  if (!isFinite(c) || c <= 0 || c >= 1) return;
+  confLevel = c;
+  document.querySelectorAll('.conf-btn').forEach(b => b.classList.toggle('active', Math.abs(parseFloat(b.dataset.conf) - c) < 1e-6));
+  if ($('conf-custom')) $('conf-custom').value = '';
+  document.getElementById('viz-val-conf').textContent = (c*100).toFixed(1) + '%';
+  renderBannerSentence();
+  recompute();
+  drawVizChart();
 }
 
 function onVizSlide(key, val){
