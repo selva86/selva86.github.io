@@ -1183,6 +1183,62 @@ def update_sitemap(filenames):
             print(f"  Sitemap: updated lastmod for {len(updated)} entries")
 
 
+def update_sitemap_tools():
+    """Append every tools/*.html page (and the /tools/ landing) to sitemap.xml.
+    Tools get priority 0.9 (above 0.8 tutorial default) and refresh on each
+    build so newly added tools propagate without manual sitemap edits."""
+    if not os.path.exists(SITEMAP_PATH):
+        return
+    tools_dir = os.path.join(REPO_ROOT, 'tools')
+    if not os.path.isdir(tools_dir):
+        return
+    with open(SITEMAP_PATH, 'r', encoding='utf-8') as f:
+        sitemap = f.read()
+    today = datetime.date.today().isoformat()
+    added = []
+    inserts = []
+    # Landing first (priority 1.0)
+    landing = 'https://r-statistics.co/tools/'
+    if landing not in sitemap:
+        inserts.append(
+            f'  <url>\n'
+            f'    <loc>{landing}</loc>\n'
+            f'    <changefreq>weekly</changefreq>\n'
+            f'    <lastmod>{today}</lastmod>\n'
+            f'    <priority>1.0</priority>\n'
+            f'  </url>\n'
+        )
+        added.append('tools/')
+    for fn in sorted(os.listdir(tools_dir)):
+        if not fn.endswith('.html'):
+            continue
+        url = f'https://r-statistics.co/tools/{fn}'
+        path = os.path.join(tools_dir, fn)
+        file_date = datetime.date.fromtimestamp(os.path.getmtime(path)).isoformat()
+        if url not in sitemap:
+            inserts.append(
+                f'  <url>\n'
+                f'    <loc>{url}</loc>\n'
+                f'    <changefreq>monthly</changefreq>\n'
+                f'    <lastmod>{file_date}</lastmod>\n'
+                f'    <priority>0.9</priority>\n'
+                f'  </url>\n'
+            )
+            added.append(fn)
+        else:
+            # Refresh lastmod on existing entries
+            pattern = re.compile(
+                r'(<loc>' + re.escape(url) + r'</loc>\s*\n\s*<changefreq>\w+</changefreq>\s*\n\s*<lastmod>)\d{4}-\d{2}-\d{2}(</lastmod>)'
+            )
+            sitemap = pattern.sub(r'\g<1>' + file_date + r'\2', sitemap)
+    if inserts:
+        sitemap = sitemap.replace('</urlset>', ''.join(inserts) + '</urlset>')
+    with open(SITEMAP_PATH, 'w', encoding='utf-8') as f:
+        f.write(sitemap)
+    if added:
+        print(f"  Sitemap: registered {len(added)} tool entries")
+
+
 _ROOT_META_DESC_RE = re.compile(
     r'<meta\s+name=["\']?[Dd]escription["\']?\s+content=["\']([^"\']*)["\']',
     re.IGNORECASE,
@@ -2111,6 +2167,7 @@ def main():
     # Sitemap and feed always regenerate from the full post_files list —
     # they are cheap and must stay in sync with what actually exists on disk.
     update_sitemap(sorted(post_files))
+    update_sitemap_tools()
     generate_feed(sorted(post_files))
     patch_homepage_sidebar(sidebar_sections)
     patch_tool_pages(sidebar_sections, asset_hrefs)
