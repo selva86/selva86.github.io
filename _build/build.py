@@ -1880,9 +1880,25 @@ def patch_tool_pages(sections, asset_hrefs):
         )
         html = body_open_re.sub(lambda m: m.group(0) + wrapper_open, html, count=1)
 
-        # 4. Close the wrapper + append toc.js before </body>.
+        # 4. Close the wrapper + append toc.js before </body>. Inline tab
+        #    handler so the Posts/Tools sidebar tabs work even when Ezoic
+        #    Leap strips our external <script src=...> tags.
+        inline_tab_handler = (
+            "<script>"
+            "(function(){function w(){var t=document.querySelectorAll('.sidebar-tab'),p=document.querySelectorAll('.sidebar-panel');"
+            "if(!t.length||!p.length)return false;"
+            "function a(n){t.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-tab')===n)});p.forEach(function(x){x.classList.toggle('active',x.getAttribute('data-panel')===n)})}"
+            "var tp=location.pathname.indexOf('/tools/')===0;"
+            "if(tp){a('tools')}else{try{var pin=localStorage.getItem('rstat_sidebar_tab');if(pin==='tools'||pin==='posts')a(pin)}catch(e){}}"
+            "t.forEach(function(x){if(x.dataset.wired)return;x.dataset.wired='1';"
+            "x.addEventListener('click',function(){var n=x.getAttribute('data-tab');a(n);try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}})});"
+            "return true}"
+            "if(!w()){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',w);else setTimeout(w,50)}})();"
+            "</script>"
+        )
         wrapper_close = (
             f'</main></div>'
+            f'{inline_tab_handler}'
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
         )
