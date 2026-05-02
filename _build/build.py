@@ -820,11 +820,11 @@ def make_webr_head_block(asset_hrefs):
 def make_webr_body_block(asset_hrefs):
     webr_js = asset_hrefs.get('webr-init.js', 'www/webr-init.js')
     editor_js = asset_hrefs.get('editor-bundle.js', f'www/{EDITOR_BUNDLE_NAME}')
-    # Both defer — executes in DOM order after parse, so the bundle defines
-    # window.CodeJar + window.Prism before webr-init uses them.
+    # No defer — Ezoic Leap strips deferred scripts on tutorial pages.
+    # Bundle loads first so window.CodeJar + window.Prism exist before webr-init runs.
     return (
-        f'  <script defer src="{editor_js}"></script>\n'
-        f'  <script defer src="{webr_js}"></script>\n'
+        f'  <script src="{editor_js}"></script>\n'
+        f'  <script src="{webr_js}"></script>\n'
     )
 
 
@@ -838,7 +838,7 @@ def make_engagement_head_block(asset_hrefs):
 
 def make_engagement_body_block(asset_hrefs):
     eng_js = asset_hrefs.get('engagement.js', 'www/engagement.js')
-    return f'    <script defer src="{eng_js}"></script>'
+    return f'    <script src="{eng_js}"></script>'
 
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"
@@ -1815,13 +1815,13 @@ def patch_tool_pages(sections, asset_hrefs):
         # Simpler: just replace the entire main.css link with the fresh href
         link_re = re.compile(r'<link rel="stylesheet" href="/[^"]*main(?:\.min)?\.css[^"]*">', re.IGNORECASE)
         new_html = link_re.sub(f'<link rel="stylesheet" href="/{main_css_href}">', new_html, count=1)
-        toc_link_re = re.compile(r'<script defer src="/[^"]*toc(?:\.min)?\.js[^"]*"></script>', re.IGNORECASE)
-        new_html = toc_link_re.sub(f'<script defer src="/{toc_js_href}"></script>', new_html, count=1)
+        toc_link_re = re.compile(r'<script(?:\s+defer)?\s+src="/[^"]*toc(?:\.min)?\.js[^"]*"></script>', re.IGNORECASE)
+        new_html = toc_link_re.sub(f'<script src="/{toc_js_href}"></script>', new_html, count=1)
         # Inject the runtime R syntax highlighter if not already present
         if 'r-syntax-highlight.js' not in new_html:
             new_html = new_html.replace(
-                f'<script defer src="/{toc_js_href}"></script>',
-                f'<script defer src="/{toc_js_href}"></script><script defer src="/www/r-syntax-highlight.js"></script>',
+                f'<script src="/{toc_js_href}"></script>',
+                f'<script src="/{toc_js_href}"></script><script src="/www/r-syntax-highlight.js"></script>',
                 1
             )
         return new_html
@@ -1883,8 +1883,8 @@ def patch_tool_pages(sections, asset_hrefs):
         # 4. Close the wrapper + append toc.js before </body>.
         wrapper_close = (
             f'</main></div>'
-            f'<script defer src="/{toc_js_href}"></script>'
-            f'<script defer src="/www/r-syntax-highlight.js"></script>'
+            f'<script src="/{toc_js_href}"></script>'
+            f'<script src="/www/r-syntax-highlight.js"></script>'
         )
         html = body_close_re.sub(wrapper_close + '</body>', html, count=1)
 
