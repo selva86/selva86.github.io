@@ -373,6 +373,10 @@ _TOOL_ICONS = {
         '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/>'
         '<circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg>',
+    'type-i-ii-error-visualizer.html':
+        '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/>'
+        '<line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg>',
 }
 
 
@@ -380,16 +384,44 @@ _TOOL_ICONS = {
 # Each entry maps a tool slug to a sidebar group + display title.
 # Update here when adding new tools (also drop the HTML into /tools/).
 COMPENDIUM_TOOLS = [
-    {'group': 'Calculators', 'slug': 'ab-test-calculator.html',           'text': 'A/B Test Calculator'},
-    {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html', 'text': 'Confidence Interval'},
-    {'group': 'Calculators', 'slug': 'effect-size-converter.html',        'text': 'Effect Size Converter'},
-    {'group': 'Calculators', 'slug': 'power-analysis.html',               'text': 'Power Analysis'},
-    {'group': 'Calculators', 'slug': 'z-score-percentile.html',           'text': 'Z-Score &amp; Percentile'},
-    {'group': 'Interpreters', 'slug': 'confusion-matrix-interpreter.html', 'text': 'Confusion Matrix'},
-    {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',       'text': 'lm() Output'},
-    {'group': 'Interpreters', 'slug': 'glm-output-interpreter.html',      'text': 'glm() Output'},
-    {'group': 'Pickers',      'slug': 'multiple-testing-correction.html', 'text': 'Multiple Testing'},
-    {'group': 'Pickers',      'slug': 'normality-test-picker.html',       'text': 'Normality Test Picker'},
+    # Calculators (parametric tests + commodity stats)
+    {'group': 'Calculators', 'slug': 'ab-test-calculator.html',                  'text': 'A/B Test Calculator'},
+    {'group': 'Calculators', 'slug': 't-test-calculator.html',                   'text': 't-Test Calculator'},
+    {'group': 'Calculators', 'slug': 'chi-square-calculator.html',               'text': 'Chi-Square Test'},
+    {'group': 'Calculators', 'slug': 'confidence-interval-calculator.html',      'text': 'Confidence Interval'},
+    {'group': 'Calculators', 'slug': 'bootstrap-ci-calculator.html',             'text': 'Bootstrap CI'},
+    {'group': 'Calculators', 'slug': 'effect-size-converter.html',               'text': 'Effect Size Converter'},
+    {'group': 'Calculators', 'slug': 'power-analysis.html',                      'text': 'Power Analysis'},
+    {'group': 'Calculators', 'slug': 'survival-power-calculator.html',           'text': 'Survival Power'},
+    {'group': 'Calculators', 'slug': 'type-i-ii-error-visualizer.html',          'text': 'Type I / II Error'},
+    {'group': 'Calculators', 'slug': 'z-score-percentile.html',                  'text': 'Z-Score &amp; Percentile'},
+    {'group': 'Calculators', 'slug': 'equivalence-noninferiority-calculator.html', 'text': 'Equivalence / NI'},
+    {'group': 'Calculators', 'slug': 'outlier-detection-calculator.html',        'text': 'Outlier Detection'},
+    {'group': 'Calculators', 'slug': 'roc-auc-calculator.html',                  'text': 'ROC / AUC'},
+
+    # Bayesian
+    {'group': 'Bayesian',    'slug': 'bayes-theorem-calculator.html',            'text': 'Bayes Theorem'},
+    {'group': 'Bayesian',    'slug': 'bayes-factor-calculator.html',             'text': 'Bayes Factor'},
+
+    # Interpreters (paste R output, get plain-English read)
+    {'group': 'Interpreters', 'slug': 'lm-output-interpreter.html',              'text': 'lm() Output'},
+    {'group': 'Interpreters', 'slug': 'glm-output-interpreter.html',             'text': 'glm() Output'},
+    {'group': 'Interpreters', 'slug': 'anova-output-interpreter.html',           'text': 'ANOVA Output'},
+    {'group': 'Interpreters', 'slug': 'vif-interpreter.html',                    'text': 'VIF / Multicollinearity'},
+    {'group': 'Interpreters', 'slug': 'confusion-matrix-interpreter.html',       'text': 'Confusion Matrix'},
+    {'group': 'Interpreters', 'slug': 'diagnostic-plot-interpreter.html',        'text': 'Diagnostic Plots'},
+
+    # Pickers (which test should I use?)
+    {'group': 'Pickers',      'slug': 'normality-test-picker.html',              'text': 'Normality Test'},
+    {'group': 'Pickers',      'slug': 'nonparametric-test-picker.html',          'text': 'Non-Parametric Test'},
+    {'group': 'Pickers',      'slug': 'multiple-testing-correction.html',        'text': 'Multiple Testing'},
+
+    # Time series + utilities
+    {'group': 'Time series',  'slug': 'ts-stationarity-calculator.html',         'text': 'TS Stationarity'},
+
+    # Causal + reproducibility
+    {'group': 'Utilities',    'slug': 'dag-confounder-picker.html',              'text': 'DAG Confounder Picker'},
+    {'group': 'Utilities',    'slug': 'reprex-builder.html',                     'text': 'Reprex Builder'},
 ]
 
 
@@ -508,7 +540,14 @@ def render_sidebar_html(sections, current_slug):
                     f'<span class="subsec-chevron">&#9660;</span> {text}</li>'
                 )
                 continue
-            href = _esc_html(item.get('href', ''))
+            raw_href = item.get('href', '')
+            # Make href absolute (root-relative) so it resolves correctly when
+            # the sidebar is injected into pages at non-root paths (e.g.
+            # /tools/<slug>.html). Posts live at root, so a leading '/' fixes
+            # the resolution.
+            if raw_href and not raw_href.startswith(('/', 'http://', 'https://', '#')):
+                raw_href = '/' + raw_href
+            href = _esc_html(raw_href)
             text = _esc_html(item.get('text', ''))
             cur_sub_key = f'sec{i}sub{sub_idx}'
             is_active = item.get('href') == current_slug
@@ -1507,7 +1546,7 @@ def render_compendium_page(sections, post_titles_map=None):
     parts.append('<footer class="comp-footer"><div class="comp-footer-inner">')
     parts.append(f'<p class="colophon">Hand-edited since 2014. © 2014–{datetime.date.today().year} Selva Prabhakaran</p>')
     parts.append('<div class="links">')
-    parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>·<a href="https://github.com/selva86">GitHub</a>')
+    parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>')
     parts.append('</div></div></footer>')
 
     parts.append('</body></html>')
@@ -1764,7 +1803,9 @@ def patch_tool_pages(sections, asset_hrefs):
 
     def _refresh_cache_busts(html):
         """Update the ?h= query strings on main.css / toc.js links so
-        already-patched tools pick up newly-built assets."""
+        already-patched tools pick up newly-built assets. Also refreshes
+        the injected sidebar block so newly-registered tools appear without
+        a full chrome re-injection."""
         new_main = '/' + main_css_href
         new_toc = '/' + toc_js_href
         # Just bump the existing ?h= portions to match what asset_hrefs has.
@@ -1776,7 +1817,26 @@ def patch_tool_pages(sections, asset_hrefs):
         new_html = link_re.sub(f'<link rel="stylesheet" href="/{main_css_href}">', new_html, count=1)
         toc_link_re = re.compile(r'<script defer src="/[^"]*toc(?:\.min)?\.js[^"]*"></script>', re.IGNORECASE)
         new_html = toc_link_re.sub(f'<script defer src="/{toc_js_href}"></script>', new_html, count=1)
+        # Inject the runtime R syntax highlighter if not already present
+        if 'r-syntax-highlight.js' not in new_html:
+            new_html = new_html.replace(
+                f'<script defer src="/{toc_js_href}"></script>',
+                f'<script defer src="/{toc_js_href}"></script><script defer src="/www/r-syntax-highlight.js"></script>',
+                1
+            )
         return new_html
+
+    def _refresh_sidebar(html, fname):
+        """Rebuild and replace the sidebar block inside an already-patched
+        tool page so newly-registered tools / divider changes apply. Looks
+        for <div id="sidebar-nav">...</div> immediately inside the chrome
+        wrapper and substitutes a freshly-rendered version."""
+        sidebar_html = render_sidebar_html(sections or [], current_slug='tools/' + fname)
+        sb_re = re.compile(
+            r'(<div id="sidebar-nav">).*?(</div>\s*</aside>)',
+            re.DOTALL,
+        )
+        return sb_re.sub(lambda m: m.group(1) + sidebar_html + m.group(2), html, count=1)
 
     for fname in sorted(os.listdir(tools_dir)):
         if not fname.endswith('.html'):
@@ -1785,11 +1845,13 @@ def patch_tool_pages(sections, asset_hrefs):
         with open(path, encoding='utf-8') as f:
             html = f.read()
 
-        # Already-patched tools: just refresh the cache-bust hashes so the
-        # browser picks up newly-rebuilt main.css / toc.js. Skip the rest
-        # of the (idempotent) injection.
+        # Already-patched tools: refresh the cache-bust hashes AND refresh
+        # the sidebar block so newly-registered tools appear without a
+        # full chrome re-injection. Skip the rest of the (idempotent)
+        # injection (masthead, wrapper, etc.).
         if 'data-tool-chrome="injected"' in html:
             new_html = _refresh_cache_busts(html)
+            new_html = _refresh_sidebar(new_html, fname)
             if new_html != html:
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(new_html)
@@ -1822,6 +1884,7 @@ def patch_tool_pages(sections, asset_hrefs):
         wrapper_close = (
             f'</main></div>'
             f'<script defer src="/{toc_js_href}"></script>'
+            f'<script defer src="/www/r-syntax-highlight.js"></script>'
         )
         html = body_close_re.sub(wrapper_close + '</body>', html, count=1)
 
