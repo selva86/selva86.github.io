@@ -85,19 +85,19 @@ landing, or hybridize. Carry-over from earlier conversation.
 
 ## P2 — consistency / cleanup
 
-### 7. Bespoke column labels remain on 6 tools [P2]
+### 7. Bespoke column labels remain on 6 tools [P2] — RESOLVED, KEEP AS-IS
 
 After the Method/Measurements/Estimate → Context/Input/Output rename, six
 tools still have their custom column labels (DAG editor, Adjustment, Paste,
 Paste glm summary, Read, Detection, Data & parameters, Plain-English read).
-These were intentional tool-specific names but break the "Context / Input /
-Output" consistency users now expect across the suite.
 
-**Decision pending:** force uniform Context/Input/Output everywhere (loses
-specificity), OR keep the bespoke labels (loses consistency). My pick:
-keep bespoke for tools where the workflow genuinely differs (DAG editor
-genuinely isn't a numeric Input column; Paste isn't an Input field), but
-audit each one. ~3 min/tool × 6 = 18 min.
+**Decision (2026-05-03):** keep bespoke labels. Each one reflects a
+genuinely different workflow that "Input/Output" would dilute — DAG editor
+isn't a numeric form, Paste/Read isn't a calculation, Detection isn't an
+estimate. The minor cost in cross-tool consistency is paid back in clarity
+inside each specialized tool.
+
+No action needed.
 
 ### 8. JSON-LD count is uniform but not validated [P2]
 
