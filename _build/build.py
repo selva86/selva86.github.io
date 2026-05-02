@@ -2209,6 +2209,20 @@ def main():
         render_tools_landing()
     except Exception as e:
         print(f"  WARN: tools landing regen failed: {e}")
+
+    # Regenerate per-tool OG images. Each card pulls title + description from
+    # the tool's <head>, so any rename / desc tweak propagates to social
+    # previews on the next build. Cheap (~0.5s for all 27).
+    try:
+        from gen_og_images import main as render_og
+        # Run silently — only print warnings
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            render_og(['gen_og_images.py'])
+        print(f"  OG images: regenerated {buf.getvalue().count('->')} tool cards")
+    except Exception as e:
+        print(f"  WARN: OG image regen failed: {e}")
     patch_homepage_sidebar(sidebar_sections)
     patch_tool_pages(sidebar_sections, asset_hrefs)
 
