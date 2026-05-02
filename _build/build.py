@@ -506,9 +506,17 @@ def render_sidebar_html(sections, current_slug):
     # continuous unit with the panel below it.
     posts_tab_class = 'sidebar-tab' + ('' if is_tools_page else ' active')
     tools_tab_class = 'sidebar-tab' + (' active' if is_tools_page else '')
+    # onclick handlers inline because Ezoic Leap strips both <script src> and
+    # inline <script> blocks on tutorial/index pages; HTML attributes survive.
+    onclick = (
+        "var n=this.dataset.tab;"
+        "document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});"
+        "document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});"
+        "try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}"
+    )
     parts.append('<div class="sidebar-tabs" role="tablist">')
-    parts.append(f'<button class="{posts_tab_class}" data-tab="posts" type="button" role="tab">Posts</button>')
-    parts.append(f'<button class="{tools_tab_class}" data-tab="tools" type="button" role="tab">Tools</button>')
+    parts.append(f'<button class="{posts_tab_class}" data-tab="posts" type="button" role="tab" onclick="{onclick}">Posts</button>')
+    parts.append(f'<button class="{tools_tab_class}" data-tab="tools" type="button" role="tab" onclick="{onclick}">Tools</button>')
     parts.append('</div>')
 
     posts_panel_class = 'sidebar-panel' + ('' if is_tools_page else ' active')
