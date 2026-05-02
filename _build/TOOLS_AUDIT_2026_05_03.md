@@ -11,21 +11,17 @@ discoverability gap), **P2** (consistency / nice-to-have), **P3** (long tail).
 
 ## P0 — correctness or genuinely broken
 
-### 1. R-code block is empty on every tool [P0]
+### 1. R-code block is empty on every tool [P0] — RESOLVED, FALSE POSITIVE
 
-Every tool ships a `<pre>` inside `<div class="webr-container">` intended to show the
-matching R code, but the pre is **empty in the rendered DOM** on at least
-ab-test-calculator and power-analysis. Spot-checked via browser; both
-show `rCodeEmpty: true`. This is the headline-feature "every tool shows
-the matching R code" promise that's silently broken across the suite.
+**Investigated and dismissed.** The audit query checked `<pre>.textContent`
+to detect populated R code, but that selector matches the WebR **output**
+panel (the area where `print()` results appear after the user clicks Run),
+which is empty by design. The actual R code lives in
+`<div class="webr-editor" id="r-code-rebuild">` and is correctly populated
+on initial render — confirmed on ab-test-calculator (413 chars of
+syntax-highlighted R code, editor visible, height 310px, Run button wired).
 
-**Likely cause:** The render functions either (a) never populate the
-container, (b) populate it via a path that depends on a stripped script,
-or (c) the WebR runtime expects to lazy-load content that never fires.
-
-**Action:** Inspect one tool's render() to confirm whether R-code population
-is in the source. If yes, find why it's not running on live. If no, port
-the R-code generation per tool. Either way: **27 tools, identical fix**.
+No action needed.
 
 ### 2. FAQ JSON-LD contains 41 em-dashes [P0]
 
