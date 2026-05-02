@@ -2006,7 +2006,7 @@ def patch_homepage_sidebar(sections):
 
 
 def generate_feed(post_files):
-    """Generate an Atom feed from all posts."""
+    """Generate an Atom feed from all posts and tools."""
     feed_path = os.path.join(REPO_ROOT, 'feed.xml')
     today = datetime.date.today().isoformat() + 'T00:00:00Z'
 
@@ -2030,6 +2030,38 @@ def generate_feed(post_files):
     <updated>{date}T00:00:00Z</updated>
     <summary>{desc_xml}</summary>
     <author><name>Selva Prabhakaran</name></author>
+  </entry>""")
+
+    # Tools — read title + description from each tools/*.html and emit an Atom
+    # entry per tool so RSS readers and AI crawlers see the calculator suite
+    # alongside tutorials. Tools are tagged with category="tool" for filtering.
+    tools_dir = os.path.join(REPO_ROOT, 'tools')
+    if os.path.isdir(tools_dir):
+        import html as htmllib
+        for fn in sorted(os.listdir(tools_dir)):
+            if not fn.endswith('.html'):
+                continue
+            tpath = os.path.join(tools_dir, fn)
+            with open(tpath, 'r', encoding='utf-8') as f:
+                tsrc = f.read()
+            tm = re.search(r'<title>([^<]+)</title>', tsrc)
+            dm = re.search(r'<meta name="description" content="([^"]+)"', tsrc)
+            raw_title = tm.group(1) if tm else fn[:-5]
+            t_title = raw_title.split(' &middot;')[0].split(' · ')[0].strip()
+            t_title = htmllib.unescape(t_title)
+            t_desc = htmllib.unescape(dm.group(1)) if dm else ''
+            t_title_xml = t_title.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            t_desc_xml = t_desc.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            t_date = datetime.date.fromtimestamp(os.path.getmtime(tpath)).isoformat()
+            url = f'https://r-statistics.co/tools/{fn}'
+            entries.append(f"""  <entry>
+    <title>{t_title_xml}</title>
+    <link href="{url}"/>
+    <id>{url}</id>
+    <updated>{t_date}T00:00:00Z</updated>
+    <summary>{t_desc_xml}</summary>
+    <author><name>Selva Prabhakaran</name></author>
+    <category term="tool"/>
   </entry>""")
 
     feed = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -2169,6 +2201,14 @@ def main():
     update_sitemap(sorted(post_files))
     update_sitemap_tools()
     generate_feed(sorted(post_files))
+
+    # Regenerate /tools/ landing page so its card grid stays in sync with
+    # whatever tools/*.html files exist on disk (titles + descriptions).
+    try:
+        from gen_tools_landing import render as render_tools_landing
+        render_tools_landing()
+    except Exception as e:
+        print(f"  WARN: tools landing regen failed: {e}")
     patch_homepage_sidebar(sidebar_sections)
     patch_tool_pages(sidebar_sections, asset_hrefs)
 
