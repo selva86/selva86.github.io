@@ -810,13 +810,38 @@ def render_related_tutorials(
 MATHJAX_BLOCK = """
   <script type="text/x-mathjax-config">
     MathJax.Hub.Config({
-      tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}
+      tex2jax: {
+        inlineMath: [['$','$'], ['\\\\(','\\\\)']],
+        displayMath: [['$$','$$'], ['\\\\[','\\\\]']],
+        processEscapes: true
+      }
     });
   </script>
   <script type="text/javascript" async
     src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
   </script>
 """
+
+
+def _format_byline_date(iso):
+    try:
+        d = datetime.date.fromisoformat(iso)
+        return d.strftime('%B ') + str(d.day) + d.strftime(', %Y')
+    except Exception:
+        return iso
+
+
+def render_byline(date_published, date_modified, author='Selva Prabhakaran'):
+    pub = _format_byline_date(date_published)
+    upd = _format_byline_date(date_modified)
+    return (
+        '<div class="post-byline" style="color:#6b7280;font-size:14px;'
+        'margin:2px 0 18px 0;line-height:1.5;">'
+        f'By <strong>{author}</strong>'
+        f' &nbsp;&middot;&nbsp; Published {pub}'
+        f' &nbsp;&middot;&nbsp; Last updated {upd}'
+        '</div>'
+    )
 
 def make_webr_head_block(asset_hrefs):
     webr_css = asset_hrefs.get('webr.css', 'www/webr.css')
@@ -1092,6 +1117,10 @@ def build_post(
         '<a class="cr-link" data-continue-link href="#"></a>'
         '</aside>'
     )
+    # Inject author + dates byline immediately after the first H1
+    byline_html = render_byline(date_published, date_modified)
+    if '</h1>' in content:
+        content = content.replace('</h1>', '</h1>\n' + byline_html, 1)
     content_with_breadcrumb = breadcrumb_html + '\n' + content
     content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
     if related_html:
