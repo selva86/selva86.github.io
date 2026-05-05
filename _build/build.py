@@ -1864,8 +1864,14 @@ def patch_tool_pages(sections, asset_hrefs):
     masthead_html = (
         '<header class="site-masthead">'
         '<div class="site-masthead-inner">'
+        # Toggle handler: also relocates the drawer + backdrop to direct body
+        # children on first open so any ancestor transform/filter (which
+        # creates a containing block and breaks position:fixed) can't trap
+        # the drawer inside .tool-chrome.
         '<button class="sidebar-toggle" type="button" aria-label="Open sidebar" '
-        'onclick="document.body.classList.toggle(\'sidebar-open\')">' + hamburger_svg + '</button>'
+        'onclick="(function(b){var d=document.querySelector(\'.tool-chrome-side\'),k=document.querySelector(\'.sidebar-backdrop\');'
+        'if(d&&d.parentNode!==b)b.appendChild(d);if(k&&k.parentNode!==b)b.appendChild(k);'
+        'b.classList.toggle(\'sidebar-open\')})(document.body)">' + hamburger_svg + '</button>'
         '<a class="masthead-wordmark" href="/">'
         '<span class="masthead-mark">R</span>'
         '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
