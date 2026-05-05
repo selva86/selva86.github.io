@@ -1814,8 +1814,10 @@ def patch_tool_pages(sections, asset_hrefs):
     main_css_href = (asset_hrefs or {}).get('main.css', 'css/main.css')
     toc_js_href = (asset_hrefs or {}).get('toc.js', 'www/toc.js')
 
-    # Layout CSS injected per-tool. Kept tiny — main.css supplies the
-    # masthead + sidebar rules, this just sizes the chrome wrapper.
+    # Layout CSS injected per-tool. Desktop: 2-col (sticky sidebar + main).
+    # Mobile (<= 880px): sidebar becomes an off-canvas drawer toggled by the
+    # hamburger button in the masthead. Pure CSS transform; the toggle uses
+    # an onclick attribute on the button so Ezoic can't strip the wiring.
     layout_css = (
         '<style id="tool-chrome-css">'
         '.tool-chrome{max-width:1280px;margin:0 auto;padding:24px 24px 48px;'
@@ -1824,14 +1826,46 @@ def patch_tool_pages(sections, asset_hrefs):
         'overflow-y:auto;padding-right:8px;font-family:-apple-system,BlinkMacSystemFont,sans-serif}'
         '.tool-chrome-side #sidebar-nav{padding:0}'
         '.tool-chrome-main{min-width:0}'
-        '@media(max-width:880px){.tool-chrome{grid-template-columns:1fr;padding:16px}'
-        '.tool-chrome-side{display:none}}'
+        '.sidebar-toggle{display:none}'
+        '.sidebar-backdrop{display:none}'
+        '@media(max-width:880px){'
+        '.tool-chrome{grid-template-columns:1fr;padding:16px}'
+        '.tool-chrome-side{position:fixed;top:0;left:0;bottom:0;width:280px;max-height:100vh;'
+        'background:#fff;z-index:1000;transform:translateX(-100%);transition:transform .22s ease;'
+        'overflow-y:auto;padding:60px 14px 16px;box-shadow:2px 0 16px rgba(13,17,23,0.15);'
+        'top:0;max-height:none}'
+        'body.sidebar-open .tool-chrome-side{transform:translateX(0)}'
+        '.sidebar-backdrop{position:fixed;inset:0;background:rgba(13,17,23,0.42);'
+        'z-index:999;opacity:0;pointer-events:none;transition:opacity .22s}'
+        'body.sidebar-open .sidebar-backdrop{display:block;opacity:1;pointer-events:auto}'
+        '.sidebar-toggle{display:inline-flex;align-items:center;justify-content:center;'
+        'width:40px;height:40px;background:transparent;border:none;cursor:pointer;'
+        'color:#fff;padding:0;margin-right:8px;border-radius:6px}'
+        '.sidebar-toggle:hover{background:rgba(255,255,255,0.10)}'
+        '.sidebar-toggle svg{display:block}'
+        '.sidebar-close{position:absolute;top:14px;right:14px;width:36px;height:36px;'
+        'border-radius:50%;background:transparent;border:none;cursor:pointer;'
+        'color:#0d1117;font-size:22px;line-height:1;padding:0;display:inline-flex;'
+        'align-items:center;justify-content:center;z-index:2}'
+        '.sidebar-close:hover{background:#f1f3f6}'
+        '}'
         '</style>'
     )
 
+    # Hamburger SVG (3-line menu icon). Inline so it can be styled via currentColor.
+    hamburger_svg = (
+        '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+        '<line x1="3" y1="6" x2="21" y2="6"/>'
+        '<line x1="3" y1="12" x2="21" y2="12"/>'
+        '<line x1="3" y1="18" x2="21" y2="18"/>'
+        '</svg>'
+    )
     masthead_html = (
         '<header class="site-masthead">'
         '<div class="site-masthead-inner">'
+        '<button class="sidebar-toggle" type="button" aria-label="Open sidebar" '
+        'onclick="document.body.classList.toggle(\'sidebar-open\')">' + hamburger_svg + '</button>'
         '<a class="masthead-wordmark" href="/">'
         '<span class="masthead-mark">R</span>'
         '<span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>'
@@ -1888,6 +1922,40 @@ def patch_tool_pages(sections, asset_hrefs):
                 f'<script src="/{toc_js_href}"></script><script src="/www/r-syntax-highlight.js"></script>',
                 1
             )
+        # Refresh the chrome layout CSS so mobile-drawer rules land on tools
+        # that were built before the drawer existed.
+        layout_css_re = re.compile(
+            r'<style id="tool-chrome-css">.*?</style>',
+            re.DOTALL,
+        )
+        new_html = layout_css_re.sub(layout_css, new_html, count=1)
+        # Refresh the masthead so the hamburger button appears on tools that
+        # were built before it existed. Match the existing site-masthead block.
+        site_masthead_re = re.compile(
+            r'<header class="site-masthead">.*?</header>',
+            re.DOTALL,
+        )
+        new_html = site_masthead_re.sub(masthead_html, new_html, count=1)
+        # Inject the sidebar-backdrop element + sidebar-close button if missing.
+        # Check for the actual HTML element, not the bare class name (which now
+        # appears in the layout CSS we just refreshed).
+        if '<div class="sidebar-backdrop"' not in new_html:
+            new_html = new_html.replace(
+                '<div class="tool-chrome" data-tool-chrome="injected">',
+                '<div class="sidebar-backdrop" '
+                'onclick="document.body.classList.remove(\'sidebar-open\')"></div>'
+                '<div class="tool-chrome" data-tool-chrome="injected">',
+                1
+            )
+        if '<button class="sidebar-close"' not in new_html:
+            new_html = new_html.replace(
+                '<aside class="tool-chrome-side"><div id="sidebar-nav">',
+                '<aside class="tool-chrome-side">'
+                '<button class="sidebar-close" type="button" aria-label="Close sidebar" '
+                'onclick="document.body.classList.remove(\'sidebar-open\')">&times;</button>'
+                '<div id="sidebar-nav">',
+                1
+            )
         return new_html
 
     def _refresh_sidebar(html, fname):
@@ -1935,11 +2003,21 @@ def patch_tool_pages(sections, asset_hrefs):
         html = masthead_re.sub('', html, count=1)
 
         # 3. Insert site masthead + open chrome wrapper just after <body>.
+        # Mobile: the .sidebar-backdrop sits above content, below the drawer;
+        # tapping it closes via inline onclick. The drawer itself carries an
+        # absolute-positioned close (×) button so the user can dismiss without
+        # reaching all the way back up to the hamburger.
         sidebar_html = render_sidebar_html(sections or [], current_slug='tools/' + fname)
         wrapper_open = (
             f'{masthead_html}'
+            f'<div class="sidebar-backdrop" '
+            f'onclick="document.body.classList.remove(\'sidebar-open\')"></div>'
             f'<div class="tool-chrome" data-tool-chrome="injected">'
-            f'<aside class="tool-chrome-side"><div id="sidebar-nav">{sidebar_html}</div></aside>'
+            f'<aside class="tool-chrome-side">'
+            f'<button class="sidebar-close" type="button" aria-label="Close sidebar" '
+            f'onclick="document.body.classList.remove(\'sidebar-open\')">&times;</button>'
+            f'<div id="sidebar-nav">{sidebar_html}</div>'
+            f'</aside>'
             f'<main class="tool-chrome-main">'
         )
         html = body_open_re.sub(lambda m: m.group(0) + wrapper_open, html, count=1)
