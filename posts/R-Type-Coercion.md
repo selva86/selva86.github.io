@@ -1,7 +1,7 @@
 ---
-title: "R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters"
+title: "R Type Coercion Rules: as.numeric(), as.character(), and the Hierarchy"
 slug: R-Type-Coercion
-description: "R silently converts between types and introduces NA values. Learn the coercion hierarchy, how to convert safely, and how to catch silent failures before they bite."
+description: "R's coercion hierarchy: logical to integer to double to character. Use as.numeric(), as.character(), as.integer() safely. Diagnose 'NAs introduced by coercion' warnings."
 keywords: "R type coercion, as.numeric R, NAs introduced by coercion, R implicit conversion, R character to numeric, R coercion hierarchy"
 auto_link_terms: "type coercion|as.numeric()|NAs introduced by coercion|coercion hierarchy"
 auto_link_case_sensitive: false

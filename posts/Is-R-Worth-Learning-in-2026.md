@@ -1,7 +1,7 @@
 ---
 title: "Is R Worth Learning in 2026? An Honest, Evidence-Based Answer"
 slug: "Is-R-Worth-Learning-in-2026"
-description: "R powers data science at Google, the NHS, and academia. Real job data, salary stats, and an honest pros-vs-cons verdict for 2026."
+description: "15 years teaching R. Here's the honest 2026 verdict: where R still beats Python, current job stats, salary data, and the 3 cases where you should pick Python."
 keywords: "is R worth learning, should I learn R, R vs Python 2026, R programming career, learn R in 2026"
 mathjax: false
 webr: true

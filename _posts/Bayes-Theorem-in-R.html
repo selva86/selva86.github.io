@@ -1,0 +1,810 @@
+---
+title: "Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why"
+description: "A 99%-accurate test for a 1-in-1000 disease still returns mostly false positives. See why in R using Bayes theorem on real medical test data and simulations."
+keywords: "Bayes theorem in R, conditional probability, false positive rate, sensitivity specificity, base rate fallacy, posterior probability, PPV NPV, Monte Carlo simulation"
+mathjax: true
+webr: true
+curriculum_id: "5.1.2"
+post_type: "C"
+auto_link_terms: "Bayes' theorem|Bayes theorem in R|conditional probability|posterior probability|base rate fallacy|positive predictive value|sensitivity and specificity|false positive rate"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Bayes' Theorem"
+sidebar_order: "110"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why</h1>
+
+<p class="lead"><a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">Bayes' theorem</a> updates the probability of an event given new evidence by combining a prior belief, the likelihood of the evidence under each hypothesis, and the overall probability of the evidence, letting you compute, for example, the chance you actually have a disease given a positive test.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+
+<h2>What does Bayes' theorem actually compute?</h2>
+
+<p>A 99% accurate test for a disease that strikes 1 in 1,000 people sounds reliable. Yet if you test positive, the chance you actually have the disease is closer to 9% than 99%. This counter-intuitive result is exactly what Bayes' theorem computes. Let's see it in R.</p>
+
+<p>The classical statement of Bayes' theorem is short. Given two events $A$ and $B$:</p>
+
+<p>$$P(A \mid B) = \frac{P(B \mid A) \cdot P(A)}{P(B)}$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$P(A \mid B)$ is the <strong>posterior</strong>, the probability of $A$ after seeing $B$.</li>
+
+<li>$P(B \mid A)$ is the <strong>likelihood</strong>, the probability of seeing $B$ if $A$ is true.</li>
+
+<li>$P(A)$ is the <strong>prior</strong>, your belief about $A$ before seeing $B$.</li>
+
+<li>$P(B)$ is the <strong>evidence</strong>, the overall probability of $B$ under all hypotheses.</li>
+
+</ul>
+
+<p>For medical testing, $A$ is "patient has the disease" and $B$ is "patient tested positive." The most useful quantity is $P(\text{disease} \mid \text{positive})$, called the <strong>positive predictive value</strong> or PPV. Let's wrap the math in a function and call it once.</p>
+
+<div class="webr-container" data-block-title="Compute PPV from prevalence, sensitivity, specificity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute PPV from prevalence, sensitivity, specificity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Load libraries we will reuse throughout the post
+library(ggplot2)
+library(dplyr)
+
+# Bayes-derived PPV: P(disease | positive)
+bayes_pp &lt;- function(prevalence, sens, spec) {
+  numerator &lt;- sens * prevalence
+  denominator &lt;- sens * prevalence + (1 - spec) * (1 - prevalence)
+  numerator / denominator
+}
+
+# A 99%-accurate test for a 1-in-1000 disease
+ppv &lt;- bayes_pp(prevalence = 0.001, sens = 0.99, spec = 0.99)
+round(ppv, 4)
+#&gt; [1] 0.0902</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output reads "0.0902," meaning that on a positive test for this disease, there is only a 9% chance the patient actually has it. The other 91% <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> false alarms. The function maps three inputs to a posterior probability, applying Bayes once for each call. Notice how <code>(1 - spec)</code> carries the <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> rate from healthy people, and how it gets weighted by <code>(1 - prevalence)</code>, the much larger group.</p>
+
+<p><img src="screenshots/Bayes-Theorem-in-R-update-flow.webp" alt="How Bayes combines prior, likelihood, and evidence into a posterior." class="img-responsive img-zoomable" loading="lazy" width="1570" height="986" /></p>
+
+<p><em>Figure 1: How Bayes combines prior, likelihood, and evidence into a posterior.</em></p>
+
+<p>To see how PPV moves with disease prevalence, we hold sensitivity and specificity fixed at 99% and sweep the prior across a wide range.</p>
+
+<div class="webr-container" data-block-title="Plot PPV against disease prevalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot PPV against disease prevalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_df &lt;- tibble(
+  prevalence = seq(0.0001, 0.5, length.out = 200)
+) |&gt;
+  mutate(ppv = bayes_pp(prevalence, sens = 0.99, spec = 0.99))
+
+ggplot(grid_df, aes(x = prevalence, y = ppv)) +
+  geom_line(color = &quot;#1f77b4&quot;, size = 1) +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = &quot;Disease prevalence (prior)&quot;,
+       y = &quot;PPV (posterior on positive test)&quot;,
+       title = &quot;Even a 99% test gives low PPV at low prevalence&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve rises steeply from near zero at very low prevalence and approaches 100% only when prevalence is itself high. The same test is "99% accurate" in every scenario, yet its trustworthiness for any single positive result depends entirely on the prior. That single fact is the engine behind every misunderstanding about medical screening.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The same test gives different answers for different patients.</strong> A positive result is informative only relative to the patient's prior probability of the disease, which depends on age, exposure, and symptoms. The math is the same, the answer changes.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>bayes_pp()</code> to compute the PPV when prevalence is 5%, sensitivity is 95%, and specificity is 90%. Round to two decimal places.</p>
+<div class="webr-container" data-block-title="Your turn: PPV at 5% prevalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: PPV at 5% prevalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compute PPV for prev=0.05, sens=0.95, spec=0.90
+ex_ppv &lt;- # your code here
+
+round(ex_ppv, 2)
+#&gt; Expected: 0.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="PPV at 5% prevalence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PPV at 5% prevalence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ppv &lt;- bayes_pp(prevalence = 0.05, sens = 0.95, spec = 0.90)
+round(ex_ppv, 2)
+#&gt; [1] 0.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 5% prevalence with 90% specificity, false positives still outnumber true positives nearly 2 to 1, so PPV lands at 33%, not 95%.</p>
+
+</details>
+</section>
+
+<h2>Why does a 99% accurate test return mostly false positives?</h2>
+
+<p>The answer is arithmetic, not statistics. When the disease is rare, the population of healthy people is enormous, and even a small false positive rate inside that huge group produces more false positives than the entire group of true positives combined.</p>
+
+<p><img src="screenshots/Bayes-Theorem-in-R-outcome-tree.webp" alt="Why false positives can outnumber true positives when a disease is rare." class="img-responsive img-zoomable" loading="lazy" width="1880" height="1282" /></p>
+
+<p><em>Figure 2: Why false positives can outnumber true positives when a disease is rare.</em></p>
+
+<p>To make this concrete, let's simulate 10,000 people. We'll set prevalence to 0.1%, draw who has the disease, then assign each person a test result based on sensitivity (for the sick) and specificity (for the healthy). Counting outcomes turns the abstract probability into something you can see.</p>
+
+<div class="webr-container" data-block-title="Simulate 10,000 people and count test outcomes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate 10,000 people and count test outcomes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+
+n_total &lt;- 10000
+prevalence &lt;- 0.001
+sens &lt;- 0.99
+spec &lt;- 0.99
+
+# Disease status for each person (TRUE = has disease)
+has_disease &lt;- runif(n_total) &lt; prevalence
+
+# Test result: depends on whether they have it
+test_positive &lt;- ifelse(
+  has_disease,
+  runif(n_total) &lt; sens,
+  runif(n_total) &lt; (1 - spec)
+)
+
+counts &lt;- table(disease = has_disease, positive = test_positive)
+counts
+#&gt;        positive
+#&gt; disease FALSE TRUE
+#&gt;   FALSE  9890  100
+#&gt;   TRUE      0   10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table tells the story directly. Among 9,990 healthy people, 100 still tested positive (false positives), while only 10 of the 10 sick people tested positive (true positives). Of the 110 positive results in total, just 10 are real, which gives an empirical PPV of 10 / 110, or about 9%.</p>
+
+<div class="webr-container" data-block-title="Compare empirical PPV to the analytical answer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare empirical PPV to the analytical answer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">empirical_ppv &lt;- counts[&quot;TRUE&quot;, &quot;TRUE&quot;] /
+  sum(counts[, &quot;TRUE&quot;])
+analytical_ppv &lt;- bayes_pp(prevalence, sens, spec)
+
+c(empirical = round(empirical_ppv, 4),
+  analytical = round(analytical_ppv, 4))
+#&gt; empirical analytical
+#&gt;    0.0909     0.0902</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two numbers agree to within sampling noise. The simulation is not telling us anything new beyond what the formula said; it is showing us the same result in counts of people, which our intuition handles better than ratios. The arithmetic of false positives is exactly Bayes' theorem in disguise.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Test "accuracy" is not PPV.</strong> A test marketed as "99% accurate" reports sensitivity and specificity, not the probability that a positive result reflects disease. Patients and journalists conflate the two. Always ask for prevalence before trusting any positive result.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the simulation with <code>prevalence &lt;- 0.10</code> (a 10% community prevalence rather than 0.1%) and observe how the empirical PPV changes.</p>
+<div class="webr-container" data-block-title="Your turn: simulate at higher prevalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: simulate at higher prevalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: change prevalence to 0.10 and recompute empirical PPV
+set.seed(2026)
+n_total &lt;- 10000
+prevalence &lt;- # your value here
+sens &lt;- 0.99
+spec &lt;- 0.99
+
+has_disease &lt;- runif(n_total) &lt; prevalence
+test_positive &lt;- ifelse(has_disease,
+                        runif(n_total) &lt; sens,
+                        runif(n_total) &lt; (1 - spec))
+counts &lt;- table(disease = has_disease, positive = test_positive)
+counts[&quot;TRUE&quot;, &quot;TRUE&quot;] / sum(counts[, &quot;TRUE&quot;])
+#&gt; Expected: ~0.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Simulation at 10% prevalence solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulation at 10% prevalence solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_total &lt;- 10000
+prevalence &lt;- 0.10
+sens &lt;- 0.99
+spec &lt;- 0.99
+
+has_disease &lt;- runif(n_total) &lt; prevalence
+test_positive &lt;- ifelse(has_disease,
+                        runif(n_total) &lt; sens,
+                        runif(n_total) &lt; (1 - spec))
+counts &lt;- table(disease = has_disease, positive = test_positive)
+round(counts[&quot;TRUE&quot;, &quot;TRUE&quot;] / sum(counts[, &quot;TRUE&quot;]), 3)
+#&gt; [1] 0.916</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 10% prevalence the sick group is 100 times larger than at 0.1%, so true positives now outnumber false positives by roughly 11 to 1. PPV jumps from 9% to over 90%, even though the test itself is unchanged.</p>
+
+</details>
+</section>
+
+<h2>How do sensitivity, specificity, and prevalence each shift PPV?</h2>
+
+<p>Three numbers drive PPV, and they pull in different directions. <strong>Sensitivity</strong> is $P(\text{positive} \mid \text{disease})$: how often the test catches a real case. <strong>Specificity</strong> is $P(\text{negative} \mid \text{no disease})$: how often the test correctly clears a healthy person. <strong>Prevalence</strong> is just $P(\text{disease})$, the prior. To see which lever matters most when the disease is rare, we hold prevalence at 0.1% and sweep specificity from 80% to 99.9%.</p>
+
+<div class="webr-container" data-block-title="Sweep specificity, hold prevalence and sensitivity fixed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep specificity, hold prevalence and sensitivity fixed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec_grid &lt;- seq(0.80, 0.999, length.out = 200)
+
+spec_df &lt;- tibble(
+  specificity = spec_grid,
+  ppv = bayes_pp(prevalence = 0.001,
+                 sens = 0.99,
+                 spec = spec_grid)
+)
+
+ggplot(spec_df, aes(x = specificity, y = ppv)) +
+  geom_line(color = &quot;#d62728&quot;, size = 1) +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = &quot;Specificity&quot;,
+       y = &quot;PPV at 0.1% prevalence&quot;,
+       title = &quot;Specificity dominates PPV at low prevalence&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curve is almost flat below 95% specificity and explodes upward above 99.5%. Going from 95% to 99.9% specificity is the difference between a 2% PPV and a 50% PPV. Sensitivity helps you find disease, but specificity is what lets you trust a positive result when the disease is rare.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For rare conditions, optimise specificity first.</strong> A test that catches every case (high sensitivity) but flags 5% of healthy people (95% specificity) is nearly useless at low prevalence. Engineering the specificity from 95% to 99.5% has more impact than pushing sensitivity past 99%.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap the formula in a tiny helper called <code>ex_ppv()</code> that takes prevalence, sensitivity, and specificity and returns PPV. Call it for prevalence 0.02, sens 0.98, spec 0.95.</p>
+<div class="webr-container" data-block-title="Your turn: write ex_ppv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write ex_ppv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: implement ex_ppv()
+ex_ppv &lt;- function(prev, sens, spec) {
+  # your code here
+}
+
+round(ex_ppv(0.02, 0.98, 0.95), 3)
+#&gt; Expected: 0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ex_ppv() solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ex_ppv() solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ppv &lt;- function(prev, sens, spec) {
+  (sens * prev) / (sens * prev + (1 - spec) * (1 - prev))
+}
+
+round(ex_ppv(0.02, 0.98, 0.95), 3)
+#&gt; [1] 0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 2% prevalence with 95% specificity, only 29% of positives are real. The function reuses the same Bayes formula as <code>bayes_pp()</code> with renamed arguments.</p>
+
+</details>
+</section>
+
+<h2>What changes when you test twice?</h2>
+
+<p>A second positive test pushes the posterior much higher than a single test, but the math is not "99% accurate twice equals 99.99% accurate." Each test updates the prior with new evidence. Yesterday's posterior becomes today's prior. As long as the two tests are independent, you can apply Bayes twice in a row.</p>
+
+<div class="webr-container" data-block-title="Sequential testing: apply Bayes twice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sequential testing: apply Bayes twice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># After one positive test
+first_post &lt;- bayes_pp(prevalence = 0.001,
+                       sens = 0.99,
+                       spec = 0.99)
+
+# That posterior is the prior for the second test
+second_post &lt;- bayes_pp(prevalence = first_post,
+                        sens = 0.99,
+                        spec = 0.99)
+
+c(after_one_test = round(first_post, 3),
+  after_two_tests = round(second_post, 3))
+#&gt; after_one_test after_two_tests
+#&gt;          0.090           0.907</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After one positive, PPV is 9%. After a second positive, PPV jumps to 91%. The same test, applied twice, took the result from "almost certainly a false alarm" to "very likely real." This is exactly how confirmatory testing works in clinics: the first test acts as a screen, and a second independent test is required before any diagnosis.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Independence matters.</strong> If both tests share a failure mode, for example both rely on the same biomarker, they are not independent and Bayes will overstate the second posterior. Confirmatory tests should use a different mechanism, not a re-run of the same one.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What is the posterior probability of disease after three consecutive positive tests, all with sensitivity 99% and specificity 99%, starting from a prior of 0.001?</p>
+<div class="webr-container" data-block-title="Your turn: three sequential positives">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: three sequential positives</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: chain bayes_pp() three times
+prior &lt;- 0.001
+sens &lt;- 0.99
+spec &lt;- 0.99
+
+# your code here
+
+#&gt; Expected: ~0.999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Three sequential positives solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three sequential positives solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior &lt;- 0.001
+sens &lt;- 0.99
+spec &lt;- 0.99
+
+p1 &lt;- bayes_pp(prior, sens, spec)
+p2 &lt;- bayes_pp(p1, sens, spec)
+p3 &lt;- bayes_pp(p2, sens, spec)
+round(p3, 4)
+#&gt; [1] 0.999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each application multiplies the odds in favour of the disease by the likelihood ratio. After three independent positives at 99% sensitivity and specificity, the posterior approaches certainty.</p>
+
+</details>
+</section>
+
+<h2>Where else does Bayes' theorem apply outside medicine?</h2>
+
+<p>The medical example is just one application of a general rule. Spam filters use Bayes to compute $P(\text{spam} \mid \text{words})$. Search engines rank pages by $P(\text{relevant} \mid \text{query})$. Machine learning classifiers, naive Bayes most directly, use the same arithmetic on text and image features. The events change, the formula does not.</p>
+
+<div class="webr-container" data-block-title="Tiny Bayesian spam classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tiny Bayesian spam classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Prior probabilities of spam vs ham
+p_spam &lt;- 0.40
+p_ham &lt;- 0.60
+
+# Word likelihoods given each class
+p_word_given_spam &lt;- c(lottery = 0.30, meeting = 0.05)
+p_word_given_ham &lt;- c(lottery = 0.01, meeting = 0.20)
+
+# A short email containing the word &quot;lottery&quot;
+word &lt;- &quot;lottery&quot;
+posterior_spam &lt;- (p_word_given_spam[word] * p_spam) /
+  (p_word_given_spam[word] * p_spam +
+   p_word_given_ham[word] * p_ham)
+
+round(unname(posterior_spam), 3)
+#&gt; [1] 0.952</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Given the prior that 40% of emails are spam, seeing the word "lottery" pushes the posterior to 95% spam. The same arithmetic that gave us PPV in medicine gives us the spam probability here. Whether the events are diseases, emails, or stock movements, Bayes is the bookkeeping rule for combining evidence with prior belief.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bayes is general.</strong> Every probabilistic inference problem, from weather forecasts to recommendation systems, is some flavour of "update prior with likelihood." Once you see Bayes' theorem in one domain, the others become familiar.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the posterior probability of spam given the word "meeting," using the same priors and likelihoods.</p>
+<div class="webr-container" data-block-title="Your turn: posterior for the word &#x27;meeting&#x27;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: posterior for the word &#x27;meeting&#x27;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: posterior P(spam | &quot;meeting&quot;)
+p_spam &lt;- 0.40
+p_ham &lt;- 0.60
+p_word_given_spam &lt;- c(lottery = 0.30, meeting = 0.05)
+p_word_given_ham &lt;- c(lottery = 0.01, meeting = 0.20)
+
+# your code here
+
+#&gt; Expected: ~0.143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Posterior for &#x27;meeting&#x27; solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Posterior for &#x27;meeting&#x27; solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">word &lt;- &quot;meeting&quot;
+posterior_spam &lt;- (p_word_given_spam[word] * p_spam) /
+  (p_word_given_spam[word] * p_spam +
+   p_word_given_ham[word] * p_ham)
+round(unname(posterior_spam), 3)
+#&gt; [1] 0.143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> "Meeting" is much more common in ham than spam, so seeing it lowers the posterior to about 14%, well below the 40% prior. The same formula gives different answers because the likelihoods flip.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These three exercises combine the ideas from earlier sections. Use distinct variable names like <code>my_data</code> and <code>my_result</code> so you don't overwrite the tutorial's variables in the same notebook session.</p>
+
+<h3>Exercise 1: COVID-style screening test</h3>
+
+<p>A community has 2% prevalence of an infection. The available test is 95% sensitive and 98% specific. Compute the PPV of a single positive test. Then find the lowest specificity that pushes PPV above 90% at the same prevalence and sensitivity.</p>
+
+<div class="webr-container" data-block-title="Exercise 1: PPV and the specificity needed for PPV &gt; 0.90">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1: PPV and the specificity needed for PPV &gt; 0.90</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: bayes_pp() works element-wise on a vector of specificities
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_ppv &lt;- bayes_pp(prevalence = 0.02, sens = 0.95, spec = 0.98)
+round(my_ppv, 3)
+#&gt; [1] 0.492
+
+spec_grid &lt;- seq(0.95, 0.9999, length.out = 1000)
+my_curve &lt;- bayes_pp(prevalence = 0.02, sens = 0.95, spec = spec_grid)
+my_required &lt;- spec_grid[which(my_curve &gt; 0.90)[1]]
+round(my_required, 4)
+#&gt; [1] 0.9954</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> At 98% specificity the PPV is only 49%. Pushing specificity to 99.54% raises PPV above 90%. Specificity is the dominant lever when prevalence is low.</p>
+
+</details>
+
+<h3>Exercise 2: Two independent tests on a population</h3>
+
+<p>Simulate 50,000 people with 1% disease prevalence. Each person takes two independent tests, both with sensitivity 95% and specificity 97%. For each scenario below, compute the empirical PPV from the simulation and compare to Bayes:</p>
+
+<p>(a) one positive test, (b) two consecutive positive tests, (c) one positive followed by one negative.</p>
+
+<div class="webr-container" data-block-title="Exercise 2: Two-test simulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2: Two-test simulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: build two test_result vectors, then index combinations of TRUE/FALSE
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+n &lt;- 50000
+prev &lt;- 0.01
+sens &lt;- 0.95
+spec &lt;- 0.97
+
+my_disease &lt;- runif(n) &lt; prev
+my_test1 &lt;- ifelse(my_disease, runif(n) &lt; sens, runif(n) &lt; (1 - spec))
+my_test2 &lt;- ifelse(my_disease, runif(n) &lt; sens, runif(n) &lt; (1 - spec))
+
+ppv_one &lt;- mean(my_disease[my_test1])
+ppv_both &lt;- mean(my_disease[my_test1 &amp; my_test2])
+ppv_split &lt;- mean(my_disease[my_test1 &amp; !my_test2])
+
+round(c(one_pos = ppv_one,
+        both_pos = ppv_both,
+        pos_then_neg = ppv_split), 3)
+#&gt;     one_pos    both_pos pos_then_neg
+#&gt;       0.246       0.910       0.013</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A single positive at 1% prevalence gives 25% PPV. Two consecutive positives push it to 91%. A positive followed by a negative collapses it to roughly 1%, near the prior. Each test moves the belief in proportion to its likelihood ratio.</p>
+
+</details>
+
+<h3>Exercise 3: Naive Bayes email classifier</h3>
+
+<p>You have a vocabulary of five words: <code>bonus</code>, <code>meeting</code>, <code>urgent</code>, <code>report</code>, <code>prize</code>. Prior <code>P(spam) = 0.4</code>. Per-class word probabilities are below. Classify a 3-word email containing <code>bonus</code>, <code>urgent</code>, <code>prize</code> by computing the posterior probability of spam, treating the words as conditionally independent.</p>
+
+<div class="webr-container" data-block-title="Exercise 3: 3-word naive Bayes classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3: 3-word naive Bayes classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: under conditional independence, multiply the word likelihoods
+
+p_spam &lt;- 0.4
+p_ham &lt;- 0.6
+
+p_w_spam &lt;- c(bonus = 0.20, meeting = 0.05, urgent = 0.25,
+              report = 0.05, prize = 0.30)
+p_w_ham  &lt;- c(bonus = 0.04, meeting = 0.20, urgent = 0.05,
+              report = 0.15, prize = 0.01)
+
+email &lt;- c(&quot;bonus&quot;, &quot;urgent&quot;, &quot;prize&quot;)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_lik_spam &lt;- prod(p_w_spam[email])
+my_lik_ham  &lt;- prod(p_w_ham[email])
+
+my_posterior_spam &lt;- (my_lik_spam * p_spam) /
+  (my_lik_spam * p_spam + my_lik_ham * p_ham)
+
+round(my_posterior_spam, 4)
+#&gt; [1] 0.9991</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> All three words are far more likely under spam than ham, so their likelihood ratios multiply, driving the posterior to over 99%. Naive Bayes scales this exact computation to thousands of words.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>A clinic deploys two tests for a disease with 1% prevalence. Test A is 99% sensitive and 95% specific (a fast screen). Test B is 90% sensitive and 99.5% specific (a slow confirmatory test). We compute PPV after each test alone and after both tests positive.</p>
+
+<div class="webr-container" data-block-title="Clinic scenario: two tests with different profiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clinic scenario: two tests with different profiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prev &lt;- 0.01
+
+# Test A: high sensitivity, lower specificity
+ppv_A &lt;- bayes_pp(prevalence = prev, sens = 0.99, spec = 0.95)
+
+# Test B: lower sensitivity, very high specificity
+ppv_B &lt;- bayes_pp(prevalence = prev, sens = 0.90, spec = 0.995)
+
+# Both A and B positive: A's posterior becomes B's prior
+ppv_AB &lt;- bayes_pp(prevalence = ppv_A,
+                   sens = 0.90,
+                   spec = 0.995)
+
+scenario_summary &lt;- tibble(
+  scenario = c(&quot;A positive only&quot;, &quot;B positive only&quot;,
+               &quot;A then B both positive&quot;),
+  ppv = c(ppv_A, ppv_B, ppv_AB)
+) |&gt;
+  mutate(ppv = round(ppv, 3))
+
+scenario_summary
+#&gt; # A tibble: 3 x 2
+#&gt;   scenario                 ppv
+#&gt;   &lt;chr&gt;                  &lt;dbl&gt;
+#&gt; 1 A positive only        0.167
+#&gt; 2 B positive only        0.645
+#&gt; 3 A then B both positive 0.974</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summary makes the policy recommendation obvious. Test A by itself flags far too many false positives to act on (17% PPV), and Test B alone is decent (65%). But Test A followed by Test B both positive lifts the posterior above 97%. This is the rationale for two-stage screening: a sensitive screen catches everyone, then a specific confirmer rules out the false alarms.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Takeaway</th>
+<th>What it means in code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bayes = prior × likelihood / evidence</td>
+<td><code>bayes_pp(prev, sens, spec)</code> returns the posterior.</td>
+</tr>
+<tr>
+<td>Low prevalence amplifies false positives</td>
+<td>At 0.1% prevalence and 99% specificity, PPV is 9%, not 99%.</td>
+</tr>
+<tr>
+<td>Specificity dominates PPV when disease is rare</td>
+<td>Sweeping specificity reshapes PPV far more than sweeping sensitivity.</td>
+</tr>
+<tr>
+<td>Sequential tests update the prior</td>
+<td>Yesterday's posterior is today's prior; multiply likelihood ratios.</td>
+</tr>
+<tr>
+<td>Same math powers spam, search, and ML</td>
+<td>Naive Bayes is just Bayes' theorem on word features.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gigerenzer, G. <em>Reckoning with Risk: Learning to Live with Uncertainty</em>. Penguin, 2002. The original framing of base rate fallacy in medical testing. <a href="https://www.penguinrandomhouse.com/books/8693/reckoning-with-risk-by-gerd-gigerenzer/">Link</a></li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd Edition. CRC Press, 2020. Chapter 1: The Golem of Prague. <a href="https://xcelab.net/rm/statistical-rethinking/">Link</a></li>
+
+<li>Wickham, H. and Grolemund, G. <em>R for Data Science</em>, 2nd Edition. O'Reilly, 2023. Chapters on simulation and dplyr summaries. <a href="https://r4ds.hadley.nz/">Link</a></li>
+
+<li>R Core Team. <em>An Introduction to R</em>. CRAN, 2024. <a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">Link</a></li>
+
+<li>Diagnostic Testing and Bayes' Theorem. Medical Maths blog, 2024. R simulation walkthrough. <a href="https://medmaths.github.io/posts/diagnostic-testing-and-bayes-theorem/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><strong><a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Conjugate Priors</a> in R</strong> explains the family of priors that make posteriors exact, no MCMC required, building directly on the belief-update intuition above.</li>
+
+<li><strong>Grid Approximation in R</strong> shows how to compute exact posteriors for any small model by evaluating Bayes on a grid of parameter values.</li>
+
+<li><strong>MCMC in R</strong> introduces Metropolis-Hastings, the algorithm that scales Bayes to high-dimensional models when the integrals stop being tractable.</li>
+
+</ul>
+
+{% endraw %}

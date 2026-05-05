@@ -1,7 +1,7 @@
 ---
-title: "dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want"
+title: "dplyr arrange(), slice(), slice_max() in R: Sort and Filter Rows (15 Examples)"
 slug: "dplyr-arrange-slice"
-description: "Sort rows with arrange(), pick positions with slice(), and get top-N per group with slice_max(), the modern successor to top_n() in dplyr 1.1+."
+description: "Sort rows with arrange(), pick positions with slice(), and get top-N per group with slice_max() in dplyr. 15 examples covering desc(), .by, and tie handling."
 keywords: "dplyr arrange, dplyr slice, dplyr top_n, slice_max, slice_min, slice_sample, sort rows R, top n per group R, dplyr sort, R order rows"
 auto_link_terms: "dplyr arrange|dplyr slice|arrange()|slice()|slice_max()|slice_min()|top_n()|sort rows in R|top n per group"
 auto_link_case_sensitive: false

@@ -1,5 +1,5 @@
 ---
-title: "tidyr separate() & unite() in R: Split & Combine Character Columns"
+title: "tidyr separate_wider_delim() and unite() in R: Split & Combine Columns"
 slug: "tidyr-separate-unite-Split-Combine-Columns-in-R"
 description: "Split columns with separate_wider_delim() and combine with unite() in tidyr. Practical R examples showing delimiter, position, and regex-based splits."
 keywords: "tidyr separate, separate_wider_delim, separate_wider_position, separate_wider_regex, tidyr unite, split column R, combine columns R, tidyr"

@@ -1,7 +1,7 @@
 ---
-title: "50 R Interview Questions Answered: From Junior Analyst to Senior Data Scientist"
+title: "50 R Interview Questions and Answers (2026): Junior to Senior Roles"
 slug: "R-Interview-Questions"
-description: "50 real R programming interview questions with detailed answers, common wrong answers, and what interviewers are actually testing at each seniority level."
+description: "50 R interview questions with worked answers, the common wrong response, and what interviewers actually test for. Updated 2026, covers junior to senior."
 keywords: "R interview questions, R programming interview, R data science interview, R coding interview, R technical interview, R job interview prep"
 auto_link_terms: "R interview questions|R programming interview|R coding interview|R data science interview|R interview prep"
 auto_link_case_sensitive: false

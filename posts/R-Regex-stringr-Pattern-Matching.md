@@ -1,7 +1,7 @@
 ---
 title: "R Regular Expressions: Pattern Matching with stringr (20 Examples)"
 slug: "R-Regex-stringr-Pattern-Matching"
-description: "Master R regex with 20 practical stringr examples: character classes, quantifiers, anchors, groups, and lookarounds using str_detect() and str_extract()."
+description: "20 stringr regex examples in R with str_detect(), str_extract(), str_replace(), str_match(). Covers character classes, quantifiers, anchors, lookarounds, capture groups."
 keywords: "R regular expressions, R regex, stringr regex, str_detect regex, str_extract regex, str_replace regex, R pattern matching, R character classes, R regex lookahead, regex in R"
 auto_link_terms: "R regular expressions|R regex|regex in R|regular expressions in R|pattern matching in R"
 auto_link_case_sensitive: false

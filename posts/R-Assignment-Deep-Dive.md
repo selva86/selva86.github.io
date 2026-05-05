@@ -1,5 +1,5 @@
 ---
-title: "<- vs = vs <<- in R: The Definitive Guide to Assignment Operators"
+title: "<- vs = vs <<- in R: Which Assignment Operator to Use (with Examples)"
 slug: "R-Assignment-Deep-Dive"
 description: "R has five assignment operators with distinct behavior. Learn when <- and = are interchangeable, what <<- does to parent environments, and why -> exists."
 keywords: "R assignment operators, <- vs = in R, <<- operator R, right assignment R, assign function R, R scoping rules, R variable assignment, R style guide"

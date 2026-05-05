@@ -1,7 +1,7 @@
 ---
-title: "dplyr group_by() + summarise(): The Combination That Answers Most Business Questions"
+title: "dplyr group_by() + summarise() in R: Aggregate Any Data Frame (10 Examples)"
 slug: "dplyr-group-by-summarise"
-description: "Master dplyr group_by() and summarise() to aggregate data by group in R. Learn n(), mean(), .by, multi-group rollups with 10 real-world examples."
+description: "Aggregate any R data frame in 3 lines using dplyr group_by() and summarise(). Covers n(), mean(), .by, multi-group rollups, ungroup(), and the .groups argument."
 keywords: "dplyr group_by, dplyr summarise, R aggregate by group, split-apply-combine R, dplyr summarize, group_by summarise, R data aggregation, tidyverse group summary"
 auto_link_terms: "dplyr group_by|dplyr summarise|group_by()|summarise()|group by in R|aggregate by group in R|split-apply-combine"
 auto_link_case_sensitive: false

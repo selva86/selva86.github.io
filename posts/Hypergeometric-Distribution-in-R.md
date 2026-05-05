@@ -1,7 +1,7 @@
 ---
-title: "Hypergeometric Distribution in R: Sampling Without Replacement"
+title: "Hypergeometric Distribution in R: dhyper, phyper Examples + Calculator"
 slug: "Hypergeometric-Distribution-in-R"
-description: "Model sampling without replacement in R with dhyper, phyper, qhyper, and rhyper. Worked QA, card, and audit examples plus how it differs from binomial."
+description: "Sampling without replacement in R using dhyper(), phyper(), qhyper(), rhyper(). Worked QA, audit, and card examples plus the formula. Includes a free calculator."
 keywords: "hypergeometric distribution R, dhyper, phyper, qhyper, rhyper, sampling without replacement, R probability distribution, finite population sampling"
 mathjax: true
 webr: true

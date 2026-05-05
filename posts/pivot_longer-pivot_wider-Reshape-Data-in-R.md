@@ -1,7 +1,7 @@
 ---
-title: "pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind"
+title: "pivot_longer() vs pivot_wider() in R: Wide and Long Reshape (10 Patterns)"
 slug: "pivot_longer-pivot_wider-Reshape-Data-in-R"
-description: "Reshape wide-to-long and long-to-wide in R with tidyr pivot_longer() and pivot_wider(). Every key argument explained with before-and-after examples."
+description: "Reshape R data frames with tidyr pivot_longer() and pivot_wider(). Every key argument explained: names_to, values_to, names_from, values_from, names_sep, values_fn."
 keywords: "pivot_longer, pivot_wider, tidyr, reshape data R, wide to long R, long to wide R, names_to, values_to, names_from, values_from"
 auto_link_terms: "pivot_longer()|pivot_wider()|pivot longer|pivot wider|reshape data in R|wide to long format|long to wide format"
 auto_link_case_sensitive: false

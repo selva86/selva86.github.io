@@ -1,5 +1,5 @@
 ---
-title: "R Error: 'subscript out of bounds', Find Which Index Is Wrong Instantly"
+title: "Fix \"subscript out of bounds\" Error in R: Causes, Diagnosis, Prevention"subscript out of bounds\" Error in R: Causes, Diagnosis, Prevention"
 slug: "R-Error-Subscript-Out-of-Bounds"
 description: "Fix R's 'subscript out of bounds' error fast. Learn to identify which index is wrong, add bounds checks, and use seq_along() to prevent off-by-one bugs."
 keywords: "R subscript out of bounds, R out of bounds error, R index error, R off by one error, seq_along R, R bounds checking, R indexing errors"

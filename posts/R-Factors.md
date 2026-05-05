@@ -1,7 +1,7 @@
 ---
-title: "R Factors: The Data Type That Trips Up Almost Every R Beginner"
+title: "R Factors Explained: Levels, Ordering, and Common Pitfalls"
 slug: R-Factors
-description: "Factors store categorical data with levels but behave like integers underneath. Learn to create, reorder, relabel, and convert factors safely without losing data."
+description: "Factor variables in R: how levels work, how to reorder with forcats, how to convert safely with as.numeric(as.character(x)), and why factors silently break when filtered."
 keywords: "R factors, factor R, forcats, fct_relevel, fct_recode, ordered factor R, as.factor, levels R, R categorical data"
 auto_link_terms: "R factors|factor()|levels()|fct_relevel|forcats|ordered factor"
 auto_link_case_sensitive: false

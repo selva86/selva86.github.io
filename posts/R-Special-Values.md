@@ -1,7 +1,7 @@
 ---
-title: "R's Four Special Values: NA, NULL, NaN, Inf, What Each One Actually Means"
+title: "NA, NULL, NaN, Inf in R: Differences, Tests, and Safe Handling"
 slug: "R-Special-Values"
-description: "NA, NULL, NaN, and Inf mean different things in R. Learn how to tell them apart, test for each safely, and clean them without crashing your code."
+description: "What's the difference between NA, NULL, NaN, and Inf in R? How to test each with is.na(), is.null(), is.nan(), is.finite(), and clean them without breaking your code."
 keywords: "R special values, NA in R, NULL in R, NaN in R, Inf in R, is.na R, is.null R, is.nan R, handle missing values R"
 auto_link_terms: "NA in R|NULL in R|NaN in R|Inf in R|special values in R|is.na()|is.null()|is.nan()"
 auto_link_case_sensitive: false
