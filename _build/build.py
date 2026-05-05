@@ -1923,12 +1923,19 @@ def patch_tool_pages(sections, asset_hrefs):
                 1
             )
         # Refresh the chrome layout CSS so mobile-drawer rules land on tools
-        # that were built before the drawer existed.
+        # that were built before the drawer existed. Replace ALL occurrences
+        # then drop duplicates — earlier builds occasionally injected the
+        # block twice when the head was patched in two passes.
         layout_css_re = re.compile(
             r'<style id="tool-chrome-css">.*?</style>',
             re.DOTALL,
         )
-        new_html = layout_css_re.sub(layout_css, new_html, count=1)
+        new_html = layout_css_re.sub(layout_css, new_html)
+        # Dedupe: keep only the first instance of the layout CSS block.
+        matches = list(layout_css_re.finditer(new_html))
+        if len(matches) > 1:
+            for m in reversed(matches[1:]):
+                new_html = new_html[:m.start()] + new_html[m.end():]
         # Refresh the masthead so the hamburger button appears on tools that
         # were built before it existed. Match the existing site-masthead block.
         site_masthead_re = re.compile(
