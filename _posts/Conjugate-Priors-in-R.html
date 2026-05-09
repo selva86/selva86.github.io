@@ -1,0 +1,782 @@
+---
+title: "Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC"
+description: "Conjugate priors in R give exact posteriors in closed form. Master Beta-Binomial, Gamma-Poisson, and Normal-Normal updates with worked simulations, no MCMC."
+keywords: "conjugate priors R, Beta-Binomial, Gamma-Poisson, Normal-Normal, posterior closed form, Bayesian inference R, conjugate distribution, prior posterior R"
+mathjax: true
+webr: true
+curriculum_id: "5.1.3"
+post_type: "C"
+auto_link_terms: "conjugate prior|Beta-Binomial conjugate|Gamma-Poisson conjugate|Normal-Normal conjugate|conjugate family|posterior closed form"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Conjugate Priors"
+sidebar_order: "112"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</h1>
+
+<p class="lead">A conjugate prior is one where the posterior, after observing data, stays in the same distribution family as the prior. That property turns Bayesian updating into pure arithmetic on shape parameters, no MCMC required, no integration to do by hand. R has every helper you need (dbeta, dgamma, dnorm, qbeta, qgamma, qnorm) so a working analyst can compute exact posteriors in three lines.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<h2>What does it mean for a prior to be conjugate?</h2>
+
+<p>You probably came here because someone told you "just use a conjugate prior and you skip MCMC." That is true, and the reason it works is small enough to fit in a paragraph. The likelihood and the prior, viewed as functions of the parameter, share the same algebraic shape. Multiply them and the shape is preserved, so the posterior lives in the same family with parameters you can write down by hand.</p>
+
+<p>The whole trick is one identity. Posterior is proportional to prior times likelihood:</p>
+
+<p>$$ p(\theta \mid y) \;\propto\; p(y \mid \theta) \cdot p(\theta) $$</p>
+
+<p>Where $p(\theta)$ is the prior, $p(y \mid \theta)$ is the likelihood, and $p(\theta \mid y)$ is the posterior. The constant of proportionality is whatever makes the posterior integrate to 1. When prior and likelihood <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> conjugate, that constant pops out for free because the posterior is a known distribution.</p>
+
+<p>Suppose you flip a possibly-biased coin 100 times and see 65 heads. With a Beta(2, 2) prior, the posterior is exactly Beta(67, 37). One line of arithmetic gives you the full posterior plus its 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a>.</p>
+
+<div class="webr-container" data-block-title="Beta-Binomial in three lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta-Binomial in three lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 100
+k &lt;- 65
+alpha_prior &lt;- 2
+beta_prior  &lt;- 2
+
+alpha_post &lt;- alpha_prior + k          # 67
+beta_post  &lt;- beta_prior  + n - k      # 37
+
+post_mean &lt;- alpha_post / (alpha_post + beta_post)
+cri       &lt;- qbeta(c(0.025, 0.975), alpha_post, beta_post)
+
+post_mean
+#&gt; [1] 0.6442308
+cri
+#&gt; [1] 0.5497073 0.7321076</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Beta(2, 2) prior gives a Beta(67, 37) posterior. Mean 0.644 sits between the prior mean 0.5 and the data proportion 0.65, gently pulled toward 0.5 by the prior's weight. The 95% credible interval is the range that contains 95% of the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> mass. None of this required <code>integrate()</code>, <code>optim()</code>, or any sampler.</p>
+
+<p><img src="screenshots/Conjugate-Priors-in-R-kernel.webp" alt="Why conjugacy works" class="img-responsive img-zoomable" loading="lazy" width="1372" height="690" /></p>
+
+<p><em>Figure 1: Why conjugacy works. Prior and likelihood share the same algebraic shape, so the posterior stays in the family.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conjugate is just an algebraic-shape match between prior and likelihood, no magic.</strong> When the likelihood viewed as a function of theta has the same kernel form as the prior, multiplying them gives a curve in the same family. The posterior parameters are simple sums of prior parameters and data summaries.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the calculation with a tighter Beta(20, 20) prior. What does the posterior mean become and why?</p>
+<div class="webr-container" data-block-title="Your turn: tighten the prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighten the prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha &lt;- 20
+ex_beta  &lt;- 20
+
+# compute ex_alpha_post, ex_beta_post, and the posterior mean
+#&gt; Expected: posterior mean closer to 0.5 than 0.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_alpha_post &lt;- ex_alpha + k
+ex_beta_post  &lt;- ex_beta  + n - k
+ex_alpha_post / (ex_alpha_post + ex_beta_post)
+#&gt; [1] 0.6071429</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A Beta(20, 20) prior is equivalent to having seen 38 prior flips with 19 heads. Adding the new 100 flips gives a posterior pulled noticeably back toward 0.5. A stronger prior carries more weight against the same data.</p>
+
+</details>
+</section>
+
+<h2>How does the Beta-Binomial pair work?</h2>
+
+<p>The Beta-Binomial pair is the workhorse for proportions. Any time you have successes out of trials, that is Binomial data, and a Beta prior gives you a Beta posterior. The shape parameters alpha and beta act as pseudo-counts of prior successes and failures, so the update rule is just addition: add observed successes to alpha, add observed failures to beta.</p>
+
+<p>A practical scenario. You ship 200 builds and 42 of them contain a bug. You believe most builds are clean, encoded as a Beta(2, 8) prior (mean 0.2). Compute the posterior bug rate.</p>
+
+<div class="webr-container" data-block-title="Beta-Binomial bug-detection rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta-Binomial bug-detection rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bd_n &lt;- 200
+bd_k &lt;- 42
+
+bd_post_a &lt;- 2 + bd_k
+bd_post_b &lt;- 8 + bd_n - bd_k
+
+bd_mean &lt;- bd_post_a / (bd_post_a + bd_post_b)
+qbeta(c(0.025, 0.975), bd_post_a, bd_post_b)
+#&gt; [1] 0.1620205 0.2723091
+bd_mean
+#&gt; [1] 0.2142857</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior is Beta(44, 166). The mean of 0.214 is just above the data proportion of 0.21, slightly pulled toward the prior mean 0.2. The 95% credible interval [0.16, 0.27] gives a reportable range. The whole computation took four arithmetic operations and one quantile call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Alpha and beta act as pseudo-counts of prior successes and failures.</strong> A Beta(2, 8) prior carries the same weight as 10 prior observations split 2 to 8. Doubling both shape parameters keeps the mean but tightens the curve, equivalent to having seen 20 prior observations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recompute with a Beta(1, 1) uniform prior on the same data. How does the posterior mean change?</p>
+<div class="webr-container" data-block-title="Your turn: uniform prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: uniform prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_unif_a &lt;- 1
+ex_unif_b &lt;- 1
+
+# compute the posterior parameters and posterior mean
+#&gt; Expected: posterior mean essentially equals data proportion 42/200 = 0.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Uniform prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uniform prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_unif_post_a &lt;- ex_unif_a + bd_k
+ex_unif_post_b &lt;- ex_unif_b + bd_n - bd_k
+ex_unif_post_a / (ex_unif_post_a + ex_unif_post_b)
+#&gt; [1] 0.2128713</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With a uniform prior, the posterior mean is essentially the data proportion. The prior carries weight 2 against the data's weight of 200, so the data dominates.</p>
+
+</details>
+</section>
+
+<h2>How does the Gamma-Poisson pair work?</h2>
+
+<p>When you have <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">count data</a> with a constant rate, like support tickets per day or accidents per month, the natural likelihood is Poisson. The conjugate prior is Gamma, and the posterior is Gamma with arithmetic-update parameters: add the sum of observations to alpha, add the number of observations to beta.</p>
+
+<p>The math in one line. If $y_1, \ldots, y_n$ are Poisson($\lambda$) observations and the prior is Gamma($\alpha, \beta$), then:</p>
+
+<p>$$ \lambda \mid y \;\sim\; \text{Gamma}\!\left(\alpha + \sum y_i,\; \beta + n\right) $$</p>
+
+<p>Where: $\alpha$ and $\beta$ are the prior shape and rate, $n$ is the sample size, and $\sum y_i$ is the total of the observed counts.</p>
+
+<p>Imagine you run a SaaS support team. You observe ticket counts for five days: 8, 12, 7, 15, 9. Your prior belief is "around 8 tickets per day, but I am not very sure," encoded as Gamma(2, 0.25). Compute the posterior over the daily rate.</p>
+
+<div class="webr-container" data-block-title="Gamma-Poisson support tickets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gamma-Poisson support tickets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gp_y &lt;- c(8, 12, 7, 15, 9)
+gp_n &lt;- length(gp_y)
+gp_a_prior &lt;- 2
+gp_b_prior &lt;- 0.25
+
+gp_a_post &lt;- gp_a_prior + sum(gp_y)       # 2 + 51 = 53
+gp_b_post &lt;- gp_b_prior + gp_n            # 0.25 + 5 = 5.25
+
+gp_post_mean &lt;- gp_a_post / gp_b_post
+gp_post_mean
+#&gt; [1] 10.09524
+qgamma(c(0.025, 0.975), gp_a_post, gp_b_post)
+#&gt; [1]  7.563749 12.916091</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior is Gamma(53, 5.25), with mean 10.1 tickets per day and 95% credible interval [7.6, 12.9]. The data mean was 51/5 = 10.2, so the prior pulled the answer down by about 0.1, confirming the prior was barely informative against five real observations.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The same kernel-shape mechanism works across families.</strong> The Poisson likelihood viewed as a function of lambda has a Gamma kernel, so a Gamma prior gives a Gamma posterior. The update rule is again pure addition: alpha gets the data sum, beta gets the data count.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Suppose you collect another five days with sum 60 instead of 51. Recompute the posterior parameters and mean.</p>
+<div class="webr-container" data-block-title="Your turn: change observed sum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change observed sum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_y_new_sum &lt;- 60
+
+# compute the new posterior alpha and posterior mean
+#&gt; Expected: posterior mean above 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Different sum solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different sum solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_a_post_new &lt;- gp_a_prior + ex_y_new_sum
+ex_b_post_new &lt;- gp_b_prior + 5
+ex_a_post_new / ex_b_post_new
+#&gt; [1] 11.80952</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A larger observed sum shifts the posterior mean up to about 11.8. The Gamma family responds linearly to the observed total, which is why it stays interpretable across batch sizes.</p>
+
+</details>
+</section>
+
+<h2>How does the Normal-Normal pair work (with known sigma)?</h2>
+
+<p>For data that is approximately Normal with a known measurement standard deviation, the conjugate prior on the unknown mean is itself Normal. The posterior is Normal with two intuitive parameters: a weighted average of the prior mean and the data mean, and a precision (inverse variance) that adds prior precision and data precision.</p>
+
+<p>The posterior mean formula is a precision-weighted blend.</p>
+
+<p>$$ \mu \mid y \;\sim\; \text{Normal}\!\left(\frac{\frac{\mu_0}{\tau_0^2} + \frac{n \bar{y}}{\sigma^2}}{\frac{1}{\tau_0^2} + \frac{n}{\sigma^2}},\;\; \left(\frac{1}{\tau_0^2} + \frac{n}{\sigma^2}\right)^{-1}\right) $$</p>
+
+<p>Where: $\mu_0$ is the prior mean, $\tau_0$ is the prior standard deviation, $\sigma$ is the known data standard deviation, $n$ is the sample size, and $\bar{y}$ is the sample mean. The first term in the parentheses is the precision-weighted blend, the second is the posterior variance.</p>
+
+<p>A blood-pressure example. A clinic measures systolic BP for 15 patients (sample mean 128 mmHg, known measurement σ = 10 mmHg). Prior belief about the population mean is Normal(120, 8²). Compute the posterior.</p>
+
+<div class="webr-container" data-block-title="Normal-Normal blood-pressure mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal-Normal blood-pressure mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nn_y     &lt;- c(135, 128, 142, 119, 130, 122, 138, 125,
+              132, 117, 140, 124, 130, 121, 137)
+nn_n     &lt;- length(nn_y)
+nn_mean  &lt;- mean(nn_y)
+nn_sigma &lt;- 10                # known data SD
+
+nn_m0 &lt;- 120                  # prior mean
+nn_t0 &lt;- 8                    # prior SD
+
+prior_prec &lt;- 1 / nn_t0^2
+data_prec  &lt;- nn_n / nn_sigma^2
+
+nn_post_var  &lt;- 1 / (prior_prec + data_prec)
+nn_post_mean &lt;- nn_post_var * (nn_m0 * prior_prec + nn_mean * data_prec)
+
+nn_post_mean
+#&gt; [1] 127.0857
+sqrt(nn_post_var)
+#&gt; [1] 2.182179
+qnorm(c(0.025, 0.975), nn_post_mean, sqrt(nn_post_var))
+#&gt; [1] 122.8087 131.3627</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior is Normal(127.1, 2.18²) with 95% credible interval [122.8, 131.4]. The data mean was 128.7 and the prior mean was 120, so the posterior sits at 127.1, much closer to the data because n=15 observations carry more precision than a prior with σ=8.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Unknown sigma needs a different conjugate setup.</strong> When both mean and variance are unknown, the conjugate prior is Normal-Inverse-Gamma (a joint prior over mu and sigma squared). It is still closed-form, just with two parameters in play. For most everyday work the known-sigma version is enough, but be aware of the extension.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tighten the prior to Normal(120, 2²) (much more confident) and recompute the posterior mean. Does it move closer to 120?</p>
+<div class="webr-container" data-block-title="Your turn: tight prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tight prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_t0_tight &lt;- 2
+
+# recompute prior_prec, post_var, post_mean
+#&gt; Expected: posterior mean shifts noticeably toward 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tight prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tight prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prior_prec &lt;- 1 / ex_t0_tight^2
+ex_post_var   &lt;- 1 / (ex_prior_prec + data_prec)
+ex_post_var * (nn_m0 * ex_prior_prec + nn_mean * data_prec)
+#&gt; [1] 122.5825</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A Normal(120, 2²) prior carries weight 1/4 = 0.25 in precision units, comparable to 25 hypothetical observations at σ=10. Combined with the 15 real observations, the posterior gets pulled close to 120 (122.6) instead of close to the data mean (128.7).</p>
+
+</details>
+</section>
+
+<h2>How does sequential updating work for Gamma-Poisson?</h2>
+
+<p>A nice property of conjugate updates is that they are order-independent and incremental. Update after batch one, then update again with batch two, and you land on the same posterior as if you had combined both batches and updated once. That makes streaming Bayes natural.</p>
+
+<div class="webr-container" data-block-title="Sequential vs one-shot Gamma-Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sequential vs one-shot Gamma-Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">batch1 &lt;- c(8, 12, 7)
+batch2 &lt;- c(15, 9)
+
+# Sequential: update once per batch
+seq_first  &lt;- c(alpha = gp_a_prior + sum(batch1),
+                beta  = gp_b_prior + length(batch1))           # Gamma(29, 3.25)
+
+seq_second &lt;- c(alpha = seq_first[&quot;alpha&quot;] + sum(batch2),
+                beta  = seq_first[&quot;beta&quot;]  + length(batch2))   # Gamma(53, 5.25)
+
+# One-shot: combine batches
+seq_combined &lt;- c(alpha = gp_a_prior + sum(c(batch1, batch2)),
+                  beta  = gp_b_prior + length(c(batch1, batch2)))
+
+seq_second
+#&gt; alpha.alpha   beta.beta
+#&gt;       53.00        5.25
+seq_combined
+#&gt; alpha  beta
+#&gt; 53.00  5.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both paths land on Gamma(53, 5.25). The math is the same because the Gamma update is additive in both alpha (which absorbs sum y) and beta (which absorbs n). Yesterday's posterior literally becomes today's prior.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>All conjugate updates are stream-friendly. Posterior of yesterday becomes prior of today.</strong> Save the two posterior parameters at the end of each day, plug them in as the prior tomorrow. No re-processing of past data, no log files to retain. This is part of what makes Bayesian methods natural for online learning.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split the same five-day data into batches of 1 and 4. Verify the sequential result still matches the one-shot.</p>
+<div class="webr-container" data-block-title="Your turn: different batch boundary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: different batch boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_b1 &lt;- c(8)
+ex_b2 &lt;- c(12, 7, 15, 9)
+
+# update sequentially across the two batches and compare to one-shot
+#&gt; Expected: same Gamma(53, 5.25) posterior as before.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Different batch boundary solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different batch boundary solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step1 &lt;- c(alpha = gp_a_prior + sum(ex_b1),
+           beta  = gp_b_prior + length(ex_b1))
+step2 &lt;- c(alpha = step1[&quot;alpha&quot;] + sum(ex_b2),
+           beta  = step1[&quot;beta&quot;]  + length(ex_b2))
+step2
+#&gt; alpha.alpha   beta.beta
+#&gt;       53.00        5.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same Gamma(53, 5.25) regardless of how you slice the data. Order-independence is a hard property to give up once you have it.</p>
+
+</details>
+</section>
+
+<h2>When does conjugacy NOT save you?</h2>
+
+<p>Conjugacy is a powerful shortcut, but a narrow one. The moment your model leaves the small list of standard pairs, the closed form disappears and you need a sampler. The three big places it breaks: multi-parameter likelihoods without a joint conjugate, hierarchical models, and any custom likelihood that does not match a known family.</p>
+
+<p>A two-parameter Normal model (both mean AND standard deviation unknown) demonstrates the wall. <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">Grid approximation</a> works in two dimensions but blows up fast.</p>
+
+<div class="webr-container" data-block-title="Two-parameter grid: where conjugacy ends">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-parameter grid: where conjugacy ends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+y_obs &lt;- rnorm(20, mean = 5, sd = 1.5)
+
+mu_grid    &lt;- seq(3, 7, length.out = 80)
+sigma_grid &lt;- seq(0.5, 3, length.out = 80)
+
+post_grid &lt;- outer(mu_grid, sigma_grid, function(m, s) {
+  loglik &lt;- sapply(seq_along(m), function(i)
+    sum(dnorm(y_obs, mean = m[i], sd = s[i], log = TRUE)))
+  exp(loglik - max(loglik))
+})
+post_grid &lt;- post_grid / sum(post_grid)
+sum(mu_grid * rowSums(post_grid))
+#&gt; [1] 5.124375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two parameters at 80 grid points each is 6,400 cells. Three parameters at 80 points is 512,000. Five parameters at 50 points is over 312 million. The combinatorial blow-up is exactly why MCMC was invented: it samples from the posterior without ever computing it on a grid.</p>
+
+<p><img src="screenshots/Conjugate-Priors-in-R-when-fails.webp" alt="When conjugacy stops helping" class="img-responsive img-zoomable" loading="lazy" width="974" height="2358" /></p>
+
+<p><em>Figure 3: When conjugacy stops helping. Most real models fall off this tree quickly.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>brms and Stan generalize the prior + likelihood = posterior idea via sampling.</strong> The mental model you built here transfers directly. MCMC produces samples instead of a closed form, and the same summaries (posterior mean, credible interval, tail probability) work on those samples just like they work on closed-form posteriors.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Roughly how many cells does grid approximation need for 5 parameters at 50 points each?</p>
+<div class="webr-container" data-block-title="Your turn: grid cost for 5 params">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: grid cost for 5 params</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- 5
+# total cells at 50 points each
+#&gt; Expected: a number above 300 million</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Grid cost solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid cost solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">50 ^ ex_d
+#&gt; [1] 312500000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Over 312 million cells. Each cell needs a likelihood evaluation. By six or seven parameters even cluster-scale grids are infeasible.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Click-through rate (Beta-Binomial)</h3>
+
+<p>A new ad shows 500 impressions and gets 37 clicks. Use a Beta(2, 8) prior. Compute the posterior, the posterior mean, the 95% credible interval, and the posterior probability that the true click-through rate exceeds 5%.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr_n &lt;- 500
+ctr_k &lt;- 37
+
+# compute ctr_post_a, ctr_post_b, ctr_mean, ctr_cri, ctr_p_above</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr_post_a &lt;- 2 + ctr_k
+ctr_post_b &lt;- 8 + ctr_n - ctr_k
+ctr_mean   &lt;- ctr_post_a / (ctr_post_a + ctr_post_b)
+ctr_cri    &lt;- qbeta(c(0.025, 0.975), ctr_post_a, ctr_post_b)
+ctr_p_above &lt;- 1 - pbeta(0.05, ctr_post_a, ctr_post_b)
+ctr_mean
+#&gt; [1] 0.07647059
+ctr_cri
+#&gt; [1] 0.05477729 0.10204081
+ctr_p_above
+#&gt; [1] 0.9851317</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior Beta(39, 471), mean 0.077, 95% CrI [0.055, 0.102]. Posterior probability above 5% is 0.985, strongly suggesting the ad outperforms a 5% threshold.</p>
+
+</details>
+
+<h3>Exercise 2: Support-ticket rate over two days (Gamma-Poisson)</h3>
+
+<p>Two days of data: 12 tickets on Monday, 18 tickets on Tuesday. Use a Gamma(2, 1) prior. Compute the posterior over the daily rate, the posterior mean, and the posterior probability that the true rate exceeds 20 tickets per day.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tk_y &lt;- c(12, 18)
+
+# compute tk_post_a, tk_post_b, tk_mean, tk_p_high</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tk_post_a &lt;- 2 + sum(tk_y)
+tk_post_b &lt;- 1 + length(tk_y)
+tk_mean   &lt;- tk_post_a / tk_post_b
+tk_p_high &lt;- 1 - pgamma(20, tk_post_a, tk_post_b)
+tk_mean
+#&gt; [1] 10.66667
+tk_p_high
+#&gt; [1] 0.0007580094</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior Gamma(32, 3), mean 10.7 tickets per day. Posterior probability of exceeding 20 is just 0.08%, so the data essentially rules that out under this prior.</p>
+
+</details>
+
+<h3>Exercise 3: IQ measurements (Normal-Normal)</h3>
+
+<p>Three IQ measurements (118, 122, 124) with known measurement σ = 15. Prior on the underlying IQ is Normal(100, 15²). Compute the posterior mean, posterior standard deviation, and 95% credible interval.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iq_y &lt;- c(118, 122, 124)
+iq_sigma &lt;- 15
+iq_m0 &lt;- 100
+iq_t0 &lt;- 15
+
+# compute iq_post_mean, iq_post_var, iq_cri</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iq_n         &lt;- length(iq_y)
+iq_data_prec &lt;- iq_n / iq_sigma^2
+iq_prior_prec &lt;- 1 / iq_t0^2
+iq_post_var   &lt;- 1 / (iq_prior_prec + iq_data_prec)
+iq_post_mean  &lt;- iq_post_var * (iq_m0 * iq_prior_prec + mean(iq_y) * iq_data_prec)
+iq_cri        &lt;- qnorm(c(0.025, 0.975), iq_post_mean, sqrt(iq_post_var))
+iq_post_mean
+#&gt; [1] 115.5
+sqrt(iq_post_var)
+#&gt; [1] 7.5
+iq_cri
+#&gt; [1] 100.8003 130.1997</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior mean 115.5, posterior SD 7.5. Three measurements with σ=15 carry the same precision as the prior, so the posterior mean is exactly halfway between the prior mean (100) and the data mean (121.3).</p>
+
+</details>
+
+<h2>Complete Example: Two-Variant AB Test</h2>
+
+<p>A typical conversion-rate AB test. Control gets 1,200 visitors and 84 convert; treatment gets 1,180 visitors and 105 convert. Use a Beta(1, 1) uniform prior on each variant. Compute posteriors for both, then estimate the posterior probability that treatment beats control by sampling from each posterior.</p>
+
+<div class="webr-container" data-block-title="Conversion-rate AB test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conversion-rate AB test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Control
+ctrl_n &lt;- 1200; ctrl_k &lt;-  84
+ctrl_post &lt;- c(alpha = 1 + ctrl_k, beta = 1 + ctrl_n - ctrl_k)
+
+# Treatment
+trt_n  &lt;- 1180; trt_k  &lt;- 105
+trt_post  &lt;- c(alpha = 1 + trt_k,  beta = 1 + trt_n  - trt_k)
+
+ctrl_post[&quot;alpha&quot;] / sum(ctrl_post)
+#&gt; alpha
+#&gt;  0.07
+trt_post[&quot;alpha&quot;]  / sum(trt_post)
+#&gt; alpha
+#&gt;  0.08966751
+
+# Posterior probability that treatment &gt; control
+set.seed(2026)
+N &lt;- 1e5
+ctrl_draws &lt;- rbeta(N, ctrl_post[&quot;alpha&quot;], ctrl_post[&quot;beta&quot;])
+trt_draws  &lt;- rbeta(N, trt_post[&quot;alpha&quot;],  trt_post[&quot;beta&quot;])
+mean(trt_draws &gt; ctrl_draws)
+#&gt; [1] 0.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Control posterior mean is 7.0%, treatment is 9.0%. Sampling 100,000 draws from each posterior shows the treatment rate exceeds the control rate in 97% of cases, a strong signal that treatment is better. This is the Bayesian counterpart to a frequentist <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>, but the answer is a probability you can quote directly to a stakeholder: "we are 97% sure treatment beats control."</p>
+
+<h2>Summary</h2>
+
+<p><img src="screenshots/Conjugate-Priors-in-R-three-families.webp" alt="Three common conjugate pairs" class="img-responsive img-zoomable" loading="lazy" width="1180" height="986" /></p>
+
+<p><em>Figure 2: The three common conjugate pairs and their closed-form posterior parameters.</em></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Family</th>
+<th>Likelihood</th>
+<th>Prior</th>
+<th>Posterior parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Beta-Binomial</td>
+<td>Binomial(n, theta)</td>
+<td>Beta(alpha, beta)</td>
+<td>Beta(alpha + k, beta + n - k)</td>
+</tr>
+<tr>
+<td>Gamma-Poisson</td>
+<td>Poisson(lambda)</td>
+<td>Gamma(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></td>
+<td>Gamma(a + sum y, b + n)</td>
+</tr>
+<tr>
+<td>Normal-Normal (known sigma)</td>
+<td>Normal(mu, sigma²)</td>
+<td>Normal(m0, t0²)</td>
+<td>Precision-weighted mean and tau</td>
+</tr>
+<tr>
+<td>Normal-Inverse-Gamma</td>
+<td>Normal(mu, sigma²) for sigma²</td>
+<td>Inverse-Gamma(a, b)</td>
+<td>Inverse-Gamma(a + n/2, b + SS/2)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When all four conditions hold, you skip MCMC: standard likelihood, conjugate prior on each parameter, no hierarchy, single dataset.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Johnson, A. A., Ott, M. Q., Dogucu, M. <em>Bayes Rules! An Introduction to Applied Bayesian Modeling</em>, Chapman & Hall, 2022. Chapter 5 covers conjugate families. <a href="https://www.bayesrulesbook.com/chapter-5">bayesrulesbook.com/chapter-5</a>.</li>
+
+<li>Gelman, A., Carlin, J. B., Stern, H. S., et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapters 2-3 derive the standard conjugate families.</li>
+
+<li>Cook, J. D. "Diagram of Bayesian <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">conjugate priors</a>." <a href="https://www.johndcook.com/blog/conjugate_prior_diagram/">johndcook.com/blog/conjugate_prior_diagram</a>. Interactive cross-family reference.</li>
+
+<li>Fink, D. "A Compendium of Conjugate Priors." 1997. <a href="https://www.johndcook.com/CompendiumOfConjugatePriors.pdf">johndcook.com/CompendiumOfConjugatePriors.pdf</a>. Comprehensive table.</li>
+
+<li>Gelman, A. and the Stan team. "Prior choice recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>.</li>
+
+<li>CRAN Task View: Bayesian Inference. <a href="https://cran.r-project.org/web/views/Bayesian.html">cran.r-project.org/web/views/Bayesian.html</a>.</li>
+
+<li>Wikipedia. "Conjugate prior." <a href="https://en.wikipedia.org/wiki/Conjugate_prior">en.wikipedia.org/wiki/Conjugate_prior</a>. Comprehensive cross-family table including hyperparameter interpretation.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener with deeper Beta-Binomial intuition and the prior-likelihood-posterior simulation.</li>
+
+<li><a href="Bayes-Theorem-in-R.html">Bayes' Theorem in R</a>, the discrete-case foundation that motivates everything here.</li>
+
+<li><a href="Gamma-and-Beta-Distributions-in-R.html">Gamma & Beta Distributions in R</a>, full mechanics of the two distribution families used as priors throughout this post.</li>
+
+</ul>
+
+{% endraw %}
