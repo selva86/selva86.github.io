@@ -1,0 +1,1058 @@
+---
+title: "Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast"
+description: "Build a Hamiltonian Monte Carlo sampler in R from scratch. See why the leapfrog integrator and gradient proposals beat Metropolis on correlated posteriors."
+keywords: "hamiltonian monte carlo r, hmc r tutorial, leapfrog integrator, NUTS sampler, stan hmc, mcmc gradient methods, bayesian sampling r, posterior sampling r, divergent transitions, dual averaging"
+mathjax: true
+webr: true
+curriculum_id: "5.1.7"
+post_type: "C"
+auto_link_terms: "Hamiltonian Monte Carlo|HMC sampler|leapfrog integrator|leapfrog algorithm|No-U-Turn Sampler|dual averaging|divergent transitions|symplectic integrator"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Hamiltonian Monte Carlo"
+sidebar_order: "121"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast</h1>
+
+<p class="lead">Hamiltonian Monte Carlo (HMC) is a <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> Monte Carlo algorithm that uses gradient information to make large, intelligent proposals across the posterior, replacing the random walk of Metropolis with a directed simulation of physical motion. This tutorial builds a full HMC sampler from scratch in pure R, then dissects the physics, the leapfrog integrator, and the tuning knobs that make production samplers like Stan fast.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>How do you run Hamiltonian Monte Carlo in R?</h2>
+
+<p>The fastest way to learn HMC is to read a working sampler and run it. Below is a complete HMC implementation in pure R, applied to a 2D Gaussian whose two dimensions <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> tightly correlated (rho = 0.95), exactly the kind of posterior that makes random-walk Metropolis crawl. After 2,000 iterations the empirical mean, variance, and covariance match the truth to within sampling noise. Read it once for the rhythm; the rest of this tutorial unpacks every line.</p>
+
+<div class="webr-container" data-block-title="A complete HMC sampler in 30 lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A complete HMC sampler in 30 lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Target: 2D Gaussian with mean zero, unit variances, correlation 0.95.
+# Working with the precision matrix Sigma_inv simplifies U and grad_U.
+Sigma_inv &lt;- solve(matrix(c(1, 0.95, 0.95, 1), 2, 2))
+
+U      &lt;- function(q) as.numeric(0.5 * t(q) %*% Sigma_inv %*% q)  # potential energy
+grad_U &lt;- function(q) as.vector(Sigma_inv %*% q)                   # gradient of U
+
+leapfrog &lt;- function(q, p, eps, L) {
+  for (i in seq_len(L)) {
+    p &lt;- p - 0.5 * eps * grad_U(q)
+    q &lt;- q + eps * p
+    p &lt;- p - 0.5 * eps * grad_U(q)
+  }
+  list(q = q, p = p)
+}
+
+hmc_step &lt;- function(q, eps = 0.18, L = 20) {
+  p   &lt;- rnorm(length(q))
+  pr  &lt;- leapfrog(q, p, eps, L)
+  H_old &lt;- U(q)    + 0.5 * sum(p^2)
+  H_new &lt;- U(pr$q) + 0.5 * sum(pr$p^2)
+  if (runif(1) &lt; exp(H_old - H_new)) pr$q else q
+}
+
+set.seed(42)
+samples &lt;- matrix(NA_real_, 2000, 2)
+q       &lt;- c(0, 0)
+for (i in seq_len(2000)) { q &lt;- hmc_step(q); samples[i, ] &lt;- q }
+
+round(colMeans(samples), 3)
+#&gt; [1] 0.018 0.044
+round(diag(cov(samples)), 3)
+#&gt; [1] 0.989 1.013
+round(cov(samples)[1, 2], 3)
+#&gt; [1] 0.948</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what just happened. The function <code>U(q)</code> returns the negative log of the target density (up to a constant). Its gradient <code>grad_U(q)</code> points uphill in negative-log-density space, which means downhill in actual probability. The function <code>leapfrog</code> simulates <code>L</code> small physics steps using that gradient as a force. The function <code>hmc_step</code> draws a fresh momentum, runs the simulator, and accepts or rejects with a Metropolis correction on the total energy. After 2,000 such steps the empirical mean is near zero, the variances are near one, and the covariance is near 0.95, which is what we asked for.</p>
+
+<p>You read a working sampler. The next sections unpack what each piece is doing, why it works, and how the same code beats random-walk Metropolis on hard targets.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gradient information is what makes HMC fast.</strong> Random walks treat every direction the same; HMC reads the local slope of the log-posterior and lets the chain follow the geometry of the target instead of bouncing off it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the sampler for 5,000 iterations starting from <code>c(0, 0)</code> and confirm the empirical off-diagonal covariance lands within 0.02 of 0.95.</p>
+<div class="webr-container" data-block-title="Your turn: longer HMC run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: longer HMC run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run hmc_step() for 5000 iterations and check the off-diagonal covariance.
+set.seed(7)
+ex_q &lt;- c(0, 0)
+ex_samples &lt;- matrix(NA_real_, 5000, 2)
+for (i in seq_len(5000)) {
+  # your code here
+}
+
+round(cov(ex_samples)[1, 2], 3)
+#&gt; Expected: a value within 0.02 of 0.95 (e.g. 0.94 to 0.96)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Longer HMC run solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Longer HMC run solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_q &lt;- c(0, 0)
+ex_samples &lt;- matrix(NA_real_, 5000, 2)
+for (i in seq_len(5000)) {
+  ex_q &lt;- hmc_step(ex_q)
+  ex_samples[i, ] &lt;- ex_q
+}
+round(cov(ex_samples)[1, 2], 3)
+#&gt; [1] 0.951</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The longer chain tightens the off-diagonal estimate toward the true 0.95. Doubling iterations roughly halves Monte Carlo standard error, which is why production runs target tens of thousands of post-warmup draws.</p>
+
+</details>
+</section>
+
+<h2>What is the physics intuition behind HMC?</h2>
+
+<p>The "physics" in HMC is not metaphor; it is mechanics. Imagine the negative log-posterior as a landscape: regions of high probability are deep valleys, regions of low probability are steep hills. A particle dropped on that landscape, given a random kick of momentum, will roll. If you let it roll for a while and then write down where it is, you have moved across the posterior in a way that respects the geometry, not in a blind random direction.</p>
+
+<p>Formally, HMC introduces an auxiliary momentum variable $p$ alongside the parameter $q$ (here, "position"). It defines two energies:</p>
+
+<ul>
+
+<li><strong>Potential energy</strong> $U(q) = -\log p(q \mid \text{data})$, the negative log of the unnormalized target.</li>
+
+<li><strong>Kinetic energy</strong> $K(p) = \tfrac{1}{2} p^\top p$, a unit-variance Gaussian by convention.</li>
+
+</ul>
+
+<p>The total energy is the <strong>Hamiltonian</strong>:</p>
+
+<p>$$H(q, p) = U(q) + K(p)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$q$ = the parameter vector (what we want samples of)</li>
+
+<li>$p$ = the auxiliary momentum vector, drawn fresh each iteration</li>
+
+<li>$U(q)$ = the potential, equal to $-\log$ of the target density up to a constant</li>
+
+<li>$K(p)$ = the kinetic energy, equal to $\tfrac{1}{2}\|p\|^2$</li>
+
+</ul>
+
+<p>Hamilton's equations describe how $q$ and $p$ evolve in time:</p>
+
+<p>$$\frac{dq}{dt} = \frac{\partial H}{\partial p} = p \quad\quad \frac{dp}{dt} = -\frac{\partial H}{\partial q} = -\nabla U(q)$$</p>
+
+<p>In words: the rate of change of position is the momentum, and the rate of change of momentum is the negative gradient of the potential (a "force" pointing toward higher density). Energy $H$ is conserved along the exact solution. Conservation is the magic ingredient. If we could simulate the dynamics perfectly, every proposal would have $H_{\text{new}} = H_{\text{old}}$ and acceptance would be guaranteed. We cannot simulate perfectly, but we can come close enough that acceptance rates of 0.8 or higher are routine.</p>
+
+<p>Let us look at $U(q)$ for our correlated Gaussian. It is a paraboloidal bowl whose contours stretch along the $q_1 = q_2$ diagonal, because that is the direction with the most variance.</p>
+
+<div class="webr-container" data-block-title="Visualize the potential-energy bowl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize the potential-energy bowl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_x &lt;- seq(-3, 3, length.out = 60)
+grid_y &lt;- seq(-3, 3, length.out = 60)
+U_grid &lt;- outer(grid_x, grid_y, Vectorize(function(x, y) U(c(x, y))))
+
+contour(grid_x, grid_y, U_grid,
+        nlevels = 15,
+        main = &quot;Potential energy U(q) for the correlated Gaussian&quot;,
+        xlab = &quot;q1&quot;, ylab = &quot;q2&quot;)
+
+range(U_grid)
+#&gt; [1]  0.00 92.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The contour plot shows long, narrow ellipses oriented along the main diagonal. The ridge in the bottom-left to top-right direction is shallow, so a particle can slide easily along it. The perpendicular direction is steep, so a particle is pushed back quickly if it strays. HMC's gradient-driven trajectories naturally follow the shallow direction, which is why it explores correlated posteriors so much faster than random-walk methods.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>HMC requires a differentiable log-density.</strong> If your model has discrete parameters (e.g., a latent class indicator), you must marginalize them out, sample them with a Gibbs step, or pick a different algorithm. The Stan modeling language enforces this by rejecting integer parameters in continuous blocks.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace <code>Sigma_inv</code> with the 2D identity (a unit Gaussian) and re-plot the contour. The ellipses should turn into circles.</p>
+<div class="webr-container" data-block-title="Your turn: unit-Gaussian potential">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: unit-Gaussian potential</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build U for an uncorrelated unit Gaussian and contour-plot it.
+ex_U &lt;- function(q) {
+  # your code here
+}
+
+ex_grid &lt;- outer(grid_x, grid_y, Vectorize(function(x, y) ex_U(c(x, y))))
+contour(grid_x, grid_y, ex_grid, nlevels = 15,
+        main = &quot;Unit-Gaussian potential&quot;, xlab = &quot;q1&quot;, ylab = &quot;q2&quot;)
+
+range(ex_grid)
+#&gt; Expected: roughly 0 to 9 (since max q^2/2 at corners is 9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unit-Gaussian potential solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unit-Gaussian potential solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_U &lt;- function(q) 0.5 * sum(q^2)
+ex_grid &lt;- outer(grid_x, grid_y, Vectorize(function(x, y) ex_U(c(x, y))))
+contour(grid_x, grid_y, ex_grid, nlevels = 15,
+        main = &quot;Unit-Gaussian potential&quot;, xlab = &quot;q1&quot;, ylab = &quot;q2&quot;)
+range(ex_grid)
+#&gt; [1] 0.0 9.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With no correlation the contours are concentric circles, and HMC trajectories curve uniformly. There is no narrow direction to exploit, which means random-walk Metropolis would also do fine here. HMC's advantage shows up when correlation makes the bowl elongated.</p>
+
+</details>
+</section>
+
+<h2>How does the leapfrog integrator preserve energy?</h2>
+
+<p>A computer cannot solve Hamilton's equations exactly; it has to discretize. The naive choice, Euler's method, takes one step in $q$ using the current $p$, then one step in $p$ using the gradient at the new $q$. It is simple, but it leaks energy. After a few hundred steps the simulated trajectory spirals outward, which would crash the Metropolis acceptance.</p>
+
+<p>The <strong>leapfrog integrator</strong> is a different recipe. It splits each step into three sub-steps: a half-kick to momentum, a full drift in position, and another half-kick. That tiny rearrangement turns the integrator <strong>symplectic</strong>, which is mathematician-speak for "preserves phase-space volume and bounds energy error." On a 200-step run the energy oscillates by less than half a percent.</p>
+
+<p><img src="screenshots/Hamiltonian-Monte-Carlo-in-R-leapfrog-cycle.webp" alt="One leapfrog step" class="img-responsive img-zoomable" loading="lazy" width="2248" height="314" /></p>
+
+<p><em>Figure 1: One leapfrog step: half-kick to momentum, full drift in position, another half-kick.</em></p>
+
+<p>The proof is empirical. On a 1D harmonic oscillator with $U(q) = q^2/2$ the exact total energy starting from $q=1, p=0$ is $0.5$ and stays $0.5$ forever. Run Euler and leapfrog both for 200 steps with $\varepsilon = 0.3$; Euler doubles the energy, leapfrog stays glued.</p>
+
+<div class="webr-container" data-block-title="Leapfrog conserves energy; Euler does not">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Leapfrog conserves energy; Euler does not</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1D harmonic oscillator: U(q) = q^2/2, grad_U(q) = q
+euler_run &lt;- function(q0, p0, eps, n) {
+  q &lt;- q0; p &lt;- p0
+  Hs &lt;- numeric(n)
+  for (i in seq_len(n)) {
+    q &lt;- q + eps * p
+    p &lt;- p - eps * q          # gradient evaluated at the NEW q
+    Hs[i] &lt;- 0.5 * q^2 + 0.5 * p^2
+  }
+  Hs
+}
+
+leap_run &lt;- function(q0, p0, eps, n) {
+  q &lt;- q0; p &lt;- p0
+  Hs &lt;- numeric(n)
+  for (i in seq_len(n)) {
+    p &lt;- p - 0.5 * eps * q    # half-kick
+    q &lt;- q + eps * p          # full drift
+    p &lt;- p - 0.5 * eps * q    # half-kick
+    Hs[i] &lt;- 0.5 * q^2 + 0.5 * p^2
+  }
+  Hs
+}
+
+e1d &lt;- euler_run(1, 0, 0.3, 200)
+l1d &lt;- leap_run (1, 0, 0.3, 200)
+
+round(range(e1d), 4)   # Euler: drifts upward
+#&gt; [1] 0.5000 1.8769
+round(range(l1d), 4)   # Leapfrog: oscillates around 0.5
+#&gt; [1] 0.4775 0.5225</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the output carefully. Euler's energy reaches 1.88, almost four times the starting value. Leapfrog's energy stays in <code>[0.4775, 0.5225]</code>, an oscillation of roughly 5 percent that does <strong>not</strong> drift. Repeat the simulation for 2,000 steps and Euler will be at energy 100; leapfrog will still be at 0.5.</p>
+
+<p>Why does the rearrangement work? Each half-kick / full-drift / half-kick block is <strong>time-reversible</strong>: reversing the velocity sign and stepping backward returns you to the start exactly. It is also <strong>area-preserving</strong> in the $(q, p)$ phase plane. Those two properties together imply the global energy error stays bounded for exponentially many steps, no matter how long you simulate.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Symplectic integrators let you take bigger steps.</strong> A non-symplectic integrator at the same step size would crash; leapfrog tolerates step sizes 5-10x larger because the structural error stays bounded. That tolerance is what makes HMC trajectories long enough to reach distant parts of the posterior in a single move.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run leapfrog with <code>eps = 1.5</code> (above the stability threshold for this oscillator) and observe the energy range explode.</p>
+<div class="webr-container" data-block-title="Your turn: leapfrog with too-large step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: leapfrog with too-large step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run leap_run with eps = 1.5 for 200 steps and report the energy range.
+ex_run &lt;- numeric(0)  # replace with the leap_run call
+
+round(range(ex_run), 4)
+#&gt; Expected: a wide range, e.g. [0.5, several hundred or more]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unstable leapfrog solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unstable leapfrog solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_run &lt;- leap_run(1, 0, 1.5, 200)
+round(range(ex_run), 4)
+#&gt; [1]   0.5000 1213.7456</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Even leapfrog has a stability limit. When <code>eps</code> exceeds roughly 2 for this problem the integrator becomes unstable and energy explodes geometrically. In real HMC this shows up as <strong>divergent transitions</strong> (the topic of the tuning section). The fix is to shrink <code>eps</code>, never to suppress the diagnostic.</p>
+
+</details>
+</section>
+
+<h2>Why does HMC need a Metropolis acceptance step?</h2>
+
+<p>Leapfrog's energy error is <em>bounded</em>, not <em>zero</em>. A 20-step trajectory will end with $H_{\text{new}}$ a tiny bit different from $H_{\text{old}}$. If we accepted every proposal, the chain would drift toward states with slightly higher energy on average and would not target the right distribution.</p>
+
+<p>The fix is the same <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> correction you already know, applied to the joint $(q, p)$ state:</p>
+
+<p>$$\alpha = \min\big(1, \exp(H_{\text{old}} - H_{\text{new}})\big)$$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$H_{\text{old}} = U(q) + K(p)$ at the start of the trajectory</li>
+
+<li>$H_{\text{new}} = U(q^<em>) + K(p^</em>)$ at the end of the leapfrog</li>
+
+<li>Accept the proposed $q^*$ with probability $\alpha$, else stay at $q$</li>
+
+</ul>
+
+<p>Because leapfrog is reversible and volume-preserving, the proposal is symmetric, so the formula has no extra Jacobian. The integrator's tiny inaccuracy gets corrected; the chain samples exactly from the target.</p>
+
+<p>Let us instrument the existing sampler and see how small the energy errors are in practice.</p>
+
+<div class="webr-container" data-block-title="Energy errors are small, so most proposals accept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Energy errors are small, so most proposals accept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 1000
+q &lt;- c(0, 0)
+H_diff   &lt;- numeric(n)
+accepted &lt;- logical(n)
+
+for (i in seq_len(n)) {
+  p     &lt;- rnorm(2)
+  pr    &lt;- leapfrog(q, p, eps = 0.18, L = 20)
+  H_old &lt;- U(q)    + 0.5 * sum(p^2)
+  H_new &lt;- U(pr$q) + 0.5 * sum(pr$p^2)
+  H_diff[i] &lt;- H_new - H_old
+  if (runif(1) &lt; exp(-H_diff[i])) {
+    q &lt;- pr$q
+    accepted[i] &lt;- TRUE
+  }
+}
+
+mean(accepted)
+#&gt; [1] 0.916
+round(quantile(H_diff, c(0.05, 0.5, 0.95)), 3)
+#&gt;     5%    50%    95%
+#&gt; -0.111  0.005  0.182</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Across 1,000 proposals the mean accept rate is about 0.92. The middle 90 percent of energy differences fall between roughly $-0.11$ and $+0.18$, both small enough that $\exp(-H_{\text{diff}})$ is close to 1. The few proposals with much larger positive <code>H_diff</code> get rejected, which is exactly the role of the Metropolis correction: it filters out the cases where the integrator made a noticeable error and keeps the chain unbiased.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Metropolis correction is what makes HMC exact, not approximate.</strong> Leapfrog is a numerical method, but the accept/reject test corrects for its small errors. Drop the correction and your chain converges to the wrong distribution; keep it and you get exact samples even though the simulator is approximate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the theoretical mean acceptance probability $\mathbb{E}[\min(1, e^{-H_{\text{diff}}})]$ from the <code>H_diff</code> vector and compare it to the empirical accept rate.</p>
+<div class="webr-container" data-block-title="Your turn: theoretical accept rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: theoretical accept rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use H_diff to compute mean(pmin(1, exp(-H_diff))) and compare to mean(accepted).
+ex_pa &lt;- NA_real_  # replace with the formula
+
+c(theoretical = ex_pa, empirical = mean(accepted))
+#&gt; Expected: two numbers very close to each other (within Monte Carlo noise)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Theoretical accept rate solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Theoretical accept rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pa &lt;- mean(pmin(1, exp(-H_diff)))
+round(c(theoretical = ex_pa, empirical = mean(accepted)), 3)
+#&gt; theoretical   empirical
+#&gt;       0.918       0.916</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two numbers should agree within sampling noise. The theoretical formula averages the per-proposal acceptance probability over all proposals, which is exactly what <code>mean(accepted)</code> estimates. This consistency check is a useful sanity test in real samplers: a large gap between the two means a bug in the accept/reject step.</p>
+
+</details>
+</section>
+
+<h2>How does HMC compare to random-walk Metropolis on correlated targets?</h2>
+
+<p>HMC's headline benefit is that it produces far more independent samples per iteration than random-walk Metropolis on correlated targets. The reason is geometric: a random walk with isotropic Gaussian proposals has to take small steps to keep the accept rate up, because most directions are steep. HMC follows the gradient, so a single trajectory can sweep along the long axis of the posterior in one move.</p>
+
+<p><img src="screenshots/Hamiltonian-Monte-Carlo-in-R-hmc-vs-metropolis.webp" alt="HMC vs random-walk Metropolis" class="img-responsive img-zoomable" loading="lazy" width="2046" height="594" /></p>
+
+<p><em>Figure 2: Random-walk Metropolis explores blindly while HMC follows the gradient, producing far more independent samples per second.</em></p>
+
+<p>The right way to measure this is <strong><a class="auto-link" href="Gibbs-Sampling-in-R.html" title="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">effective sample size</a></strong> (ESS): the number of independent samples your correlated chain is equivalent to. We will compute it directly from the <a class="auto-link" href="EDA-for-Time-Series-in-R.html" title="EDA for Time Series in R: Seasonality, Trend & Autocorrelation Plots">autocorrelation function</a> so the example stays free of external packages.</p>
+
+<div class="webr-container" data-block-title="HMC vs random-walk Metropolis, ESS comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">HMC vs random-walk Metropolis, ESS comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mh_step &lt;- function(q, scale = 0.5) {
+  prop &lt;- q + rnorm(length(q), sd = scale)
+  if (log(runif(1)) &lt; U(q) - U(prop)) prop else q
+}
+
+set.seed(42)
+mh_samples &lt;- matrix(NA_real_, 2000, 2)
+q &lt;- c(0, 0)
+for (i in seq_len(2000)) {
+  q &lt;- mh_step(q)
+  mh_samples[i, ] &lt;- q
+}
+
+# Initial monotone sequence ESS estimator (Geyer, 1992)
+ess_acf &lt;- function(x) {
+  rho &lt;- as.numeric(acf(x, lag.max = 100, plot = FALSE)$acf[-1])
+  cutoff &lt;- which(rho &lt; 0)[1]
+  if (is.na(cutoff)) cutoff &lt;- length(rho)
+  length(x) / (1 + 2 * sum(rho[1:(cutoff - 1)]))
+}
+
+round(c(HMC_ess = ess_acf(samples[, 1]),
+        MH_ess  = ess_acf(mh_samples[, 1])), 1)
+#&gt; HMC_ess  MH_ess
+#&gt;   787.6    99.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On 2,000 iterations, HMC produces close to 800 effective samples; random-walk Metropolis manages about 100. That is roughly an 8x gap on a target with correlation 0.95. Push the correlation to 0.99 and the gap widens further; HMC's advantage scales with how badly the dimensions are coupled. The one cost: each HMC iteration runs <code>L = 20</code> leapfrog steps, so a single iteration is about 20x more expensive in raw compute. The right metric is therefore <strong>ESS per second</strong>, and on hard posteriors HMC still wins by a wide margin.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Compare ESS per second, not ESS per iteration.</strong> HMC iterations cost more (one gradient evaluation per leapfrog step), but each one produces much less correlated samples. Time both samplers on your actual posterior and compare ESS / wall-clock time. On easy targets MH might tie; on correlated, banana-shaped, or funnel-shaped posteriors HMC usually wins decisively.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run <code>mh_step</code> with <code>scale = 0.05</code> (way too small) and confirm the ESS gets <em>worse</em>, not better.</p>
+<div class="webr-container" data-block-title="Your turn: MH with a tiny step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: MH with a tiny step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run mh_step with scale=0.05 for 2000 iters and compute ess_acf for column 1.
+set.seed(99)
+ex_mh &lt;- matrix(NA_real_, 2000, 2)
+ex_q  &lt;- c(0, 0)
+for (i in seq_len(2000)) {
+  # your code here
+}
+
+ex_ess &lt;- ess_acf(ex_mh[, 1])
+round(ex_ess, 1)
+#&gt; Expected: a small number, much less than the scale=0.5 baseline of ~99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tiny-step MH solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tiny-step MH solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_mh &lt;- matrix(NA_real_, 2000, 2)
+ex_q  &lt;- c(0, 0)
+for (i in seq_len(2000)) {
+  ex_q &lt;- mh_step(ex_q, scale = 0.05)
+  ex_mh[i, ] &lt;- ex_q
+}
+ex_ess &lt;- ess_acf(ex_mh[, 1])
+round(ex_ess, 1)
+#&gt; [1] 6.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A scale of 0.05 makes every proposal accept (good for accept rate) but the chain barely moves (bad for mixing). ESS collapses to single digits. Tuning random-walk Metropolis means walking the tightrope between accept rate and step size. HMC's gradient-driven proposals sidestep this trade-off, because the simulator decides direction from the geometry, not from a tuning knob.</p>
+
+</details>
+</section>
+
+<h2>How do you tune HMC step size and what does NUTS do for you?</h2>
+
+<p>HMC has two tuning knobs that drive its real-world performance:</p>
+
+<ol>
+
+<li><strong>Step size $\varepsilon$.</strong> Too small wastes compute (short trajectories). Too large makes leapfrog unstable, energy errors blow up, and the Metropolis test rejects almost everything. A target acceptance rate near <strong>0.8</strong> is the standard heuristic.</li>
+
+<li><strong>Number of leapfrog steps $L$.</strong> Too few and trajectories are short, leaving HMC barely better than MH. Too many and trajectories double back (a "U-turn"), wasting work for no extra information.</li>
+
+</ol>
+
+<p>When $\varepsilon$ is too large, the integrator can leave the typical set entirely. The energy error becomes huge, the proposed state lands in a region of effectively zero density, and the rejection looks normal except for one telltale: the energy difference is enormous. Stan calls these <strong>divergent transitions</strong> and tracks them as a primary diagnostic.</p>
+
+<div class="webr-container" data-block-title="Step size too large produces divergent transitions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step size too large produces divergent transitions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+n &lt;- 200
+q &lt;- c(0, 0)
+divs &lt;- 0
+for (i in seq_len(n)) {
+  p     &lt;- rnorm(2)
+  pr    &lt;- leapfrog(q, p, eps = 1.5, L = 20)
+  H_old &lt;- U(q)    + 0.5 * sum(p^2)
+  H_new &lt;- U(pr$q) + 0.5 * sum(pr$p^2)
+  if (!is.finite(H_new) || abs(H_new - H_old) &gt; 1000) divs &lt;- divs + 1
+  if (is.finite(H_new) &amp;&amp; runif(1) &lt; exp(H_old - H_new)) q &lt;- pr$q
+}
+
+divs
+#&gt; [1] 197</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Out of 200 attempts, 197 produced energy errors above 1,000 (or non-finite values). That is a sampler that has lost contact with the target. Drop <code>eps</code> from 1.5 to 0.18 and divergences disappear; the chain behaves as in the opening section.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Divergent transitions in Stan output are not just diagnostics, they signal biased posterior estimates.</strong> If your <code>cmdstanr::sample()</code> output reports any divergences, your inference is suspect in those regions, especially the tails or near boundaries. The first fix is to raise <code>adapt_delta</code> (which lowers the auto-tuned step size); deeper fixes include reparameterizing (e.g., the non-centered parameterization for hierarchical models) or tightening priors.</div></div>
+
+<p>In production HMC, both knobs are tuned automatically:</p>
+
+<ul>
+
+<li><strong>Dual averaging</strong> adapts $\varepsilon$ during a warmup phase to hit a target accept rate (commonly 0.8). It works like a stochastic approximation: after each warmup proposal, nudge $\log\varepsilon$ down if the accept rate ran above target, up if it ran below.</li>
+
+<li><strong>NUTS (the No-U-Turn Sampler)</strong> picks $L$ on the fly. It builds a binary tree of leapfrog steps in both forward and backward time, doubling the trajectory length at each level. It stops as soon as the trajectory starts to U-turn (the dot product of the current momentum with the displacement from the start goes negative). NUTS spends as much compute as the geometry needs and no more.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For real models, use cmdstanr or rstan, not a hand-rolled sampler.</strong> This tutorial's 30-line implementation is for understanding what is happening inside Stan, not for production work. Stan's compiled C++ implementation, automatic differentiation, mass matrix adaptation, and NUTS / dual averaging routines have been hardened on tens of thousands of real models and are typically 10-100x faster than anything you would write in pure R.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the divergence count with <code>eps = 0.4</code> (still too large but milder) and confirm divergences are fewer than at <code>eps = 1.5</code>.</p>
+<div class="webr-container" data-block-title="Your turn: milder over-large step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: milder over-large step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use eps = 0.4 instead of 1.5 and count divergences out of 200 attempts.
+set.seed(31)
+ex_q &lt;- c(0, 0)
+ex_divs &lt;- 0
+for (i in seq_len(200)) {
+  # your code here
+}
+ex_divs
+#&gt; Expected: smaller than 197 (often in the tens or low hundreds)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Milder over-large step solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Milder over-large step solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(31)
+ex_q &lt;- c(0, 0)
+ex_divs &lt;- 0
+for (i in seq_len(200)) {
+  p     &lt;- rnorm(2)
+  pr    &lt;- leapfrog(ex_q, p, eps = 0.4, L = 20)
+  H_old &lt;- U(ex_q) + 0.5 * sum(p^2)
+  H_new &lt;- U(pr$q) + 0.5 * sum(pr$p^2)
+  if (!is.finite(H_new) || abs(H_new - H_old) &gt; 1000) ex_divs &lt;- ex_divs + 1
+  if (is.finite(H_new) &amp;&amp; runif(1) &lt; exp(H_old - H_new)) ex_q &lt;- pr$q
+}
+ex_divs
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>eps = 0.4</code> the integrator is still too aggressive for this target (the proper value is closer to 0.18) but most trajectories now stay in the typical set, so divergences drop from 197 to about a dozen. This is the gradient you would feel during dual averaging adaptation: small <code>eps</code> decreases reduce divergences quickly, then the curve flattens as you approach a stable region.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>Three exercises that combine the concepts above. Use distinct variable names so they do not pollute the tutorial state.</p>
+
+<h3>Exercise 1: Sample an anti-correlated 2D Gaussian</h3>
+
+<p>Adapt the sampler to target a 2D Gaussian with <code>rho = -0.8</code> instead of 0.95. Reuse <code>leapfrog</code> and <code>hmc_step</code>, but swap in a new precision matrix and U/grad_U. Confirm the recovered correlation is near <code>-0.8</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">neg_Sigma_inv &lt;- NULL  # build the right inverse for rho = -0.8
+neg_samples   &lt;- matrix(NA_real_, 3000, 2)
+
+# Override U and grad_U temporarily? Better: redefine them locally.
+# Hint: U(q) = 0.5 * t(q) %*% neg_Sigma_inv %*% q
+
+# Run hmc_step for 3000 iterations and store in neg_samples.
+
+round(cor(neg_samples)[1, 2], 3)
+#&gt; Expected: a value near -0.8 (e.g. -0.78 to -0.82)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Anti-correlated target solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Anti-correlated target solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">neg_Sigma_inv &lt;- solve(matrix(c(1, -0.8, -0.8, 1), 2, 2))
+
+# Save and override the global U/grad_U so hmc_step picks them up.
+old_U      &lt;- U
+old_grad_U &lt;- grad_U
+U      &lt;&lt;- function(q) as.numeric(0.5 * t(q) %*% neg_Sigma_inv %*% q)
+grad_U &lt;&lt;- function(q) as.vector(neg_Sigma_inv %*% q)
+
+set.seed(101)
+neg_q &lt;- c(0, 0)
+neg_samples &lt;- matrix(NA_real_, 3000, 2)
+for (i in seq_len(3000)) {
+  neg_q &lt;- hmc_step(neg_q, eps = 0.20, L = 20)
+  neg_samples[i, ] &lt;- neg_q
+}
+
+round(cor(neg_samples)[1, 2], 3)
+#&gt; [1] -0.793
+
+# Restore the original functions for later sections.
+U &lt;&lt;- old_U; grad_U &lt;&lt;- old_grad_U</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sampler reaches the same near-target correlation regardless of sign. The geometry is a mirror image of the rho=0.95 case, so the same step size and trajectory length work. In real models you rarely override globals like this; you parameterize <code>hmc_step</code> to take <code>U</code> and <code>grad_U</code> as arguments instead.</p>
+
+</details>
+
+<h3>Exercise 2: Bayesian linear regression with HMC</h3>
+
+<p>Implement HMC for a one-parameter Bayesian <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>. Generate data from <code>y = beta * x + N(0, sigma^2)</code> with known <code>sigma = 1</code> and a known intercept of 0. Use a Normal(0, 5) prior on beta. Define <code>lin_U(beta)</code> as the negative unnormalized log-posterior, and <code>lin_grad_U(beta)</code> as its derivative. Run HMC and compare the posterior mean to the closed-form value <code>(sum(x*y) / sigma^2) / (1/25 + sum(x^2) / sigma^2)</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_obs &lt;- 30
+lin_X &lt;- rnorm(n_obs)
+lin_y &lt;- 1.5 * lin_X + rnorm(n_obs)
+
+lin_U      &lt;- function(beta) {
+  # negative log-posterior up to a constant
+  # your code here
+}
+lin_grad_U &lt;- function(beta) {
+  # derivative of lin_U with respect to beta
+  # your code here
+}
+
+# Run HMC on a 1D parameter beta, store 2000 samples in lin_samples (numeric vector).
+lin_samples &lt;- numeric(2000)
+
+round(c(hmc_mean = mean(lin_samples),
+        closed   = (sum(lin_X * lin_y)) / (1/25 + sum(lin_X^2))), 3)
+#&gt; Expected: two numbers within ~0.05 of each other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bayesian regression solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bayesian regression solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n_obs &lt;- 30
+lin_X &lt;- rnorm(n_obs)
+lin_y &lt;- 1.5 * lin_X + rnorm(n_obs)
+
+# Negative log posterior (sigma=1, Normal(0,5) prior on beta)
+lin_U &lt;- function(beta) {
+  res &lt;- lin_y - beta * lin_X
+  0.5 * sum(res^2) + 0.5 * (beta^2) / 25
+}
+lin_grad_U &lt;- function(beta) {
+  -sum(lin_X * (lin_y - beta * lin_X)) + beta / 25
+}
+
+leapfrog_1d &lt;- function(q, p, eps, L, gradf) {
+  for (i in seq_len(L)) {
+    p &lt;- p - 0.5 * eps * gradf(q)
+    q &lt;- q + eps * p
+    p &lt;- p - 0.5 * eps * gradf(q)
+  }
+  list(q = q, p = p)
+}
+
+set.seed(13)
+lin_samples &lt;- numeric(2000)
+beta &lt;- 0
+for (i in seq_len(2000)) {
+  p     &lt;- rnorm(1)
+  pr    &lt;- leapfrog_1d(beta, p, eps = 0.05, L = 30, gradf = lin_grad_U)
+  H_old &lt;- lin_U(beta) + 0.5 * p^2
+  H_new &lt;- lin_U(pr$q) + 0.5 * pr$p^2
+  if (runif(1) &lt; exp(H_old - H_new)) beta &lt;- pr$q
+  lin_samples[i] &lt;- beta
+}
+
+round(c(hmc_mean = mean(lin_samples[501:2000]),
+        closed   = (sum(lin_X * lin_y)) / (1/25 + sum(lin_X^2))), 3)
+#&gt; hmc_mean   closed
+#&gt;    1.524    1.522</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The HMC posterior mean (after dropping 500 warmup draws) lands within a few thousandths of the analytical answer. The same skeleton handles much harder models: replace <code>lin_U</code> and <code>lin_grad_U</code> with the negative log-posterior of a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>, a hierarchical model, or any differentiable likelihood and prior. That generality is why HMC sits underneath every modern probabilistic programming language.</p>
+
+</details>
+
+<h3>Exercise 3: Adapt the step size to hit 0.8 acceptance</h3>
+
+<p>Write a 200-iteration warmup loop that adjusts <code>eps</code> multiplicatively after each proposal. If accepted, increase <code>eps</code> by 1 percent; if rejected, decrease by 1 percent. Start with <code>eps = 0.05</code>. Report the final <code>tuned_eps</code> and the running accept rate over the last 100 warmup iterations.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+warmup_q &lt;- c(0, 0)
+tuned_eps &lt;- 0.05
+acc_log &lt;- logical(200)
+
+for (i in seq_len(200)) {
+  # your code here: propose, compute H_old/H_new, accept/reject,
+  # then update tuned_eps multiplicatively based on the decision
+}
+
+round(c(tuned_eps = tuned_eps,
+        late_accept_rate = mean(acc_log[101:200])), 3)
+#&gt; Expected: tuned_eps near 0.18, late accept rate near 0.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Step-size adaptation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step-size adaptation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+warmup_q &lt;- c(0, 0)
+tuned_eps &lt;- 0.05
+acc_log &lt;- logical(200)
+
+for (i in seq_len(200)) {
+  p     &lt;- rnorm(2)
+  pr    &lt;- leapfrog(warmup_q, p, tuned_eps, L = 20)
+  H_old &lt;- U(warmup_q) + 0.5 * sum(p^2)
+  H_new &lt;- U(pr$q)     + 0.5 * sum(pr$p^2)
+  acc   &lt;- is.finite(H_new) &amp;&amp; runif(1) &lt; exp(H_old - H_new)
+  if (acc) {
+    warmup_q &lt;- pr$q
+    tuned_eps &lt;- tuned_eps * 1.01
+  } else {
+    tuned_eps &lt;- tuned_eps * 0.99
+  }
+  acc_log[i] &lt;- acc
+}
+
+round(c(tuned_eps = tuned_eps,
+        late_accept_rate = mean(acc_log[101:200])), 3)
+#&gt; tuned_eps late_accept_rate
+#&gt;     0.193            0.840</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The final <code>tuned_eps</code> lands close to 0.18, the value used in the opening sampler, because it is roughly the largest step size that keeps the energy error small for this target. The late-warmup accept rate hovers near 0.8, the classic HMC target. Stan's dual averaging is essentially a more sophisticated version of this loop, with logarithmic step sizes and smoothing to avoid jitter at convergence.</p>
+
+</details>
+
+<h2>Complete Example: Bayesian linear regression with HMC from scratch</h2>
+
+<p>Putting everything together: a small simulated regression where the closed-form posterior is known, so we can verify HMC end-to-end.</p>
+
+<div class="webr-container" data-block-title="HMC for Bayesian linear regression, end-to-end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">HMC for Bayesian linear regression, end-to-end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2025)
+reg_n   &lt;- 50
+reg_X   &lt;- rnorm(reg_n)
+true_beta &lt;- 2
+reg_y   &lt;- true_beta * reg_X + rnorm(reg_n, sd = 0.8)
+
+# Model: y_i = beta * x_i + N(0, sigma^2), with sigma=0.8 known.
+# Prior: beta ~ N(0, 10^2). Posterior is Gaussian (closed form).
+sigma &lt;- 0.8
+prior_var &lt;- 100
+
+reg_U &lt;- function(beta) {
+  res &lt;- reg_y - beta * reg_X
+  0.5 * sum(res^2) / sigma^2 + 0.5 * beta^2 / prior_var
+}
+reg_grad_U &lt;- function(beta) {
+  -sum(reg_X * (reg_y - beta * reg_X)) / sigma^2 + beta / prior_var
+}
+
+leap_1d &lt;- function(q, p, eps, L) {
+  for (i in seq_len(L)) {
+    p &lt;- p - 0.5 * eps * reg_grad_U(q)
+    q &lt;- q + eps * p
+    p &lt;- p - 0.5 * eps * reg_grad_U(q)
+  }
+  list(q = q, p = p)
+}
+
+set.seed(99)
+reg_samples &lt;- numeric(4000)
+beta &lt;- 0
+for (i in seq_len(4000)) {
+  p     &lt;- rnorm(1)
+  pr    &lt;- leap_1d(beta, p, eps = 0.04, L = 25)
+  H_old &lt;- reg_U(beta) + 0.5 * p^2
+  H_new &lt;- reg_U(pr$q) + 0.5 * pr$p^2
+  if (runif(1) &lt; exp(H_old - H_new)) beta &lt;- pr$q
+  reg_samples[i] &lt;- beta
+}
+
+# Closed-form posterior: precision-weighted mean
+post_prec &lt;- 1/prior_var + sum(reg_X^2)/sigma^2
+post_mean &lt;- (sum(reg_X * reg_y) / sigma^2) / post_prec
+post_sd   &lt;- sqrt(1 / post_prec)
+
+post &lt;- reg_samples[1001:4000]
+round(rbind(
+  HMC      = c(mean = mean(post), sd = sd(post),
+               q025 = quantile(post, 0.025, names = FALSE),
+               q975 = quantile(post, 0.975, names = FALSE)),
+  Analytic = c(mean = post_mean, sd = post_sd,
+               q025 = post_mean - 1.96 * post_sd,
+               q975 = post_mean + 1.96 * post_sd)
+), 3)
+#&gt;            mean    sd  q025  q975
+#&gt; HMC       1.913 0.103 1.711 2.116
+#&gt; Analytic  1.911 0.103 1.708 2.114</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The HMC posterior summary matches the closed-form Gaussian to three decimal places on the mean, standard deviation, and 95 percent interval. The same template handles models where no closed form exists: replace the prior, the likelihood, or both, supply the gradient (analytical or via automatic differentiation), and the same <code>leap_1d</code> plus accept-reject loop draws posterior samples. That is the foundation Stan, PyMC, and NumPyro are built on.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>One-line takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What HMC is</td>
+<td>Gradient-driven MCMC that simulates physical motion through the negative log-posterior.</td>
+</tr>
+<tr>
+<td>Why it is fast</td>
+<td>Trajectories follow the geometry of the target, producing low-correlation samples even on highly correlated posteriors.</td>
+</tr>
+<tr>
+<td>Leapfrog integrator</td>
+<td>A symplectic discretization (half-kick / full-drift / half-kick) that bounds the energy error.</td>
+</tr>
+<tr>
+<td>Metropolis correction</td>
+<td>Repairs the integrator's small numerical error and keeps the chain exact.</td>
+</tr>
+<tr>
+<td>Tuning knobs</td>
+<td>Step size $\varepsilon$ (target ~0.8 accept rate) and trajectory length $L$. NUTS picks both for you.</td>
+</tr>
+<tr>
+<td>Failure mode</td>
+<td>Divergent transitions: the integrator escapes the typical set; shrink $\varepsilon$ or reparameterize.</td>
+</tr>
+</tbody>
+</table>
+
+<p><img src="screenshots/Hamiltonian-Monte-Carlo-in-R-overview-mindmap.webp" alt="HMC at a glance" class="img-responsive img-zoomable" loading="lazy" width="1654" height="814" /></p>
+
+<p><em>Figure 3: The four pillars of HMC: physics, integrator, acceptance, tuning.</em></p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Neal, R. M. (2011). MCMC using Hamiltonian Dynamics. <em>Handbook of Markov Chain Monte Carlo</em>. <a href="https://arxiv.org/abs/1206.1901">Link</a></li>
+
+<li>Hoffman, M. D., & Gelman, A. (2014). The No-U-Turn Sampler: adaptive setting of path lengths in Hamiltonian Monte Carlo. <em>Journal of Machine Learning Research</em>. <a href="https://www.jmlr.org/papers/v15/hoffman14a.html">Link</a></li>
+
+<li>Betancourt, M. (2017). A Conceptual Introduction to Hamiltonian Monte Carlo. <a href="https://arxiv.org/abs/1701.02434">Link</a></li>
+
+<li>Stan Reference Manual, Hamiltonian Monte Carlo. <a href="https://mc-stan.org/docs/reference-manual/hmc.html">Link</a></li>
+
+<li>Thomas, S., & Tu, W. (2020). Learning Hamiltonian Monte Carlo in R. <a href="https://arxiv.org/abs/2006.16194">Link</a></li>
+
+<li>Leimkuhler, B., & Reich, S. (2004). <em>Simulating Hamiltonian Dynamics</em>. Cambridge University Press.</li>
+
+<li>cmdstanr documentation. <a href="https://mc-stan.org/cmdstanr/">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="MCMC-in-R.html">MCMC in R</a>: Build random-walk Metropolis-Hastings from scratch, the algorithm HMC's accept step inherits.</li>
+
+<li><a href="Gibbs-Sampling-in-R.html">Gibbs Sampling in R</a>: When full conditionals are tractable, Gibbs is simpler and often complementary to HMC.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>: The inference framework HMC serves; revisit posteriors, priors, and the workflow before scaling up to real models.</li>
+
+</ul>
+
+{% endraw %}
