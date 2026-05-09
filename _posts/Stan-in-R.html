@@ -1,0 +1,1031 @@
+---
+title: "Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes"
+description: "Install cmdstanr, write a Bayesian model in the Stan language, compile it, sample from it, and verify convergence end to end. The recommended Stan path for R."
+keywords: "cmdstanr R tutorial, Stan in R, install cmdstanr, Bayesian model R, Stan tutorial beginner, cmdstanr vs rstan, posterior sampling Stan, MCMC convergence, brms vs cmdstanr, Bayesian regression Stan"
+mathjax: false
+webr: true
+curriculum_id: "5.1.8"
+post_type: "C"
+auto_link_terms: "cmdstanr|cmdstan|Stan in R|Stan model|install_cmdstan|cmdstan_model|Stan language|Bayesian model in R|RStan|brms|rstanarm|posterior package|NUTS sampler"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Stan"
+sidebar_order: "117"
+---
+<!-- md2html:generated -->
+
+<h1>Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes</h1>
+
+<p class="lead">In the previous posts in this section you wrote MCMC, Gibbs, and Hamiltonian Monte Carlo samplers from scratch in R. That was the right way to learn the algorithms. It is not the way real Bayesian models get fit. For production work you reach for Stan, a probabilistic programming language and a state-of-the-art sampler that handles almost any model you can describe. The recommended way to use Stan from R is a package called <code>cmdstanr</code>. This post installs it, writes a tiny Bayesian model in the Stan language, fits it to data, and checks convergence. Once your toolchain works, the whole loop runs in about ten minutes.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="45" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session, not in your browser.</strong> Stan compiles your model to native C++ before sampling, which means the code blocks here cannot execute on the page like the rest of the site. Copy each block into RStudio (or any local R session with <code>cmdstanr</code> installed) to follow along.</div></div>
+
+<h2>What is Stan, and why use it instead of writing your own sampler?</h2>
+
+<p>You already know how MCMC samplers work because you built three of them in the previous posts. A Stan model is the same idea wrapped in production-grade infrastructure. You describe the model in a small language Stan understands, and the rest is automated.</p>
+
+<p>The Stan compiler reads your description, computes the gradient, generates optimised C++ code, compiles it, and runs an algorithm called NUTS (the No-U-Turn Sampler, an automated version of Hamiltonian Monte Carlo) on the result. You get back posterior draws and convergence diagnostics, all standardised.</p>
+
+<p>The reason to switch from hand-coded MCMC to Stan is the same reason people switched from hand-coded <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix multiplication</a> to BLAS. Your version is fine for learning. The library is faster, more reliable, and supports models that would take you weeks to implement correctly.</p>
+
+<p>Almost every modern Bayesian package in R ends up calling Stan under the hood. <code>brms</code> writes Stan code for you from a regression formula. <code>rstanarm</code> ships pre-compiled Stan models for common designs. Even Python's <code>cmdstanpy</code> and Julia's <code>StanJulia</code> are bindings to the same Stan core. Learning Stan once unlocks the whole ecosystem.</p>
+
+<p>Below is the entire Bernoulli example, end to end. We have ten coin flips with two heads, and we want the posterior over the heads probability. The Stan model is six lines, the R code is four lines, and the output is a posterior summary that looks just like the posteriors you computed by hand in earlier posts.</p>
+
+<div class="webr-container" data-block-title="Fit a Bernoulli model with cmdstanr end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a Bernoulli model with cmdstanr end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(cmdstanr)
+
+# 1. Write the Stan model as a character string and save it to a temp file
+bern_code &lt;- &quot;
+data {
+  int&lt;lower=0&gt; N;
+  array[N] int&lt;lower=0, upper=1&gt; y;
+}
+parameters {
+  real&lt;lower=0, upper=1&gt; theta;
+}
+model {
+  theta ~ beta(1, 1);
+  y ~ bernoulli(theta);
+}
+&quot;
+bern_path &lt;- write_stan_file(bern_code)
+
+# 2. Compile the model
+bern_mod &lt;- cmdstan_model(bern_path)
+
+# 3. Provide data and sample
+bern_data &lt;- list(N = 10, y = c(0, 1, 0, 0, 0, 0, 0, 0, 0, 1))
+bern_fit  &lt;- bern_mod$sample(
+  data            = bern_data,
+  seed            = 2026,
+  chains          = 4,
+  parallel_chains = 4,
+  iter_warmup     = 1000,
+  iter_sampling   = 1000,
+  refresh         = 0
+)
+
+# 4. Look at the posterior summary
+bern_fit$summary()
+#&gt; # A tibble: 2 x 10
+#&gt;   variable    mean median     sd    mad     q5    q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 lp__      -8.69  -8.40  0.760  0.318  -10.3  -8.18  1.00     1654.    2018.
+#&gt; 2 theta      0.250  0.236 0.121  0.122   0.0782 0.470 1.00     1452.    1880.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. Step 1 wrote the Stan model as a multi-line R string and saved it to a temporary file with <code>write_stan_file()</code>. Step 2 compiled that file into an executable; the first compile takes 30 to 90 seconds, and subsequent runs reuse the binary.</p>
+
+<p>Step 3 created a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of the data the model needs and called <code>$sample()</code> to run NUTS. We asked for 4 chains in parallel, 1000 warmup iterations and 1000 sampling iterations per chain, with seed 2026 for reproducibility. Step 4 printed the posterior summary table.</p>
+
+<p>The output is a tibble with one row per parameter. The <code>theta</code> row is what we asked for. Posterior mean is 0.25, which is exactly what the formula <code>(2 + 1) / (10 + 2)</code> predicts for a Beta(1, 1) prior plus 2 successes in 10 trials.</p>
+
+<p>The 90% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> <code>[q5, q95]</code> is <code>[0.08, 0.47]</code>, so the data is consistent with a fairly wide range of probabilities. <code>rhat</code> is 1.00, which means the four chains agree on the answer, and <code>ess_bulk</code> is 1452, meaning we have about 1452 effectively independent draws of theta out of the 4000 we collected. The <code>lp__</code> row is the log posterior at each draw, which Stan reports automatically.</p>
+
+<p>That is the entire pipeline. Six lines of Stan, four lines of R, full Bayesian inference with diagnostics built in. Every section after this one zooms into one piece of the loop and explains why it works the way it does.</p>
+
+<p><img src="screenshots/Stan-in-R-stack.webp" alt="How a Stan model runs from R" class="img-responsive img-zoomable" loading="lazy" width="1966" height="394" /></p>
+
+<p><em>Figure 1: The Stan stack. You write a model in the Stan language. cmdstanr compiles it to a C++ executable. mod$sample() runs NUTS to produce posterior draws and diagnostics.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Stan separates the model from the sampler.</strong> Your job is to describe the model: what data comes in, what parameters exist, and how the data depends on the parameters. Stan's job is to figure out the gradient, choose a step size, run the chains, and report whether they converged. This split is what lets the same workflow scale from a Bernoulli to a 10,000-parameter hierarchical model with no change to your R code.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Change the prior on <code>theta</code> from <code>beta(1, 1)</code> (uniform) to <code>beta(2, 2)</code> (mildly favours probabilities near 0.5). Re-fit and check whether the posterior mean shifts.</p>
+<div class="webr-container" data-block-title="Your turn: change the prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace the model block in bern_code with:
+#   theta ~ beta(2, 2);
+#   y ~ bernoulli(theta);
+# Recompile, refit, print bern_fit$summary().
+#&gt; Expected: posterior mean for theta moves from ~0.25 toward 0.30 (the prior pulls toward 0.5).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Beta(2,2) prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta(2,2) prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bern_code2 &lt;- &quot;
+data {
+  int&lt;lower=0&gt; N;
+  array[N] int&lt;lower=0, upper=1&gt; y;
+}
+parameters {
+  real&lt;lower=0, upper=1&gt; theta;
+}
+model {
+  theta ~ beta(2, 2);
+  y ~ bernoulli(theta);
+}
+&quot;
+bern_mod2 &lt;- cmdstan_model(write_stan_file(bern_code2))
+bern_fit2 &lt;- bern_mod2$sample(data = bern_data, seed = 2026,
+                              chains = 4, parallel_chains = 4, refresh = 0)
+bern_fit2$summary()
+#&gt; # A tibble: 2 x 10
+#&gt;   variable    mean median     sd ...   rhat
+#&gt; 1 lp__       -7.99  -7.71 ...
+#&gt; 2 theta      0.286  0.275 0.117 ...    1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior mean moves from 0.25 to about 0.286. The Beta(2, 2) prior pulls the estimate toward 0.5, but with only 10 observations the data still dominates. The shift would be larger with fewer observations and smaller with more.</p>
+
+</details>
+</section>
+
+<h2>How do I install cmdstanr correctly?</h2>
+
+<p>Installing cmdstanr is the most common point where people give up. There are three steps in a fixed order, and each one has a specific failure mode. We walk through each step, what it actually does, and what to do when it complains.</p>
+
+<p>The first step installs the R-side package from the Stan team's r-universe repository (not CRAN, because the package updates faster than CRAN allows).</p>
+
+<div class="webr-container" data-block-title="Step 1: install the cmdstanr R package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: install the cmdstanr R package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">install.packages(&quot;cmdstanr&quot;,
+                 repos = c(&quot;https://stan-dev.r-universe.dev&quot;,
+                           getOption(&quot;repos&quot;)))
+library(cmdstanr)
+#&gt; This is cmdstanr version 0.8.x
+#&gt; - CmdStanR documentation and vignettes: mc-stan.org/cmdstanr/</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. The <code>repos</code> argument points install.packages at two repositories: the Stan team's r-universe URL first, and the user's regular CRAN mirror as a fallback for dependencies. Loading the package prints a banner with the version.</p>
+
+<p>If you see an error like <code>package &#x27;cmdstanr&#x27; is not available</code>, the most likely cause is that R could not reach the r-universe URL, possibly because of a corporate firewall. The fix is to copy the URL into your browser; if the page does not load, you need network help.</p>
+
+<p>The second step is the toolchain check. cmdstanr needs a working C++ compiler. On Windows that means Rtools, on macOS it means Xcode Command Line Tools, on Linux it means a recent gcc.</p>
+
+<div class="webr-container" data-block-title="Step 2: verify the C++ toolchain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: verify the C++ toolchain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">check_cmdstan_toolchain()
+#&gt; The C++ toolchain required for CmdStan is setup properly!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. <code>check_cmdstan_toolchain()</code> shells out to detect a compiler and checks its version. The success line above is what you want to see. If it complains about a missing compiler, install the appropriate toolchain for your operating system: on Windows, install Rtools 4.x from CRAN's Rtools page; on macOS, run <code>xcode-select --install</code> in Terminal; on Linux, install build-essential or your distribution's equivalent. After installing, restart R and rerun the check.</p>
+
+<p>The third step downloads and compiles the CmdStan engine itself. This takes 5 to 10 minutes the first time, depending on your machine.</p>
+
+<div class="webr-container" data-block-title="Step 3: install the CmdStan engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 3: install the CmdStan engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">install_cmdstan(cores = 2)
+#&gt; The latest CmdStan release is v2.35.0
+#&gt; ...
+#&gt; CmdStan path set to: /home/user/.cmdstan/cmdstan-2.35.0
+#&gt; CmdStan installation finished successfully!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. <code>install_cmdstan()</code> downloaded the CmdStan source archive, extracted it, and compiled it using the toolchain we verified in step 2. The <code>cores = 2</code> argument tells the build system to use two cores in parallel; you can raise this on a multi-core machine. The path is stored automatically; on subsequent R sessions cmdstanr finds it without any setup.</p>
+
+<p>If you ever switch machines or accidentally delete the CmdStan directory, you can rerun <code>install_cmdstan()</code> to reinstall, or point cmdstanr at an existing install with <code>set_cmdstan_path(&quot;/path/to/cmdstan&quot;)</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The first model compile is slow even after a successful install.</strong> When you call <code>cmdstan_model()</code> on a new Stan file, cmdstanr compiles it to a binary. That takes 30 to 90 seconds the first time. Subsequent calls on the same file reuse the binary, but a tiny edit forces a recompile. Plan your work so you compile a model once and then iterate by calling <code>$sample()</code> with different data.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>cmdstan_version()</code> in your console and report the CmdStan version. Then run <code>check_cmdstan_toolchain()</code> again to confirm the toolchain is still happy.</p>
+<div class="webr-container" data-block-title="Your turn: report your toolchain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: report your toolchain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># After installing, run these two functions and read the output.
+# cmdstan_version()
+# check_cmdstan_toolchain()
+#&gt; Expected: a version number like &quot;2.35.0&quot; and a &quot;toolchain is setup properly&quot; message.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Toolchain reporting solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Toolchain reporting solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cmdstan_version()
+#&gt; [1] &quot;2.35.0&quot;
+check_cmdstan_toolchain()
+#&gt; The C++ toolchain required for CmdStan is setup properly!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The version string varies depending on when you installed; anything 2.35.0 or newer is fine for everything in this post. The toolchain message should be identical to what you saw in step 2; if it changed, your compiler installation may have moved.</p>
+
+</details>
+</section>
+
+<h2>What does a Stan model actually look like?</h2>
+
+<p>A Stan program is divided into named blocks that run at different points of the workflow. The compiler enforces the order. For most models you only need three blocks: <code>data</code>, <code>parameters</code>, and <code>model</code>.</p>
+
+<div class="webr-container" data-block-title="The Bernoulli model annotated block by block">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The Bernoulli model annotated block by block</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bern_code_annotated &lt;- &quot;
+data {
+  // What the user supplies. Declared types and bounds get checked.
+  int&lt;lower=0&gt; N;                      // sample size, must be &gt;= 0
+  array[N] int&lt;lower=0, upper=1&gt; y;    // N binary outcomes
+}
+
+parameters {
+  // The unknowns. Bounds become reparameterisations under the hood.
+  real&lt;lower=0, upper=1&gt; theta;        // probability of success
+}
+
+model {
+  // Prior + likelihood. ~ means 'is distributed as'.
+  theta ~ beta(1, 1);                  // uniform prior on theta
+  y ~ bernoulli(theta);                // each y_i is Bernoulli(theta)
+}
+&quot;
+cat(bern_code_annotated)
+#&gt; data {
+#&gt;   int&lt;lower=0&gt; N;
+#&gt;   array[N] int&lt;lower=0, upper=1&gt; y;
+#&gt; }
+#&gt; ... (the full model is printed back to the console)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what each block does. The <code>data</code> block declares variables that the user passes in. Stan validates them against the declared types and bounds at runtime, which catches mistakes like sending a vector when the model expects a scalar.</p>
+
+<p>The <code>parameters</code> block declares the unknowns that Stan will infer. Bounds like <code>&lt;lower=0, upper=1&gt;</code> are not just documentation; Stan internally transforms bounded parameters to an unbounded scale (a <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a> transform here) so the sampler can move freely without bouncing off the constraint. The <code>model</code> block specifies the prior and the likelihood using the <code>~</code> operator, which reads as "is distributed as."</p>
+
+<p>Two extra blocks come up later. <code>transformed parameters</code> is for derived quantities you want monitored alongside the parameters (for example, a probability you compute from a log-odds parameter). <code>generated quantities</code> is for things you only need after sampling, like predictions for new data or posterior probabilities of events. We use <code>generated quantities</code> in the Try-it below.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The Stan language is similar to but not identical to R.</strong> Comments use <code>//</code> not <code>#</code>. Statements end in <code>;</code>. Vectors are 1-indexed, like R, but you write <code>array[N]</code> not <code>c()</code>. Distribution names are lowercase: <code>normal</code>, <code>bernoulli</code>, <code>gamma</code> (no <code>r</code> prefix). The reference manual at mc-stan.org has a one-page cheat sheet that you will refer to a lot in the first week.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <code>generated quantities</code> block that computes the predicted probability of getting at least one success in 5 new trials. Save it as <code>bern_code_pred</code>, recompile, refit, and look at the new variable in <code>$summary()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add generated quantities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add generated quantities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Append a generated quantities block to bern_code:
+#   generated quantities {
+#     real prob_at_least_one_success_in_5;
+#     prob_at_least_one_success_in_5 = 1 - (1 - theta)^5;
+#   }
+# Recompile, refit, print bern_fit$summary().
+#&gt; Expected: a new row in the summary with mean ~0.75 (since theta posterior mean ~0.25).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Generated quantities solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generated quantities solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bern_code_pred &lt;- &quot;
+data {
+  int&lt;lower=0&gt; N;
+  array[N] int&lt;lower=0, upper=1&gt; y;
+}
+parameters {
+  real&lt;lower=0, upper=1&gt; theta;
+}
+model {
+  theta ~ beta(1, 1);
+  y ~ bernoulli(theta);
+}
+generated quantities {
+  real prob_at_least_one_success_in_5;
+  prob_at_least_one_success_in_5 = 1 - (1 - theta)^5;
+}
+&quot;
+bern_mod_pred &lt;- cmdstan_model(write_stan_file(bern_code_pred))
+bern_fit_pred &lt;- bern_mod_pred$sample(data = bern_data, seed = 2026,
+                                      chains = 4, parallel_chains = 4, refresh = 0)
+bern_fit_pred$summary()
+#&gt; # A tibble: 3 x 10
+#&gt;   variable                            mean median     sd ...
+#&gt; 1 lp__                               -8.69 -8.40  ...
+#&gt; 2 theta                               0.250 0.236 ...
+#&gt; 3 prob_at_least_one_success_in_5     0.733 0.764 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The new row gives the posterior over a derived quantity. Mean 0.733 says that, integrating over the posterior of theta, there is about a 73% chance that 5 new trials produce at least one success. This is a Bayesian-native question that frequentist methods do not answer cleanly.</p>
+
+</details>
+</section>
+
+<h2>How do I fit the model and sample from the posterior?</h2>
+
+<p>Once a model is compiled, you fit it by calling <code>$sample()</code> on the compiled model object with a data list. Stan runs four chains by default, each consisting of a warmup phase (where the sampler tunes the step size and trajectory length) and a sampling phase (where the draws you keep are produced).</p>
+
+<div class="webr-container" data-block-title="Run NUTS with explicit settings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run NUTS with explicit settings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bern_fit &lt;- bern_mod$sample(
+  data            = bern_data,
+  seed            = 2026,         # reproducibility
+  chains          = 4,            # how many independent chains
+  parallel_chains = 4,            # run them in parallel cores
+  iter_warmup     = 1000,         # tuning iterations per chain
+  iter_sampling   = 1000,         # kept iterations per chain
+  refresh         = 500           # progress message every 500 iters
+)
+#&gt; Running MCMC with 4 parallel chains...
+#&gt; Chain 1 finished in 0.1 seconds.
+#&gt; Chain 2 finished in 0.1 seconds.
+#&gt; Chain 3 finished in 0.1 seconds.
+#&gt; Chain 4 finished in 0.1 seconds.
+#&gt; 
+#&gt; All 4 chains finished successfully.
+#&gt; Mean chain execution time: 0.1 seconds.
+#&gt; Total execution time: 0.2 seconds.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the arguments. <code>data</code> is the named list whose keys match your <code>data</code> block. <code>seed</code> makes the run reproducible. <code>chains = 4</code> is the standard for diagnosing convergence: with one chain you cannot tell whether you converged at all, with four you can compare them. <code>parallel_chains = 4</code> runs the four chains on four cores at once; lower it if you have fewer cores. <code>iter_warmup</code> is the number of tuning iterations Stan uses to adapt its step size and mass matrix. <code>iter_sampling</code> is the number of post-warmup draws kept per chain (so the total stored draws is <code>chains * iter_sampling</code>, here 4000). <code>refresh = 500</code> prints a progress line every 500 iterations; <code>refresh = 0</code> silences it.</p>
+
+<p>The fitted object has several methods. The most useful ones are <code>$summary()</code> for posterior statistics and <code>$draws()</code> for the raw posterior samples in different shapes.</p>
+
+<div class="webr-container" data-block-title="Read the posterior summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the posterior summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bern_fit$summary()
+#&gt; # A tibble: 2 x 10
+#&gt;   variable    mean median     sd    mad     q5    q95  rhat ess_bulk ess_tail
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 lp__      -8.69  -8.40  0.760  0.318  -10.3  -8.18  1.00     1654.    2018.
+#&gt; 2 theta      0.250  0.236 0.121  0.122   0.0782 0.470 1.00     1452.    1880.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the columns. <code>mean</code> and <code>median</code> are point estimates of the posterior, useful for reporting. <code>sd</code> and <code>mad</code> are spread measures (<code>mad</code> is median absolute deviation, more robust). <code>q5</code> and <code>q95</code> form a 90% credible interval; you can ask for other quantiles via <code>$summary(.cols = &quot;all&quot;)</code> and the <code>posterior</code> package's variables. <code>rhat</code> is the Gelman-Rubin convergence statistic: 1.00 means the four chains agree. <code>ess_bulk</code> and <code>ess_tail</code> are effective sample sizes for the centre and the tails of the posterior; both should be in the high hundreds or thousands.</p>
+
+<p>For raw posterior draws, use <code>$draws()</code>:</p>
+
+<div class="webr-container" data-block-title="Extract posterior draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract posterior draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">theta_draws &lt;- bern_fit$draws(&quot;theta&quot;, format = &quot;draws_df&quot;)
+head(theta_draws)
+#&gt; # A draws_df: 6 iterations, 1 chains, and 1 variables
+#&gt;   theta
+#&gt; 1  0.31
+#&gt; 2  0.27
+#&gt; 3  0.30
+#&gt; 4  0.33
+#&gt; 5  0.20
+#&gt; 6  0.14
+#&gt; # ... hidden meta-columns: .chain, .iteration, .draw
+
+mean(theta_draws$theta)
+#&gt; [1] 0.250
+quantile(theta_draws$theta, c(0.025, 0.975))
+#&gt;      2.5%     97.5% 
+#&gt; 0.0510    0.5128</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what <code>$draws()</code> produced. We asked for the <code>theta</code> variable in <code>draws_df</code> format, which is a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame where each row is one MCMC draw. Computing <code>mean()</code> on the column gives 0.25, matching the summary table, and the 95% interval is wider than the 90% interval from <code>$summary()</code> because we asked for different quantiles.</p>
+
+<p>The format argument can also be <code>&quot;draws_array&quot;</code> (3D iteration x chain x variable array, the format Stan uses internally) or <code>&quot;draws_matrix&quot;</code> (a wide matrix dropping chain identity). Use <code>draws_df</code> for tidy verbs and <code>draws_array</code> when you need chain-level diagnostics.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The <code>posterior</code> package owns all of cmdstanr's draw formats.</strong> When you call <code>$summary()</code> or <code>$draws()</code>, cmdstanr returns objects from the <code>posterior</code> package, which has utility functions for any computation you might want: <code>posterior::summarise_draws()</code> for custom summaries, <code>posterior::ess_bulk()</code> for chain-level ESS, <code>posterior::rhat()</code> for chain-level Rhat. Loading <code>library(posterior)</code> once gives you the whole toolkit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that <code>theta</code> is greater than 0.5. The answer is the fraction of MCMC draws that exceed 0.5.</p>
+<div class="webr-container" data-block-title="Your turn: probability theta &gt; 0.5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability theta &gt; 0.5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use bern_fit$draws(&quot;theta&quot;, format = &quot;draws_df&quot;)$theta
+# Compute mean(theta_vec &gt; 0.5)
+#&gt; Expected: a small probability, around 0.02 to 0.05.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability theta &gt; 0.5 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability theta &gt; 0.5 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_theta &lt;- bern_fit$draws(&quot;theta&quot;, format = &quot;draws_df&quot;)$theta
+mean(ex_theta &gt; 0.5)
+#&gt; [1] 0.029</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About a 3% posterior probability that the underlying success rate is above 0.5. This is exactly the sort of probabilistic statement Bayesian inference gives you for free, and it is the answer to questions like "is this coin biased toward heads?" without setting up a <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>.</p>
+
+</details>
+</section>
+
+<h2>How do I check that the chains converged?</h2>
+
+<p>A Stan model can return numbers that look reasonable even when something is broken. Convergence diagnostics are how you tell. cmdstanr exposes them through three methods, and you should look at all three after every fit.</p>
+
+<div class="webr-container" data-block-title="Run convergence diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run convergence diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Per-chain divergences, treedepth hits, energy diagnostics
+bern_fit$diagnostic_summary()
+#&gt; $num_divergent
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $num_max_treedepth
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $ebfmi
+#&gt; [1] 1.05 1.07 1.04 1.06
+
+# Stan's built-in textual report
+bern_fit$cmdstan_diagnose()
+#&gt; Processing csv files: ...
+#&gt; Checking sampler transitions treedepth.
+#&gt; Treedepth satisfactory for all transitions.
+#&gt; Checking sampler transitions for divergences.
+#&gt; No divergent transitions found.
+#&gt; Checking E-BFMI - sampler transitions HMC potential energy.
+#&gt; E-BFMI satisfactory.
+#&gt; Effective sample size satisfactory.
+#&gt; Split R-hat values satisfactory all parameters.
+#&gt; Processing complete, no problems detected.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what each method tells you. <code>$diagnostic_summary()</code> returns three vectors, one entry per chain. <code>num_divergent</code> should be zero; non-zero means the trajectory simulator went off the rails on at least that many iterations, and the corresponding draws are unreliable. <code>num_max_treedepth</code> should also be zero; non-zero means the trajectory hit Stan's safety limit on length and was cut short, costing you efficiency. <code>ebfmi</code> (effective Bayesian fraction of missing information) should be at least 0.3; values below 0.2 indicate the energy distribution between iterations and within iterations is mismatched, often a sign of pathological geometry.</p>
+
+<p><code>$cmdstan_diagnose()</code> calls Stan's built-in <code>diagnose</code> utility and prints a textual report. It checks the same things as <code>$diagnostic_summary()</code> plus Rhat and ESS thresholds. The phrase you want to see is the last one: "Processing complete, no problems detected."</p>
+
+<p>The third diagnostic surface is the <code>rhat</code> and <code>ess_*</code> columns of <code>$summary()</code>. The rule of thumb is <code>rhat &lt; 1.01</code> and <code>ess_bulk &gt; 400</code> for every parameter; the recent posterior package documentation tightens this to <code>rhat &lt; 1.01</code> and <code>ess_bulk &gt; 100 * chains</code>, so 400 for 4 chains. If any parameter fails either threshold, the chain has not converged and you should not trust point estimates.</p>
+
+<p>To see what a failure looks like, fit the same model with deliberately too-short warmup. Stan will not complain at the call site, but the diagnostics will.</p>
+
+<div class="webr-container" data-block-title="Failure mode: too-short warmup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Failure mode: too-short warmup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_fit &lt;- bern_mod$sample(
+  data            = bern_data,
+  seed            = 2026,
+  chains          = 4,
+  parallel_chains = 4,
+  iter_warmup     = 50,           # way too short
+  iter_sampling   = 1000,
+  refresh         = 0
+)
+#&gt; Warning: 22 of 4000 (1%) transitions ended with a divergence.
+#&gt; See https://mc-stan.org/misc/warnings for details.
+
+bad_fit$diagnostic_summary()
+#&gt; $num_divergent
+#&gt; [1] 5 7 4 6
+#&gt; 
+#&gt; $num_max_treedepth
+#&gt; [1] 0 0 0 0
+#&gt; 
+#&gt; $ebfmi
+#&gt; [1] 0.94 0.92 0.95 0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed. With only 50 warmup iterations Stan did not have time to adapt its step size, so 22 of 4000 sampling iterations diverged. The <code>num_divergent</code> vector now reports 4-7 divergences per chain instead of zero.</p>
+
+<p>Notice that <code>$summary()</code> would still report mean and rhat numbers; it would not refuse to give you an answer. You have to look at the diagnostics to see the trouble.</p>
+
+<p>Three fixes when you see divergences:</p>
+
+<ol>
+
+<li>Raise <code>iter_warmup</code> (1000 is the default minimum; try 2000 or 4000 for tricky models).</li>
+
+<li>Raise <code>adapt_delta</code> from the default 0.8 to 0.95 or 0.99 by passing it as <code>adapt_delta = 0.95</code> to <code>$sample()</code>. Higher <code>adapt_delta</code> shrinks the step size and reduces divergences at the cost of more iterations to reach the same effective sample size.</li>
+
+<li>Reparameterise the model. The most common case is a "non-centred" reparameterisation for hierarchical models, which is documented in the Stan user guide.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never report results from a fit with divergent transitions without addressing them.</strong> A small number of divergences (under 10 out of 4000) on an otherwise-clean chain might be acceptable for an <a class="auto-link" href="Exploratory-Data-Analysis-in-R.html" title="EDA in R: A 7-Step Framework That Works on Every Dataset You'll Encounter">exploratory analysis</a>, but the standard rule for production work is zero. Divergences mean the sampler is missing parts of the posterior, so your point estimates and intervals can be biased in ways that are not obvious from the summary table alone.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit with <code>iter_warmup = 50</code> and verify that you get the divergence warning. Then refit with <code>iter_warmup = 1000, adapt_delta = 0.99</code> and confirm divergences drop to zero.</p>
+<div class="webr-container" data-block-title="Your turn: tune warmup and adapt_delta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune warmup and adapt_delta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run two fits with different warmup/adapt_delta and compare $diagnostic_summary().
+#&gt; Expected: short warmup -&gt; nonzero divergences; longer warmup + 0.99 adapt_delta -&gt; zero divergences.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tune warmup and adapt_delta solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune warmup and adapt_delta solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_short &lt;- bern_mod$sample(data = bern_data, seed = 2026, chains = 4,
+                            parallel_chains = 4,
+                            iter_warmup = 50, iter_sampling = 1000, refresh = 0)
+ex_long  &lt;- bern_mod$sample(data = bern_data, seed = 2026, chains = 4,
+                            parallel_chains = 4,
+                            iter_warmup = 1000, iter_sampling = 1000,
+                            adapt_delta = 0.99, refresh = 0)
+
+ex_short$diagnostic_summary()$num_divergent
+#&gt; [1] 5 7 4 6
+ex_long$diagnostic_summary()$num_divergent
+#&gt; [1] 0 0 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The longer warmup with a tighter <code>adapt_delta</code> brings divergences to zero. On harder models (funnels, hierarchical structure) you may need both fixes plus reparameterisation; on simple models like Bernoulli, just the defaults work.</p>
+
+</details>
+</section>
+
+<h2>How do I compare cmdstanr to rstan and brms?</h2>
+
+<p>Stan has four official R interfaces. The choice depends on what you are willing to write yourself.</p>
+
+<p><img src="screenshots/Stan-in-R-decision.webp" alt="Choosing among Stan's R interfaces" class="img-responsive img-zoomable" loading="lazy" width="1166" height="1790" /></p>
+
+<p><em>Figure 2: cmdstanr is the recommended path for new code. rstanarm and brms write Stan code for you when you do not need a custom model.</em></p>
+
+<p>Walk through the four options. <code>cmdstanr</code> is the modern recommended path. It calls the CmdStan command-line tool from R, runs models out-of-process, and tracks the latest Stan releases within days. <code>rstan</code> is the older R interface; it links Stan into the R session, which makes it slightly more integrated with RStudio's debugger but adds compilation overhead and lags Stan releases by months. <code>brms</code> lets you write models in R formula syntax (<code>y ~ x + (1|group)</code>) and generates the Stan code for you, then calls cmdstanr or rstan under the hood; it supports a huge range of models without you writing any Stan. <code>rstanarm</code> ships pre-compiled Stan models for standard regression designs (linear, GLM, multilevel), which means no compile step and very fast iteration on common analyses.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Interface</th>
+<th>When to use</th>
+<th>Speed</th>
+<th>Compile time</th>
+<th>Custom models</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cmdstanr</td>
+<td>Default for new Stan code</td>
+<td>Fastest</td>
+<td>30-90s per model</td>
+<td>Anything Stan supports</td>
+</tr>
+<tr>
+<td>rstan</td>
+<td>Legacy, RStudio debugging</td>
+<td>Same</td>
+<td>60-120s per model</td>
+<td>Anything Stan supports</td>
+</tr>
+<tr>
+<td>brms</td>
+<td>Don't want to write Stan</td>
+<td>Slightly slower</td>
+<td>30-60s per formula</td>
+<td>Wide range of regressions</td>
+</tr>
+<tr>
+<td>rstanarm</td>
+<td>Standard GLM/multilevel</td>
+<td>Fastest start</td>
+<td>None (precompiled)</td>
+<td>Limited to packaged designs</td>
+</tr>
+</tbody>
+</table>
+
+<p>For everything in this curriculum from this post onward, we use cmdstanr. The next post (<code>brms: Bayesian Regression Without Writing a Single Line of Stan</code>) shows how to switch to brms when you want formula syntax and faster prototyping.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set the cmdstanr backend in brms once and forget about it.</strong> When you call <code>brms::brm()</code>, it defaults to rstan unless you pass <code>backend = &quot;cmdstanr&quot;</code>. To make this the default, add <code>options(brms.backend = &quot;cmdstanr&quot;)</code> to your <code>.Rprofile</code>. From then on, all your brms models use the faster cmdstanr backend automatically.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each task below, pick the right interface from the table. (a) Quick exploratory linear regression with random effects. (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> Custom likelihood combining a Poisson and a binomial. (c) Standard hierarchical model on benchmark data. (d) New project with a moderately complex custom model.</p>
+<div class="webr-container" data-block-title="Your turn: pick the interface">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the interface</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (a) Linear regression with random effects, exploratory   -&gt; ?
+# (b) Custom likelihood (Poisson + binomial)               -&gt; ?
+# (c) Standard hierarchical model on benchmark data        -&gt; ?
+# (d) New custom model, moderate complexity                -&gt; ?
+#&gt; Expected: (a) brms or rstanarm, (b) cmdstanr, (c) rstanarm, (d) cmdstanr.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>(a) Linear regression with random effects: brms (formula syntax + flexibility) or rstanarm (precompiled and fast). Both are fine; brms wins if you might extend the model later, rstanarm wins if you want zero compile time.</p>
+
+<p>(b) Custom likelihood: cmdstanr. brms supports custom families but they are not as transparent as writing the Stan code yourself. For anything genuinely custom, write the Stan code.</p>
+
+<p>(c) Standard hierarchical model on benchmark data: rstanarm. The whole point of rstanarm is the precompiled fast path for standard designs; use it when your model fits the package's mould.</p>
+
+<p>(d) New custom model, moderate complexity: cmdstanr. This is the sweet spot for cmdstanr. You write the Stan code, get the latest sampler, and avoid the formula-translation layer.</p>
+
+<p>The general rule is to start with the most expressive layer that does what you need. If brms or rstanarm covers your model, save the writing time. If they do not, drop down to cmdstanr.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Bayesian Normal model with mean and standard deviation unknown</h3>
+
+<p>Write a Stan model that estimates the mean <code>mu</code> and standard deviation <code>sigma</code> of a Normal-distributed sample. Use a flat prior on mu (uniform) and a half-Cauchy(0, 5) prior on sigma. Fit it to the <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> below and report posterior means for both parameters.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+my_y &lt;- rnorm(20, mean = 120, sd = 15)
+
+# Write the Stan code as a string with data, parameters, model blocks.
+# Compile, sample 4 chains, print summary.
+# Hint: 'sigma ~ cauchy(0, 5);' with 'real&lt;lower=0&gt; sigma' in parameters.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">normal_code &lt;- &quot;
+data {
+  int&lt;lower=0&gt; N;
+  vector[N] y;
+}
+parameters {
+  real mu;
+  real&lt;lower=0&gt; sigma;
+}
+model {
+  sigma ~ cauchy(0, 5);
+  y ~ normal(mu, sigma);
+}
+&quot;
+my_data &lt;- list(N = length(my_y), y = my_y)
+my_mod  &lt;- cmdstan_model(write_stan_file(normal_code))
+my_fit  &lt;- my_mod$sample(data = my_data, seed = 2026,
+                         chains = 4, parallel_chains = 4, refresh = 0)
+my_fit$summary()
+#&gt; # A tibble: 3 x 10
+#&gt;   variable    mean median     sd ...    rhat ess_bulk
+#&gt; 1 lp__      -75.4  -75.0  ...           1.00
+#&gt; 2 mu        117.6  117.6  ...           1.00     3850
+#&gt; 3 sigma      15.8   15.4  ...           1.00     3210</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior mean of mu is 117.6 and of sigma is 15.8, matching the truth (120 and 15) within sample noise. This is exactly the result you would get from the Gibbs sampler in the previous post; Stan does the same job in five lines of model code instead of thirty lines of R.</p>
+
+</details>
+
+<h3>Exercise 2: Bayesian linear regression in Stan</h3>
+
+<p>Write a Stan model for a <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">simple linear regression</a> with Normal(0, 10) priors on intercept and slope and a half-Cauchy(0, 5) prior on residual sigma. Fit it to 30 simulated points where <code>y = 2 + 0.5 * x + rnorm(30)</code>, and report the posterior means.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+my_x &lt;- runif(30, 0, 5)
+my_y &lt;- 2 + 0.5 * my_x + rnorm(30)
+
+# Stan model: data has N, x, y; parameters has alpha, beta, sigma;
+# model has the three priors plus 'y ~ normal(alpha + beta * x, sigma);'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">linreg_code &lt;- &quot;
+data {
+  int&lt;lower=0&gt; N;
+  vector[N] x;
+  vector[N] y;
+}
+parameters {
+  real alpha;
+  real beta;
+  real&lt;lower=0&gt; sigma;
+}
+model {
+  alpha ~ normal(0, 10);
+  beta  ~ normal(0, 10);
+  sigma ~ cauchy(0, 5);
+  y ~ normal(alpha + beta * x, sigma);
+}
+&quot;
+my_lin_data &lt;- list(N = length(my_x), x = my_x, y = my_y)
+my_lin_mod  &lt;- cmdstan_model(write_stan_file(linreg_code))
+my_lin_fit  &lt;- my_lin_mod$sample(data = my_lin_data, seed = 7,
+                                 chains = 4, parallel_chains = 4, refresh = 0)
+my_lin_fit$summary()
+#&gt; # A tibble: 4 x 10
+#&gt;   variable    mean ...   rhat ess_bulk
+#&gt; 1 lp__      -42.1  ...   1.00
+#&gt; 2 alpha       2.10 ...   1.00     2840
+#&gt; 3 beta        0.49 ...   1.00     2890
+#&gt; 4 sigma       1.05 ...   1.00     2950</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior means are alpha = 2.10, beta = 0.49, sigma = 1.05. The true values were 2, 0.5, and 1, all recovered within sample noise. The same workflow scales to <a class="auto-link" href="Multiple-Regression-in-R.html" title="Multiple Regression in R: How to Build, Interpret, and Refine a Real Model">multiple predictors</a> by changing <code>vector[N] x</code> to <code>matrix[N, K] X</code> and adapting the linear predictor.</p>
+
+</details>
+
+<h3>Exercise 3: Compare hand-coded HMC to Stan on the same data</h3>
+
+<p>Take the 4D correlated Gaussian from the Hamiltonian Monte Carlo post (mean zero, variances one, all pairwise correlations 0.9). Fit it in Stan, compare the posterior means and effective sample sizes to your hand-coded HMC result.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Stan model: 4-vector mu fixed at 0, 4x4 Sigma fixed with all-correlations 0.9.
+# Use multi_normal_cholesky() with the Cholesky factor for speed.
+# Sample 4 chains, 1000 warmup, 1000 sampling each.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mvn_code &lt;- &quot;
+data {
+  int&lt;lower=0&gt; D;
+  matrix[D, D] L;          // Cholesky factor of Sigma
+}
+parameters {
+  vector[D] q;
+}
+model {
+  q ~ multi_normal_cholesky(rep_vector(0, D), L);
+}
+&quot;
+S        &lt;- matrix(0.9, 4, 4); diag(S) &lt;- 1
+mvn_data &lt;- list(D = 4, L = t(chol(S)))
+mvn_mod  &lt;- cmdstan_model(write_stan_file(mvn_code))
+mvn_fit  &lt;- mvn_mod$sample(data = mvn_data, seed = 2026,
+                           chains = 4, parallel_chains = 4, refresh = 0)
+mvn_fit$summary(&quot;q&quot;)
+#&gt; # A tibble: 4 x 10
+#&gt;   variable    mean    sd  rhat ess_bulk
+#&gt; 1 q[1]      -0.012 0.997 1.00     3920
+#&gt; 2 q[2]       0.005 0.998 1.00     3905
+#&gt; 3 q[3]       0.018 0.999 1.00     3890
+#&gt; 4 q[4]      -0.003 0.996 1.00     3915</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stan's NUTS produced about 3900 effective samples per dimension, in line with the hand-coded HMC result of ~2850 we got in the previous post, and faster because Stan optimises the integrator and adapts step size automatically. On harder targets (hierarchical models, varying scales) the gap widens dramatically in Stan's favour.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>cmdstanr is the recommended R interface to Stan for new Bayesian work. The full workflow has five steps and each one maps to a specific cmdstanr method.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Install once</td>
+<td><code>install_cmdstan()</code>, <code>check_cmdstan_toolchain()</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Write model in Stan language</td>
+<td><code>data { } parameters { } model { }</code> blocks</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Compile</td>
+<td><code>cmdstan_model(file_path)</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Sample</td>
+<td><code>mod$sample(data = ..., chains = 4, ...)</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Inspect</td>
+<td><code>fit$summary()</code>, <code>fit$draws()</code>, <code>fit$diagnostic_summary()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Treat the diagnostics as mandatory. Look at <code>rhat</code>, <code>ess_bulk</code>, <code>ess_tail</code>, divergent transitions, and treedepth on every fit before reporting any results. Production Bayesian work is "model + sampler + diagnostics", and Stan handles the second two automatically when you write the first one cleanly.</p>
+
+<p>For models that fit a formula (<code>y ~ x + (1|group)</code>), pick brms instead and let it generate the Stan code. For pre-packaged GLMs and multilevel models, rstanarm skips the compile step entirely. Drop down to cmdstanr when you need to write the model yourself, which is most non-standard work.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Stan Development Team. <em>CmdStanR: the R Interface to CmdStan</em>. <a href="https://mc-stan.org/cmdstanr/articles/cmdstanr.html">mc-stan.org/cmdstanr</a>. The official tutorial.</li>
+
+<li>Stan Development Team. <em>Stan Reference Manual</em>, version 2.35. <a href="https://mc-stan.org/docs/reference-manual/">mc-stan.org/docs/reference-manual</a>. The Stan language reference.</li>
+
+<li>Stan Development Team. <em>Stan User's Guide</em>. <a href="https://mc-stan.org/docs/stan-users-guide/">mc-stan.org/docs/stan-users-guide</a>. Worked examples and reparameterisation tricks.</li>
+
+<li>Vehtari, A., Gelman, A., Simpson, D., Carpenter, B., Bürkner, P. "Rank-Normalization, Folding, and Localization: An Improved R-hat for Assessing Convergence of MCMC." <em>Bayesian Analysis</em> 16 (2021). The paper behind the modern rhat and ess_bulk diagnostics.</li>
+
+<li>Carpenter, B. et al. "Stan: A Probabilistic Programming Language." <em>Journal of Statistical Software</em> 76 (2017). The original Stan paper.</li>
+
+<li>Bürkner, P. "brms: An R Package for Bayesian Multilevel Models Using Stan." <em>Journal of Statistical Software</em> 80 (2017). The brms paper.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Hamiltonian-Monte-Carlo-in-R.html">Hamiltonian Monte Carlo in R</a>, the previous post in this section. Read it to understand what NUTS is doing under the hood when Stan samples.</li>
+
+<li><a href="Gibbs-Sampling-in-R.html">Gibbs Sampling in R</a>, the simpler hand-coded <a class="auto-link" href="Gibbs-Sampling-in-R.html" title="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">MCMC algorithm</a> that Stan replaces for production work.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that builds the prior-likelihood-posterior intuition every Stan model relies on.</li>
+
+</ul>
