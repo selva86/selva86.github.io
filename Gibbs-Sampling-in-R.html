@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
+    <meta name="Keywords" content="Gibbs sampling R, MCMC R, full conditionals R, Bayesian Normal model, JAGS, posterior sampling, Bayesian inference">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Gibbs-Sampling-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#0d1117;background:#fafbfc}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#1d3158;border-color:#1d3158}.btn-primary:hover{background:#2c4574}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#1d3158;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#0d1117}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#0d1117;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #d8dce2}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#0d1117}
+      p.lead{font-size:1.1em;line-height:1.75;color:#4a5160;font-weight:400;border-left:3px solid #1d3158;padding-left:1em;margin:-4px 0 1.15em 0}
+      .site-masthead{position:sticky;top:0;z-index:30;background:rgba(250,251,252,0.92);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid transparent;margin:0 -15px 24px;transition:border-color 0.2s}
+      .site-masthead.scrolled{border-bottom-color:#d8dce2}
+      .site-masthead-inner{max-width:1170px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:24px}
+      .masthead-menu-btn{display:none;background:none;border:1px solid #d8dce2;border-radius:6px;padding:4px 8px;font-size:18px;line-height:1;color:#4a5160;cursor:pointer}
+      .masthead-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;color:#0d1117;text-decoration:none;white-space:nowrap}
+      .masthead-mark{position:relative;width:32px;height:32px;border-radius:6px;background:#1d3158;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:700;font-size:19px;line-height:1;letter-spacing:-0.04em;padding-right:1px;box-shadow:0 1px 2px rgba(13,17,23,0.08),inset 0 1px 0 rgba(255,255,255,0.12)}
+      .masthead-mark::after{content:'';position:absolute;right:5px;bottom:5px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.85)}
+      .masthead-tld{color:#757a87}
+      .masthead-nav{display:flex;gap:4px;flex:1;margin-left:8px}
+      .masthead-nav-link{font-family:'IBM Plex Sans',sans-serif;color:#4a5160;font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all 0.15s}
+      .masthead-nav-link:hover{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      .masthead-nav-link.active{background:#f1f3f6;color:#0d1117}
+      .masthead-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      .masthead-search{margin:0;display:flex;align-items:center}
+      .masthead-search input{height:32px;padding:6px 12px;font-size:13px;border:1px solid #d8dce2;border-radius:6px;background:#fff;color:#0d1117;width:160px;font-family:'IBM Plex Sans',sans-serif;transition:border-color 0.15s,box-shadow 0.15s}
+      .masthead-search input:focus{outline:none;border-color:#1d3158;box-shadow:0 0 0 3px rgba(29,49,88,0.10)}
+      .masthead-icon-btn{background:none;border:1px solid transparent;border-radius:6px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:#4a5160;cursor:pointer;transition:all 0.15s}
+      .masthead-icon-btn:hover{background:#f1f3f6;color:#0d1117}
+      html.dark .site-masthead{background:rgba(12,13,16,0.85)}
+      html.dark .site-masthead.scrolled{border-bottom-color:#262a31}
+      html.dark .masthead-wordmark{color:#e8eaee}
+      html.dark .masthead-tld{color:#6e7382}
+      html.dark .masthead-mark{background:#92a4d8}
+      html.dark .masthead-nav-link{color:#b0b5bf}
+      html.dark .masthead-nav-link:hover,html.dark .masthead-nav-link.active{background:#1a1d22;color:#e8eaee}
+      html.dark .masthead-search input{background:#14161a;border-color:#262a31;color:#e8eaee}
+      html.dark .masthead-search input:focus{border-color:#92a4d8;box-shadow:0 0 0 3px rgba(146,164,216,0.15)}
+      html.dark .masthead-icon-btn{color:#b0b5bf}
+      html.dark .masthead-icon-btn:hover{background:#1a1d22;color:#e8eaee}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-tabs{display:flex;gap:0;margin:4px 0 0;border-bottom:1px solid #d8dce2}
+      .sidebar-tab{flex:1;padding:9px 12px 8px;border:none;background:transparent;font:600 13px 'IBM Plex Sans',sans-serif;color:#757a87;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s}
+      .sidebar-tab.active{color:#1d3158;border-bottom-color:#1d3158}
+      .sidebar-panel{display:none;padding-top:10px}
+      .sidebar-panel.active{display:block}
+      .sidebar-tools-list{margin:0;padding:0;list-style:none}
+      .sidebar-tools-list li a{display:block;padding:5px 10px 5px 24px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#1d3158;font-weight:600;border-left-color:#1d3158}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=264bc869" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=264bc869" rel="stylesheet"></noscript>
+    <style>
+      a{color:#1d3158}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}.masthead-menu-btn{display:inline-flex!important}.masthead-nav{display:none}.masthead-search{display:none}.site-masthead-inner{padding:10px 16px;gap:12px}}
+      @media(max-width:400px){.masthead-name{font-size:13px}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">
+    <meta property="og:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Gibbs-Sampling-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Gibbs-Sampling-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">
+    <meta name="twitter:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Gibbs-Sampling-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS",
+      "description": "Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Gibbs-Sampling-in-R.html",
+      "datePublished": "2026-05-10",
+      "dateModified": "2026-05-10",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS", "item": "https://r-statistics.co/Gibbs-Sampling-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <header class="site-masthead">
+        <div class="site-masthead-inner">
+          <button id="mobile-menu-btn" class="masthead-menu-btn" aria-label="Menu">&#9776;</button>
+          <a class="masthead-wordmark" href="/">
+            <span class="masthead-mark">R</span>
+            <span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>
+          </a>
+          <nav class="masthead-nav">
+            <a class="masthead-nav-link" href="/">Home</a>
+            <a class="masthead-nav-link" href="/posts/">Compendium</a>
+          </nav>
+          <div class="masthead-tools">
+            <form onsubmit="my_search_google(); return false;" class="masthead-search">
+              <input type="text" id="my-google-search" placeholder="Search…" aria-label="Search r-statistics.co">
+            </form>
+            <button id="dark-mode-toggle" class="masthead-icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">&#9789;</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab active" data-tab="posts" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Posts</button><button class="sidebar-tab" data-tab="tools" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Tools</button></div><div class="sidebar-panel active" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="/Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="/Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="/RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="/R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="/R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="/R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="/R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="/R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="/R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="/R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="/R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="/R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="/R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="/Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="/R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="/R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="/How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="/R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="/R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="/R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="/Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="/Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="/Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="/Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="/Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="/Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="/R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="/Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="/dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="/dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="/dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="/dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="/dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="/dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="/R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="/pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="/tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="/Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="/Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="/janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="/stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="/R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="/lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="/DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="/DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="/Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="/REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="/ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="/ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="/Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="/geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="/Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="/Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="/Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="/Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="/Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="/Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="/Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="/Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="/Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="/Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="/Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="/Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="/Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="/Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="/Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="/Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="/ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="/patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="/Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="/Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="/Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="/Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="/Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="/Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="/Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="/Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="/Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="/Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="/Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="/What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="/Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="/Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="/Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="/Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="/Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="/Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="/Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="/Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="/Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="/Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="/t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="/Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="/Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="/Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="/Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="/Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="/Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="/Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="/Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="/Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="/Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="/adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="/Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="/Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="/Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="/Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="/Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="/Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="/Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="/Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="/Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="/Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="/Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="/Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="/One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="/ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="/Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="/Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="/AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="/MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="/Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="/PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="/Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="/Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="/CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="/Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="/Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="/t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="/Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="/Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="/factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="/Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="/Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="/Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="/Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="/Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="/Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="/Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="/Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="/Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="/Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="/Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="/Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="/Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="/Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="/QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="/Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="/Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="/Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="/UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="/Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="/Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="/Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="/Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li><li data-subkey="sec3sub5"><a href="/Bayes-Theorem-in-R.html"><span class="progress-dot"></span>Bayes' Theorem</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Statistics-in-R.html"><span class="progress-dot"></span>Bayesian Statistics</a></li><li data-subkey="sec3sub5"><a href="/Conjugate-Priors-in-R.html"><span class="progress-dot"></span>Conjugate Priors</a></li><li data-subkey="sec3sub5"><a href="/Grid-Approximation-in-R.html"><span class="progress-dot"></span>Grid Approximation</a></li><li data-subkey="sec3sub5"><a href="/MCMC-in-R.html"><span class="progress-dot"></span>MCMC in R</a></li><li data-subkey="sec3sub5"><a href="/Hamiltonian-Monte-Carlo-in-R.html"><span class="progress-dot"></span>Hamiltonian Monte Carlo</a></li><li data-subkey="sec3sub5"><a href="/Gibbs-Sampling-in-R.html" class="active"><span class="progress-dot"></span>Gibbs Sampling</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="/Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="/Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="/purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="/R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="/Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="/Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="/Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="/OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="/S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="/S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="/S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="/S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="/R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="/R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="/Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="/R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="/R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="/R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="/R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="/R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="/R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="/R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="/R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="/R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="/Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="/Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="/R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="/ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="/Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="/Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="/Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="/Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="/Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="/R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="/R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="/ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="/R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="/Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="/R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="/Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="/t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="/Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="/Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="/GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/t-test-calculator.html"><span class="tool-icon"></span><span class="tool-label">t-Test Calculator</span></a></li><li><a href="/tools/chi-square-calculator.html"><span class="tool-icon"></span><span class="tool-label">Chi-Square Test</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/bootstrap-ci-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bootstrap CI</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/survival-power-calculator.html"><span class="tool-icon"></span><span class="tool-label">Survival Power</span></a></li><li><a href="/tools/type-i-ii-error-visualizer.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/><line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg></span><span class="tool-label">Type I / II Error</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li><a href="/tools/equivalence-noninferiority-calculator.html"><span class="tool-icon"></span><span class="tool-label">Equivalence / NI</span></a></li><li><a href="/tools/outlier-detection-calculator.html"><span class="tool-icon"></span><span class="tool-label">Outlier Detection</span></a></li><li><a href="/tools/roc-auc-calculator.html"><span class="tool-icon"></span><span class="tool-label">ROC / AUC</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Bayesian</li><li><a href="/tools/bayes-theorem-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Theorem</span></a></li><li><a href="/tools/bayes-factor-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Factor</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li><a href="/tools/anova-output-interpreter.html"><span class="tool-icon"></span><span class="tool-label">ANOVA Output</span></a></li><li><a href="/tools/vif-interpreter.html"><span class="tool-icon"></span><span class="tool-label">VIF / Multicollinearity</span></a></li><li><a href="/tools/confusion-matrix-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/diagnostic-plot-interpreter.html"><span class="tool-icon"></span><span class="tool-label">Diagnostic Plots</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test</span></a></li><li><a href="/tools/nonparametric-test-picker.html"><span class="tool-icon"></span><span class="tool-label">Non-Parametric Test</span></a></li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Time series</li><li><a href="/tools/ts-stationarity-calculator.html"><span class="tool-icon"></span><span class="tool-label">TS Stationarity</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Utilities</li><li><a href="/tools/dag-confounder-picker.html"><span class="tool-icon"></span><span class="tool-label">DAG Confounder Picker</span></a></li><li><a href="/tools/reprex-builder.html"><span class="tool-icon"></span><span class="tool-label">Reprex Builder</span></a></li></ul></div></div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</span></nav>
+<!-- md2html:generated -->
+
+<h1>Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</h1>
+<div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published May 10, 2026 &nbsp;&middot;&nbsp; Last updated May 10, 2026</div>
+
+<p class="lead">You measured how long 20 customers waited at your counter. You want two numbers from this data: the typical wait, and how much waits vary from one customer to the next. Both unknown, both with honest uncertainty. There's a sampling trick called Gibbs sampling that handles this in about 30 lines of base R. It's the algorithm at the heart of JAGS, and once you see it work you'll understand why two unknowns <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> easier than one when you set it up right.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="45" data-exercises="9" data-xp="135"></div>
+
+<h2>What if you want to estimate two things from data at once?</h2>
+
+<p>In the previous post in this section, you saw an MCMC sampler that estimated a single unknown (a click-through rate). That sampler was a small loop: at each step it proposed a tiny random move, accepted or rejected based on a density ratio, and stored the resulting chain. Over thousands of iterations, the stored values were a sample from the posterior over that one rate.</p>
+
+<p>Now we have two unknowns instead of one. Suppose you ran a small operations study and recorded 20 customer wait times in seconds. You want to summarise this data the Bayesian way: a posterior over the typical wait (call it the <em>mean</em>), and a separate posterior over how much waits vary (call it the <em>standard deviation</em>). The trouble is, both are unknown at the same time. Estimating one assumes you know the other, but you don't.</p>
+
+<p>You could extend the previous post's <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> sampler to two dimensions. It works, but it's awkward. You'd have to propose joint moves in 2D space, tune a step size for each direction, and most proposals would land in low-density regions of the joint posterior because 2D space is bigger than 1D. The acceptance rate drops, the chain mixes slowly, and you spend a lot of effort tuning.</p>
+
+<p>Gibbs sampling is the alternative. It exploits a property the joint posterior usually has: even when you can't sample from it directly, you often <em>can</em> sample from each unknown's distribution if you treat the other as known. Hold the standard deviation fixed and the mean's distribution given that fixed value is something familiar (a Normal). Hold the mean fixed and the standard deviation's distribution given that fixed value is also something R can sample from in one line. Gibbs alternates between these two single-parameter draws, and the resulting chain converges to samples from the joint posterior.</p>
+
+<p>Here's the whole sampler running on 20 simulated wait times. Don't worry about the details of the formulas yet, the next sections walk through each piece. The point is that the answer comes out in seconds and matches what we'd expect from the data.</p>
+
+<div class="webr-container" data-block-title="A Gibbs sampler for mean and variance, end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A Gibbs sampler for mean and variance, end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 20 simulated customer wait times in seconds (truth: mean=120, sd=15)</span></span>
+<span class="cl">wait_times <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Gibbs sampler</span></span>
+<span class="cl">gibbs_mean_var <span class="o">&lt;-</span> <span class="kr">function</span>(y, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
+<span class="cl">  n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">  ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+<span class="cl"></span>
+<span class="cl">  mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Start somewhere reasonable</span></span>
+<span class="cl">  current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
+<span class="cl">    <span class="c1"># 1. Sample mean given the current standard deviation</span></span>
+<span class="cl">    current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl"></span>
+<span class="cl">    <span class="c1"># 2. Sample variance given the current mean, then take its square root</span></span>
+<span class="cl">    sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">    current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl">    current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl"></span>
+<span class="cl">    mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
+<span class="cl">    sd_samples[i] <span class="o">&lt;-</span> current_sd</span>
+<span class="cl">  }</span>
+<span class="cl"></span>
+<span class="cl">  <span class="nf">list</span>(mu <span class="o">=</span> mu_samples, sd <span class="o">=</span> sd_samples)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Run it</span></span>
+<span class="cl">chain <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior summaries (drop first 500 as burn-in)</span></span>
+<span class="cl">post_mu <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl">post_sd <span class="o">&lt;-</span> chain<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">mean</span>(post_mu)</span>
+<span class="cl"><span class="c1">#&gt; [1] 117.5826</span></span>
+<span class="cl"><span class="nf">quantile</span>(post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;     2.5%    97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 110.7203 124.4474</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">mean</span>(post_sd)</span>
+<span class="cl"><span class="c1">#&gt; [1] 15.7912</span></span>
+<span class="cl"><span class="nf">quantile</span>(post_sd, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;     2.5%    97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 11.8943 21.5167</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. The first block of code generated 20 simulated wait times from a Normal distribution with true mean 120 seconds and true standard deviation 15 seconds. We pretend we don't know those true values; we'll try to recover them from the 20 numbers alone.</p>
+
+<p>The function <code>gibbs_mean_var</code> is the sampler. It takes the data and a number of iterations. Inside, it allocates two empty vectors to store the samples it will produce. It picks a starting value for the standard deviation. Then a loop runs <code>n_iter</code> times. Each iteration does two things: it samples a new value for the mean (using a formula we'll explain in the next section), and it samples a new value for the variance (also from a formula coming up). At the end of each iteration, both new values get stored.</p>
+
+<p>After the loop, we drop the first 500 samples as burn-in (the chain takes a few iterations to find the bulk of the posterior; those early samples aren't representative). We then compute <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> on the remaining 4500 samples.</p>
+
+<p>Now read the output. The posterior mean for the underlying typical wait is 117.6 seconds, with a 95% range of [110.7, 124.4]. The true value (which we know from the simulation) was 120, so the chain found it within sample noise. The posterior mean for the underlying standard deviation is 15.8 seconds with a 95% range of [11.9, 21.5]. The true value was 15, again recovered within sample noise.</p>
+
+<p>That's the entire pipeline. Two unknowns, both estimated jointly with full posterior distributions, in 5000 iterations of base R, no specialised package required. The next section unpacks why the two <code>rnorm</code>-and-<code>rgamma</code> lines actually work.</p>
+
+<p><img src="screenshots/Gibbs-Sampling-in-R-cycle.webp" alt="One cycle of Gibbs sampling" class="img-responsive img-zoomable" loading="lazy" width="2248" height="370" /></p>
+
+<p><em>Figure 1: One cycle of Gibbs sampling. Hold one unknown fixed, sample the other from its conditional distribution. Then flip and do it again.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gibbs sampling turns a hard joint-distribution problem into a chain of easy single-parameter draws.</strong> You never need to sample directly from the 2D posterior over both unknowns at once. You only need to know how to sample one unknown when the other is given. R already provides those one-dimensional sampling functions for almost every standard distribution.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the sampler with a smaller dataset of just 5 wait times. Does the 95% range get wider, as you'd expect when there's less data?</p>
+<div class="webr-container" data-block-title="Your turn: smaller dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smaller dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Run gibbs_mean_var on ex_y for 5000 iterations</span></span>
+<span class="cl"><span class="c1"># Drop the first 500 as burn-in and compute the 95% range of the mean samples</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: 95% range much wider than [110.7, 124.4] from 20 observations</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smaller dataset solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller dataset solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
+<span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl">ex_chain <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(ex_y, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">ex_post_mu <span class="o">&lt;-</span> ex_chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">quantile</span>(ex_post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 105.3812 132.4711</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 95% range with 5 observations is roughly [105, 132], a span of 27 seconds. The earlier run with 20 observations had a span of about 14 seconds. Less data means more uncertainty, exactly as it should. Notice you didn't change the algorithm at all to get this result, just the input data.</p>
+
+</details>
+</section>
+
+<h2>Why doesn't the MCMC trick from before work as well in 2D?</h2>
+
+<p>The Metropolis-Hastings sampler from the previous post worked beautifully for one unknown. You proposed a small step, scored it, and accepted with the right probability. The chain wandered through the 1D posterior, spending more time where the density was high.</p>
+
+<p>Now imagine doing the same thing for two unknowns at once. At each iteration, you'd propose a step in 2D, like a small jump along both the mean direction and the standard-deviation direction at the same time. You'd evaluate the joint density at the new point, compute the acceptance ratio, and accept or reject the whole 2D move.</p>
+
+<p>That works in principle but it gets harder fast. Three problems start showing up:</p>
+
+<p>The first problem is <em>step-size tuning</em>. You now need to tune the step size in two directions instead of one. If the mean and the standard deviation move on different scales (one in the hundreds, the other in the tens), a single step size for both is a bad fit. You'd need a 2x2 <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> as your proposal, which is more parameters to tune.</p>
+
+<p>The second problem is <em>acceptance rate</em>. In 2D, a random step is more likely to land in a low-density region than in 1D, just because there's more "low-density" area for the same step size. So you reject more often, and the chain stalls more.</p>
+
+<p>The third problem is the fundamental geometry. The joint posterior over the mean and the standard deviation isn't symmetric. The mean's plausible range depends on the current standard deviation: if you think the standard deviation is small, the mean is tightly pinned down; if you think it's large, the mean has a wider plausible range. A symmetric 2D proposal ignores this dependence and wastes effort.</p>
+
+<p>Gibbs sampling sidesteps all three problems. There's no step size to tune, because each move is sampled directly from a known distribution. There's no rejection, because every sample comes from the right conditional. And the geometry of the joint posterior is respected automatically, because each move uses the conditional distribution given the <em>current</em> value of the other unknown.</p>
+
+<p>The price is one assumption. To use Gibbs, you need to know how to sample from each unknown's conditional distribution. Sometimes those conditionals are familiar distributions (Normal, Gamma, Beta) and you can sample with one R function call. Sometimes they aren't, and you have to fall back to Metropolis-Hastings inside the Gibbs cycle. We'll see clean examples of the easy case in this post.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You can mix Gibbs and Metropolis-Hastings.</strong> When most of your conditionals are easy but one or two aren't, you can sample the easy ones via Gibbs and use a Metropolis-Hastings step for the hard ones. The combined algorithm is called <em>Metropolis-within-Gibbs</em> and it's the standard approach in tools like JAGS for moderately complex models.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Look at the sampler code from the first section and identify which two lines do the actual sampling work. Write down what distribution each one draws from.</p>
+<div class="webr-container" data-block-title="Your turn: identify the sampling lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify the sampling lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Open the gibbs_mean_var function from above.</span></span>
+<span class="cl"><span class="c1"># Find the two lines that produce a new sample inside the for-loop.</span></span>
+<span class="cl"><span class="c1"># Write a short note: which distribution does each one use?</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: rnorm() for the mean, rgamma() (with 1/...) for the variance</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Identify-sampling-lines solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identify-sampling-lines solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Inside the for-loop:</span></span>
+<span class="cl"><span class="c1"># Line 1: current_mu &lt;- rnorm(1, mean = ybar, sd = current_sd / sqrt(n))</span></span>
+<span class="cl"><span class="c1">#   This is the mean conditional. It&#39;s a Normal distribution centred at the</span></span>
+<span class="cl"><span class="c1">#   sample mean of the data, with standard deviation that shrinks as you get</span></span>
+<span class="cl"><span class="c1">#   more data (the 1/sqrt(n) factor).</span></span>
+<span class="cl"><span class="c1">#</span></span>
+<span class="cl"><span class="c1"># Line 2: current_var &lt;- 1 / rgamma(1, shape = n/2, rate = sum_sq / 2)</span></span>
+<span class="cl"><span class="c1">#   This is the variance conditional. It uses rgamma() and then takes the</span></span>
+<span class="cl"><span class="c1">#   reciprocal. The combination of &quot;draw from Gamma, take reciprocal&quot; is</span></span>
+<span class="cl"><span class="c1">#   how you draw from an Inverse-Gamma distribution, which happens to be</span></span>
+<span class="cl"><span class="c1">#   the conditional posterior of the variance under a Normal data model</span></span>
+<span class="cl"><span class="c1">#   with no informative prior.</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two lines are doing the actual work of Gibbs. Everything else is bookkeeping (storing samples, looping, dropping burn-in). This is what people mean when they say Gibbs is "just a chain of one-dimensional draws."</p>
+
+</details>
+</section>
+
+<h2>What's the Gibbs trick, exactly?</h2>
+
+<p>Stripped of math, here's what Gibbs is doing.</p>
+
+<p>Imagine you have a 2D landscape of plausibility, where height represents how plausible a particular combination of mean and standard deviation is given the data. Most of the volume of plausibility is concentrated in a roughly elliptical region around the truth. You want to draw samples from this 2D region in proportion to its height.</p>
+
+<p>You can't sample directly from the 2D distribution because there's no R function that takes "here's the joint posterior over a Normal model's mean and variance" and gives you a draw. But you <em>can</em> sample slices.</p>
+
+<p>Pick any horizontal slice through the landscape (a line at a fixed standard deviation). Along that slice, the height varies as you change the mean. The shape of the height along that slice happens to be a Normal distribution. R has <code>rnorm()</code>. Sample one mean from that slice.</p>
+
+<p>Now pick a vertical slice through the landscape, at the mean you just sampled. Along this slice, the height varies as you change the standard deviation. The shape happens to be related to the Inverse-<a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Gamma distribution</a>. R has <code>rgamma()</code>, and you can sample the Inverse-Gamma by taking the reciprocal. Sample one standard deviation from that slice.</p>
+
+<p>Repeat. Slice horizontally at the new standard deviation, sample a new mean. Slice vertically at the new mean, sample a new standard deviation. Each slice is one-dimensional, and each one-dimensional slice happens to be a familiar distribution we can sample from with one R call.</p>
+
+<p>After thousands of iterations, the pairs of (mean, standard deviation) you've collected are samples from the joint 2D posterior. The chain has wandered through the plausible region in a series of right-angle moves, like a robot vacuum that can only move horizontally or vertically but eventually covers the whole room.</p>
+
+<p>The mathematical guarantee, which we won't derive but which holds whenever your conditionals are correct, is that this right-angle wandering produces samples that follow the true joint distribution. The proof is in any graduate Bayesian textbook, but the intuition is what we just walked through.</p>
+
+<p>Three things to notice about this picture.</p>
+
+<p>First, every move is accepted. There's no rejection step, because each draw is directly from the correct conditional. That's the most striking difference from Metropolis-Hastings.</p>
+
+<p>Second, there's no step size to tune. The size of each move is determined by the spread of the conditional distribution itself. If the conditional is tight, the move is small; if it's wide, the move is wide. The algorithm self-tunes.</p>
+
+<p>Third, the moves are always axis-aligned. You move purely along one axis at a time, never diagonally. This is fine for the Normal-data problem we're working through, but it can be slow when the two unknowns are highly correlated. In that case the chain has to take many small horizontal-then-vertical steps to traverse a long diagonal ridge of plausibility. We'll come back to this in the limits section.</p>
+
+<p><img src="screenshots/Gibbs-Sampling-in-R-vs-metropolis.webp" alt="Gibbs vs Metropolis in 2D" class="img-responsive img-zoomable" loading="lazy" width="1118" height="690" /></p>
+
+<p><em>Figure 2: The geometry of the two algorithms. Gibbs takes axis-aligned steps and accepts every move. Metropolis-Hastings takes diagonal steps and has to tune the step size and reject some.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a tiny version of the sampler that just performs a single Gibbs cycle (one mean draw, one standard-deviation draw) and prints the result. This is the smallest unit of work the algorithm does.</p>
+<div class="webr-container" data-block-title="Your turn: one cycle of Gibbs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one cycle of Gibbs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Start from current_sd = 20</span></span>
+<span class="cl"><span class="c1"># Then do one cycle:</span></span>
+<span class="cl"><span class="c1"># 1. Sample current_mu from rnorm with the formula from gibbs_mean_var</span></span>
+<span class="cl"><span class="c1"># 2. Sample current_var from 1 / rgamma() with the formula</span></span>
+<span class="cl"><span class="c1"># 3. Print both</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: one mean somewhere near 120, one sd somewhere near 15</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="One-cycle-of-Gibbs solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-cycle-of-Gibbs solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">20</span></span>
+<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(ex_y)</span>
+<span class="cl">current_sd <span class="o">&lt;-</span> <span class="m">20</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Step 1: sample a new mean given the current standard deviation</span></span>
+<span class="cl">current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Step 2: sample a new variance given the new mean</span></span>
+<span class="cl">sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((ex_y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl">current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(mu <span class="o">=</span> current_mu, sd <span class="o">=</span> current_sd)</span>
+<span class="cl"><span class="c1">#&gt;      mu       sd</span></span>
+<span class="cl"><span class="c1">#&gt; 122.341   16.452</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One cycle produced one mean and one standard deviation. Both are reasonable given the data (truth was 120 and 15). If you ran the cycle again with the new <code>current_sd</code>, you'd get another pair, and so on for thousands of iterations. That's the whole sampler.</p>
+
+</details>
+</section>
+
+<h2>How do I code Gibbs in R?</h2>
+
+<p>You've already seen the full sampler at the top of this post. Now we'll build it again from a blank line, more slowly, so you can see why each piece is there.</p>
+
+<p>The function takes the data and a number of iterations. The first job is to allocate storage for the samples. We need two vectors, one for the mean samples and one for the standard-deviation samples, each of length <code>n_iter</code>. Allocating up front is faster than growing vectors inside the loop.</p>
+
+<div class="webr-container" data-block-title="Step 1: allocate storage and start the chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: allocate storage and start the chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> wait_times</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+<span class="cl">n_iter <span class="o">&lt;-</span> <span class="m">5000</span></span>
+<span class="cl"></span>
+<span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Start the chain at the sample standard deviation. Any reasonable starting</span></span>
+<span class="cl"><span class="c1"># value works; the chain will find the posterior either way after burn-in.</span></span>
+<span class="cl">current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(starting_sd <span class="o">=</span> current_sd, n_iter <span class="o">=</span> n_iter, n_obs <span class="o">=</span> n)</span>
+<span class="cl"><span class="c1">#&gt;  starting_sd       n_iter        n_obs</span></span>
+<span class="cl"><span class="c1">#&gt;     14.83925   5000.00000     20.00000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the code does. The first three lines copy the data into a local variable, count its length, and compute the sample mean once. We'll reuse <code>ybar</code> inside the loop, so it pays to compute it just once now. The next two lines allocate empty <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> of length 5000, ready to hold the samples we're about to draw. The last line sets the chain's starting standard deviation. We chose <code>sd(y)</code> because it's a reasonable starting point: the sample standard deviation of the observed data is at least in the right ballpark.</p>
+
+<p>The output confirms that we're starting with <code>current_sd = 14.84</code> (close to the truth of 15), planning 5000 iterations, with 20 observations. The setup is ready.</p>
+
+<p>Now we need the two sampling formulas, one for the mean and one for the variance. We won't derive these here, they're standard results in Bayesian inference for the Normal model with a non-informative prior. Treat them as recipes:</p>
+
+<p>The conditional posterior of the mean, given a fixed variance, is Normal centred at the sample mean with standard deviation <code>sigma / sqrt(n)</code>, where <code>sigma</code> is the current standard deviation in the chain.</p>
+
+<p>The conditional posterior of the variance, given a fixed mean, is Inverse-Gamma with shape <code>n/2</code> and rate <code>0.5 * sum((y - mu)^2)</code>, where <code>mu</code> is the current mean. To draw from Inverse-Gamma in R, draw from Gamma with the same parameters and take the reciprocal.</p>
+
+<p>These two formulas are everything you need to implement the loop:</p>
+
+<div class="webr-container" data-block-title="Step 2: the Gibbs loop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: the Gibbs loop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Reset storage and starting value (so this code block is self-contained)</span></span>
+<span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
+<span class="cl"></span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
+<span class="cl">  <span class="c1"># Sample the mean given current standard deviation</span></span>
+<span class="cl">  current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Sample the variance given current mean, then take square root for sd</span></span>
+<span class="cl">  sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl">  current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="c1"># Store both</span></span>
+<span class="cl">  mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
+<span class="cl">  sd_samples[i] <span class="o">&lt;-</span> current_sd</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Quick sanity check on the last 100 samples</span></span>
+<span class="cl"><span class="nf">c</span>(mu_late_mean <span class="o">=</span> <span class="nf">mean</span>(<span class="nf">tail</span>(mu_samples, <span class="m">100</span>)),</span>
+<span class="cl">  sd_late_mean <span class="o">=</span> <span class="nf">mean</span>(<span class="nf">tail</span>(sd_samples, <span class="m">100</span>)))</span>
+<span class="cl"><span class="c1">#&gt; mu_late_mean sd_late_mean</span></span>
+<span class="cl"><span class="c1">#&gt;     117.6432      15.7724</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the loop. Each iteration begins by sampling a new mean. The formula <code>rnorm(1, mean = ybar, sd = current_sd / sqrt(n))</code> says: draw one Normal random number, centred at the sample mean of the data, with standard deviation equal to the current standard deviation divided by the square root of the sample size. The <code>1/sqrt(n)</code> shrinkage is the textbook standard error for the mean, and it's why the conditional gets tighter as you collect more data.</p>
+
+<p>The next three lines sample a new variance given the new mean. We compute the sum of squared deviations from the current mean (<code>sum_sq</code>), then draw one Gamma random number with shape <code>n/2</code> and rate <code>sum_sq/2</code>, and finally take its reciprocal to convert from Gamma to Inverse-Gamma. Taking the square root gives us the standard deviation, which we'll use in the next iteration's mean draw.</p>
+
+<p>The last two lines inside the loop store both samples in their respective vectors. The position <code>i</code> keeps moving forward, so by the end of the loop, <code>mu_samples</code> and <code>sd_samples</code> each contain 5000 values.</p>
+
+<p>The output of the sanity check shows that the last 100 samples have a mean of 117.6 (very close to our earlier full-run result) and a standard deviation of 15.8. Both numbers match what we'd hope for given a true mean of 120 and a true standard deviation of 15. The sampler is working.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check that your sampler produces the right answer on a simulated dataset before trusting it on real data.</strong> Generate data with known parameters, run the sampler, and verify the posterior contains the truth. If it doesn't, your conditionals are probably wrong or your starting values are pathological.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Modify the loop to also store <code>sum_sq</code> at each iteration. Then compute its mean across all iterations. Does it match <code>sum((y - ybar)^2)</code> (the sum of squared deviations using the data mean)?</p>
+<div class="webr-container" data-block-title="Your turn: track sum_sq">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: track sum_sq</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Add a third numeric vector ss_samples of length n_iter</span></span>
+<span class="cl"><span class="c1"># Inside the loop, store sum_sq into ss_samples[i] after computing it</span></span>
+<span class="cl"><span class="c1"># After the loop, compute mean(ss_samples) and compare to sum((y - mean(y))^2)</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: the means are close, with the chain mean slightly larger</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Track-sum_sq solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track-sum_sq solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ss_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
+<span class="cl">  current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl">  sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl">  current_sd <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl"></span>
+<span class="cl">  ss_samples[i] <span class="o">&lt;-</span> sum_sq</span>
+<span class="cl">  mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
+<span class="cl">  sd_samples[i] <span class="o">&lt;-</span> current_sd</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(chain_mean_ss <span class="o">=</span> <span class="nf">mean</span>(ss_samples),</span>
+<span class="cl">  data_mean_ss <span class="o">=</span> <span class="nf">sum</span>((y <span class="o">-</span> <span class="nf">mean</span>(y))<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt; chain_mean_ss  data_mean_ss</span></span>
+<span class="cl"><span class="c1">#&gt;     4525.116      4181.247</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chain's average <code>sum_sq</code> (4525) is slightly larger than the data-mean version (4181). That's because each iteration's <code>sum_sq</code> uses the chain's current <code>mu</code>, which jitters around the data mean rather than sitting on it exactly. The extra variance in <code>mu</code> adds a small amount to <code>sum_sq</code> on average. This is a real property of the algorithm, not a bug: it's why the variance posterior reflects both the data's spread <em>and</em> the residual uncertainty in the mean.</p>
+
+</details>
+</section>
+
+<h2>How do I check that the sampler actually worked?</h2>
+
+<p>Three diagnostics. Trace plots, comparison against the data's empirical statistics, and convergence across multiple chains.</p>
+
+<p>A trace plot is the simplest: plot each sample value against its iteration number. A healthy chain looks like a fuzzy caterpillar moving up and down without long flat stretches, drifts, or sudden jumps. We'll plot one for the mean samples and one for the standard-deviation samples.</p>
+
+<div class="webr-container" data-block-title="Step 3: trace plots and posterior densities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 3: trace plots and posterior densities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">chain <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">2</span>), mar <span class="o">=</span> <span class="nf">c</span>(<span class="m">4</span>, <span class="m">4</span>, <span class="m">2</span>, <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Trace of mu samples</span></span>
+<span class="cl"><span class="nf">plot</span>(chain<span class="o">$</span>mu, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Trace of mu&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Trace of sigma samples</span></span>
+<span class="cl"><span class="nf">plot</span>(chain<span class="o">$</span>sd, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Trace of sd&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior density for mu (after burn-in)</span></span>
+<span class="cl"><span class="nf">hist</span>(chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)], breaks <span class="o">=</span> <span class="m">40</span>, col <span class="o">=</span> <span class="s">&quot;lightblue&quot;</span>, border <span class="o">=</span> <span class="s">&quot;white&quot;</span>,</span>
+<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior density of mu&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior density for sigma (after burn-in)</span></span>
+<span class="cl"><span class="nf">hist</span>(chain<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)], breaks <span class="o">=</span> <span class="m">40</span>, col <span class="o">=</span> <span class="s">&quot;lightpink&quot;</span>, border <span class="o">=</span> <span class="s">&quot;white&quot;</span>,</span>
+<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior density of sd&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the plot shows. The two top panels are trace plots for the mean and the standard deviation. Each one is just the corresponding samples vector plotted against its index. The bottom two panels are histograms of the post-burn-in samples, showing the marginal posterior density for each unknown.</p>
+
+<p>What you should see when you run this. The two trace plots both look like horizontal fuzzy bands. The mean trace stays roughly between 110 and 125. The standard deviation trace stays roughly between 11 and 22. There are no upward or downward drifts, no long flat stretches, no sudden jumps. That's a converged chain.</p>
+
+<p>The two histograms are roughly bell-shaped, slightly skewed for the standard deviation (which can never be negative). The mean's histogram is centred around 117-118, and the standard deviation's around 15-16. These match the summary statistics we computed earlier and they sit very close to the truth.</p>
+
+<p>The third diagnostic is the multiple-chain check. If you start the sampler from very different starting points and all the chains converge to the same posterior, you can trust the result. If they end up in different places, your sampler hasn't converged.</p>
+
+<div class="webr-container" data-block-title="Step 4: multiple chains from different starts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 4: multiple chains from different starts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Run 4 chains, each starting from a different seed</span></span>
+<span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">4</span>, <span class="kr">function</span>(seed) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compare each chain&#39;s posterior mean for mu, after burn-in</span></span>
+<span class="cl"><span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] 117.62 117.55 117.59 117.51</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># And the posterior mean for sd</span></span>
+<span class="cl"><span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] 15.79 15.82 15.78 15.85</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the diagnostic. We ran the sampler four separate times, each with a different random seed, so each chain has its own random sequence of proposals and starting state. After burn-in, we computed each chain's posterior mean for both unknowns.</p>
+
+<p>The four estimates of the posterior mean of <code>mu</code> are 117.62, 117.55, 117.59, and 117.51, all within 0.15 of each other. The four estimates of the posterior mean of <code>sd</code> are similarly close: 15.79, 15.82, 15.78, 15.85. All four chains found the same posterior. The sampler is converged. If we'd seen, say, one chain at 117 and another at 130, we'd know something was wrong.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run multiple chains by default.</strong> It costs nothing in code (just a <code>lapply</code> wrapper) and catches a class of bugs that a single chain would silently hide: stuck modes, insufficient burn-in, pathological starting values. Tools like JAGS, brms, and Stan run four chains by default for exactly this reason.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run two chains and check whether the standard deviation of their posterior means is small enough to trust. Use the rule of thumb that the standard deviation of the chain-level means should be much smaller than the within-chain standard deviation.</p>
+<div class="webr-container" data-block-title="Your turn: across-chain vs within-chain spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: across-chain vs within-chain spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Run 2 chains</span></span>
+<span class="cl"><span class="c1"># Compute mean(post_mu) for each chain (across-chain spread)</span></span>
+<span class="cl"><span class="c1"># Compute sd(post_mu) for the first chain (within-chain spread)</span></span>
+<span class="cl"><span class="c1"># The ratio sd(across)/sd(within) should be very small if converged</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: ratio well below 0.1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Across-vs-within solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Across-vs-within solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">2</span>, <span class="kr">function</span>(seed) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl">post_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]))</span>
+<span class="cl">within_sd  <span class="o">&lt;-</span> <span class="nf">sd</span>(chains[[<span class="m">1</span>]]<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)])</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(across_chain_sd <span class="o">=</span> <span class="nf">sd</span>(post_means),</span>
+<span class="cl">  within_chain_sd <span class="o">=</span> within_sd,</span>
+<span class="cl">  ratio <span class="o">=</span> <span class="nf">sd</span>(post_means) <span class="o">/</span> within_sd)</span>
+<span class="cl"><span class="c1">#&gt; across_chain_sd within_chain_sd           ratio</span></span>
+<span class="cl"><span class="c1">#&gt;      0.04949747      3.50012108      0.01414163</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The across-chain spread is 0.05, the within-chain spread is 3.50, and the ratio is 0.014. That's well below 0.1, so the chains agree on the posterior. The Gelman-Rubin R-hat statistic, which is the formal version of this rule, would be close to 1.0 here.</p>
+
+</details>
+</section>
+
+<h2>When does Gibbs sampling break down, and what do you do then?</h2>
+
+<p>Gibbs is excellent when the conditionals are easy to sample from, but it has limits. Three situations cause trouble.</p>
+
+<p>The first is when one or more conditionals don't have a clean R function. Suppose your model is more complex and the conditional for one unknown is a non-standard distribution that no <code>r*</code> function in base R can sample from directly. You can't run pure Gibbs anymore. The standard fix is <em>Metropolis-within-Gibbs</em>: replace the troublesome conditional draw with a small Metropolis-Hastings step inside the Gibbs cycle. The rest of the algorithm stays the same, you just have one step that proposes-and-rejects instead of sampling directly.</p>
+
+<p>The second is when the unknowns are highly correlated. Imagine the joint posterior is a long, narrow diagonal ridge in 2D. Gibbs can only move along axes, so the chain has to take many tiny axis-aligned steps to traverse the ridge. Each individual sample is fine, but consecutive samples are very similar (highly autocorrelated), and you need many more iterations to get an effectively independent sample. The fix is either to <em>reparameterise</em> the model so the unknowns are less correlated, or to switch to <em><a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">Hamiltonian Monte Carlo</a></em> (HMC), which can take diagonal moves informed by the posterior's geometry.</p>
+
+<p>The third is when the model has dozens or hundreds of parameters. Pure Gibbs cycles through every parameter at every iteration, which gets slow. JAGS handles this case by being implemented in C. Stan's HMC handles it more efficiently by exploiting gradients. For most one-off analyses with a handful of parameters, our 30-line R sampler is more than fast enough; for production-scale Bayesian models, you'll graduate to JAGS, brms, or Stan.</p>
+
+<p>Speaking of JAGS: it's the package that uses Gibbs (and Metropolis-within-Gibbs) under the hood for almost every model you specify. When you write a JAGS model and call it from R via the <code>rjags</code> or <code>R2jags</code> package, you're handing JAGS a model spec, JAGS works out the conditionals automatically, and JAGS runs a Gibbs sampler much like the one we just built. The sampler we wrote is a small, transparent version of what JAGS does on autopilot.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Knowing what's inside JAGS makes you a better user of it.</strong> When JAGS chains mix slowly, you'll know it's probably highly correlated parameters and you'll think about reparameterisation. When JAGS errors say a conditional couldn't be sampled, you'll know the model has a non-standard distribution somewhere. None of this is mysterious once you've coded Gibbs from scratch.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Identify which of these three Bayesian models would be hardest for plain Gibbs sampling: (a) a Normal model with mean and variance unknown, (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> a regression with 50 highly-correlated predictors, (c) a hierarchical model with a custom non-standard likelihood. Match each to the limitation it triggers.</p>
+<div class="webr-container" data-block-title="Your turn: identify Gibbs limitations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify Gibbs limitations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># (a) Normal mean + variance: ?</span></span>
+<span class="cl"><span class="c1"># (b) 50 correlated regression predictors: ?</span></span>
+<span class="cl"><span class="c1"># (c) hierarchical model with custom likelihood: ?</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: (a) clean, no problem. (b) slow mixing due to correlation. (c) needs Metropolis-within-Gibbs.</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<p>(a) Normal mean and variance is exactly the case we just worked through. Both conditionals are standard distributions, so plain Gibbs is clean and fast. No issue.</p>
+
+<p>(b) 50 correlated regression predictors is the slow-mixing case. Gibbs can only move one coefficient at a time, and the diagonal correlation structure means you need many cycles to explore the joint posterior. The fix is reparameterisation (orthogonalise the predictors) or a smarter sampler like HMC.</p>
+
+<p>(c) Hierarchical model with a custom likelihood is the Metropolis-within-Gibbs case. Some parameters might have nice conditionals (the hierarchical priors usually do), but the data-level parameters with a custom likelihood don't have a closed-form conditional. You sample those with Metropolis-Hastings inside the Gibbs cycle.</p>
+
+<p>Each limitation has a known fix, and recognising which limitation you're hitting is the first step.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Run on real data with informative priors</h3>
+
+<p>The example used a flat (non-informative) prior, which gave us conditionals that depend only on the data. Real Bayesian work often uses informative priors. Modify the sampler so that the mean has a Normal(120, 5²) prior (centred at 120 with standard deviation 5). The conditional posterior for the mean given the variance becomes a precision-weighted average of the prior mean and the data mean, similar to what you saw in the Conjugate Priors post. Update the formula and re-run.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> wait_times</span>
+<span class="cl">n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Prior on mean: Normal(120, 5^2)</span></span>
+<span class="cl">prior_mean <span class="o">&lt;-</span> <span class="m">120</span></span>
+<span class="cl">prior_var  <span class="o">&lt;-</span> <span class="m">25</span></span>
+<span class="cl"></span>
+<span class="cl">gibbs_with_prior <span class="o">&lt;-</span> <span class="kr">function</span>(y, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
+<span class="cl">  <span class="c1"># 1. Allocate storage</span></span>
+<span class="cl">  <span class="c1"># 2. Inside the loop, replace the mu draw with the precision-weighted version:</span></span>
+<span class="cl">  <span class="c1">#    post_var_mu = 1 / (1/prior_var + n/current_var)</span></span>
+<span class="cl">  <span class="c1">#    post_mean_mu = post_var_mu * (prior_mean/prior_var + n*ybar/current_var)</span></span>
+<span class="cl">  <span class="c1">#    current_mu &lt;- rnorm(1, post_mean_mu, sqrt(post_var_mu))</span></span>
+<span class="cl">  <span class="c1"># 3. Variance draw stays the same</span></span>
+<span class="cl">  <span class="c1"># Return list of mu and sd samples</span></span>
+<span class="cl">}</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">gibbs_with_prior <span class="o">&lt;-</span> <span class="kr">function</span>(y, prior_mean <span class="o">=</span> <span class="m">120</span>, prior_var <span class="o">=</span> <span class="m">25</span>, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
+<span class="cl">  n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">  ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+<span class="cl">  mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  current_var <span class="o">&lt;-</span> <span class="nf">var</span>(y)</span>
+<span class="cl"></span>
+<span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
+<span class="cl">    <span class="c1"># Mean conditional with informative prior</span></span>
+<span class="cl">    post_var_mu  <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">/</span> prior_var <span class="o">+</span> n <span class="o">/</span> current_var)</span>
+<span class="cl">    post_mean_mu <span class="o">&lt;-</span> post_var_mu <span class="o">*</span> (prior_mean <span class="o">/</span> prior_var <span class="o">+</span> n <span class="o">*</span> ybar <span class="o">/</span> current_var)</span>
+<span class="cl">    current_mu   <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, post_mean_mu, <span class="nf">sqrt</span>(post_var_mu))</span>
+<span class="cl"></span>
+<span class="cl">    <span class="c1"># Variance conditional unchanged</span></span>
+<span class="cl">    sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">    current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl"></span>
+<span class="cl">    mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
+<span class="cl">    sd_samples[i] <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl">  }</span>
+<span class="cl">  <span class="nf">list</span>(mu <span class="o">=</span> mu_samples, sd <span class="o">=</span> sd_samples)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">chain_pri <span class="o">&lt;-</span> <span class="nf">gibbs_with_prior</span>(wait_times)</span>
+<span class="cl"><span class="nf">mean</span>(chain_pri<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)])</span>
+<span class="cl"><span class="c1">#&gt; [1] 118.0631</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The informative prior pulled the posterior mean toward 120 (the prior centre) compared to the flat-prior version we ran before. With 20 observations the data still dominates, but the prior contributed a small nudge.</p>
+
+</details>
+
+<h3>Exercise 2: Burn-in and thinning together</h3>
+
+<p>Compute three quantities for the chain from the first section: the post-burn-in posterior mean of <code>mu</code>, the same with thinning every 5th sample (keeping only iterations 500, 505, 510, ...), and the standard error of each estimate. Show that thinning reduces the effective sample size but not the estimate itself.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># chain$mu has 5000 samples</span></span>
+<span class="cl"><span class="c1"># 1. Drop first 500 (burn-in): post &lt;- chain$mu[-(1:500)]</span></span>
+<span class="cl"><span class="c1"># 2. Thin: thin &lt;- post[seq(1, length(post), by = 5)]</span></span>
+<span class="cl"><span class="c1"># 3. Compare mean(post) and mean(thin)</span></span>
+<span class="cl"><span class="c1"># 4. Compare sd(post) and sd(thin) (should be very similar)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">post <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl">thin <span class="o">&lt;-</span> post[<span class="nf">seq</span>(<span class="m">1</span>, <span class="nf">length</span>(post), by <span class="o">=</span> <span class="m">5</span>)]</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(post_mean <span class="o">=</span> <span class="nf">mean</span>(post),</span>
+<span class="cl">  thin_mean <span class="o">=</span> <span class="nf">mean</span>(thin),</span>
+<span class="cl">  post_sd   <span class="o">=</span> <span class="nf">sd</span>(post),</span>
+<span class="cl">  thin_sd   <span class="o">=</span> <span class="nf">sd</span>(thin),</span>
+<span class="cl">  post_n    <span class="o">=</span> <span class="nf">length</span>(post),</span>
+<span class="cl">  thin_n    <span class="o">=</span> <span class="nf">length</span>(thin))</span>
+<span class="cl"><span class="c1">#&gt;   post_mean   thin_mean     post_sd     thin_sd      post_n      thin_n</span></span>
+<span class="cl"><span class="c1">#&gt;  117.582569  117.589331    3.469301    3.479301 4500.000000  900.000000</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both estimates of the posterior mean are essentially the same (117.58 vs 117.59). The within-chain standard deviation is also unchanged. Thinning didn't bias the answer; it just gave us 900 samples instead of 4500. Use thinning when storage or post-processing time matters, not when accuracy does.</p>
+
+</details>
+
+<h3>Exercise 3: Posterior probability of an event</h3>
+
+<p>Use the chain to compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the true typical wait time exceeds 125 seconds. This is the kind of question Bayesian methods answer naturally, but frequentist methods don't.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># chain$mu[-(1:500)] holds 4500 post-burn-in samples of mu</span></span>
+<span class="cl"><span class="c1"># The posterior probability that mu &gt; 125 is just the fraction of samples &gt; 125</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">post_mu <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl"><span class="nf">mean</span>(post_mu <span class="o">&gt;</span> <span class="m">125</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.02266667</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There's a 2.3% posterior probability that the true typical wait time exceeds 125 seconds. With only 20 observations this is a weak claim either way, but it's the kind of probabilistic statement Bayesian inference gives you for free: the chain is a sample from the posterior, so any probability over the unknown is just a sample proportion.</p>
+
+</details>
+
+<h2>Complete Example: A Bayesian summary report</h2>
+
+<p>Pull everything together. Assume you ran an operations study and have 30 wait times. Run the Gibbs sampler with a mildly informative prior (Normal(120, 10²) on the mean), produce posterior summaries, and print a small report.</p>
+
+<div class="webr-container" data-block-title="Complete Bayesian summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete Bayesian summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">real_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">30</span>, mean <span class="o">=</span> <span class="m">130</span>, sd <span class="o">=</span> <span class="m">18</span>)   <span class="c1"># pretend this is your real data</span></span>
+<span class="cl"></span>
+<span class="cl">chain_full <span class="o">&lt;-</span> <span class="nf">gibbs_with_prior</span>(real_y, prior_mean <span class="o">=</span> <span class="m">120</span>, prior_var <span class="o">=</span> <span class="m">100</span>,</span>
+<span class="cl">                               n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl"></span>
+<span class="cl">post_mu <span class="o">&lt;-</span> chain_full<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl">post_sd <span class="o">&lt;-</span> chain_full<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl"></span>
+<span class="cl">report <span class="o">&lt;-</span> <span class="nf">list</span>(</span>
+<span class="cl">  n            <span class="o">=</span> <span class="nf">length</span>(real_y),</span>
+<span class="cl">  data_mean    <span class="o">=</span> <span class="nf">mean</span>(real_y),</span>
+<span class="cl">  data_sd      <span class="o">=</span> <span class="nf">sd</span>(real_y),</span>
+<span class="cl">  post_mu_mean <span class="o">=</span> <span class="nf">mean</span>(post_mu),</span>
+<span class="cl">  post_mu_cri  <span class="o">=</span> <span class="nf">quantile</span>(post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)),</span>
+<span class="cl">  post_sd_mean <span class="o">=</span> <span class="nf">mean</span>(post_sd),</span>
+<span class="cl">  post_sd_cri  <span class="o">=</span> <span class="nf">quantile</span>(post_sd, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)),</span>
+<span class="cl">  prob_mu_above_125 <span class="o">=</span> <span class="nf">mean</span>(post_mu <span class="o">&gt;</span> <span class="m">125</span>)</span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Print it nicely</span></span>
+<span class="cl"><span class="nf">str</span>(report)</span>
+<span class="cl"><span class="c1">#&gt; List of 8</span></span>
+<span class="cl"><span class="c1">#&gt;  $ n                : int 30</span></span>
+<span class="cl"><span class="c1">#&gt;  $ data_mean        : num 132</span></span>
+<span class="cl"><span class="c1">#&gt;  $ data_sd          : num 18.4</span></span>
+<span class="cl"><span class="c1">#&gt;  $ post_mu_mean     : num 130</span></span>
+<span class="cl"><span class="c1">#&gt;  $ post_mu_cri      : Named num [1:2] 124 137</span></span>
+<span class="cl"><span class="c1">#&gt;  $ post_sd_mean     : num 19.1</span></span>
+<span class="cl"><span class="c1">#&gt;  $ post_sd_cri      : Named num [1:2] 14.7 25</span></span>
+<span class="cl"><span class="c1">#&gt;  $ prob_mu_above_125: num 0.97</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the result. The data has 30 observations with empirical mean 132 and empirical standard deviation 18.4. The posterior mean for the underlying typical wait is 130, slightly pulled toward the prior of 120 by the prior's contribution. The 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> for the mean is [124, 137]. The standard deviation has a posterior mean of 19.1 with a 95% credible interval of [14.7, 25.0]. And the posterior probability that the true typical wait exceeds 125 seconds is 97%.</p>
+
+<p>That last number is a clean answer to a stakeholder question, "is the true average wait above 125 seconds?" There's no p-value to translate, no <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> to set up. Just a probability you can quote directly. That's the whole appeal of Bayesian summary reports.</p>
+
+<h2>Summary</h2>
+
+<p>Gibbs sampling is a <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov Chain</a> Monte Carlo algorithm that draws samples from a multi-dimensional posterior by cycling through each unknown one at a time, sampling each from its conditional distribution given the others. It's the algorithm at the heart of JAGS and a building block of more advanced methods.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>Why it works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Pick a starting value for each unknown</td>
+<td>Any reasonable starting point works after burn-in</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Hold all but one unknown fixed; sample that one from its conditional distribution</td>
+<td>Each conditional is a one-dimensional draw R can usually do directly</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Move to the next unknown; repeat with the others fixed</td>
+<td>Cycling preserves the right joint distribution</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Store the full set of values; loop</td>
+<td>Stored chain converges to the joint posterior</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Drop early burn-in samples; analyse the rest</td>
+<td>Post-burn-in samples are draws from the joint posterior</td>
+</tr>
+</tbody>
+</table>
+
+<p>When the conditionals are clean (Normal-Normal, Beta-Binomial, Gamma-Poisson, Normal-Inverse-Gamma), the implementation is a few lines per parameter. When they aren't, you fall back to Metropolis-within-Gibbs.</p>
+
+<p>For real production work, use JAGS via <code>R2jags</code> or <code>rjags</code>. For models with continuous parameters and gradients, Stan via <code>brms</code> or <code>rstan</code> is usually faster. The 30-line implementation in this post is a teaching tool, but the mental model it builds is exactly what's running inside those tools.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Geman, S. & Geman, D. "Stochastic Relaxation, Gibbs Distributions, and the Bayesian Restoration of Images." <em>IEEE Transactions on Pattern Analysis and Machine Intelligence</em>, 1984. The original paper that introduced the algorithm to image processing.</li>
+
+<li>Gelfand, A. E. & Smith, A. F. M. "Sampling-Based Approaches to Calculating Marginal Densities." <em>Journal of the American Statistical Association</em>, 1990. The paper that brought Gibbs sampling to mainstream Bayesian statistics.</li>
+
+<li>Gelman, A., Carlin, J. B., Stern, H. S. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 11 covers Gibbs sampling and its variants.</li>
+
+<li>Hoff, P. <em>A First Course in Bayesian Statistical Methods</em>. Springer, 2009. Chapters 5-6 derive Gibbs samplers for the Normal model with worked R examples.</li>
+
+<li>JAGS user manual. <a href="https://mcmc-jags.sourceforge.io/">mcmc-jags.sourceforge.io</a>. Plummer's documentation for the JAGS implementation.</li>
+
+<li>Plummer, M. "JAGS: A program for analysis of Bayesian graphical models using Gibbs sampling." <em>Proceedings of DSC 2003</em>. The paper introducing JAGS.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="MCMC-in-R.html">Build MCMC From Scratch in R</a>, the previous post in the curriculum that builds the simpler 1-dimensional Metropolis-Hastings sampler. Read this first if anything about MCMC mechanics in this post still feels unclear.</li>
+
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a>, the closed-form shortcut that works for some Bayesian models without any sampling at all. Conjugate-prior models are the easy case Gibbs generalises.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that builds the prior-likelihood-posterior intuition with simulations.</li>
+
+</ul>
+<aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="rt-title">Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast</span><span class="rt-meta">Statistics &middot; 13 min read</span></a><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Conjugate-Priors-in-R.html"><span class="rt-title">Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 23 min read</span></a><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
+<nav class="prev-next-nav" aria-label="Post navigation">
+<a class="pn-link pn-prev" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Hamiltonian Monte Carlo</span></a>
+<a class="pn-link pn-next" href="Time-Series-Analysis-With-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Time Series Analysis</span></a>
+</nav>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+        <p class="footer-links">
+          <a href="/about/">About</a> ·
+          <a href="/feed.xml">RSS</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script>
+  (function(){
+    function wireTabs(){
+      var tabs = document.querySelectorAll('.sidebar-tab');
+      var panels = document.querySelectorAll('.sidebar-panel');
+      if (!tabs.length || !panels.length) return false;
+      function activate(name){
+        tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+        panels.forEach(function(p){ p.classList.toggle('active', p.getAttribute('data-panel') === name); });
+      }
+      var onToolPage = location.pathname.indexOf('/tools/') === 0;
+      if (!onToolPage){
+        try { var pinned = localStorage.getItem('rstat_sidebar_tab'); if (pinned === 'tools' || pinned === 'posts') activate(pinned); } catch(e){}
+      } else {
+        activate('tools');
+      }
+      tabs.forEach(function(tab){
+        if (tab.dataset.wired) return;
+        tab.dataset.wired = '1';
+        tab.addEventListener('click', function(){
+          var name = tab.getAttribute('data-tab');
+          activate(name);
+          try { localStorage.setItem('rstat_sidebar_tab', name); } catch(e){}
+        });
+      });
+      return true;
+    }
+    if (!wireTabs()){
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireTabs);
+      else setTimeout(wireTabs, 50);
+    }
+  })();
+  </script>
+  <script src="www/toc.min.js?h=d28a1a80"></script>
+  <!-- MathJax Script -->
+  
+  <!-- WebR Interactive Code -->
+    <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Masthead behavior: active link + scroll shadow -->
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var links = document.querySelectorAll('.masthead-nav-link');
+      links.forEach(function(a) {
+        var href = a.getAttribute('href');
+        if (href === '/') return;  // home only matches /
+        if (path.indexOf(href) === 0) a.classList.add('active');
+      });
+      // Tutorial pages (everything not /, /posts/, /about/) get no active link.
+      var masthead = document.querySelector('.site-masthead');
+      if (masthead) {
+        var onScroll = function() {
+          masthead.classList.toggle('scrolled', window.scrollY > 4);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+    })();
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
