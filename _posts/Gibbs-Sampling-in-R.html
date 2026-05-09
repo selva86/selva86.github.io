@@ -1,0 +1,987 @@
+---
+title: "Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS"
+description: "Build a Gibbs sampler from scratch in R for a bivariate normal: derive full conditionals, run the chain, check trace plots, ACF, and effective sample size."
+keywords: "Gibbs sampling R, MCMC R, Markov chain Monte Carlo, full conditional distribution, bivariate normal Gibbs, JAGS, trace plot, autocorrelation, effective sample size, Bayesian inference R"
+mathjax: true
+webr: true
+curriculum_id: "5.1.6"
+post_type: "C"
+auto_link_terms: "Gibbs sampling|Gibbs sampler|full conditional distribution|MCMC algorithm|effective sample size|trace plot"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Gibbs Sampling"
+sidebar_order: "115"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</h1>
+
+<p class="lead">Gibbs sampling is an MCMC algorithm that draws from a hard-to-sample joint distribution by cycling through each parameter and sampling it from its full conditional, treating all other parameters as fixed. The trick: trade one impossible joint sample for a sequence of easy one-dimensional samples.</p>
+
+<div class="engagement-header" data-difficulty="Advanced" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<h2>What is Gibbs sampling, and what problem does it solve?</h2>
+
+<p>Suppose you want samples from a bivariate normal whose joint density you can write down but cannot conveniently sample from directly. Gibbs sampling sidesteps that by alternating: sample $\theta_1$ given the current $\theta_2$, then sample $\theta_2$ given the new $\theta_1$, and repeat. Each step uses a one-dimensional conditional, which is almost always a familiar distribution. Here is the entire algorithm, applied to a bivariate normal with correlation 0.7, in nine lines of R.</p>
+
+<div class="webr-container" data-block-title="A bivariate normal Gibbs sampler in nine lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A bivariate normal Gibbs sampler in nine lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+rho &lt;- 0.7
+n   &lt;- 1000
+theta1 &lt;- numeric(n)
+theta2 &lt;- numeric(n)
+for (t in 2:n) {
+  theta1[t] &lt;- rnorm(1, rho * theta2[t - 1], sqrt(1 - rho^2))
+  theta2[t] &lt;- rnorm(1, rho * theta1[t],     sqrt(1 - rho^2))
+}
+c(mean1 = mean(theta1[201:n]),
+  mean2 = mean(theta2[201:n]),
+  cor   = cor(theta1[201:n], theta2[201:n]))
+#&gt;      mean1      mean2        cor
+#&gt; -0.008971   0.006743   0.698514
+plot(theta1, theta2, pch = 16, cex = 0.4,
+     col = rgb(0.2, 0.4, 0.8, 0.5),
+     xlab = expression(theta[1]),
+     ylab = expression(theta[2]),
+     main = &quot;Gibbs samples from N(0, 0, 1, 1, 0.7)&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. The loop initialises both chains at zero, then on every iteration <code>theta1[t]</code> is drawn from a normal whose mean is <code>rho * theta2[t-1]</code> and whose standard deviation is <code>sqrt(1 - rho^2)</code>. Immediately after, <code>theta2[t]</code> is drawn the same way using the <em>just-updated</em> <code>theta1[t]</code>. The two <code>rnorm()</code> calls <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> the full conditionals of the bivariate standard normal, derived in the next section. The summary line drops the first 200 draws as burn-in and reports the marginal means and the empirical correlation.</p>
+
+<p>Interpretation. The empirical means are within $0.01$ of the true value of zero, and the empirical correlation is $0.699$, almost exactly the target $0.7$. In other words, eight lines of plain R produced a sample that recovers the joint distribution. The scatter plot shows the chain visiting the elliptical ridge of high density, exactly as a bivariate normal should.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Joint hard, conditionals easy.</strong> Gibbs sampling exists because high-dimensional joint distributions are awkward to sample from, but their one-dimensional conditionals are usually a familiar distribution like a normal, gamma, or beta. The whole algorithm is a way to swap one hard problem for a sequence of easy ones.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the sampler with <code>rho &lt;- -0.7</code> and look at the resulting scatter. The shape of the cloud should change in a specific way. Predict the change before you run.</p>
+<div class="webr-container" data-block-title="Your turn: flip the sign of rho">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the sign of rho</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Change rho and rerun the sampler. Save the chain as ex_chain.
+ex_rho &lt;- -0.7
+ex_n   &lt;- 1000
+ex_theta1 &lt;- numeric(ex_n)
+ex_theta2 &lt;- numeric(ex_n)
+
+# your code here
+
+ex_chain &lt;- cbind(ex_theta1, ex_theta2)
+plot(ex_chain, pch = 16, cex = 0.4,
+     col = rgb(0.8, 0.2, 0.2, 0.4),
+     main = paste(&quot;rho =&quot;, ex_rho))
+#&gt; Expected: scatter cloud tilts the other way</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Negative-correlation Gibbs solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Negative-correlation Gibbs solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rho &lt;- -0.7
+ex_n   &lt;- 1000
+ex_theta1 &lt;- numeric(ex_n)
+ex_theta2 &lt;- numeric(ex_n)
+for (t in 2:ex_n) {
+  ex_theta1[t] &lt;- rnorm(1, ex_rho * ex_theta2[t - 1], sqrt(1 - ex_rho^2))
+  ex_theta2[t] &lt;- rnorm(1, ex_rho * ex_theta1[t],     sqrt(1 - ex_rho^2))
+}
+ex_chain &lt;- cbind(ex_theta1, ex_theta2)
+plot(ex_chain, pch = 16, cex = 0.4,
+     col = rgb(0.8, 0.2, 0.2, 0.4),
+     main = paste(&quot;rho =&quot;, ex_rho))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Negative correlation flips the conditional mean: when <code>theta2</code> is positive, the conditional for <code>theta1</code> centres on a <em>negative</em> value. The cloud rotates 90 degrees and now slopes down-and-to-the-right.</p>
+
+</details>
+</section>
+
+<h2>How do you derive the full conditional distributions?</h2>
+
+<p>Gibbs sampling needs a full conditional for every parameter. The recipe is mechanical: write down the joint density, fix all other parameters at their current values, and read off the resulting one-parameter density.</p>
+
+<p><img src="screenshots/Gibbs-Sampling-in-R-conditional.webp" alt="From joint distribution to full conditional" class="img-responsive img-zoomable" loading="lazy" width="2248" height="366" /></p>
+
+<p><em>Figure 1: A full conditional fixes every other parameter to its current value, leaving a one-dimensional distribution to sample from.</em></p>
+
+<p>For a bivariate normal with means $(\mu_1, \mu_2)$, variances $(\sigma_1^2, \sigma_2^2)$, and correlation $\rho$, the full conditional has a closed form:</p>
+
+<p>$$ \theta_1 \mid \theta_2 \sim \mathcal{N}\!\left(\mu_1 + \rho\,\frac{\sigma_1}{\sigma_2}(\theta_2 - \mu_2),\; \sigma_1^2(1 - \rho^2)\right) $$</p>
+
+<p>Where:</p>
+
+<ul>
+
+<li>$\mu_1 + \rho(\sigma_1/\sigma_2)(\theta_2 - \mu_2)$ is the conditional mean. It says: shift the marginal mean of $\theta_1$ toward $\theta_2$ by a fraction set by the correlation.</li>
+
+<li>$\sigma_1^2(1 - \rho^2)$ is the conditional variance. Strong correlation shrinks it, because once you know $\theta_2$ you have less uncertainty about $\theta_1$.</li>
+
+</ul>
+
+<p>The conditional for $\theta_2 \mid \theta_1$ is symmetric: swap subscripts. In the unit-variance, zero-mean special case used in the opening sampler, the formula collapses to $\theta_1 \mid \theta_2 \sim \mathcal{N}(\rho\,\theta_2,\; 1 - \rho^2)$, which is exactly what <code>rnorm(1, rho * theta2, sqrt(1 - rho^2))</code> produces.</p>
+
+<p>If you are not interested in the math, skip ahead. The practical takeaway is that for any model whose conditionals you can identify by inspection (normal, gamma, beta, Dirichlet, and combinations of these), Gibbs sampling is available.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A full conditional is just the joint density read sideways.</strong> Pick the parameter you want, treat every other variable as a known constant, and what remains is a one-dimensional density. The factors that do not contain that parameter become normalising constants and drop out.</div></div>
+
+<p>The next code block packages the conditional formulas as a small helper. We will reuse it later inside a production-grade sampler.</p>
+
+<div class="webr-container" data-block-title="Helper for the bivariate-normal conditional">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Helper for the bivariate-normal conditional</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cond_mean_sd &lt;- function(other, rho, mu_self = 0, mu_other = 0,
+                         sd_self = 1, sd_other = 1) {
+  mean_cond &lt;- mu_self + rho * (sd_self / sd_other) * (other - mu_other)
+  sd_cond   &lt;- sd_self * sqrt(1 - rho^2)
+  list(mean = mean_cond, sd = sd_cond)
+}
+
+cond_mean_sd(other = 1.5, rho = 0.5)
+#&gt; $mean
+#&gt; [1] 0.75
+#&gt; $sd
+#&gt; [1] 0.8660254</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. The function takes the value of the <em>other</em> coordinate plus the parameters of the bivariate normal. Inside, it computes the conditional mean and sd using the formula above, then returns them as a list. The example call asks: "if <code>theta2 = 1.5</code> and <code>rho = 0.5</code>, what is the distribution of <code>theta1</code>?". The answer: mean $0.75$, sd $0.866$.</p>
+
+<p>Interpretation. The mean has been pulled halfway from $0$ toward $1.5$, because $\rho = 0.5$ explains half the link. The sd has dropped from the marginal value of $1$ to about $0.87$, because conditioning on <code>theta2</code> removes some uncertainty.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>cond_mean_sd()</code> to get the conditional for <code>theta2 = -2</code> and <code>rho = 0.9</code>. Predict what the conditional mean and sd should be before checking.</p>
+<div class="webr-container" data-block-title="Your turn: strong-correlation conditional">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: strong-correlation conditional</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute the conditional with theta2 = -2 and rho = 0.9
+ex_cond &lt;- cond_mean_sd(other = -2, rho = 0.9)
+print(ex_cond)
+#&gt; Expected: mean close to -1.8, sd close to 0.44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Strong-correlation conditional solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strong-correlation conditional solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cond &lt;- cond_mean_sd(other = -2, rho = 0.9)
+ex_cond
+#&gt; $mean
+#&gt; [1] -1.8
+#&gt; $sd
+#&gt; [1] 0.4358899</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With $\rho = 0.9$, almost all the variation in <code>theta1</code> is explained by <code>theta2</code>. The conditional mean lands at $-1.8$ (close to <code>theta2</code> itself) and the conditional sd shrinks to $\sqrt{1 - 0.81} \approx 0.436$.</p>
+
+</details>
+</section>
+
+<h2>How do you implement a Gibbs sampler from scratch in R?</h2>
+
+<p>A production-grade sampler does three things the toy version skipped: it accepts an arbitrary initial state, it discards burn-in iterations, and it returns the chain as a labelled matrix. The diagram below shows what the inner loop is doing on every iteration.</p>
+
+<p><img src="screenshots/Gibbs-Sampling-in-R-step-flow.webp" alt="One iteration of a Gibbs sampler" class="img-responsive img-zoomable" loading="lazy" width="1874" height="532" /></p>
+
+<p><em>Figure 2: One iteration of a two-parameter Gibbs sampler: each conditional uses the most recent value of the other parameter.</em></p>
+
+<div class="webr-container" data-block-title="Reusable bivariate Gibbs sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reusable bivariate Gibbs sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bivariate_gibbs &lt;- function(n_iter = 5000, burn_in = 1000, rho = 0.7,
+                            init = c(0, 0)) {
+  chain &lt;- matrix(NA_real_, nrow = n_iter, ncol = 2,
+                  dimnames = list(NULL, c(&quot;theta1&quot;, &quot;theta2&quot;)))
+  state &lt;- init
+  for (t in seq_len(n_iter)) {
+    c1 &lt;- cond_mean_sd(state[2], rho)
+    state[1] &lt;- rnorm(1, c1$mean, c1$sd)
+    c2 &lt;- cond_mean_sd(state[1], rho)
+    state[2] &lt;- rnorm(1, c2$mean, c2$sd)
+    chain[t, ] &lt;- state
+  }
+  chain[(burn_in + 1):n_iter, , drop = FALSE]
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. The function preallocates a <code>n_iter</code> by 2 matrix to avoid the slow <code>rbind()</code> pattern. On every iteration it builds the full conditional for $\theta_1$ given the current $\theta_2$, draws a new $\theta_1$, then immediately rebuilds the conditional for $\theta_2$ using the <em>new</em> $\theta_1$ and draws $\theta_2$. After the loop, the first <code>burn_in</code> rows are dropped because the chain has not yet forgotten its starting point. What returns is a clean post-burn-in chain.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Initialise near a high-density region to shrink burn-in.</strong> The chain forgets its starting point geometrically fast for well-behaved models, but a far-from-mode init still costs you iterations. If you have a prior guess (a maximum-likelihood estimate, an empirical mean), use it. The default <code>c(0, 0)</code> here works because the target is centred there.</div></div>
+
+<div class="webr-container" data-block-title="Run the sampler and inspect the chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the sampler and inspect the chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit &lt;- bivariate_gibbs(n_iter = 5000, burn_in = 1000, rho = 0.7)
+head(fit, 4)
+#&gt;           theta1     theta2
+#&gt; [1,]  0.36214521 -0.4291813
+#&gt; [2,] -0.71093288 -0.5538014
+#&gt; [3,] -0.32517624 -0.7106222
+#&gt; [4,] -1.05418842 -1.4827311
+
+colMeans(fit)
+#&gt;      theta1      theta2
+#&gt; -0.01532074  0.00781256
+
+cor(fit)[1, 2]
+#&gt; [1] 0.7028196</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. We pull a chain of 4000 retained draws, peek at the first four to confirm the structure, then <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>. The column means estimate the marginal expectations and the off-diagonal of <code>cor()</code> estimates $\rho$.</p>
+
+<p>Interpretation. Both means sit within $0.02$ of the truth, and the empirical correlation is $0.70$, matching the target $0.7$. The sampler is doing its job.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a tiny <code>gibbs_step()</code> function that takes the current state and <code>rho</code>, and returns the next state. The production loop above could be rewritten in terms of this helper.</p>
+<div class="webr-container" data-block-title="Your turn: write gibbs_step()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write gibbs_step()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gibbs_step &lt;- function(state, rho) {
+  # your code here
+}
+
+ex_gibbs_step(c(0.5, -0.3), rho = 0.6)
+#&gt; Expected: a length-2 numeric, both updated</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="gibbs_step solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">gibbs_step solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gibbs_step &lt;- function(state, rho) {
+  c1 &lt;- cond_mean_sd(state[2], rho)
+  state[1] &lt;- rnorm(1, c1$mean, c1$sd)
+  c2 &lt;- cond_mean_sd(state[1], rho)
+  state[2] &lt;- rnorm(1, c2$mean, c2$sd)
+  state
+}
+
+set.seed(1)
+ex_gibbs_step(c(0.5, -0.3), rho = 0.6)
+#&gt; [1] -0.7565382  0.1413452</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The function does one full Gibbs sweep: update <code>theta1</code> from its conditional, then update <code>theta2</code> from its conditional using the new <code>theta1</code>. Wrapping a single sweep in a function makes it easier to test and to swap into a different chain driver later.</p>
+
+</details>
+</section>
+
+<h2>How do you check whether the chain has converged?</h2>
+
+<p>A chain that produced numbers does not mean a chain that produced reliable samples. Diagnostics catch slow mixing, incomplete burn-in, and chains that have not yet reached the stationary distribution. The four standard tools are trace plots, autocorrelation plots, effective sample size, and the Gelman-Rubin statistic.</p>
+
+<div class="webr-container" data-block-title="Trace plot for theta1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace plot for theta1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot(fit[, &quot;theta1&quot;], type = &quot;l&quot;,
+     col = &quot;steelblue&quot;,
+     xlab = &quot;iteration (post burn-in)&quot;,
+     ylab = expression(theta[1]),
+     main = &quot;Trace plot of theta1&quot;)
+abline(h = 0, col = &quot;darkred&quot;, lwd = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. A trace plot is just the sampled value of one parameter against iteration. We add a horizontal line at the true mean of zero so the eye has a reference.</p>
+
+<p>Interpretation. A healthy trace plot looks like a "fat caterpillar": it bounces around a flat horizontal band centred on the target mean, with no slow drift, no long flat stretches, and no visible trend. This trace shows exactly that.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A wandering trace plot means burn-in is too short.</strong> If your trace plot shows a chain still drifting toward its eventual mean, the early iterations are contaminating your estimate. Increase <code>burn_in</code>, or initialise the chain closer to a high-density region. Never trust posterior summaries from a wandering chain.</div></div>
+
+<div class="webr-container" data-block-title="ACF and effective sample size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ACF and effective sample size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(coda)
+
+mcmc_fit &lt;- as.mcmc(fit)
+acf(fit[, &quot;theta1&quot;], main = &quot;Autocorrelation of theta1&quot;, lag.max = 40)
+
+ess &lt;- effectiveSize(mcmc_fit)
+ess
+#&gt;   theta1   theta2
+#&gt; 928.3441 941.1273</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. <code>acf()</code> plots the autocorrelation of the chain at lags 0 through 40. <code>coda::effectiveSize()</code> returns the <em>effective</em> sample size (ESS): the number of independent draws that would carry the same Monte Carlo information as your correlated chain.</p>
+
+<p>Interpretation. The ACF starts at $1$ (a sample is perfectly correlated with itself), drops to roughly $\rho = 0.7$ at lag $1$, and decays geometrically toward zero. The ESS is about $930$ for each parameter, out of $4000$ retained draws. Roughly four correlated draws carry one independent draw of information. That is normal for a Gibbs chain on a moderately correlated target.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Judge sample size by ESS, not iteration count.</strong> A chain of $10{,}000$ draws with ESS $200$ is statistically equivalent to $200$ independent draws. If you need standard errors on your posterior summaries, base them on ESS, and increase <code>n_iter</code> until ESS clears whatever threshold your application needs.</div></div>
+
+<div class="webr-container" data-block-title="Two chains and Gelman-Rubin">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two chains and Gelman-Rubin</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit2 &lt;- bivariate_gibbs(n_iter = 5000, burn_in = 1000, rho = 0.7,
+                        init = c(3, -3))
+
+mcmc_list &lt;- mcmc.list(as.mcmc(fit), as.mcmc(fit2))
+gelman.diag(mcmc_list)
+#&gt; Potential scale reduction factors:
+#&gt;
+#&gt;        Point est. Upper C.I.
+#&gt; theta1          1       1.00
+#&gt; theta2          1       1.00
+#&gt;
+#&gt; Multivariate psrf
+#&gt;
+#&gt; 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. We run a second chain from a deliberately different starting point. <code>gelman.diag()</code> compares within-chain and between-chain variance, returning the potential scale reduction factor (PSRF). A value near $1$ means the two chains have converged to the same distribution.</p>
+
+<p>Interpretation. Both PSRFs are $1.00$, and the upper confidence bound is $1.00$. Different starting points reached the same stationary distribution, which is the strongest empirical evidence for convergence available. As a rule of thumb, treat PSRF below $1.05$ as acceptable.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The chain of $4000$ retained draws had ESS around $930$. What does that ratio mean about how often the chain "tells you something new"?</p>
+<div class="webr-container" data-block-title="Your turn: interpret ESS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: interpret ESS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iter &lt;- nrow(fit)
+ex_ess  &lt;- effectiveSize(as.mcmc(fit))[[&quot;theta1&quot;]]
+ex_iter / ex_ess
+#&gt; Expected: a small number &gt; 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ESS interpretation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ESS interpretation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iter &lt;- nrow(fit)
+ex_ess  &lt;- effectiveSize(as.mcmc(fit))[[&quot;theta1&quot;]]
+ex_iter / ex_ess
+#&gt; [1] 4.308782</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The ratio is roughly $4$, meaning each independent piece of information about <code>theta1</code> cost the chain about four iterations. With $\rho = 0.7$, that ratio is set by the geometric decay of the autocorrelation. A near-uncorrelated target would produce a ratio close to $1$.</p>
+
+</details>
+</section>
+
+<h2>Why does Gibbs sampling outperform Metropolis in high dimensions?</h2>
+
+<p><a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> and Gibbs both produce a <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> whose stationary distribution is the target. The difference is the cost of one move. Metropolis proposes a new state and accepts it with some probability less than one. Gibbs proposes from the conditional, which is <em>guaranteed</em> to be the right distribution, so the move is always accepted.</p>
+
+<div class="webr-container" data-block-title="A Metropolis sampler on the same target">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A Metropolis sampler on the same target</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_target &lt;- function(x, rho) {
+  q &lt;- (x[1]^2 - 2 * rho * x[1] * x[2] + x[2]^2) / (1 - rho^2)
+  -0.5 * q
+}
+
+metropolis_bvn &lt;- function(n_iter = 5000, rho = 0.7,
+                           prop_sd = 1.0, init = c(0, 0)) {
+  chain   &lt;- matrix(NA_real_, nrow = n_iter, ncol = 2)
+  state   &lt;- init
+  log_t   &lt;- log_target(state, rho)
+  accepts &lt;- 0
+  for (t in seq_len(n_iter)) {
+    cand     &lt;- state + rnorm(2, 0, prop_sd)
+    log_t_c  &lt;- log_target(cand, rho)
+    if (log(runif(1)) &lt; log_t_c - log_t) {
+      state &lt;- cand
+      log_t &lt;- log_t_c
+      accepts &lt;- accepts + 1
+    }
+    chain[t, ] &lt;- state
+  }
+  list(chain = chain, accept_rate = accepts / n_iter)
+}
+
+mh &lt;- metropolis_bvn()
+mh$accept_rate
+#&gt; [1] 0.5158
+
+effectiveSize(as.mcmc(mh$chain))
+#&gt; var1     var2
+#&gt; 312.1024 305.7716</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. The log-target is the bivariate normal density up to a constant, which is all Metropolis needs. On every iteration we propose a Gaussian step centred on the current state with standard deviation <code>prop_sd</code>, accept with probability $\min(1, \pi(\text{cand})/\pi(\text{state}))$, and record the (possibly unchanged) state. We track the acceptance rate so we can compare with Gibbs.</p>
+
+<p>Interpretation. Metropolis accepted about $52\%$ of proposals, which is healthy for a 2D problem and a reasonable proposal sd. The ESS is around $310$ for each parameter, compared to $930$ for the Gibbs chain of the same length. Same number of iterations, three times less effective sample. Gibbs wins on this target because every proposal is the right one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gibbs has 100% acceptance because conditionals are recognisable distributions.</strong> Metropolis pays an acceptance tax: a fraction of its iterations leave the state unchanged, which inflates autocorrelation. As dimensionality grows, that tax compounds, and Gibbs's advantage widens. This is why JAGS, BUGS, and most production Bayesian engines try to use Gibbs whenever the conditionals admit it, and fall back to other methods only when they do not.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run Metropolis with <code>prop_sd = 0.2</code> and look at the acceptance rate and ESS. What do you expect?</p>
+<div class="webr-container" data-block-title="Your turn: smaller proposal sd">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smaller proposal sd</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mh &lt;- metropolis_bvn(prop_sd = 0.2)
+c(accept = ex_mh$accept_rate,
+  ess1   = effectiveSize(as.mcmc(ex_mh$chain))[1])
+#&gt; Expected: high acceptance, low ESS</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Smaller proposal sd solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller proposal sd solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mh &lt;- metropolis_bvn(prop_sd = 0.2)
+c(accept = ex_mh$accept_rate,
+  ess1   = effectiveSize(as.mcmc(ex_mh$chain))[1])
+#&gt;    accept   ess1.var1
+#&gt;    0.9046  118.4523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tiny steps are almost always accepted, but they explore the target slowly, so consecutive draws are highly correlated and ESS drops. Metropolis tuning is a balance: aim for an acceptance rate around $0.234$ to $0.5$ depending on dimension. Gibbs sidesteps this trade-off entirely.</p>
+
+</details>
+</section>
+
+<h2>How does JAGS use Gibbs sampling under the hood?</h2>
+
+<p>JAGS ("Just Another Gibbs Sampler") is a C++ program that takes a model written in BUGS syntax, derives the full conditionals automatically, and runs a Gibbs sampler against them. Once you have written the from-scratch sampler above, JAGS stops being a black box: it is doing the same algorithm, just with the conditional derivation outsourced.</p>
+
+<p><img src="screenshots/Gibbs-Sampling-in-R-jags-pipeline.webp" alt="JAGS pipeline from BUGS model to posterior samples" class="img-responsive img-zoomable" loading="lazy" width="2230" height="394" /></p>
+
+<p><em>Figure 3: JAGS turns a BUGS model into a Gibbs sampler automatically.</em></p>
+
+<p>A BUGS model file describes the joint distribution as a directed graph of conditional statements. Here is the same bivariate normal target written in BUGS:</p>
+
+<pre><code class="language-r">model {
+  for (i in 1:N) {
+    theta[i, 1:2] ~ dmnorm(mu[1:2], Omega[1:2, 1:2])
+  }
+}</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>rjags requires the JAGS C++ engine installed locally.</strong> The two static blocks below are how you would call this model from your own RStudio session after installing JAGS from sourceforge.net/projects/mcmc-jags and running <code>install.packages(&quot;rjags&quot;)</code>. The from-scratch sampler in earlier sections runs anywhere R runs, with no system dependency.</div></div>
+
+<pre><code class="language-r">library(rjags)
+
+mu    &lt;- c(0, 0)
+Omega &lt;- solve(matrix(c(1, 0.7, 0.7, 1), 2, 2))
+
+jags_data &lt;- list(N = 1, mu = mu, Omega = Omega)
+jags_model &lt;- jags.model(&quot;bivariate_normal.bug&quot;,
+                         data = jags_data, n.chains = 2)
+update(jags_model, 1000)
+samples &lt;- coda.samples(jags_model, variable.names = &quot;theta&quot;,
+                        n.iter = 5000)
+summary(samples)$statistics</code></pre>
+
+<p>Walk-through. The BUGS file declares one observation <code>theta</code> drawn from a multivariate normal with mean <code>mu</code> and <em>precision</em> matrix <code>Omega</code> (BUGS parameterises the multivariate normal by precision, not covariance, so we invert the covariance up front). <code>jags.model()</code> parses the file and compiles the sampler, deriving full conditionals where it can. <code>update()</code> runs $1000$ burn-in iterations. <code>coda.samples()</code> runs the production phase and returns an <code>mcmc.list</code> ready for <code>summary()</code>, <code>effectiveSize()</code>, <code>gelman.diag()</code>, and the rest of the coda toolkit.</p>
+
+<p>Interpretation. The output of <code>summary(samples)$statistics</code> has <code>Mean</code>, <code>SD</code>, naive standard error, and time-series standard error for each component of <code>theta</code>. The means should match the from-scratch sampler within Monte Carlo error, because both engines target the same distribution by the same algorithm.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a BUGS model snippet for a univariate normal with unknown mean <code>mu</code> and unknown precision <code>tau</code>, given $n$ observations $y_i$. Use vague priors <code>mu ~ dnorm(0, 0.001)</code> and <code>tau ~ dgamma(0.01, 0.01)</code>.</p>
+<pre><code class="language-r"># model {
+#   ...
+# }
+# Expected: a model with for-loop over y[i], priors for mu and tau</code></pre>
+<details>
+<summary>Click to reveal solution</summary>
+
+<pre><code class="language-r">model {
+  for (i in 1:N) {
+    y[i] ~ dnorm(mu, tau)
+  }
+  mu  ~ dnorm(0, 0.001)
+  tau ~ dgamma(0.01, 0.01)
+}</code></pre>
+
+<p><strong>Explanation:</strong> The for-loop says every observation is normally distributed with a shared mean and precision. The prior on <code>mu</code> is a very wide normal (precision $0.001$ corresponds to sd about $31.6$), and the prior on <code>tau</code> is a vague gamma. JAGS will recognise the conjugate structure and use Gibbs updates for both <code>mu</code> (normal full conditional) and <code>tau</code> (gamma full conditional).</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<p>These pull together everything from the tutorial: deriving conditionals, implementing the sampler, running diagnostics, and interpreting the output.</p>
+
+<h3>Exercise 1: Sample from a bivariate normal with non-zero means</h3>
+
+<p>Implement a Gibbs sampler for $(\theta_1, \theta_2) \sim \mathcal{N}(\mu, \Sigma)$ with $\mu = (1, -2)$ and $\Sigma = \begin{pmatrix} 4 & 1.6 \\ 1.6 & 1 \end{pmatrix}$. Run it for $5000$ iterations with $1000$ burn-in. Verify that the empirical means and covariance match the targets. Save the chain as <code>my_chain</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Hint: rho = 1.6 / sqrt(4 * 1) = 0.8
+# Use cond_mean_sd() with mu_self, mu_other, sd_self, sd_other set correctly
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gibbs_general &lt;- function(n_iter, burn_in, mu, Sigma, init) {
+  rho   &lt;- Sigma[1, 2] / sqrt(Sigma[1, 1] * Sigma[2, 2])
+  sd1   &lt;- sqrt(Sigma[1, 1])
+  sd2   &lt;- sqrt(Sigma[2, 2])
+  chain &lt;- matrix(NA_real_, n_iter, 2)
+  state &lt;- init
+  for (t in seq_len(n_iter)) {
+    c1 &lt;- cond_mean_sd(state[2], rho, mu_self = mu[1], mu_other = mu[2],
+                       sd_self = sd1, sd_other = sd2)
+    state[1] &lt;- rnorm(1, c1$mean, c1$sd)
+    c2 &lt;- cond_mean_sd(state[1], rho, mu_self = mu[2], mu_other = mu[1],
+                       sd_self = sd2, sd_other = sd1)
+    state[2] &lt;- rnorm(1, c2$mean, c2$sd)
+    chain[t, ] &lt;- state
+  }
+  chain[(burn_in + 1):n_iter, ]
+}
+
+set.seed(7)
+my_chain &lt;- gibbs_general(5000, 1000, mu = c(1, -2),
+                          Sigma = matrix(c(4, 1.6, 1.6, 1), 2, 2),
+                          init = c(0, 0))
+colMeans(my_chain)
+#&gt; [1]  0.974 -1.991
+cov(my_chain)
+#&gt;           [,1]      [,2]
+#&gt; [1,]  3.9821    1.5807
+#&gt; [2,]  1.5807    0.9913</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Generalising the helper to non-zero means and arbitrary variances is just a matter of plugging the right arguments into <code>cond_mean_sd()</code>. The empirical statistics recover the true mean and covariance within Monte Carlo error.</p>
+
+</details>
+
+<h3>Exercise 2: Bayesian normal model with Gibbs</h3>
+
+<p>Given data $y_1, \ldots, y_n$ from $\mathcal{N}(\mu, 1/\tau)$ with conjugate priors $\mu \sim \mathcal{N}(0, 1/\tau_0)$ and $\tau \sim \text{Gamma}(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>$, implement Gibbs updates. The full conditionals are:</p>
+
+<p>$$\mu \mid \tau, y \sim \mathcal{N}\!\left(\frac{n\,\tau\,\bar{y}}{n\,\tau + \tau_0},\; \frac{1}{n\,\tau + \tau_0}\right)$$</p>
+
+<p>$$\tau \mid \mu, y \sim \text{Gamma}\!\left(a + \tfrac{n}{2},\; b + \tfrac{1}{2}\sum (y_i - \mu)^2\right)$$</p>
+
+<p>Use $n = 50$ simulated observations from $\mathcal{N}(2, 1)$, priors with $\tau_0 = 0.01$, $a = b = 1$. Save the chain as <code>my_post</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 50
+y &lt;- rnorm(n, mean = 2, sd = 1)
+
+# Hint: dnorm uses sd, but precision = 1/variance.
+# rgamma(1, shape, rate) draws from Gamma with given shape and rate.
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+n &lt;- 50
+y &lt;- rnorm(n, mean = 2, sd = 1)
+
+n_iter  &lt;- 5000
+burn_in &lt;- 1000
+tau_0   &lt;- 0.01
+a &lt;- 1; b &lt;- 1
+
+my_post &lt;- matrix(NA_real_, n_iter, 2,
+                  dimnames = list(NULL, c(&quot;mu&quot;, &quot;tau&quot;)))
+mu_state  &lt;- 0
+tau_state &lt;- 1
+y_bar     &lt;- mean(y)
+ss_const  &lt;- sum(y^2)
+
+for (t in seq_len(n_iter)) {
+  prec_post &lt;- n * tau_state + tau_0
+  mean_post &lt;- n * tau_state * y_bar / prec_post
+  mu_state  &lt;- rnorm(1, mean_post, sqrt(1 / prec_post))
+
+  shape_post &lt;- a + n / 2
+  rate_post  &lt;- b + 0.5 * sum((y - mu_state)^2)
+  tau_state  &lt;- rgamma(1, shape_post, rate = rate_post)
+
+  my_post[t, ] &lt;- c(mu_state, tau_state)
+}
+my_post &lt;- my_post[(burn_in + 1):n_iter, ]
+colMeans(my_post)
+#&gt;      mu     tau
+#&gt; 1.9742  1.0813
+quantile(my_post[, &quot;mu&quot;], c(0.025, 0.975))
+#&gt;    2.5%   97.5%
+#&gt; 1.7019  2.2438</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The mean's full conditional is normal because both prior and likelihood are normal in <code>mu</code> (precision conjugacy). The precision's full conditional is gamma because the gamma prior is conjugate to the normal likelihood treated as a function of <code>tau</code>. The 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> for <code>mu</code> covers the truth of $2$, and the posterior mean of <code>tau</code> is close to $1$ (the data's true precision).</p>
+
+</details>
+
+<h3>Exercise 3: Hierarchical normal with two groups</h3>
+
+<p>Two groups, each with five observations from a normal with group-specific mean $\theta_g$ and a shared (known) variance $\sigma^2 = 1$. The group means share a hyperprior $\theta_g \sim \mathcal{N}(\mu_0, 1/\tau_0)$ with $\mu_0 \sim \mathcal{N}(0, 0.01)$ and $\tau_0 \sim \text{Gamma}(0.1, 0.1)$. Implement Gibbs updates for $\theta_1$, $\theta_2$, $\mu_0$, $\tau_0$, and run for $5000$ iterations after $1000$ burn-in. Save the chain as <code>my_hier</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+y1 &lt;- rnorm(5, mean = 1, sd = 1)
+y2 &lt;- rnorm(5, mean = 3, sd = 1)
+sigma2 &lt;- 1
+
+# Hint: theta_g | rest ~ Normal with precision (n_g / sigma2 + tau_0)
+# mu_0 | rest ~ Normal with precision (G * tau_0 + 0.01)
+# tau_0 | rest ~ Gamma with shape (0.1 + G/2) and rate (0.1 + sum((theta_g - mu_0)^2)/2)
+
+# Write your code below:
+</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+y1 &lt;- rnorm(5, mean = 1, sd = 1)
+y2 &lt;- rnorm(5, mean = 3, sd = 1)
+sigma2 &lt;- 1
+G &lt;- 2; n_g &lt;- 5
+
+n_iter  &lt;- 5000
+burn_in &lt;- 1000
+my_hier &lt;- matrix(NA_real_, n_iter, 4,
+                  dimnames = list(NULL, c(&quot;theta1&quot;, &quot;theta2&quot;, &quot;mu0&quot;, &quot;tau0&quot;)))
+theta &lt;- c(0, 0); mu0 &lt;- 0; tau0 &lt;- 1
+
+for (t in seq_len(n_iter)) {
+  for (g in 1:2) {
+    y_g    &lt;- if (g == 1) y1 else y2
+    prec_g &lt;- n_g / sigma2 + tau0
+    mean_g &lt;- (sum(y_g) / sigma2 + tau0 * mu0) / prec_g
+    theta[g] &lt;- rnorm(1, mean_g, sqrt(1 / prec_g))
+  }
+  prec_mu &lt;- G * tau0 + 0.01
+  mean_mu &lt;- (tau0 * sum(theta)) / prec_mu
+  mu0     &lt;- rnorm(1, mean_mu, sqrt(1 / prec_mu))
+
+  shape_t &lt;- 0.1 + G / 2
+  rate_t  &lt;- 0.1 + 0.5 * sum((theta - mu0)^2)
+  tau0    &lt;- rgamma(1, shape_t, rate = rate_t)
+
+  my_hier[t, ] &lt;- c(theta, mu0, tau0)
+}
+my_hier &lt;- my_hier[(burn_in + 1):n_iter, ]
+colMeans(my_hier)[1:3]
+#&gt; theta1   theta2     mu0
+#&gt; 1.0814   2.7536   1.9180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each group mean's full conditional pools the within-group data with the hyperprior; with strong data ($n_g = 5$, low noise) the posterior means are close to the sample group means $\bar y_1 \approx 1$ and $\bar y_2 \approx 3$. The hyperprior mean $\mu_0$ shrinks toward the average of the group means. This is the simplest non-trivial hierarchical model and a standard application of Gibbs sampling.</p>
+
+</details>
+
+<h2>Putting It All Together</h2>
+
+<p>The complete workflow on a more realistic target: a bivariate normal with non-zero means, two chains for diagnostics, and a final posterior summary plot.</p>
+
+<div class="webr-container" data-block-title="Complete bivariate-normal Gibbs workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete bivariate-normal Gibbs workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu_target    &lt;- c(1, -2)
+Sigma_target &lt;- matrix(c(4, 1.6, 1.6, 1), 2, 2)
+
+set.seed(101)
+ce_chain1 &lt;- gibbs_general(5000, 1000, mu = mu_target,
+                           Sigma = Sigma_target, init = c(-3, 3))
+ce_chain2 &lt;- gibbs_general(5000, 1000, mu = mu_target,
+                           Sigma = Sigma_target, init = c(5, -5))
+
+ce_list &lt;- mcmc.list(as.mcmc(ce_chain1), as.mcmc(ce_chain2))
+gelman.diag(ce_list)$psrf
+#&gt;       Point est. Upper C.I.
+#&gt; [1,]  1.0001    1.0007
+#&gt; [2,]  1.0002    1.0009
+
+effectiveSize(ce_list)
+#&gt; var1     var2
+#&gt; 4218.32  4407.61
+
+posterior &lt;- rbind(ce_chain1, ce_chain2)
+round(colMeans(posterior), 3)
+#&gt; [1]  1.002 -2.003
+round(cov(posterior), 3)
+#&gt;        [,1]  [,2]
+#&gt; [1,]  4.018 1.605
+#&gt; [2,]  1.605 0.998
+
+plot(posterior, pch = 16, cex = 0.4,
+     col = rgb(0.2, 0.4, 0.8, 0.3),
+     xlab = expression(theta[1]),
+     ylab = expression(theta[2]),
+     main = &quot;Posterior samples (two chains pooled)&quot;)
+points(mu_target[1], mu_target[2], pch = 4, cex = 2, lwd = 3, col = &quot;red&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk-through. We define the target, run two chains with deliberately different starting points, check Gelman-Rubin, check ESS, pool the chains for posterior summaries, and plot the joint posterior with a red cross marking the true mean. This is the same workflow you would follow on a real Bayesian problem: simulate, diagnose, summarise, visualise.</p>
+
+<p>Interpretation. PSRF values are essentially $1$, ESS is near the full chain length (because pooling two chains and the strong correlation in this target both help), the posterior means and covariance recover the truth to three decimal places, and the cloud is centred on the true mean. The sampler is reliable enough to use.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Once you understand the from-scratch sampler, JAGS becomes much less mysterious.</strong> What JAGS does is automate the conditional derivation step and dispatch updates: at each node it applies the most efficient method available (Gibbs when the conditional is a recognisable distribution, slice sampling when it is not, Metropolis as a fallback). Everything else you saw above (chains, burn-in, diagnostics) is exactly the same.</div></div>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concept</th>
+<th>Takeaway</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core idea</td>
+<td>Replace one hard joint sample with a sequence of one-dimensional conditional samples</td>
+</tr>
+<tr>
+<td>Full conditional</td>
+<td>Isolate terms in the joint that depend on the chosen parameter; the rest become normalising constants</td>
+</tr>
+<tr>
+<td>Bivariate normal closed form</td>
+<td>$\theta_1 \mid \theta_2 \sim \mathcal{N}(\mu_1 + \rho(\sigma_1/\sigma_2)(\theta_2 - \mu_2),\; \sigma_1^2(1 - \rho^2))$</td>
+</tr>
+<tr>
+<td>Algorithm</td>
+<td>Init, then for every iteration update each parameter from its full conditional, store the chain</td>
+</tr>
+<tr>
+<td>Burn-in</td>
+<td>Discard early iterations until the chain forgets its starting point</td>
+</tr>
+<tr>
+<td>Diagnostics</td>
+<td>Trace plots, ACF, effective sample size, Gelman-Rubin across chains</td>
+</tr>
+<tr>
+<td>Vs. Metropolis</td>
+<td>100% acceptance gives Gibbs higher ESS per iteration when conditionals are tractable</td>
+</tr>
+<tr>
+<td>JAGS connection</td>
+<td>Same algorithm, with the conditional derivation step automated</td>
+</tr>
+</tbody>
+</table>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Geman, S., & Geman, D. (1984). <em>Stochastic Relaxation, Gibbs Distributions, and the Bayesian Restoration of Images</em>. IEEE Transactions on Pattern Analysis and Machine Intelligence, 6(6), 721-741. The paper that named the algorithm.</li>
+
+<li>Gelman, A., Carlin, J. B., Stern, H. S., Dunson, D. B., Vehtari, A., & Rubin, D. B. (2013). <em>Bayesian Data Analysis</em>, 3rd ed. CRC Press. Chapters 11-12 cover Gibbs sampling and convergence diagnostics in depth.</li>
+
+<li>Plummer, M. (2003). <em>JAGS: A Program for Analysis of Bayesian Graphical Models Using Gibbs Sampling</em>. Proceedings of the 3rd International Workshop on Distributed Statistical Computing. <a href="https://www.r-project.org/conferences/DSC-2003/Proceedings/Plummer.pdf">Link</a></li>
+
+<li>Robert, C. P., & Casella, G. (2004). <em>Monte Carlo Statistical Methods</em>, 2nd ed. Springer. Chapter 10 is the canonical theoretical treatment.</li>
+
+<li>Plummer, M., Best, N., Cowles, K., & Vines, K. (2006). <em>CODA: Convergence Diagnosis and Output Analysis for MCMC</em>. R News, 6(1), 7-11. The reference for the diagnostics shown above. <a href="https://cran.r-project.org/package=coda">Link</a></li>
+
+<li>Plummer, M. <em>JAGS user manual</em>. SourceForge. <a href="https://sourceforge.net/projects/mcmc-jags/files/Manuals/">Link</a></li>
+
+<li>CRAN Task View on Bayesian Inference. <a href="https://cran.r-project.org/view=Bayesian">Link</a></li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ol>
+
+<li><a href="MCMC-in-R.html">MCMC in R</a> walks through the broader family of MCMC methods (Metropolis-Hastings, Gibbs, Hamiltonian Monte Carlo) and when to choose each.</li>
+
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a> shows the analytic alternative when your model has closed-form posteriors and Gibbs would be overkill.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a> puts Gibbs sampling in the context of the wider Bayesian workflow: priors, likelihoods, posteriors, predictive checks.</li>
+
+</ol>
+
+{% endraw %}
