@@ -2117,6 +2117,121 @@ def patch_tool_pages(sections, asset_hrefs):
         print(f'  Tool chrome: {fname}')
 
 
+SIDEBAR_STATE_PATH = os.path.join(SCRIPT_DIR, '.sidebar_state.json')
+
+
+def _sidebar_signature(sections):
+    """Reduce a sidebar.json to a stable diff-friendly structure.
+
+    Returns a list of (section_title, [item_signatures]) tuples where each
+    item_signature is either ('item', href, text) or ('divider', text). This
+    is what we compare across builds to decide additive vs structural.
+    """
+    sig = []
+    for sec in sections or []:
+        title = sec.get('title', '')
+        items = []
+        for it in sec.get('items') or []:
+            if it.get('divider'):
+                items.append(('divider', it.get('text', '')))
+            else:
+                items.append(('item', it.get('href', ''), it.get('text', '')))
+        sig.append((title, items))
+    return sig
+
+
+def _classify_sidebar_change(prev, curr):
+    """Return 'none', 'additive', or 'structural'.
+
+    Additive means: same section count and order; for each section, the
+    previous items are an exact prefix of the current items (only new items
+    appended at the end). Anything else, including reorder, rename, removal,
+    new section, or item moved between sections, is structural.
+
+    First-run case (prev is None): treat as structural so the snapshot gets
+    written at the end of the build but no patcher fires.
+    """
+    if prev is None:
+        return 'structural'
+    if prev == curr:
+        return 'none'
+    if len(prev) != len(curr):
+        return 'structural'
+    additive_seen = False
+    for (p_title, p_items), (c_title, c_items) in zip(prev, curr):
+        if p_title != c_title:
+            return 'structural'
+        # Previous items must be an exact prefix of current
+        if len(c_items) < len(p_items):
+            return 'structural'
+        if c_items[:len(p_items)] != p_items:
+            return 'structural'
+        if len(c_items) > len(p_items):
+            additive_seen = True
+    return 'additive' if additive_seen else 'none'
+
+
+def _load_sidebar_snapshot(path):
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+        # Stored as JSON-friendly nested lists
+        return [(s[0], [tuple(it) for it in s[1]]) for s in data]
+    except Exception:
+        return None
+
+
+def _save_sidebar_snapshot(curr_sig, path):
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump([[t, [list(it) for it in items]] for t, items in curr_sig], f)
+    except OSError:
+        pass
+
+
+# Sidebar block boundary in built root pages: <div id="sidebar-nav">...</div>
+# is wrapped by <div id="nav">, which closes just before <main id="content".
+# See template.html lines 228-233 for the source structure.
+_ROOT_SIDEBAR_RE = re.compile(
+    r'(<div id="sidebar-nav">)(.*?)(</div>\s*</div>\s*<main id="content")',
+    re.DOTALL,
+)
+
+
+def refresh_sidebar_in_root_pages(sections, post_files):
+    """Surgically replace the sidebar block in every root post HTML.
+
+    Used when sidebar.json changes are purely additive: cheaper than a full
+    page rebuild because we only re-render the sidebar markup, not the entire
+    page. Each root page's sidebar block is found via _ROOT_SIDEBAR_RE and
+    swapped in place. ~5ms per page on typical hardware.
+    """
+    touched = 0
+    skipped = 0
+    for post_file in post_files:
+        out_path = os.path.join(REPO_ROOT, post_file)
+        if not os.path.exists(out_path):
+            continue
+        with open(out_path, encoding='utf-8') as f:
+            html = f.read()
+        m = _ROOT_SIDEBAR_RE.search(html)
+        if not m:
+            skipped += 1
+            continue
+        rendered = render_sidebar_html(sections, current_slug=post_file)
+        if not rendered:
+            continue
+        if m.group(2) == rendered:
+            continue
+        new_html = html[:m.start()] + m.group(1) + rendered + m.group(3) + html[m.end():]
+        with open(out_path, 'w', encoding='utf-8') as f:
+            f.write(new_html)
+        touched += 1
+    print(f'  Sidebar refresh: {touched} root page(s) patched, {skipped} skipped (no sidebar block found)')
+
+
 def patch_homepage_sidebar(sections):
     """Inject the rendered sidebar into index.html.
 
@@ -2272,18 +2387,35 @@ def main():
     sidebar_map = load_sidebar_map()
     prev_next_map = load_prev_next_map()
     slug_to_subpath, subpath_to_slugs = load_curriculum_siblings()
+
+    # Sidebar change classification: decides whether sidebar.json acts as a
+    # global rebuild trigger (structural changes) or just dispatches a cheap
+    # in-place sidebar refresh on existing root pages (additive changes).
+    # Snapshot persists at _build/.sidebar_state.json across runs.
+    _curr_sidebar_sig = _sidebar_signature(sidebar_sections)
+    _prev_sidebar_sig = _load_sidebar_snapshot(SIDEBAR_STATE_PATH)
+    sidebar_change_kind = _classify_sidebar_change(_prev_sidebar_sig, _curr_sidebar_sig)
+    if sidebar_change_kind != 'none':
+        print(f"  Sidebar change: {sidebar_change_kind}")
     post_titles = load_post_titles()
     reading_time_cache = {}
 
     # "Global" dependencies — when any of these changes, every page must rebuild
-    # because the change affects every output. sidebar.json feeds into every
-    # page's nav; template.html is embedded in every page; build.py changes
-    # mean the generation logic itself changed. Asset files are included because
-    # their content hash is embedded in every output page.
+    # because the change affects every output. template.html is embedded in
+    # every page; build.py changes mean the generation logic itself changed.
+    # Asset files are included because their content hash is embedded in every
+    # output page. sidebar.json is included only when the change is structural
+    # (reorder, rename, removal); for additive-only changes the cheaper
+    # refresh_sidebar_in_root_pages handler runs after the per-page loop.
     asset_mtimes = [_mtime_or_zero(p) for p in asset_final_paths.values()]
+    sidebar_dep_mtime = (
+        _mtime_or_zero(SIDEBAR_PATH)
+        if sidebar_change_kind == 'structural'
+        else 0
+    )
     global_deps_mtime = max(
         _mtime_or_zero(TEMPLATE_PATH),
-        _mtime_or_zero(SIDEBAR_PATH),
+        sidebar_dep_mtime,
         _mtime_or_zero(os.path.abspath(__file__)),
         max(asset_mtimes) if asset_mtimes else 0,
     )
@@ -2326,6 +2458,12 @@ def main():
             f.write(page_html)
         print(f"Built: {post_file}")
         built.append(post_file)
+
+    # Sidebar additive refresh — runs only when sidebar.json got new entries
+    # appended (no reorder/rename/removal). Cheaper than a full rebuild because
+    # it only re-renders the sidebar block per page, not the whole page.
+    if sidebar_change_kind == 'additive' and not force_full and not only_target:
+        refresh_sidebar_in_root_pages(sidebar_sections, sorted(post_files))
 
     # Post-build sanity check: re-run the healer across all fragments and
     # warn on any residual drift. The healer is idempotent, so a clean
@@ -2390,6 +2528,12 @@ def main():
         print(f"\nDone. {len(built)} page(s) built (--full).")
     else:
         print(f"\nDone. {len(built)} page(s) built, {skipped} skipped (up-to-date).")
+
+    # Persist sidebar snapshot so the next build can classify changes against it.
+    # Don't save when --only is in effect — that doesn't represent the full
+    # sidebar state for the site (we may have skipped a per-page refresh).
+    if not only_target:
+        _save_sidebar_snapshot(_curr_sidebar_sig, SIDEBAR_STATE_PATH)
 
 
 if __name__ == '__main__':
