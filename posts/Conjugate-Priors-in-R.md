@@ -28,30 +28,34 @@ Imagine you flipped a perfectly fair coin nine times. Half the time you'd get mo
 
 Same principle here. With only 9 visitors, "6 clicked" doesn't pin down the true rate. Maybe the true rate is 50% and you got slightly lucky. Maybe it's 70% and you got slightly unlucky. Maybe it's exactly 67%. With nine data points, you cannot tell those apart.
 
-So the right answer to "what's the true click rate" is not one number. It's a *range* of plausible rates, with some rates more believable than others. We want to compute that range honestly. Let's see the answer first, then unpack what's happening.
+So the right answer to "what's the true click rate" is not one number. It's a *range* of plausible rates, with some rates more believable than others. We want to compute that range honestly. The recipe below does it in two steps. First, it produces two summary numbers (let's call them parameter A and parameter B) that completely describe the answer. Second, it asks two questions of those summary numbers: "what's the most likely rate?" and "what range contains 95% of the plausibility?" Both questions become a single line of R each.
 
 ```r title="The whole calculation, in two lines"
 n <- 9       # visitors in the test
 k <- 6       # how many clicked
 
-post_a <- 1 + k          # adds clicks to the first parameter
-post_b <- 1 + (n - k)    # adds non-clicks to the second
+post_a <- 1 + k          # add clicks to parameter A
+post_b <- 1 + (n - k)    # add non-clicks to parameter B
 
-# The most plausible rate, then a range that contains 95% of the plausibility
+# Question 1: most plausible rate
 post_a / (post_a + post_b)
 #> [1] 0.6363636
+
+# Question 2: 95% range that contains the answer
 qbeta(c(0.025, 0.975), post_a, post_b)
 #> [1] 0.3149859 0.8911781
 ```
 
-Here is what just happened, in plain English. The most plausible click-through rate is about 64%, slightly lower than the raw 6/9 = 67% because we started with no opinion at all and let the data speak. There is a 95% chance that the true rate sits somewhere in the range [31%, 89%]. Yes, that range is enormous, almost half of all possible rates. That's the honest answer when you have only 9 visitors. The data simply doesn't allow precision.
+Walk through what those four operations did. The first two lines stored the experiment's data, 9 visitors and 6 clicks. The next two lines computed the two summary parameters, by starting from `1` (which represents "no opinion before the test", we'll explain shortly) and adding the data: clicks to parameter A, non-clicks (3 in this case) to parameter B. So `post_a` ended up at 7 and `post_b` at 4. The fifth code line, `post_a / (post_a + post_b)`, is the formula for the most likely rate when you have these two summary parameters. It's just `7 / (7 + 4) = 7/11`, which is 0.636. The last code line uses R's built-in `qbeta()` function to read off the 95% range from the same two parameters. The result is two numbers: the lower edge of the range and the upper edge.
 
-Notice the variables `post_a` and `post_b`. Those are the two numbers that completely describe the answer. Not a number plus an error bar, not a list of probabilities, just two numbers. They are 7 and 4 in this case (1+6 and 1+3). From those two numbers, R's built-in `qbeta()` function can produce any range you want, and `pbeta()` can answer any question of the form "what's the chance the true rate is above X?"
+Now the interpretation. The most plausible click-through rate is about 64%, slightly lower than the raw 6/9 = 67% because we started from "no opinion" rather than from "I trust the data exactly". There is a 95% chance that the true rate sits somewhere between 31% and 89%. Yes, that range is enormous, almost half of all possible rates. That's the honest answer when you have only 9 visitors. The data simply doesn't allow precision.
 
-This is what the title of this post means by "shortcut." Most ways of computing this answer require either calculus (integrating a complicated curve) or simulation (running thousands of random samples). For this kind of question, the shortcut is just adding two numbers.
+Notice that the variables `post_a` and `post_b` are the *only* numbers we needed to remember. From them, R's built-in functions can produce any range you want (`qbeta`) or any tail probability (`pbeta`). The two summary parameters carry all the information about the answer.
+
+This is what the title of the post means by "shortcut." Most ways of computing this kind of answer require either calculus (integrating a complicated curve) or simulation (running thousands of random samples). For this kind of question, the shortcut is just adding two numbers and looking up the result.
 
 [KEY INSIGHT]
-**The shortcut produces two parameters. Once you have them, the answer to any question about the rate is one R function call away.** Want the most likely rate? Divide one parameter by the sum. Want a 95% range? `qbeta()`. Want the probability the rate exceeds 50%? `1 - pbeta(0.5, ...)`. The two parameters carry all the information.
+**The shortcut produces two parameters. Once you have them, the answer to any question about the rate is one R function call away.** Want the most likely rate? Divide the first parameter by the sum. Want a 95% range? Use `qbeta()`. Want the probability the rate exceeds 50%? Use `1 - pbeta(0.5, ...)`. The two parameters carry all the information about the answer.
 
 **Try it:** What happens if you ran a bigger experiment? Suppose 50 visitors saw the button and 32 clicked. Compute the same answer with that data. The most likely rate should stay close to 32/50 = 0.64. The 95% range should shrink because more data narrows uncertainty.
 
@@ -75,6 +79,8 @@ qbeta(c(0.025, 0.975), ex_a, ex_b)
 #> [1] 0.5012167 0.7567060
 ```
 
+The recipe was identical to before: start each parameter from 1, add clicks to A and non-clicks to B, divide for the most likely rate, use `qbeta()` for the 95% range. The only difference is the data values: A became 33 (1 + 32 clicks) and B became 19 (1 + 18 non-clicks).
+
 The most likely rate is essentially unchanged at 0.63 (matching 32/50 = 0.64), but the 95% range tightened dramatically: from [0.31, 0.89] with 9 visitors down to [0.50, 0.76] with 50. More data sharpens the answer, exactly as it should.
 
 </details>
@@ -89,7 +95,9 @@ Here's the analogy that makes this concrete. Think of a weather forecaster the m
 
 In our case, the "instruments" are the 9 visitors and 6 clicks. The "starting point" is the prior. The "final forecast" is the answer we computed. The two numbers `post_a` and `post_b` describe the final forecast. The two starting numbers, both 1, described our prior of "no opinion."
 
-What if we'd had a different prior? Suppose, before running any test, you'd believed the click rate was probably around 20%, the typical rate for a new feature. You could encode that with `prior_a = 2, prior_b = 8`, which says "before seeing any data, my best guess is 2 clicks for every 10 visitors." Now the update rule is the same: add the data to the prior.
+What if we'd had a different prior? Suppose, before running any test, you'd believed the click rate was probably around 20%, the typical rate for a new feature. You could encode that with `prior_a = 2, prior_b = 8`, which says "before seeing any data, my best guess is 2 clicks for every 10 visitors." The recipe stays the same: start from the prior numbers, add the data, look up the answer.
+
+The code below tries three different priors on the same nine-visitor data. It uses a `for` loop to avoid repeating the same three lines for each prior. Each iteration prints the most likely rate and the 95% range under that prior.
 
 ```r title="Same data, different starting belief"
 n <- 9
@@ -116,7 +124,9 @@ for (name in names(priors)) {
 #> expected_high   most likely = 0.74, 95% range = [0.47, 0.94]
 ```
 
-Three different priors gave three different answers, all from the same nine visitors. The "no opinion" prior gave 0.64, basically the data itself. The "expected low" prior pulled the answer down to 0.47, because we told it "before the test, I really thought it was lower." The "expected high" prior pulled the answer up to 0.74. The data shifted each prior, but each starting position survived.
+Walk through what just happened. The list `priors` stored three labeled pairs of starting numbers: `(1, 1)` for "no opinion", `(2, 8)` for "I expected a low rate", and `(8, 2)` for "I expected a high rate". The loop pulled each pair, added the same data (6 clicks, 3 non-clicks) to each, and used the same formulas as before to get the most likely rate and the 95% range. The only thing that varied across the three iterations was the starting prior numbers; the data was identical.
+
+Now the interpretation. The "no opinion" prior gave 0.64, basically the data itself. The "expected low" prior pulled the answer down to 0.47, because we told it "before the test, I really thought it was lower". The "expected high" prior pulled the answer up to 0.74. The data shifted each prior, but each starting position survived in the final answer.
 
 Should this bother you? Not really. Two thoughts. First, *every* method of estimating things from data secretly involves a prior, even if the method doesn't admit it. The naive "6/9 = 67%" answer pretends there is no prior, but that is itself a stance: "I'm willing to act on raw data alone." Bayesian methods just make the prior explicit so you can examine it. Second, with enough data, the prior matters less and less. We'll see this in a moment. For now, just accept that the prior is part of the recipe, like flour in a cake.
 
@@ -145,7 +155,9 @@ qbeta(c(0.025, 0.975), ex_a, ex_b)
 #> [1] 0.4173194 0.6097103
 ```
 
-Most likely rate: 0.51, almost exactly 50%. The strong prior dominated the small data. The 95% range is also narrow because the prior carries weight equivalent to 100 hypothetical past data points, which dwarfs the 9 real ones.
+The recipe was the same: start from the prior numbers (50 and 50), add the data (6 and 3), divide and look up. After the addition, parameter A was 56 and parameter B was 53.
+
+The most likely rate landed at 0.51, almost exactly 50%. The strong prior dominated the small data because the prior contributed 100 hypothetical observations (50 for each side) while the data contributed only 9. The 95% range is also narrow for the same reason: with effectively 109 total observations, the answer is more confident than it would be with just the 9 real ones.
 
 </details>
 
@@ -153,9 +165,9 @@ Most likely rate: 0.51, almost exactly 50%. The strong prior dominated the small
 
 You've now seen the recipe twice: take the prior, add the data, get the answer. It feels too simple. Where did all the math go? Did we accidentally skip something important? We didn't. The reason it really is this simple is worth understanding, because it tells you when the trick will and won't work in the future.
 
-Here is an analogy. Imagine the Beta curve, which is the technical name for the family of curves the answer lives in, as a curve controlled by two dials. Dial A says "how many wins do you expect," dial B says "how many losses do you expect." Turn both dials up evenly and the curve gets taller and narrower around 50%. Turn dial A up alone and the curve shifts toward 100%. Turn dial B up alone and the curve shifts toward 0%. The shape can encode any belief about a rate.
+Here is an analogy. Imagine the *Beta curve*, which is the technical name for the family of curves the answer lives in, as a curve controlled by two dials. Dial A says "how many wins do you expect," dial B says "how many losses do you expect." Turn both dials up evenly and the curve gets taller and narrower around 50%. Turn dial A up alone and the curve shifts toward 100%. Turn dial B up alone and the curve shifts toward 0%. The shape can encode any belief about a rate.
 
-Now consider what happens when you observe data. You saw 6 wins and 3 losses (out of 9 visitors). The simplest possible update is: turn dial A up by 6, turn dial B up by 3. That's exactly what `post_a <- prior_a + k` and `post_b <- prior_b + (n - k)` are doing.
+Now consider what happens when you observe data. You saw 6 wins and 3 losses (out of 9 visitors). The simplest possible update is: turn dial A up by 6, turn dial B up by 3. That's exactly what `post_a <- prior_a + k` and `post_b <- prior_b + (n - k)` were doing in the code.
 
 The mathematical lucky break is this: if you start with a Beta-shaped prior, and your data is a count of wins out of trials, then the *only* update you need to make to the curve is to turn the dials. The shape stays Beta. The curve doesn't morph into something weird that you'd need integrals to describe. It stays in the same family, just with the dials in new positions.
 
@@ -166,7 +178,7 @@ So "conjugate priors" simply means: prior shapes that pair nicely with their dat
 [KEY INSIGHT]
 **Conjugate is a fancy word for "fits together neatly."** The Beta curve fits Yes/No data so neatly that updating is just addition. The Gamma curve fits count data the same way. The Normal curve fits Normal data the same way (with one wrinkle we'll see). Each of these pairs is a small piece of mathematical luck that lets you skip integration entirely.
 
-**Try it:** Confirm the "dial" analogy. Use `dbeta()` to plot a Beta(2, 8) curve, then a Beta(8, 2) curve. The first should peak near 0.2 (low rate), the second near 0.8 (high rate). The "dials" are the two arguments to `dbeta()`.
+**Try it:** Confirm the "dial" analogy by drawing the curves. Plot a Beta curve with dials at 2 and 8, then a Beta curve with dials at 8 and 2. The first should peak near 0.2 (low rate), the second near 0.8 (high rate).
 
 ```r title="Your turn: see the dials"
 theta <- seq(0, 1, length.out = 200)
@@ -187,7 +199,9 @@ legend("top", lwd = 2, col = c("black", "tomato"),
        legend = c("Beta(2, 8) - leans low", "Beta(8, 2) - leans high"))
 ```
 
-You'll see the black curve peaks near 0.2 and the orange curve peaks near 0.8. Same family of curve, different dial positions, very different beliefs about the rate.
+The first line built a sequence of 200 candidate rates from 0 to 1 (so we have a smooth horizontal axis to plot against). The `plot()` call drew the first Beta curve (dials 2 and 8) using `dbeta()` to compute the density at each candidate rate. The `lines()` call overlaid the second Beta curve (dials 8 and 2) on the same axes. The `legend()` call labeled which is which.
+
+You'll see the black curve peaks near 0.2 and the orange curve peaks near 0.8. Same family of curve, different dial positions, very different beliefs about the rate. This is what the dial analogy looks like in pictures.
 
 </details>
 
@@ -205,17 +219,16 @@ You have already seen this case. Skip ahead unless you want to read another exam
 
 When you're counting events that happen at some unknown rate, like customer support tickets per day, accidents per month, server crashes per week, the right pair is the Gamma curve with Poisson data. The Gamma curve has two dials, like Beta did. You set the prior dials to encode your belief about the rate, observe some count data, and add.
 
-Suppose your support team handled 8, 12, 7, 15, and 9 tickets across five days. Without strong prior knowledge, encode "around 8 tickets per day, but I'm not very sure" as Gamma(2, 0.25). Then update.
+Suppose your support team handled 8, 12, 7, 15, and 9 tickets across five days. Without strong prior knowledge, encode "around 8 tickets per day, but I'm not very sure" as `Gamma(2, 0.25)` (the two arguments are the prior dials). The update rule for Gamma-Poisson: add the *total number of events observed* to dial A, and add the *number of observation periods* to dial B.
 
 ```r title="Counts per day with Gamma-Poisson"
 y <- c(8, 12, 7, 15, 9)        # five days of ticket counts
 
-prior_a <- 2                    # mild prior
+prior_a <- 2                    # mild prior: "around 8 tickets per day"
 prior_b <- 0.25
 
-# Update rule: add total events to dial A, add number of observation windows to dial B
-post_a <- prior_a + sum(y)      # 2 + 51 = 53
-post_b <- prior_b + length(y)   # 0.25 + 5 = 5.25
+post_a <- prior_a + sum(y)      # add total events
+post_b <- prior_b + length(y)   # add number of days
 
 post_a / post_b                 # most plausible rate
 #> [1] 10.09524
@@ -223,13 +236,15 @@ qgamma(c(0.025, 0.975), post_a, post_b)
 #> [1]  7.563749 12.916091
 ```
 
-Most likely rate: 10.1 tickets per day. 95% range: [7.6, 12.9]. The recipe is identical to the click-through case, except the curve is Gamma instead of Beta, the data is counts instead of yes/no, and we added the *total* of the counts (51) to dial A instead of a single number. The arithmetic is still arithmetic.
+Walk through the code. The first line stored the five days of ticket counts as a vector. The next two lines set the prior dials to 2 and 0.25 (encoding "I expect around 8 per day, but I'm not sure"). The two `post_a` and `post_b` lines applied the Gamma-Poisson update rule: `sum(y)` is the total events (51 across the 5 days), `length(y)` is the number of days (5). So `post_a` became 53 (2 + 51) and `post_b` became 5.25 (0.25 + 5). The last two lines asked the same kinds of questions as in the click-through case, but using `qgamma()` instead of `qbeta()` because we're working with rates, not proportions. The formula `post_a / post_b` is the most-likely-rate formula for the Gamma curve.
+
+Interpretation: the most likely ticket rate is 10.1 per day, and there's a 95% chance the true rate is somewhere between 7.6 and 12.9 per day. The data nudged the prior up from "around 8" to "around 10" because the observed average (51/5 = 10.2) was higher than the prior centered at 8. The posterior also tightened because we contributed five real observations to the prior's prior weight of 0.25.
 
 ### For Normal data with a known measurement spread: Normal and Normal
 
-Now suppose your data is continuous measurements, like blood pressure readings, exam scores, or sensor outputs. If the readings are roughly bell-shaped (which most measurements are) and you happen to know the typical measurement spread (sigma), the prior shape is also Normal, and again we have a conjugate pair.
+Now suppose your data is continuous measurements, like blood pressure readings, exam scores, or sensor outputs. If the readings are roughly bell-shaped (which most measurements are) and you happen to know the typical measurement spread (`sigma`), the prior shape is also Normal, and again we have a conjugate pair.
 
-The arithmetic here is slightly more involved than just adding numbers, but only slightly. The posterior mean is a weighted average of your prior mean and the data mean, weighted by how confident each one is.
+The arithmetic here is slightly more involved than just adding numbers. Each of the prior and the data has a *confidence*, which is just one over the variance. The posterior mean is a weighted average of the prior mean and the data mean, weighted by their confidences. More data = higher data confidence = data wins. Stronger prior (lower prior `sd`) = higher prior confidence = prior wins.
 
 ```r title="Normal mean update with known spread"
 y <- c(135, 128, 142, 119, 130, 122, 138, 125, 132, 117)
@@ -255,7 +270,9 @@ qnorm(c(0.025, 0.975), post_mean, sqrt(post_var))
 #> [1] 121.4108 129.9806
 ```
 
-After ten readings averaging 128.8 and a prior centered at 120, the most likely underlying mean is 125.7, with a 95% range of [121.4, 130.0]. The data pulled the prior up because ten measurements outweighed our prior worth roughly 1.6 measurements (the ratio of confidences). Same idea as before: prior plus data give an updated answer.
+Walk through what the code did. The first three lines stored the ten readings, the count of readings (10), and the known measurement spread `sigma = 10`. The next two lines stored the prior: a Normal curve centered at 120 with spread 8. The two `_prec` lines computed the prior and data confidences as `1 / variance`. The prior confidence is `1 / 8^2 = 0.0156`. The data confidence is `10 / 10^2 = 0.10`. So the data is about 6.4 times more confident than the prior. The `post_var` line combined the two confidences (just by adding them) and inverted to get the posterior variance. The `post_mean` line is the precision-weighted average: each side of the average (prior_mean and data mean) contributes in proportion to its confidence. The last `qnorm()` line asks the same 95%-range question as before, using the Normal curve.
+
+Interpretation: the most likely underlying mean is 125.7, and the 95% range is [121.4, 130.0]. The data mean was 128.8, the prior mean was 120, and the answer landed at 125.7, much closer to the data because the data carried 6.4x the confidence of the prior. If the prior had been stronger (smaller `prior_sd`), the answer would have leaned closer to 120.
 
 You can stop the survey here. Three pairs cover most everyday work: Beta-Binomial for yes/no, Gamma-Poisson for counts, Normal-Normal for measurements. They are all in R's base distribution functions. No package install needed.
 
@@ -289,7 +306,9 @@ qgamma(c(0.025, 0.975), post_a, post_b)
 #> [1] 3.808076 8.107996
 ```
 
-Most likely rate: 5.8 calls per hour. 95% range: [3.8, 8.1]. The same pattern as before: prior plus data, with `qgamma()` instead of `qbeta()` because the data was counts instead of yes/no.
+The recipe was the same as the support-tickets case: add total events (25 calls) to dial A, add observation periods (4 hours) to dial B. So `post_a` became 26 and `post_b` became 4.5. The most-likely-rate formula `post_a / post_b` gave 5.78. The `qgamma()` call gave the 95% range.
+
+The most likely rate is 5.8 calls per hour, with a 95% range of [3.8, 8.1]. Same pattern as before, just with `qgamma()` instead of `qbeta()` because the data was counts instead of yes/no.
 
 </details>
 
@@ -299,7 +318,7 @@ This is the worry that prevents many people from using Bayesian methods at all. 
 
 The check is to try several priors that a reasonable analyst could plausibly have chosen, and see how much the final answer moves. If three reasonable priors give nearly the same answer, the conclusion is robust, your prior didn't really matter. If they give very different answers, that's itself a finding: "with this little data, the conclusion depends on the starting point. We need more data to be confident."
 
-Back to the click-through example. Nine visitors, six clicks. Try three priors that bracket what reasonable analysts might pick.
+Back to the click-through example. Nine visitors, six clicks. The code below loops over three different priors that bracket what a reasonable analyst might pick, and for each, applies the same Beta-Binomial update we've been using.
 
 ```r title="Three reasonable priors, same data"
 priors <- list(
@@ -322,9 +341,11 @@ for (name in names(priors)) {
 #> optimistic most likely = 0.78, 95% range = [0.55, 0.94]
 ```
 
-Three priors, three quite different answers. The skeptical prior pulled the rate down to 0.50, the flat prior left it near the data at 0.64, the optimistic prior pulled it up to 0.78. With nine visitors, the prior matters, a lot.
+Walk through the code. The list `priors` stored three labeled pairs of dial values. The loop pulled each pair into `p`, applied the Beta-Binomial update (`pa` = first dial + 6 clicks, `pb` = second dial + 3 non-clicks), then computed the most likely rate and the 95% range as in earlier sections. `cat(sprintf(...))` is just a formatting trick to print one line per prior with aligned columns.
 
-Now suppose we collected more data: 50 visitors, 32 clicks. Repeat the same exercise.
+Now the interpretation. Three priors gave three quite different answers, even though the data was identical. The skeptical prior pulled the rate down to 0.50, the flat prior left it near the data at 0.64, the optimistic prior pulled it up to 0.78. With nine visitors, the prior matters, a lot.
+
+Now suppose we collected more data: 50 visitors, 32 clicks. The same loop, just with bigger numbers in the data part of the update.
 
 ```r title="Same three priors, more data"
 n2 <- 50
@@ -341,9 +362,11 @@ for (name in names(priors)) {
 #> optimistic most likely = 0.667
 ```
 
-Now the three answers cluster between 0.60 and 0.67. Same priors, but with 50 data points instead of 9, the data swamps the prior and the disagreement nearly disappears. With 500 visitors, all three priors would land within 1% of each other. With 5000, they'd be indistinguishable.
+The code is structurally identical to the previous one, just using `n2` and `k2` (the bigger experiment's numbers) where the previous used `9` and `6`. The result is one line per prior showing the most likely rate.
 
-That's the answer to "what if I picked a bad prior?" If you had enough data, the prior didn't matter. If you didn't have enough data, the prior mattered, and you should report all three answers and let the reader decide. That's what makes Bayesian analysis honest: the assumptions are visible, the sensitivity is testable, and the result is not falsely precise when the data doesn't support precision.
+Look at the difference. With nine visitors, the three priors gave answers from 0.50 to 0.78, a range of 0.28. With fifty visitors, the same three priors give answers from 0.60 to 0.67, a range of just 0.07. Same priors, far less disagreement, because the data swamps the prior with enough evidence. With 500 visitors, the three answers would be within 1% of each other. With 5,000, they'd be indistinguishable.
+
+That's the answer to "what if I picked a bad prior?" If you have enough data, the prior didn't matter. If you didn't have enough data, the prior did matter, and the right thing to do is report all three answers and let the reader decide. That's what makes Bayesian analysis honest: the assumptions are visible, the sensitivity is testable, and the result is not falsely precise when the data doesn't support precision.
 
 [TIP]
 **Always report prior sensitivity when the data is small.** Try at least one skeptical prior, one flat prior, and one optimistic prior. If they agree, you have a solid answer. If they disagree, the data is not strong enough to overcome reasonable prior disagreement, and you need either more data or a defensible reason for choosing one prior.
@@ -375,7 +398,9 @@ for (name in names(strong_priors)) {
 #> strong_optimistic    most likely = 0.703
 ```
 
-Even with 50 data points, the very strong priors (worth 70 to 100 hypothetical observations) pull the answer noticeably. This is why prior choice matters and why you report sensitivity.
+The loop did exactly what it did before, but the prior dial values were much larger this time. For example, the strong skeptical prior added 20 to dial A (instead of 2), so even after the data added 32 clicks, the prior was still contributing a substantial chunk.
+
+Even with 50 data points, the very strong priors (worth 70 to 100 hypothetical observations) pulled the answer noticeably. The strong skeptical prior pulled all the way down to 0.45, the strong optimistic pushed up to 0.70. This is why prior choice matters and why you report sensitivity: a strong prior plus modest data can move the answer by 0.25.
 
 </details>
 
@@ -393,7 +418,7 @@ Three places this happens.
 
 In all three cases, the standard tool is MCMC, which stands for Markov Chain Monte Carlo. The names and acronyms are unimportant. What matters is that MCMC computes the same kind of answer (most likely value, 95% range, probability of an event) but instead of doing it with arithmetic, it does it by drawing a large number of random samples from the posterior. The R packages `brms` and `rstan` make MCMC accessible without writing the sampling code yourself.
 
-Here's a small demonstration of why MCMC takes over when there are too many unknowns. Suppose we wanted to fit the Normal model with both mean and spread unknown. We could try to brute-force it by laying down a grid of (mean, spread) pairs and scoring each one. With 80 candidate means and 80 candidate spreads, that's 6,400 cells, totally fine. With 5 unknown parameters at 50 candidates each, it's 312 million cells. The cost grows exponentially with the number of unknowns, and that's exactly the wall MCMC was invented to scale past.
+Here's a small demonstration of why MCMC takes over when there are too many unknowns. Suppose we wanted to fit the Normal model with both mean and spread unknown. We could try to brute-force it by laying down a grid of (mean, spread) pairs and scoring each one against the data. With 80 candidate means and 80 candidate spreads, that's 6,400 cells, totally fine. With 5 unknown parameters at 50 candidates each, it's 312 million cells. The cost grows exponentially with the number of unknowns, and that's exactly the wall MCMC was invented to scale past.
 
 ```r title="Two unknowns: still tractable, but the wall is visible"
 set.seed(11)
@@ -414,7 +439,9 @@ sum(mu_grid * rowSums(post))
 #> [1] 5.124375
 ```
 
-That ran in well under a second. Add a third unknown and you'd be at 512,000 cells. A fifth and you'd be in the hundreds of millions. Real Bayesian models often have dozens of parameters, and that's the wall.
+Walk through the code. The first two lines created 20 simulated measurements from a Normal distribution with true mean 5 and true spread 1.5, so we know the ground truth and can check the answer. The next two lines built two grids: 80 candidate values of the unknown mean (between 3 and 7), and 80 candidate values of the unknown spread (between 0.5 and 3). The `outer()` function combines them into all 80 × 80 = 6,400 (mean, spread) pairs and scores each pair against the observed data, using the log-likelihood for numerical stability. The next line normalized the scores into probabilities (dividing by their total). The last line collapsed the 2D table down to a 1D summary by averaging over the spread dimension, giving the most likely value of the unknown mean.
+
+Interpretation: the most likely mean came out to 5.12, very close to the true value of 5. The brute-force grid worked fine for 6,400 cells. But add a third unknown at the same resolution and you'd be at 512,000 cells. A fifth and you'd be in the hundreds of millions. Real Bayesian models often have dozens of parameters, and that's the wall MCMC was invented to scale past.
 
 ![When conjugacy stops helping](screenshots/Conjugate-Priors-in-R-when-fails.webp)
 *Figure 2: When conjugacy stops helping. Most realistic models fall off this tree quickly.*
@@ -438,7 +465,9 @@ ex_d <- 5
 #> [1] 312500000
 ```
 
-Over 312 million cells. Each cell would need a likelihood evaluation. Even at fast speeds this is hours of compute. By 7 unknowns it's centuries. That's the practical wall MCMC was invented to scale past.
+The expression `50 ^ 5` is just 50 to the fifth power, since for each of the 5 unknowns we have 50 candidate values, and we need every combination.
+
+The result is over 312 million cells, each requiring a likelihood evaluation. Even at fast speeds this is hours of compute. By 7 unknowns it's centuries. That's the practical wall MCMC was invented to scale past.
 
 </details>
 
@@ -473,13 +502,15 @@ qbeta(c(0.025, 0.975), post_a, post_b)
 #> [1] 0.9919859
 ```
 
+The Beta-Binomial update added 8 clicks to dial A (so `post_a = 10`) and 42 non-clicks to dial B (so `post_b = 50`). The most-likely-rate formula `post_a / (post_a + post_b)` gave 10/60 = 0.167. `qbeta()` gave the 95% range. `1 - pbeta(0.05, ...)` is "1 minus the chance the rate is below 5%", which is the chance the rate is above 5%.
+
 Most likely rate: 17%. 95% range: [8%, 28%]. Probability the true rate exceeds 5%: about 99%. Strong evidence the ad outperforms a 5% threshold.
 
 </details>
 
 ### Exercise 2: An A/B test using two posteriors at once
 
-This exercise teaches a small superpower of Bayesian posteriors. They can be drawn from with `rbeta()`, `rgamma()`, `rnorm()`, and once you have draws, you can compare two posteriors directly to answer questions like "what's the probability variant B beats variant A?"
+This exercise teaches a small superpower of Bayesian posteriors. Once you have the two summary parameters, you can also draw random samples from the posterior using `rbeta()`. And once you have draws from two posteriors, you can compare them directly to answer questions like "what's the probability variant B beats variant A?"
 
 Variant A got 84 clicks from 1,200 impressions. Variant B got 105 clicks from 1,180 impressions. Use a flat `Beta(1, 1)` prior on each. Use the closed-form posteriors to draw 100,000 samples from each, and report the probability that B's true rate is higher than A's.
 
@@ -502,6 +533,8 @@ b_draws <- rbeta(1e5, b_post_a, b_post_b)
 mean(b_draws > a_draws)
 #> [1] 0.97083
 ```
+
+The first two lines computed each variant's posterior parameters with the standard Beta-Binomial update. `set.seed(2026)` made the random sampling reproducible. The two `rbeta()` calls each drew 100,000 samples from one of the posterior curves. The last line compared the two sample vectors element-by-element (`b_draws > a_draws` produces a vector of TRUE/FALSE) and computed the proportion that were TRUE, which is the probability B's rate exceeds A's.
 
 About 97% probability that B's true rate is higher than A's. That's a clean answer to give to a stakeholder, no need to translate from p-values or talk about null hypotheses.
 
@@ -539,7 +572,9 @@ qnorm(c(0.025, 0.975), post_mean, sqrt(post_var))
 #> [1] 121.9812 135.5003
 ```
 
-Most likely underlying mean: 128.7. 95% range: [122.0, 135.5]. The data mean was 130.8, the prior mean was 120, and the answer landed at 128.7, much closer to the data because five measurements with sigma=8 carry more weight than a prior with sd=10.
+The recipe is the Normal-Normal update from the main text. Prior confidence (`prior_prec`) is one over `prior_sd` squared. Data confidence (`data_prec`) is the count of readings divided by `sigma` squared. The posterior variance is one over the sum of the two confidences, and the posterior mean is the precision-weighted average of the prior mean (120) and the data mean (130.8).
+
+Most likely underlying mean: 128.7. 95% range: [122.0, 135.5]. The data mean was 130.8, the prior mean was 120, and the answer landed at 128.7, much closer to the data because five measurements with `sigma = 8` carry more weight than a prior with `sd = 10`.
 
 </details>
 
@@ -572,7 +607,9 @@ for (name in names(priors)) {
 #> optimistic most likely=0.67 95%=[0.60, 0.73]  P(rate>0.60)=0.98
 ```
 
-All three priors give a most-likely rate within 0.02 of each other (0.65 to 0.67), and all three give a posterior probability above 90% that the true rate exceeds 60%. Marketing's claim is robust: under three reasonable starting beliefs, the data strongly support "the rate is above 60%." That's the kind of confident, honest answer you can hand to a stakeholder, plus the sensitivity check that demonstrates you didn't cherry-pick the prior. Eight lines of base R, no packages.
+Walk through the code. The data was 200 surveys with 132 yeses. The list `priors` defined three different starting beliefs. The loop applied the Beta-Binomial update under each prior (`pa = first dial + 132`, `pb = second dial + 68`), then computed three quantities: the most likely rate, the 95% range, and the probability the true rate is above 60% (computed as `1 - pbeta(0.60, ...)`, the chance of being above 0.60 rather than below). Results are printed one row per prior with aligned columns.
+
+Interpretation: all three priors give a most-likely rate within 0.02 of each other (0.65 to 0.67), and all three give a posterior probability above 90% that the true rate exceeds 60%. Marketing's claim is robust: under three reasonable starting beliefs, the data strongly support "the rate is above 60%." That's the kind of confident, honest answer you can hand to a stakeholder, plus the sensitivity check that demonstrates you didn't cherry-pick the prior. Eight lines of base R, no packages.
 
 ## Summary
 
