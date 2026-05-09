@@ -250,26 +250,30 @@
 <h1>Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</h1>
 <div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published May 9, 2026 &nbsp;&middot;&nbsp; Last updated May 9, 2026</div>
 
-<p class="lead">You ran a small website test. 9 visitors saw a new button, 6 of them clicked. You want to know the true click-through rate, with a proper sense of how uncertain it is. There is a one-line shortcut in R that gives you the answer exactly, no simulation, no integration. The trick is called a conjugate prior, and once you see it work you will reach for it for the rest of your career.</p>
+<p class="lead">You ran a small test on your website. Nine visitors saw a new button. Six of them clicked. You want to know the true click-through rate, with an honest sense of how uncertain that estimate is. There is a one-line trick in R that gives you the answer exactly. No simulation, no integration, no extra packages. The trick has a name, <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">conjugate priors</a>, and once you understand it, you will reach for it for the rest of your career.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="8" data-xp="120"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
 
-<h2>What is the closed-form shortcut for proportion problems?</h2>
+<h2>If 6 out of 9 visitors clicked, what's the true click rate?</h2>
 
-<p>Take the website test as the running example. 9 visitors, 6 clicks. Without any prior knowledge about what click-through rates usually look like, you might guess "around 6/9 = 0.67." But that single number tells you nothing about how confident you should be. Was 6/9 just a fluky run of 9 visitors when the true rate is 0.5? Or <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> you slightly under-counting and it's really 0.8? You want the <em>range</em> of plausible rates, not a single number.</p>
+<p>Take a moment with this question, because it's stranger than it looks. The natural answer is "6 divided by 9, which is 67%." That's not wrong, exactly. It's the <em>most likely</em> rate given what you saw. But it hides something important.</p>
 
-<p>There is a piece of mathematical luck that makes this easy. For proportion data with a flat starting belief, the posterior (the curve of plausible rates after seeing the data) has a known shape: it is a member of the Beta family. Two numbers describe it completely. Add the number of clicks to one of them, add the misses to the other, done.</p>
+<p>Imagine you flipped a perfectly fair coin nine times. Half the time you'd get more than 4 or 5 heads, half the time fewer. Sometimes you'd get 6 heads, or 7, or even 8. Getting 6 heads from a fair coin happens about 16% of the time. So if a friend showed you 6 heads in 9 flips and said "this coin is biased toward heads," you'd be skeptical. The data is just not strong enough to support a confident claim.</p>
+
+<p>Same principle here. With only 9 visitors, "6 clicked" doesn't pin down the true rate. Maybe the true rate is 50% and you got slightly lucky. Maybe it's 70% and you got slightly unlucky. Maybe it's exactly 67%. With nine data points, you cannot tell those apart.</p>
+
+<p>So the right answer to "what's the true click rate" is not one number. It's a <em>range</em> of plausible rates, with some rates more believable than others. We want to compute that range honestly. Let's see the answer first, then unpack what's happening.</p>
 
 <div class="webr-container" data-block-title="The whole calculation, in two lines">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The whole calculation, in two lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">9</span>       <span class="c1"># visitors</span></span>
-<span class="cl">k <span class="o">&lt;-</span> <span class="m">6</span>       <span class="c1"># clicks</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">9</span>       <span class="c1"># visitors in the test</span></span>
+<span class="cl">k <span class="o">&lt;-</span> <span class="m">6</span>       <span class="c1"># how many clicked</span></span>
 <span class="cl"></span>
-<span class="cl">post_a <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> k          <span class="c1"># adds clicks to alpha</span></span>
-<span class="cl">post_b <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> (n <span class="o">-</span> k)    <span class="c1"># adds non-clicks to beta</span></span>
+<span class="cl">post_a <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> k          <span class="c1"># adds clicks to the first parameter</span></span>
+<span class="cl">post_b <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> (n <span class="o">-</span> k)    <span class="c1"># adds non-clicks to the second</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Most plausible rate, and a 95% range</span></span>
+<span class="cl"><span class="c1"># The most plausible rate, then a range that contains 95% of the plausibility</span></span>
 <span class="cl">post_a <span class="o">/</span> (post_a <span class="o">+</span> post_b)</span>
 <span class="cl"><span class="c1">#&gt; [1] 0.6363636</span></span>
 <span class="cl"><span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), post_a, post_b)</span>
@@ -283,26 +287,25 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Most plausible click-through rate: about 64%. There's a 95% chance the true rate is somewhere between 31% and 89%. With only 9 visitors, the answer is necessarily wide; the data simply does not pin down the rate yet. But it's an honest range, not a fake-precise point estimate.</p>
+<p>Here is what just happened, in plain English. The most plausible click-through rate is about 64%, slightly lower than the raw 6/9 = 67% because we started with no opinion at all and let the data speak. There is a 95% chance that the true rate sits somewhere in the range [31%, 89%]. Yes, that range is enormous, almost half of all possible rates. That's the honest answer when you have only 9 visitors. The data simply doesn't allow precision.</p>
 
-<p>The two starting numbers, both 1, encode the assumption "before seeing data, every rate between 0% and 100% is equally plausible." A different starting belief would change those two numbers. The arithmetic stays the same. That is what makes this a shortcut: no integration, no MCMC, no special package. Just <code>qbeta()</code>.</p>
+<p>Notice the variables <code>post_a</code> and <code>post_b</code>. Those <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> the two numbers that completely describe the answer. Not a number plus an error bar, not a list of probabilities, just two numbers. They are 7 and 4 in this case (1+6 and 1+3). From those two numbers, R's built-in <code>qbeta()</code> function can produce any range you want, and <code>pbeta()</code> can answer any question of the form "what's the chance the true rate is above X?"</p>
 
-<p><img src="screenshots/Conjugate-Priors-in-R-kernel.webp" alt="Why conjugacy works" class="img-responsive img-zoomable" loading="lazy" width="1372" height="690" /></p>
+<p>This is what the title of this post means by "shortcut." Most ways of computing this answer require either calculus (integrating a complicated curve) or simulation (running thousands of random samples). For this kind of question, the shortcut is just adding two numbers.</p>
 
-<p><em>Figure 1: Why the shortcut works. The prior and the data share an algebraic shape, so the posterior stays in the same family with simple arithmetic on the parameters.</em></p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The shortcut is just adding numbers.</strong> Add observed successes to the first parameter, observed failures to the second. The posterior is the <a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Beta distribution</a> with those two new numbers. Every Bayesian summary, mean, range, "probability the rate exceeds 50%", is one call to <code>qbeta()</code> or <code>pbeta()</code> away.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The shortcut produces two parameters. Once you have them, the answer to any question about the rate is one R function call away.</strong> Want the most likely rate? Divide one parameter by the sum. Want a 95% range? <code>qbeta()</code>. Want the probability the rate exceeds 50%? <code>1 - pbeta(0.5, ...)</code>. The two parameters carry all the information.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Run the same calculation with a bigger experiment. 50 visitors, 32 clicked. Does the 95% range shrink as you'd expect?</p>
-<div class="webr-container" data-block-title="Your turn: more visitors">
+<p><strong>Try it:</strong> What happens if you ran a bigger experiment? Suppose 50 visitors saw the button and 32 clicked. Compute the same answer with that data. The most likely rate should stay close to 32/50 = 0.64. The 95% range should shrink because more data narrows uncertainty.</p>
+<div class="webr-container" data-block-title="Your turn: a bigger experiment">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: more visitors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a bigger experiment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">ex_n <span class="o">&lt;-</span> <span class="m">50</span></span>
 <span class="cl">ex_k <span class="o">&lt;-</span> <span class="m">32</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># compute post_a, post_b, mean, and 95% range</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: similar mean to 32/50 = 0.64, but a much narrower range</span></span></div>
+<span class="cl"><span class="c1"># Compute ex_post_a (1 + ex_k) and ex_post_b (1 + ex_n - ex_k)</span></span>
+<span class="cl"><span class="c1"># Then find the most likely rate and the 95% range</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: most likely rate ≈ 0.64, range much narrower than [0.31, 0.89]</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -331,37 +334,74 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The most plausible rate is essentially unchanged at 0.63 (still close to 32/50 = 0.64), but the 95% range tightened dramatically: from [0.31, 0.89] with 9 visitors down to [0.50, 0.76] with 50. More data narrows the range, exactly as it should.</p>
+<p>The most likely rate is essentially unchanged at 0.63 (matching 32/50 = 0.64), but the 95% range tightened dramatically: from [0.31, 0.89] with 9 visitors down to [0.50, 0.76] with 50. More data sharpens the answer, exactly as it should.</p>
 
 </details>
 </section>
 
-<h2>Why does this shortcut work?</h2>
+<h2>What does the "1 +" in the formula represent?</h2>
 
-<p>You probably noticed the trick used a Beta distribution and the data was about Yes/No outcomes. That pairing is not an accident. It is a "conjugate" pair, which is just a fancy word for "they fit together algebraically." Some pairs of starting belief and data type are conjugate, most are not. When they are, you get the closed-form arithmetic above. When they aren't, you fall back to MCMC.</p>
+<p>You may have noticed something curious. The two key lines were <code>post_a &lt;- 1 + k</code> and <code>post_b &lt;- 1 + (n - k)</code>. The data part makes sense (clicks and non-clicks), but where did those <code>1</code>s come from? They are the answer to a deeper question: <em>what did you believe about the click rate before you ran the test?</em></p>
 
-<p>The reason conjugate pairs exist: a Beta curve and a Yes/No likelihood look the same when you write them out. Both are powers of <code>theta</code> and <code>(1-theta)</code>. Multiply two things that share that algebraic shape and you get something else with the same shape, just with the powers added together. That's where the addition comes from.</p>
+<p>That belief, the one you had before seeing any data, is called a <strong>prior</strong>. The prior is just a starting position, a stance you take before the experiment begins. Even if you say "I have no opinion," that itself is a prior. It happens to be the prior we used in the previous section: every rate from 0% to 100% is equally believable. We encoded "no opinion" by setting both starting numbers to 1.</p>
 
-<p>You don't need to memorize the math, only the <em>idea</em>: the prior says "I believe rates near X are likely," the data says "actually, rates that explain my k clicks in n trials are likely," and the math lets you combine those into a posterior that lives in the same family. The posterior is a compromise between your prior and your data. With more data, the data wins; with less data, the prior matters more.</p>
+<p>Here's the analogy that makes this concrete. Think of a weather forecaster the morning of a marathon. Before they look at any current data, they already have an expectation. "It's October in Chicago, so probably 50-something degrees, probably overcast, probably some rain." They haven't seen today's data, but they have a sensible starting point. That starting point is their prior. Then today's instruments report actual readings, and the forecaster <em>updates</em> the prior into a final forecast.</p>
 
-<p>For the math-curious, here is the formal statement:</p>
+<p>In our case, the "instruments" are the 9 visitors and 6 clicks. The "starting point" is the prior. The "final forecast" is the answer we computed. The two numbers <code>post_a</code> and <code>post_b</code> describe the final forecast. The two starting numbers, both 1, described our prior of "no opinion."</p>
 
-<p>$$ p(\theta \mid k) \;\propto\; p(k \mid \theta)\,p(\theta) \;\propto\; \theta^{a-1+k}\,(1-\theta)^{b-1+n-k} $$</p>
+<p>What if we'd had a different prior? Suppose, before running any test, you'd believed the click rate was probably around 20%, the typical rate for a new feature. You could encode that with <code>prior_a = 2, prior_b = 8</code>, which says "before seeing any data, my best guess is 2 clicks for every 10 visitors." Now the update rule is the same: add the data to the prior.</p>
 
-<p>The right-hand side is the kernel of a $\text{Beta}(a+k, b+n-k)$ distribution, which is exactly the update rule used in the code. If symbols are not your thing, skip ahead, the practical recipe stays the same.</p>
+<div class="webr-container" data-block-title="Same data, different starting belief">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same data, different starting belief</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">9</span></span>
+<span class="cl">k <span class="o">&lt;-</span> <span class="m">6</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Three different priors, three different answers</span></span>
+<span class="cl">priors <span class="o">&lt;-</span> <span class="nf">list</span>(</span>
+<span class="cl">  no_opinion <span class="o">=</span>      <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>),</span>
+<span class="cl">  expected_low  <span class="o">=</span>   <span class="nf">c</span>(<span class="m">2</span>, <span class="m">8</span>),    <span class="c1"># &quot;I think it&#39;s around 20%&quot;</span></span>
+<span class="cl">  expected_high <span class="o">=</span>   <span class="nf">c</span>(<span class="m">8</span>, <span class="m">2</span>)     <span class="c1"># &quot;I think it&#39;s around 80%&quot;</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="kr">for</span> (name <span class="kr">in</span> <span class="nf">names</span>(priors)) {</span>
+<span class="cl">  p <span class="o">&lt;-</span> priors[[name]]</span>
+<span class="cl">  post_a <span class="o">&lt;-</span> p[<span class="m">1</span>] <span class="o">+</span> k</span>
+<span class="cl">  post_b <span class="o">&lt;-</span> p[<span class="m">2</span>] <span class="o">+</span> n <span class="o">-</span> k</span>
+<span class="cl">  rate <span class="o">&lt;-</span> post_a <span class="o">/</span> (post_a <span class="o">+</span> post_b)</span>
+<span class="cl">  cri <span class="o">&lt;-</span> <span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), post_a, post_b)</span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-15s most likely = %.2f, 95%% range = [%.2f, %.2f]\n&quot;</span>,</span>
+<span class="cl">              name, rate, cri[<span class="m">1</span>], cri[<span class="m">2</span>]))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="c1">#&gt; no_opinion      most likely = 0.64, 95% range = [0.31, 0.89]</span></span>
+<span class="cl"><span class="c1">#&gt; expected_low    most likely = 0.47, 95% range = [0.22, 0.72]</span></span>
+<span class="cl"><span class="c1">#&gt; expected_high   most likely = 0.74, 95% range = [0.47, 0.94]</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You can use a starting belief other than "everything equally plausible."</strong> Setting <code>prior_a</code> and <code>prior_b</code> to different numbers encodes a stronger or skewed prior. A <code>Beta(2, 2)</code> prior is mildly skeptical of extreme rates. A <code>Beta(20, 20)</code> prior is strongly centered at 50%. The update rule (add k to alpha, add n-k to beta) is unchanged.</div></div>
+<p>Three different priors gave three different answers, all from the same nine visitors. The "no opinion" prior gave 0.64, basically the data itself. The "expected low" prior pulled the answer down to 0.47, because we told it "before the test, I really thought it was lower." The "expected high" prior pulled the answer up to 0.74. The data shifted each prior, but each starting position survived.</p>
+
+<p>Should this bother you? Not really. Two thoughts. First, <em>every</em> method of estimating things from data secretly involves a prior, even if the method doesn't admit it. The naive "6/9 = 67%" answer pretends there is no prior, but that is itself a stance: "I'm willing to act on raw data alone." Bayesian methods just make the prior explicit so you can examine it. Second, with enough data, the prior matters less and less. We'll see this in a moment. For now, just accept that the prior is part of the recipe, like flour in a cake.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The prior is your starting belief, expressed as two numbers.</strong> Set both to 1 if you have no opinion. Use higher numbers (like 20 and 20, or 50 and 50) if you have a strong opinion. The first number nudges the rate up, the second nudges it down. The data then adjusts both, and the final answer is the updated belief.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Repeat the original 6-of-9 calculation with a <code>Beta(2, 2)</code> prior. The posterior parameters change, but the recipe doesn't.</p>
-<div class="webr-container" data-block-title="Your turn: a different starting belief">
+<p><strong>Try it:</strong> Use a strong prior centered at 50%, encoded by <code>prior_a = 50, prior_b = 50</code>. With the 9 visitors and 6 clicks, what is the most likely rate? Notice how the strong prior anchors the answer near 50% even though the data leans toward 67%.</p>
+<div class="webr-container" data-block-title="Your turn: a strong prior">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a different starting belief</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_prior_a <span class="o">&lt;-</span> <span class="m">2</span></span>
-<span class="cl">ex_prior_b <span class="o">&lt;-</span> <span class="m">2</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: a strong prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_prior_a <span class="o">&lt;-</span> <span class="m">50</span></span>
+<span class="cl">ex_prior_b <span class="o">&lt;-</span> <span class="m">50</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># update with the same data (n=9, k=6) and report mean and 95% range</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: posterior pulled slightly toward 0.5 compared to the flat-prior version</span></span></div>
+<span class="cl"><span class="c1"># Update with n=9, k=6</span></span>
+<span class="cl"><span class="c1"># Compute most likely rate and 95% range</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: most likely rate barely above 0.5, range narrow because the prior is strong</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -372,15 +412,15 @@
 </div>
 <details><summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Beta(2, 2) prior solution">
+<div class="webr-container" data-block-title="Strong-prior solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Beta(2, 2) prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_post_a <span class="o">&lt;-</span> ex_prior_a <span class="o">+</span> <span class="m">6</span></span>
-<span class="cl">ex_post_b <span class="o">&lt;-</span> ex_prior_b <span class="o">+</span> <span class="m">9</span> <span class="o">-</span> <span class="m">6</span></span>
-<span class="cl">ex_post_a <span class="o">/</span> (ex_post_a <span class="o">+</span> ex_post_b)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.6153846</span></span>
-<span class="cl"><span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), ex_post_a, ex_post_b)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.3531571 0.8407018</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strong-prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_a <span class="o">&lt;-</span> ex_prior_a <span class="o">+</span> <span class="m">6</span></span>
+<span class="cl">ex_b <span class="o">&lt;-</span> ex_prior_b <span class="o">+</span> <span class="m">9</span> <span class="o">-</span> <span class="m">6</span></span>
+<span class="cl">ex_a <span class="o">/</span> (ex_a <span class="o">+</span> ex_b)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.5137615</span></span>
+<span class="cl"><span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), ex_a, ex_b)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.4173194 0.6097103</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -390,32 +430,99 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Posterior mean drops from 0.64 (flat prior) to 0.62 with the mildly-skeptical prior, slightly pulled toward the center. The 95% range also narrows a touch because the prior contributes a bit of information.</p>
+<p>Most likely rate: 0.51, almost exactly 50%. The strong prior dominated the small data. The 95% range is also narrow because the prior carries weight equivalent to 100 hypothetical past data points, which dwarfs the 9 real ones.</p>
 
 </details>
 </section>
 
-<h2>Where else does the shortcut work?</h2>
+<h2>Why does this trick work?</h2>
 
-<p>Three pairings show up most often in real work. They share the same idea, just with different distributions for different <a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">kinds of data</a>.</p>
+<p>You've now seen the recipe twice: take the prior, add the data, get the answer. It feels too simple. Where did all the math go? Did we accidentally skip something important? We didn't. The reason it really is this simple is worth understanding, because it tells you when the trick will and won't work in the future.</p>
 
-<p><strong>For proportions</strong> (yes/no, click/no-click, defect/no-defect), the pair is Beta-Binomial. You already saw it.</p>
+<p>Here is an analogy. Imagine the Beta curve, which is the technical name for the family of curves the answer lives in, as a curve controlled by two dials. Dial A says "how many wins do you expect," dial B says "how many losses do you expect." Turn both dials up evenly and the curve gets taller and narrower around 50%. Turn dial A up alone and the curve shifts toward 100%. Turn dial B up alone and the curve shifts toward 0%. The shape can encode any belief about a rate.</p>
 
-<p><strong>For rates</strong> (events per day, calls per hour, accidents per month), the pair is Gamma-Poisson. The starting belief is a Gamma curve over plausible rates; the data is counts. The update: add the total observed events to alpha, add the number of observation periods to beta.</p>
+<p>Now consider what happens when you observe data. You saw 6 wins and 3 losses (out of 9 visitors). The simplest possible update is: turn dial A up by 6, turn dial B up by 3. That's exactly what <code>post_a &lt;- prior_a + k</code> and <code>post_b &lt;- prior_b + (n - k)</code> are doing.</p>
 
-<div class="webr-container" data-block-title="Gamma-Poisson rate update">
+<p>The mathematical lucky break is this: if you start with a Beta-shaped prior, and your data is a count of wins out of trials, then the <em>only</em> update you need to make to the curve is to turn the dials. The shape stays Beta. The curve doesn't morph into something weird that you'd need integrals to describe. It stays in the same family, just with the dials in new positions.</p>
+
+<p>That is what "conjugate" means in this context. Two things are <em>conjugate</em> if they fit together algebraically so that combining them keeps the shape simple. The Beta curve and the binary-outcome data (clicks/no-clicks, wins/losses, yes/no) are conjugate. Most pairings of curve and data are not conjugate. When they are, you get the arithmetic shortcut. When they are not, you need a more powerful tool like MCMC.</p>
+
+<p>So "conjugate priors" simply means: prior shapes that pair nicely with their data type, so the math reduces to addition. There are about half a dozen famous conjugate pairs, and three of them cover most everyday data analysis tasks. We'll see all three in the next section.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Conjugate is a fancy word for "fits together neatly."</strong> The Beta curve fits Yes/No data so neatly that updating is just addition. The Gamma curve fits <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">count data</a> the same way. The Normal curve fits Normal data the same way (with one wrinkle we'll see). Each of these pairs is a small piece of mathematical luck that lets you skip integration entirely.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Confirm the "dial" analogy. Use <code>dbeta()</code> to plot a Beta(2, 8) curve, then a Beta(8, 2) curve. The first should peak near 0.2 (low rate), the second near 0.8 (high rate). The "dials" are the two arguments to <code>dbeta()</code>.</p>
+<div class="webr-container" data-block-title="Your turn: see the dials">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Gamma-Poisson rate update</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Five days of customer support tickets</span></span>
-<span class="cl">y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">8</span>, <span class="m">12</span>, <span class="m">7</span>, <span class="m">15</span>, <span class="m">9</span>)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: see the dials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">theta <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0</span>, <span class="m">1</span>, length.out <span class="o">=</span> <span class="m">200</span>)</span>
 <span class="cl"></span>
-<span class="cl">prior_a <span class="o">&lt;-</span> <span class="m">2</span>          <span class="c1"># mild prior: &quot;around 8 tickets per day, but uncertain&quot;</span></span>
+<span class="cl"><span class="c1"># Plot Beta(2, 8) and Beta(8, 2) on the same axes</span></span>
+<span class="cl"><span class="c1"># Use plot() and lines()</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: two curves, one peaking near 0.2 and one near 0.8</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Two-dial solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-dial solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">plot</span>(theta, <span class="nf">dbeta</span>(theta, <span class="m">2</span>, <span class="m">8</span>), type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;rate&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;density&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Two Beta curves with different dial positions&quot;</span>)</span>
+<span class="cl"><span class="nf">lines</span>(theta, <span class="nf">dbeta</span>(theta, <span class="m">8</span>, <span class="m">2</span>), lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>)</span>
+<span class="cl"><span class="nf">legend</span>(<span class="s">&quot;top&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;black&quot;</span>, <span class="s">&quot;tomato&quot;</span>),</span>
+<span class="cl">       legend <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;Beta(2, 8) - leans low&quot;</span>, <span class="s">&quot;Beta(8, 2) - leans high&quot;</span>))</span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You'll see the black curve peaks near 0.2 and the orange curve peaks near 0.8. Same family of curve, different dial positions, very different beliefs about the rate.</p>
+
+</details>
+</section>
+
+<h2>Does this trick work for other kinds of data?</h2>
+
+<p>Yes, with three popular variants. Each one fits a different kind of data. The pattern is always the same: a prior shape with a small number of dials, a data type that fits algebraically, and an <a class="auto-link" href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html" title="Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation">addition rule</a> that combines them.</p>
+
+<h3>For yes/no data: Beta and Binomial</h3>
+
+<p>This is what you've been using. Yes/no data (clicks, conversions, wins, defects, survey yes-or-no answers) pairs with the Beta curve. Two dials. The update rule: add observed yeses to dial A, observed nos to dial B.</p>
+
+<p>You have already seen this case. Skip ahead unless you want to read another example.</p>
+
+<h3>For count data: Gamma and Poisson</h3>
+
+<p>When you're counting events that happen at some unknown rate, like customer support tickets per day, accidents per month, server crashes per week, the right pair is the Gamma curve with Poisson data. The Gamma curve has two dials, like Beta did. You set the prior dials to encode your belief about the rate, observe some count data, and add.</p>
+
+<p>Suppose your support team handled 8, 12, 7, 15, and 9 tickets across five days. Without strong prior knowledge, encode "around 8 tickets per day, but I'm not very sure" as Gamma(2, 0.25). Then update.</p>
+
+<div class="webr-container" data-block-title="Counts per day with Gamma-Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Counts per day with Gamma-Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">8</span>, <span class="m">12</span>, <span class="m">7</span>, <span class="m">15</span>, <span class="m">9</span>)        <span class="c1"># five days of ticket counts</span></span>
+<span class="cl"></span>
+<span class="cl">prior_a <span class="o">&lt;-</span> <span class="m">2</span>                    <span class="c1"># mild prior</span></span>
 <span class="cl">prior_b <span class="o">&lt;-</span> <span class="m">0.25</span></span>
 <span class="cl"></span>
-<span class="cl">post_a <span class="o">&lt;-</span> prior_a <span class="o">+</span> <span class="nf">sum</span>(y)            <span class="c1"># 2 + 51 = 53</span></span>
-<span class="cl">post_b <span class="o">&lt;-</span> prior_b <span class="o">+</span> <span class="nf">length</span>(y)          <span class="c1"># 0.25 + 5 = 5.25</span></span>
+<span class="cl"><span class="c1"># Update rule: add total events to dial A, add number of observation windows to dial B</span></span>
+<span class="cl">post_a <span class="o">&lt;-</span> prior_a <span class="o">+</span> <span class="nf">sum</span>(y)      <span class="c1"># 2 + 51 = 53</span></span>
+<span class="cl">post_b <span class="o">&lt;-</span> prior_b <span class="o">+</span> <span class="nf">length</span>(y)   <span class="c1"># 0.25 + 5 = 5.25</span></span>
 <span class="cl"></span>
-<span class="cl">post_a <span class="o">/</span> post_b                        <span class="c1"># most plausible rate</span></span>
+<span class="cl">post_a <span class="o">/</span> post_b                 <span class="c1"># most plausible rate</span></span>
 <span class="cl"><span class="c1">#&gt; [1] 10.09524</span></span>
 <span class="cl"><span class="nf">qgamma</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), post_a, post_b)</span>
 <span class="cl"><span class="c1">#&gt; [1]  7.563749 12.916091</span></span></div>
@@ -428,21 +535,28 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Most plausible ticket rate is 10.1 per day; 95% range is [7.6, 12.9]. Same kind of arithmetic as the click-through case, just <code>qgamma()</code> instead of <code>qbeta()</code>.</p>
+<p>Most likely rate: 10.1 tickets per day. 95% range: [7.6, 12.9]. The recipe is identical to the click-through case, except the curve is Gamma instead of Beta, the data is counts instead of yes/no, and we added the <em>total</em> of the counts (51) to dial A instead of a single number. The arithmetic is still arithmetic.</p>
 
-<p><strong>For Normal data with a known measurement spread</strong> (e.g., five blood-pressure readings where you trust the cuff is accurate), the pair is Normal-Normal. The arithmetic is a precision-weighted average of your prior mean and the data mean. Slightly more setup but the same idea.</p>
+<h3>For Normal data with a known measurement spread: Normal and Normal</h3>
 
-<div class="webr-container" data-block-title="Normal-Normal mean update (known sigma)">
+<p>Now suppose your data is continuous measurements, like blood pressure readings, exam scores, or sensor outputs. If the readings are roughly bell-shaped (which most measurements are) and you happen to know the typical measurement spread (sigma), the prior shape is also Normal, and again we have a conjugate pair.</p>
+
+<p>The arithmetic here is slightly more involved than just adding numbers, but only slightly. The posterior mean is a weighted average of your prior mean and the data mean, weighted by how confident each one is.</p>
+
+<div class="webr-container" data-block-title="Normal mean update with known spread">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal-Normal mean update (known sigma)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normal mean update with known spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">135</span>, <span class="m">128</span>, <span class="m">142</span>, <span class="m">119</span>, <span class="m">130</span>, <span class="m">122</span>, <span class="m">138</span>, <span class="m">125</span>, <span class="m">132</span>, <span class="m">117</span>)</span>
 <span class="cl">n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
-<span class="cl">sigma <span class="o">&lt;-</span> <span class="m">10</span>            <span class="c1"># known measurement spread</span></span>
 <span class="cl"></span>
+<span class="cl"><span class="c1"># Known: the measurement instrument has standard deviation 10</span></span>
+<span class="cl">sigma <span class="o">&lt;-</span> <span class="m">10</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Prior: I expect the underlying mean is around 120, give or take 8</span></span>
 <span class="cl">prior_mean <span class="o">&lt;-</span> <span class="m">120</span></span>
 <span class="cl">prior_sd   <span class="o">&lt;-</span> <span class="m">8</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Precision = 1 / variance. Posterior precision is sum of prior + data precision.</span></span>
+<span class="cl"><span class="c1"># Confidence (&quot;precision&quot;) is 1 / variance. Add prior + data confidence.</span></span>
 <span class="cl">prior_prec <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> prior_sd<span class="o">^</span><span class="m">2</span></span>
 <span class="cl">data_prec  <span class="o">&lt;-</span> n <span class="o">/</span> sigma<span class="o">^</span><span class="m">2</span></span>
 <span class="cl"></span>
@@ -462,24 +576,29 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>After 10 readings averaging 128.8 and a prior centered at 120, the posterior settles at 125.7 with a 95% range of [121.4, 130.0]. The data dominated the prior because 10 readings outweighed a prior worth roughly 1.6 readings (the ratio of precisions).</p>
+<p>After ten readings averaging 128.8 and a prior centered at 120, the most likely underlying mean is 125.7, with a 95% range of [121.4, 130.0]. The data pulled the prior up because ten measurements outweighed our prior worth roughly 1.6 measurements (the ratio of confidences). Same idea as before: prior plus data give an updated answer.</p>
+
+<p>You can stop the survey here. Three pairs cover most everyday work: Beta-Binomial for yes/no, Gamma-Poisson for counts, Normal-Normal for measurements. They are all in R's base distribution functions. No package install needed.</p>
 
 <p><img src="screenshots/Conjugate-Priors-in-R-three-families.webp" alt="Three common conjugate pairs" class="img-responsive img-zoomable" loading="lazy" width="1180" height="986" /></p>
 
-<p><em>Figure 2: Three common conjugate pairs and the closed-form parameters of the posterior.</em></p>
+<p><em>Figure 1: The three common conjugate pairs and the closed-form parameters of the posterior in each case.</em></p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>These three patterns cover most everyday Bayesian work in R.</strong> Proportions use Beta-Binomial, rates use Gamma-Poisson, and Normal data with known spread uses Normal-Normal. Internalize the recipe for each and you can write the posterior in three lines without opening a textbook.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Memorize the table mentally: yes/no uses Beta, counts use Gamma, Normal measurements use Normal.</strong> Each updates by adding the data to the prior parameters, and the answer is one R function call (<code>qbeta</code>, <code>qgamma</code>, <code>qnorm</code>) away.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Suppose you observed 25 emergency calls in 4 hours and want a posterior on calls per hour. Use a <code>Gamma(1, 0.5)</code> prior (mild belief in low rates).</p>
+<p><strong>Try it:</strong> Suppose you observed 25 emergency calls in 4 hours and want a posterior on calls per hour. Use a <code>Gamma(1, 0.5)</code> prior (mild belief in low rates). Compute the most likely rate and the 95% range.</p>
 <div class="webr-container" data-block-title="Your turn: emergency call rate">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: emergency call rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">calls <span class="o">&lt;-</span> <span class="m">25</span></span>
 <span class="cl">hours <span class="o">&lt;-</span> <span class="m">4</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># update prior_a=1, prior_b=0.5 with the data; report mean and 95% range</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: rate around 6 calls per hour, range somewhere around 4 to 9</span></span></div>
+<span class="cl">prior_a <span class="o">&lt;-</span> <span class="m">1</span></span>
+<span class="cl">prior_b <span class="o">&lt;-</span> <span class="m">0.5</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute post_a, post_b, most-likely rate, and 95% range with qgamma()</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: rate around 6 per hour, range somewhere around 4 to 9</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -493,8 +612,8 @@
 <div class="webr-container" data-block-title="Emergency call rate solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Emergency call rate solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">post_a <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> calls</span>
-<span class="cl">post_b <span class="o">&lt;-</span> <span class="m">0.5</span> <span class="o">+</span> hours</span>
+    <div class="webr-editor" data-language="r"><span class="cl">post_a <span class="o">&lt;-</span> prior_a <span class="o">+</span> calls</span>
+<span class="cl">post_b <span class="o">&lt;-</span> prior_b <span class="o">+</span> hours</span>
 <span class="cl">post_a <span class="o">/</span> post_b</span>
 <span class="cl"><span class="c1">#&gt; [1] 5.777778</span></span>
 <span class="cl"><span class="nf">qgamma</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), post_a, post_b)</span>
@@ -508,24 +627,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Most plausible rate is 5.8 calls per hour; 95% range is [3.8, 8.1]. Notice how the prior parameters got absorbed into the posterior arithmetic with the data.</p>
+<p>Most likely rate: 5.8 calls per hour. 95% range: [3.8, 8.1]. The same pattern as before: prior plus data, with <code>qgamma()</code> instead of <code>qbeta()</code> because the data was counts instead of yes/no.</p>
 
 </details>
 </section>
 
-<h2>How sensitive is the answer to my prior choice?</h2>
+<h2>What if I picked the wrong prior?</h2>
 
-<p>A reasonable worry about Bayesian methods: "what if I picked a bad prior?" The honest check is to try several reasonable priors and see how much the answer moves. If three plausible priors give similar posteriors, the conclusion is robust. If they disagree noticeably, that itself is a finding to report.</p>
+<p>This is the worry that prevents many people from using Bayesian methods at all. They think: "if my answer depends on a prior I made up, isn't the answer just my own bias dressed up as math?" It's a fair worry. The answer is: yes, with little data, but no, with enough data. And there is a clean way to check.</p>
 
-<p>Back to the original click-through rate problem (9 visitors, 6 clicks). Try three priors that bracket what a reasonable analyst might pick: skeptical of extreme rates, flat, and optimistic.</p>
+<p>The check is to try several priors that a reasonable analyst could plausibly have chosen, and see how much the final answer moves. If three reasonable priors give nearly the same answer, the conclusion is robust, your prior didn't really matter. If they give very different answers, that's itself a finding: "with this little data, the conclusion depends on the starting point. We need more data to be confident."</p>
+
+<p>Back to the click-through example. Nine visitors, six clicks. Try three priors that bracket what reasonable analysts might pick.</p>
 
 <div class="webr-container" data-block-title="Three reasonable priors, same data">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three reasonable priors, same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">priors <span class="o">&lt;-</span> <span class="nf">list</span>(</span>
-<span class="cl">  skeptical  <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">5</span>),     <span class="c1"># mean 2/7 = 0.29, mildly skeptical</span></span>
-<span class="cl">  flat       <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>),     <span class="c1"># no prior info</span></span>
-<span class="cl">  optimistic <span class="o">=</span> <span class="nf">c</span>(<span class="m">8</span>, <span class="m">2</span>)      <span class="c1"># mean 8/10 = 0.80, mildly optimistic</span></span>
+<span class="cl">  skeptical  <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">5</span>),     <span class="c1"># mean around 0.29, mildly skeptical of high rates</span></span>
+<span class="cl">  flat       <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>),     <span class="c1"># no opinion</span></span>
+<span class="cl">  optimistic <span class="o">=</span> <span class="nf">c</span>(<span class="m">8</span>, <span class="m">2</span>)      <span class="c1"># mean around 0.80, mildly optimistic</span></span>
 <span class="cl">)</span>
 <span class="cl"></span>
 <span class="cl"><span class="kr">for</span> (name <span class="kr">in</span> <span class="nf">names</span>(priors)) {</span>
@@ -534,11 +655,12 @@
 <span class="cl">  pb <span class="o">&lt;-</span> p[<span class="m">2</span>] <span class="o">+</span> <span class="m">9</span> <span class="o">-</span> <span class="m">6</span></span>
 <span class="cl">  mn <span class="o">&lt;-</span> pa <span class="o">/</span> (pa <span class="o">+</span> pb)</span>
 <span class="cl">  cri <span class="o">&lt;-</span> <span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), pa, pb)</span>
-<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s posterior mean=%.2f  95%%=[%.2f, %.2f]\n&quot;</span>, name, mn, cri[<span class="m">1</span>], cri[<span class="m">2</span>]))</span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s most likely = %.2f, 95%% range = [%.2f, %.2f]\n&quot;</span>,</span>
+<span class="cl">              name, mn, cri[<span class="m">1</span>], cri[<span class="m">2</span>]))</span>
 <span class="cl">}</span>
-<span class="cl"><span class="c1">#&gt; skeptical  posterior mean=0.50  95%=[0.27, 0.73]</span></span>
-<span class="cl"><span class="c1">#&gt; flat       posterior mean=0.64  95%=[0.31, 0.89]</span></span>
-<span class="cl"><span class="c1">#&gt; optimistic posterior mean=0.78  95%=[0.55, 0.94]</span></span></div>
+<span class="cl"><span class="c1">#&gt; skeptical  most likely = 0.50, 95% range = [0.27, 0.73]</span></span>
+<span class="cl"><span class="c1">#&gt; flat       most likely = 0.64, 95% range = [0.31, 0.89]</span></span>
+<span class="cl"><span class="c1">#&gt; optimistic most likely = 0.78, 95% range = [0.55, 0.94]</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -548,22 +670,53 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Three priors, three posteriors, three different answers. The skeptical prior pulls the posterior toward 0.50, the optimistic prior pulls it toward 0.78. With only 9 visitors, the choice of prior matters a lot. With 50 visitors the spread would be much smaller; with 500 it would be barely visible.</p>
+<p>Three priors, three quite different answers. The skeptical prior pulled the rate down to 0.50, the flat prior left it near the data at 0.64, the optimistic prior pulled it up to 0.78. With nine visitors, the prior matters, a lot.</p>
 
-<p>That's the honest report you give a stakeholder: "under three reasonable starting beliefs, the click-through rate is somewhere between 0.50 and 0.78. We need more data to pin it down."</p>
+<p>Now suppose we collected more data: 50 visitors, 32 clicks. Repeat the same exercise.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reporting prior sensitivity is what makes Bayesian analysis credible.</strong> Always show the answer under your stated prior plus a couple of plausible alternatives. If they agree directionally, you have a solid result. If they disagree, that's a sign you need more data, or the prior matters in ways you should defend.</div></div>
-
-<section class="tryit-block">
-<p><strong>Try it:</strong> Re-run the three-prior comparison with 50 visitors and 32 clicks. Notice how the posteriors converge.</p>
-<div class="webr-container" data-block-title="Your turn: more data, less prior sensitivity">
+<div class="webr-container" data-block-title="Same three priors, more data">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: more data, less prior sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same three priors, more data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">n2 <span class="o">&lt;-</span> <span class="m">50</span></span>
 <span class="cl">k2 <span class="o">&lt;-</span> <span class="m">32</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># loop over the same three priors and see how much the posterior means now agree</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: all three posteriors close together, in the 0.55-0.65 range</span></span></div>
+<span class="cl"><span class="kr">for</span> (name <span class="kr">in</span> <span class="nf">names</span>(priors)) {</span>
+<span class="cl">  p <span class="o">&lt;-</span> priors[[name]]</span>
+<span class="cl">  pa <span class="o">&lt;-</span> p[<span class="m">1</span>] <span class="o">+</span> k2</span>
+<span class="cl">  pb <span class="o">&lt;-</span> p[<span class="m">2</span>] <span class="o">+</span> n2 <span class="o">-</span> k2</span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s most likely = %.3f\n&quot;</span>, name, pa <span class="o">/</span> (pa <span class="o">+</span> pb)))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="c1">#&gt; skeptical  most likely = 0.596</span></span>
+<span class="cl"><span class="c1">#&gt; flat       most likely = 0.635</span></span>
+<span class="cl"><span class="c1">#&gt; optimistic most likely = 0.667</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the three answers cluster between 0.60 and 0.67. Same priors, but with 50 data points instead of 9, the data swamps the prior and the disagreement nearly disappears. With 500 visitors, all three priors would land within 1% of each other. With 5000, they'd be indistinguishable.</p>
+
+<p>That's the answer to "what if I picked a bad prior?" If you had enough data, the prior didn't matter. If you didn't have enough data, the prior mattered, and you should report all three answers and let the reader decide. That's what makes Bayesian analysis honest: the assumptions are visible, the sensitivity is testable, and the result is not falsely precise when the data doesn't support precision.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always report prior sensitivity when the data is small.</strong> Try at least one skeptical prior, one flat prior, and one optimistic prior. If they agree, you have a solid answer. If they disagree, the data is not strong enough to overcome reasonable prior disagreement, and you need either more data or a defensible reason for choosing one prior.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Repeat the sensitivity check with the bigger experiment (50 visitors, 32 clicks) but using stronger priors: <code>c(20, 50)</code>, <code>c(10, 10)</code>, <code>c(80, 20)</code>. Even with more data, very strong priors can dominate. See if you can find a prior strong enough to still matter.</p>
+<div class="webr-container" data-block-title="Your turn: stronger priors with more data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stronger priors with more data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">strong_priors <span class="o">&lt;-</span> <span class="nf">list</span>(</span>
+<span class="cl">  strong_skeptical  <span class="o">=</span> <span class="nf">c</span>(<span class="m">20</span>, <span class="m">50</span>),</span>
+<span class="cl">  strong_flat       <span class="o">=</span> <span class="nf">c</span>(<span class="m">10</span>, <span class="m">10</span>),</span>
+<span class="cl">  strong_optimistic <span class="o">=</span> <span class="nf">c</span>(<span class="m">80</span>, <span class="m">20</span>)</span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Loop through, update with n=50, k=32, print most-likely rate for each</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: skeptical and optimistic still pull noticeably even with 50 data points</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -574,18 +727,18 @@
 </div>
 <details><summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Sensitivity with 50 visitors solution">
+<div class="webr-container" data-block-title="Strong-priors solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sensitivity with 50 visitors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="kr">for</span> (name <span class="kr">in</span> <span class="nf">names</span>(priors)) {</span>
-<span class="cl">  p <span class="o">&lt;-</span> priors[[name]]</span>
-<span class="cl">  pa <span class="o">&lt;-</span> p[<span class="m">1</span>] <span class="o">+</span> k2</span>
-<span class="cl">  pb <span class="o">&lt;-</span> p[<span class="m">2</span>] <span class="o">+</span> n2 <span class="o">-</span> k2</span>
-<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s posterior mean=%.3f\n&quot;</span>, name, pa <span class="o">/</span> (pa <span class="o">+</span> pb)))</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strong-priors solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="kr">for</span> (name <span class="kr">in</span> <span class="nf">names</span>(strong_priors)) {</span>
+<span class="cl">  p <span class="o">&lt;-</span> strong_priors[[name]]</span>
+<span class="cl">  pa <span class="o">&lt;-</span> p[<span class="m">1</span>] <span class="o">+</span> <span class="m">32</span></span>
+<span class="cl">  pb <span class="o">&lt;-</span> p[<span class="m">2</span>] <span class="o">+</span> <span class="m">50</span> <span class="o">-</span> <span class="m">32</span></span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-20s most likely = %.3f\n&quot;</span>, name, pa <span class="o">/</span> (pa <span class="o">+</span> pb)))</span>
 <span class="cl">}</span>
-<span class="cl"><span class="c1">#&gt; skeptical  posterior mean=0.596</span></span>
-<span class="cl"><span class="c1">#&gt; flat       posterior mean=0.635</span></span>
-<span class="cl"><span class="c1">#&gt; optimistic posterior mean=0.667</span></span></div>
+<span class="cl"><span class="c1">#&gt; strong_skeptical     most likely = 0.448</span></span>
+<span class="cl"><span class="c1">#&gt; strong_flat          most likely = 0.609</span></span>
+<span class="cl"><span class="c1">#&gt; strong_optimistic    most likely = 0.703</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -595,36 +748,44 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Three priors that gave posterior means from 0.50 to 0.78 with 9 data points now give 0.60 to 0.67 with 50 data points, a much narrower spread. With enough data, the prior choice barely matters.</p>
+<p>Even with 50 data points, the very strong priors (worth 70 to 100 hypothetical observations) pull the answer noticeably. This is why prior choice matters and why you report sensitivity.</p>
 
 </details>
 </section>
 
-<h2>When does the shortcut stop working?</h2>
+<h2>When does this trick stop working?</h2>
 
-<p>The arithmetic of conjugate priors is gorgeous when it works, but the list of pairs that <em>are</em> conjugate is short. The moment your model leaves that list, the closed-form disappears and you need a sampler.</p>
+<p>The arithmetic of conjugate priors is gorgeous when it works. But the list of pairs that <em>are</em> conjugate is short, and the moment your problem leaves that list, the arithmetic disappears and you need a different tool.</p>
 
-<p>Three places it breaks. <strong>Two unknown parameters in a Normal model:</strong> if you don't know either the mean or the spread, the conjugate setup gets ugly fast. <strong>Hierarchical models:</strong> when you have group-level priors over parameters in another model, e.g., separate rates per region with a global rate prior, the math no longer factors cleanly. <strong>Custom likelihoods:</strong> if your data follows some non-standard shape that isn't on the conjugate list, no shortcut exists.</p>
+<p>Three places this happens.</p>
 
-<p>The 2-parameter Normal case shows the wall. Both the underlying mean and the underlying spread of the data are unknown. Closed-form is gone. You can still compute a posterior numerically by laying down a grid of candidate (mean, sd) pairs, but that scales badly.</p>
+<p><strong>First, when there are two unknowns instead of one.</strong> The Normal-Normal example we did earlier assumed we knew the measurement spread (<code>sigma</code>). What if we don't? Now the unknowns are the underlying mean <em>and</em> the underlying spread. There is a more elaborate conjugate pair for that case, but it's noticeably uglier than the cases we've seen, and the moment you have a third unknown the elegance is gone.</p>
 
-<div class="webr-container" data-block-title="Two unknowns: closed-form disappears">
+<p><strong>Second, in hierarchical models.</strong> Suppose you have customer data from 50 different stores, and you want to estimate a per-store conversion rate while also estimating an overall company average. The store rates inform the company rate, the company rate informs the store rates. The math no longer factors into a single addition step. You need iterative methods.</p>
+
+<p><strong>Third, when your data shape doesn't match a standard distribution.</strong> Maybe your outcome is a positive number with a long right tail, or counts that are zero-inflated, or some custom thing you defined for your business. Off the conjugate list, the addition trick doesn't apply.</p>
+
+<p>In all three cases, the standard tool is MCMC, which stands for <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov Chain</a> Monte Carlo. The names and acronyms are unimportant. What matters is that MCMC computes the same kind of answer (most likely value, 95% range, probability of an event) but instead of doing it with arithmetic, it does it by drawing a large number of random samples from the posterior. The R packages <code>brms</code> and <code>rstan</code> make MCMC accessible without writing the sampling code yourself.</p>
+
+<p>Here's a small demonstration of why MCMC takes over when there are too many unknowns. Suppose we wanted to fit the Normal model with both mean and spread unknown. We could try to brute-force it by laying down a grid of (mean, spread) pairs and scoring each one. With 80 candidate means and 80 candidate spreads, that's 6,400 cells, totally fine. With 5 unknown parameters at 50 candidates each, it's 312 million cells. The cost grows exponentially with the number of unknowns, and that's exactly the wall MCMC was invented to scale past.</p>
+
+<div class="webr-container" data-block-title="Two unknowns: still tractable, but the wall is visible">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two unknowns: closed-form disappears</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two unknowns: still tractable, but the wall is visible</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">11</span>)</span>
 <span class="cl">y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">5</span>, sd <span class="o">=</span> <span class="m">1.5</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Lay down an 80x80 grid over (mu, sigma) and score each pair</span></span>
 <span class="cl">mu_grid    <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">3</span>, <span class="m">7</span>, length.out <span class="o">=</span> <span class="m">80</span>)</span>
 <span class="cl">sigma_grid <span class="o">&lt;-</span> <span class="nf">seq</span>(<span class="m">0.5</span>, <span class="m">3</span>, length.out <span class="o">=</span> <span class="m">80</span>)</span>
 <span class="cl"></span>
+<span class="cl"><span class="c1"># Score each (mu, sigma) pair on the log-likelihood of the data, then normalize</span></span>
 <span class="cl">post <span class="o">&lt;-</span> <span class="nf">outer</span>(mu_grid, sigma_grid, <span class="kr">function</span>(m, s) {</span>
 <span class="cl">  ll <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">seq_along</span>(m), <span class="kr">function</span>(i) <span class="nf">sum</span>(<span class="nf">dnorm</span>(y, mean <span class="o">=</span> m[i], sd <span class="o">=</span> s[i], log <span class="o">=</span> <span class="kc">TRUE</span>)))</span>
 <span class="cl">  <span class="nf">exp</span>(ll <span class="o">-</span> <span class="nf">max</span>(ll))</span>
 <span class="cl">})</span>
 <span class="cl">post <span class="o">&lt;-</span> post <span class="o">/</span> <span class="nf">sum</span>(post)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Most plausible mean (collapsing over sigma)</span></span>
+<span class="cl"><span class="c1"># Most plausible mean (collapsing over the spread)</span></span>
 <span class="cl"><span class="nf">sum</span>(mu_grid <span class="o">*</span> <span class="nf">rowSums</span>(post))</span>
 <span class="cl"><span class="c1">#&gt; [1] 5.124375</span></span></div>
     <div class="webr-buttons">
@@ -636,21 +797,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>That's 80 × 80 = 6,400 cells, fine. Add a third unknown parameter at the same resolution and you'd be at 512,000 cells; a fifth and you'd be in the hundreds of millions. That's the wall MCMC was invented to scale past.</p>
+<p>That ran in well under a second. Add a third unknown and you'd be at 512,000 cells. A fifth and you'd be in the hundreds of millions. Real Bayesian models often have dozens of parameters, and that's the wall.</p>
 
 <p><img src="screenshots/Conjugate-Priors-in-R-when-fails.webp" alt="When conjugacy stops helping" class="img-responsive img-zoomable" loading="lazy" width="974" height="2358" /></p>
 
-<p><em>Figure 3: When conjugacy stops helping. Most real models fall off this tree quickly.</em></p>
+<p><em>Figure 2: When conjugacy stops helping. Most realistic models fall off this tree quickly.</em></p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>brms and Stan generalize the prior + likelihood = posterior idea via sampling.</strong> The mental model you built here, prior plus data combine into a posterior, transfers exactly. MCMC just produces samples instead of a closed form, and the same summary functions (mean, 95% range, "probability the rate exceeds X") work on those samples too.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>brms and Stan generalize prior-plus-data-equals-posterior using sampling.</strong> The mental model you built here, prior plus data combine into an updated answer, transfers exactly. MCMC just produces samples instead of two parameters, and the same <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> on samples (mean, quantile, fraction-greater-than) give the same kinds of summaries.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Roughly how many cells does grid approximation need for 5 unknowns at 50 points each?</p>
-<div class="webr-container" data-block-title="Your turn: grid cost for 5 unknowns">
+<p><strong>Try it:</strong> Roughly how many cells does a brute-force grid need for 5 unknown parameters at 50 candidates each? This is the comparison that motivates moving to MCMC.</p>
+<div class="webr-container" data-block-title="Your turn: cost of more unknowns">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: grid cost for 5 unknowns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cost of more unknowns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">ex_d <span class="o">&lt;-</span> <span class="m">5</span></span>
-<span class="cl"><span class="c1"># total cells at 50 points each</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># total cells at 50 candidates per unknown</span></span>
 <span class="cl"><span class="c1">#&gt; Expected: a number above 300 million</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -676,16 +838,16 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Over 312 million cells. Each cell needs a likelihood evaluation. By 6-7 unknowns even cluster-scale grids are infeasible.</p>
+<p>Over 312 million cells. Each cell would need a likelihood evaluation. Even at fast speeds this is hours of compute. By 7 unknowns it's centuries. That's the practical wall MCMC was invented to scale past.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: A click-through rate from a smaller experiment</h3>
+<h3>Exercise 1: A click-through rate from a small ad</h3>
 
-<p>A new ad got 8 clicks out of 50 impressions. Use a <code>Beta(2, 8)</code> prior (mildly skeptical, mean of 0.20). Report the posterior mean, 95% range, and the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the true rate exceeds 5%.</p>
+<p>A new ad got 8 clicks out of 50 impressions. Use a <code>Beta(2, 8)</code> prior (mildly skeptical, mean of 0.20). Report the most likely rate, the 95% range, and the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the true rate exceeds 5%.</p>
 
 <div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
@@ -695,7 +857,10 @@
 <span class="cl">prior_a <span class="o">&lt;-</span> <span class="m">2</span></span>
 <span class="cl">prior_b <span class="o">&lt;-</span> <span class="m">8</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># compute post_a, post_b, mean, 95% range, and 1 - pbeta(0.05, ...)</span></span></div>
+<span class="cl"><span class="c1"># 1. Compute post_a = prior_a + ctr_k and post_b = prior_b + ctr_n - ctr_k</span></span>
+<span class="cl"><span class="c1"># 2. Most likely rate = post_a / (post_a + post_b)</span></span>
+<span class="cl"><span class="c1"># 3. 95% range with qbeta(c(0.025, 0.975), post_a, post_b)</span></span>
+<span class="cl"><span class="c1"># 4. Probability above 5% with 1 - pbeta(0.05, post_a, post_b)</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -727,20 +892,22 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Posterior mean: 0.17. 95% range: [0.08, 0.28]. Posterior probability that the rate exceeds 5%: about 99%, very strong evidence the ad outperforms a 5% threshold.</p>
+<p>Most likely rate: 17%. 95% range: [8%, 28%]. Probability the true rate exceeds 5%: about 99%. Strong evidence the ad outperforms a 5% threshold.</p>
 
 </details>
 
 <h3>Exercise 2: An A/B test using two posteriors at once</h3>
 
-<p>Variant A got 84 clicks from 1,200 impressions. Variant B got 105 clicks from 1,180 impressions. Use a flat <code>Beta(1, 1)</code> prior on each. Use the closed-form posteriors plus 10,000 random draws from each (<code>rbeta()</code>) to estimate the probability that B's true rate is higher than A's.</p>
+<p>This exercise teaches a small superpower of Bayesian posteriors. They can be drawn from with <code>rbeta()</code>, <code>rgamma()</code>, <code>rnorm()</code>, and once you have draws, you can compare two posteriors directly to answer questions like "what's the probability variant B beats variant A?"</p>
+
+<p>Variant A got 84 clicks from 1,200 impressions. Variant B got 105 clicks from 1,180 impressions. Use a flat <code>Beta(1, 1)</code> prior on each. Use the closed-form posteriors to draw 100,000 samples from each, and report the probability that B's true rate is higher than A's.</p>
 
 <div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1) compute closed-form posteriors for A and B</span></span>
-<span class="cl"><span class="c1"># 2) draw 10,000 samples from each via rbeta()</span></span>
-<span class="cl"><span class="c1"># 3) report mean(b &gt; a)</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Compute closed-form posteriors for A and B (each is Beta(1+k, 1+n-k))</span></span>
+<span class="cl"><span class="c1"># 2. Draw 100,000 samples from each: rbeta(1e5, post_a, post_b)</span></span>
+<span class="cl"><span class="c1"># 3. mean(b_draws &gt; a_draws) gives the probability that B &gt; A</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -759,10 +926,10 @@
 <span class="cl">b_post_a <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> <span class="m">105</span>;  b_post_b <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">+</span> <span class="m">1180</span> <span class="o">-</span> <span class="m">105</span></span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
-<span class="cl">draws_a <span class="o">&lt;-</span> <span class="nf">rbeta</span>(<span class="m">1e5</span>, a_post_a, a_post_b)</span>
-<span class="cl">draws_b <span class="o">&lt;-</span> <span class="nf">rbeta</span>(<span class="m">1e5</span>, b_post_a, b_post_b)</span>
+<span class="cl">a_draws <span class="o">&lt;-</span> <span class="nf">rbeta</span>(<span class="m">1e5</span>, a_post_a, a_post_b)</span>
+<span class="cl">b_draws <span class="o">&lt;-</span> <span class="nf">rbeta</span>(<span class="m">1e5</span>, b_post_a, b_post_b)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">mean</span>(draws_b <span class="o">&gt;</span> draws_a)</span>
+<span class="cl"><span class="nf">mean</span>(b_draws <span class="o">&gt;</span> a_draws)</span>
 <span class="cl"><span class="c1">#&gt; [1] 0.97083</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -773,13 +940,13 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>About 97% probability that B's true rate is higher than A's. That's a clean answer to report directly to a stakeholder, no p-values to translate.</p>
+<p>About 97% probability that B's true rate is higher than A's. That's a clean answer to give to a stakeholder, no need to translate from p-values or talk about null hypotheses.</p>
 
 </details>
 
 <h3>Exercise 3: A blood-pressure mean from prior and data</h3>
 
-<p>Five blood-pressure readings: 132, 128, 135, 121, 138. Known measurement standard deviation: 8. Prior on the underlying mean: <code>Normal(120, 10)</code>. Compute the posterior mean and 95% range using the Normal-Normal arithmetic.</p>
+<p>Five blood-pressure readings: 132, 128, 135, 121, 138. Known measurement standard deviation: 8. Prior on the underlying mean: Normal(120, 10). Compute the most likely underlying mean and the 95% range.</p>
 
 <div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
@@ -789,7 +956,10 @@
 <span class="cl">bp_prior_mean <span class="o">&lt;-</span> <span class="m">120</span></span>
 <span class="cl">bp_prior_sd <span class="o">&lt;-</span> <span class="m">10</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Compute precisions, then posterior mean and variance, then 95% range with qnorm()</span></span></div>
+<span class="cl"><span class="c1"># 1. Compute prior_prec = 1 / bp_prior_sd^2 and data_prec = length(bp_y) / bp_sigma^2</span></span>
+<span class="cl"><span class="c1"># 2. post_var = 1 / (prior_prec + data_prec)</span></span>
+<span class="cl"><span class="c1"># 3. post_mean = post_var * (bp_prior_mean * prior_prec + mean(bp_y) * data_prec)</span></span>
+<span class="cl"><span class="c1"># 4. 95% range with qnorm(c(0.025, 0.975), post_mean, sqrt(post_var))</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -813,8 +983,6 @@
 <span class="cl"></span>
 <span class="cl">post_mean</span>
 <span class="cl"><span class="c1">#&gt; [1] 128.7407</span></span>
-<span class="cl"><span class="nf">sqrt</span>(post_var)</span>
-<span class="cl"><span class="c1">#&gt; [1] 3.448834</span></span>
 <span class="cl"><span class="nf">qnorm</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), post_mean, <span class="nf">sqrt</span>(post_var))</span>
 <span class="cl"><span class="c1">#&gt; [1] 121.9812 135.5003</span></span></div>
     <div class="webr-buttons">
@@ -826,13 +994,13 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Posterior mean: 128.7. Standard deviation: 3.4. 95% range: [122.0, 135.5]. The data mean was 130.8 and the prior mean was 120; the posterior sits at 128.7, much closer to the data because 5 measurements with sigma=8 carry more precision than a prior with sd=10.</p>
+<p>Most likely underlying mean: 128.7. 95% range: [122.0, 135.5]. The data mean was 130.8, the prior mean was 120, and the answer landed at 128.7, much closer to the data because five measurements with sigma=8 carry more weight than a prior with sd=10.</p>
 
 </details>
 
 <h2>Complete Example: A Customer Satisfaction Report</h2>
 
-<p>A SaaS company surveys 200 customers; 132 say they would recommend the product. Marketing wants to claim "the recommendation rate is above 60%." Quantify that claim under three priors (skeptical, flat, optimistic) and report whether the conclusion is robust.</p>
+<p>A SaaS company surveys 200 customers. 132 say they would recommend the product. Marketing wants to claim the recommendation rate is "above 60%." Quantify that claim under three priors (skeptical, flat, optimistic) and report whether the conclusion is robust to prior choice.</p>
 
 <div class="webr-container" data-block-title="Customer satisfaction with three priors">
   <div class="webr-code-block">
@@ -853,12 +1021,12 @@
 <span class="cl">  mn <span class="o">&lt;-</span> pa <span class="o">/</span> (pa <span class="o">+</span> pb)</span>
 <span class="cl">  cri <span class="o">&lt;-</span> <span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), pa, pb)</span>
 <span class="cl">  p_above <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">-</span> <span class="nf">pbeta</span>(<span class="m">0.60</span>, pa, pb)</span>
-<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s mean=%.3f  95%%=[%.3f, %.3f]  P(rate&gt;0.60)=%.3f\n&quot;</span>,</span>
+<span class="cl">  <span class="nf">cat</span>(<span class="nf">sprintf</span>(<span class="s">&quot;%-10s most likely=%.2f 95%%=[%.2f, %.2f]  P(rate&gt;0.60)=%.2f\n&quot;</span>,</span>
 <span class="cl">              name, mn, cri[<span class="m">1</span>], cri[<span class="m">2</span>], p_above))</span>
 <span class="cl">}</span>
-<span class="cl"><span class="c1">#&gt; skeptical  mean=0.646  95%=[0.578, 0.710]  P(rate&gt;0.60)=0.909</span></span>
-<span class="cl"><span class="c1">#&gt; flat       mean=0.658  95%=[0.591, 0.722]  P(rate&gt;0.60)=0.950</span></span>
-<span class="cl"><span class="c1">#&gt; optimistic mean=0.667  95%=[0.601, 0.731]  P(rate&gt;0.60)=0.975</span></span></div>
+<span class="cl"><span class="c1">#&gt; skeptical  most likely=0.65 95%=[0.58, 0.71]  P(rate&gt;0.60)=0.91</span></span>
+<span class="cl"><span class="c1">#&gt; flat       most likely=0.66 95%=[0.59, 0.72]  P(rate&gt;0.60)=0.95</span></span>
+<span class="cl"><span class="c1">#&gt; optimistic most likely=0.67 95%=[0.60, 0.73]  P(rate&gt;0.60)=0.98</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -868,56 +1036,58 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>All three priors give posterior probability above 90% that the true rate exceeds 60%, and posterior means within 0.02 of each other. Marketing's claim is robust: under three reasonable starting beliefs, the data strongly support "the rate is above 60%." A confident report with an honest sensitivity check, in eight lines of base R.</p>
+<p>All three priors give a most-likely rate within 0.02 of each other (0.65 to 0.67), and all three give a posterior probability above 90% that the true rate exceeds 60%. Marketing's claim is robust: under three reasonable starting beliefs, the data strongly support "the rate is above 60%." That's the kind of confident, honest answer you can hand to a stakeholder, plus the sensitivity check that demonstrates you didn't cherry-pick the prior. Eight lines of base R, no packages.</p>
 
 <h2>Summary</h2>
 
-<p>The closed-form trick works when the prior and the likelihood are conjugate. Three pairings cover most real work:</p>
+<p>The shortcut works whenever your prior shape and your data type are conjugate. Three pairings cover most everyday data analysis:</p>
 
 <table class="table table-striped">
 <thead>
 <tr>
 <th>Type of data</th>
-<th>Prior</th>
-<th>Posterior shortcut</th>
+<th>Prior shape</th>
+<th>Update rule (closed-form posterior)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Yes/No (proportions)</td>
-<td><code>Beta(a, b)</code></td>
-<td><code>Beta(a + k, b + n - k)</code></td>
+<td>Beta(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></td>
+<td>Beta(a + clicks, b + non-clicks)</td>
 </tr>
 <tr>
 <td>Counts (rates)</td>
-<td><code>Gamma(a, b)</code></td>
-<td><code>Gamma(a + sum y, b + n)</code></td>
+<td>Gamma(a, b)</td>
+<td>Gamma(a + total events, b + observation periods)</td>
 </tr>
 <tr>
-<td>Normal with known sigma (means)</td>
-<td><code>Normal(m, s)</code></td>
-<td>precision-weighted blend of <code>m</code> and the data mean</td>
+<td>Normal data with known spread (means)</td>
+<td>Normal(m, s)</td>
+<td>Precision-weighted mix of m and the data mean</td>
 </tr>
 </tbody>
 </table>
 
-<p>When you can use the shortcut, do. When you cannot (more than two unknown parameters, hierarchical models, custom likelihoods), reach for <code>brms</code> or <code>rstan</code> and let MCMC do the work. The mental model, prior plus data give a posterior, is the same in both worlds.</p>
+<p>In each case, R has a built-in function (<code>qbeta</code>, <code>qgamma</code>, <code>qnorm</code>) that turns the two posterior parameters into ranges and probabilities. No extra packages, no MCMC, no integration.</p>
+
+<p>When you can use the shortcut, do. When you cannot (more than two unknowns, hierarchical models, custom data shapes), reach for <code>brms</code> or <code>rstan</code> and let MCMC do the work. The mental model, prior plus data give an updated belief, is the same in both worlds.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Johnson, A. A., Ott, M. Q., Dogucu, M. <em>Bayes Rules! An Introduction to Applied Bayesian Modeling</em>, Chapman & Hall, 2022. Open access. Chapter 5 covers conjugate families with worked R code. <a href="https://www.bayesrulesbook.com/chapter-5">bayesrulesbook.com/chapter-5</a>.</li>
+<li>Johnson, A. A., Ott, M. Q., Dogucu, M. <em>Bayes Rules! An Introduction to Applied Bayesian Modeling</em>, Chapman & Hall, 2022. Chapter 5 covers conjugate families with worked R code. Open access at <a href="https://www.bayesrulesbook.com/chapter-5">bayesrulesbook.com/chapter-5</a>.</li>
 
 <li>Gelman, A., Carlin, J. B., Stern, H. S. et al. <em>Bayesian Data Analysis</em>, 3rd ed., Chapman & Hall, 2013. Chapters 2-3 derive the standard conjugate families.</li>
 
 <li>Cook, J. D. "Diagram of Bayesian conjugate priors." <a href="https://www.johndcook.com/blog/conjugate_prior_diagram/">johndcook.com/blog/conjugate_prior_diagram</a>. Interactive cross-family reference.</li>
 
-<li>Fink, D. "A Compendium of Conjugate Priors." 1997. <a href="https://www.johndcook.com/CompendiumOfConjugatePriors.pdf">johndcook.com/CompendiumOfConjugatePriors.pdf</a>.</li>
+<li>Fink, D. "A Compendium of Conjugate Priors." 1997. <a href="https://www.johndcook.com/CompendiumOfConjugatePriors.pdf">johndcook.com/CompendiumOfConjugatePriors.pdf</a>. Comprehensive table of conjugate pairings.</li>
 
-<li>Gelman, A. and the Stan team. "Prior choice recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>.</li>
+<li>Gelman, A. and the Stan team. "Prior choice recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>. The community standard reference for principled prior selection.</li>
 
-<li>CRAN Task View: Bayesian Inference. <a href="https://cran.r-project.org/web/views/Bayesian.html">cran.r-project.org/web/views/Bayesian.html</a>.</li>
+<li>CRAN Task View: Bayesian Inference. <a href="https://cran.r-project.org/web/views/Bayesian.html">cran.r-project.org/web/views/Bayesian.html</a>. Curated list of Bayesian R packages.</li>
 
 </ol>
 
@@ -925,15 +1095,15 @@
 
 <ul>
 
-<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that walks through the prior-likelihood-posterior workflow with simulation, building the intuition that conjugacy then turbocharges.</li>
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that walks through the prior-data-posterior workflow with simulation and visualization, building the intuition that conjugacy then turbocharges.</li>
 
-<li><a href="Grid-Approximation-in-R.html">Grid Approximation in R</a>, what to do when the conjugate shortcut does not apply but you still want a posterior in base R, no MCMC.</li>
+<li><a href="Grid-Approximation-in-R.html">Grid Approximation in R</a>, what to do when the conjugate shortcut does not apply but you still want a posterior in base R, no MCMC required.</li>
 
-<li><a href="Bayes-Theorem-in-R.html">Bayes' Theorem in R</a>, the discrete case that motivates everything here, worked through a medical-test example.</li>
+<li><a href="Bayes-Theorem-in-R.html">Bayes' Theorem in R</a>, the discrete starting point worked through a medical-test example, ideal background reading if anything in this post still feels abstract.</li>
 
 </ul>
 <aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Bayes-Theorem-in-R.html"><span class="rt-title">Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why</span><span class="rt-meta">Statistics &middot; 8 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Bayes-Theorem-in-R.html"><span class="rt-title">Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why</span><span class="rt-meta">Statistics &middot; 8 min read</span></a><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
 <a class="pn-link pn-prev" href="Bayesian-Statistics-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Bayesian Statistics</span></a>
 <a class="pn-link pn-next" href="Grid-Approximation-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Grid Approximation</span></a>
@@ -998,19 +1168,6 @@
   <script src="www/toc.min.js?h=d28a1a80"></script>
   <!-- MathJax Script -->
   
-  <script type="text/x-mathjax-config">
-    MathJax.Hub.Config({
-      tex2jax: {
-        inlineMath: [['$','$'], ['\\(','\\)']],
-        displayMath: [['$$','$$'], ['\\[','\\]']],
-        processEscapes: true
-      }
-    });
-  </script>
-  <script type="text/javascript" async
-    src="https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
-  </script>
-
   <!-- WebR Interactive Code -->
     <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
   <script src="www/webr-init.min.js?h=92549f4e"></script>
