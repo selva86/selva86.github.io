@@ -3,8 +3,8 @@
   <head>
     <title>Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</title>
     <meta charset="utf-8">
-    <meta name="Description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
-    <meta name="Keywords" content="Gibbs sampling R, MCMC R, full conditionals R, Bayesian Normal model, JAGS, posterior sampling, Bayesian inference">
+    <meta name="Description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. Understand why this trick beats Metropolis on multi-parameter models.">
+    <meta name="Keywords" content="Gibbs sampling R, MCMC R, full conditionals, Bayesian Normal model, JAGS, posterior sampling R, Bayesian inference, conditional posterior, two-parameter MCMC, Inverse-Gamma sampling">
     <meta name="Distribution" content="Global">
     <meta name="Author" content="Selva Prabhakaran">
     <meta name="Robots" content="index, follow">
@@ -159,14 +159,14 @@
     </style>
     <!-- Open Graph -->
     <meta property="og:title" content="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">
-    <meta property="og:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
+    <meta property="og:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. Understand why this trick beats Metropolis on multi-parameter models.">
     <meta property="og:type" content="article">
     <meta property="og:url" content="https://r-statistics.co/Gibbs-Sampling-in-R.html">
     <meta property="og:site_name" content="r-statistics.co">
     <meta property="og:image" content="https://r-statistics.co/screenshots/og/Gibbs-Sampling-in-R.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS">
-    <meta name="twitter:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.">
+    <meta name="twitter:description" content="Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. Understand why this trick beats Metropolis on multi-parameter models.">
     <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Gibbs-Sampling-in-R.png">
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -174,7 +174,7 @@
       "@context": "https://schema.org",
       "@type": ["TechArticle", "LearningResource"],
       "headline": "Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS",
-      "description": "Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. See why this trick beats Metropolis when you have multiple unknowns.",
+      "description": "Build a Gibbs sampler from scratch in R for the classic mean-and-variance problem. Understand why this trick beats Metropolis on multi-parameter models.",
       "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
       "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
       "url": "https://r-statistics.co/Gibbs-Sampling-in-R.html",
@@ -250,75 +250,62 @@
 <h1>Gibbs Sampling in R From Scratch: The MCMC Trick That Powers JAGS</h1>
 <div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published May 10, 2026 &nbsp;&middot;&nbsp; Last updated May 10, 2026</div>
 
-<p class="lead">You measured how long 20 customers waited at your counter. You want two numbers from this data: the typical wait, and how much waits vary from one customer to the next. Both unknown, both with honest uncertainty. There's a sampling trick called Gibbs sampling that handles this in about 30 lines of base R. It's the algorithm at the heart of JAGS, and once you see it work you'll understand why two unknowns <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> easier than one when you set it up right.</p>
+<p class="lead">You measured how long 20 customers waited at your counter and you want two numbers from that data: the typical wait, and how much waits vary from one customer to the next. Both unknown, both with honest uncertainty around them. There is a sampling trick called Gibbs sampling that handles this in about 30 lines of base R. It is the algorithm at the heart of JAGS, and once you see it work you will understand why two unknowns <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> easier than one when you set the problem up right.</p>
 
-<div class="engagement-header" data-difficulty="Intermediate" data-time="45" data-exercises="9" data-xp="135"></div>
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
 
 <h2>What if you want to estimate two things from data at once?</h2>
 
-<p>In the previous post in this section, you saw an MCMC sampler that estimated a single unknown (a click-through rate). That sampler was a small loop: at each step it proposed a tiny random move, accepted or rejected based on a density ratio, and stored the resulting chain. Over thousands of iterations, the stored values were a sample from the posterior over that one rate.</p>
+<p>In the previous post you saw an MCMC sampler that estimated a single unknown, a click-through rate, by proposing tiny random moves and accepting them with the right probability. That sampler had one parameter to track. Now there are two: the mean wait time and the spread around it.</p>
 
-<p>Now we have two unknowns instead of one. Suppose you ran a small operations study and recorded 20 customer wait times in seconds. You want to summarise this data the Bayesian way: a posterior over the typical wait (call it the <em>mean</em>), and a separate posterior over how much waits vary (call it the <em>standard deviation</em>). The trouble is, both are unknown at the same time. Estimating one assumes you know the other, but you don't.</p>
+<p>You could extend the previous sampler to two dimensions. It works, but it is awkward. You have to tune a step size for each direction, most random 2D proposals land in implausible regions, and the chain stalls on the long thin shape that two-parameter posteriors usually have. Gibbs sampling is the alternative that exploits the geometry instead of fighting it.</p>
 
-<p>You could extend the previous post's <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> sampler to two dimensions. It works, but it's awkward. You'd have to propose joint moves in 2D space, tune a step size for each direction, and most proposals would land in low-density regions of the joint posterior because 2D space is bigger than 1D. The acceptance rate drops, the chain mixes slowly, and you spend a lot of effort tuning.</p>
+<p>The full sampler runs on 20 simulated wait times below. The truth in the simulation is mean 120 seconds and standard deviation 15. We pretend we do not know either, and we recover both with full Bayesian uncertainty.</p>
 
-<p>Gibbs sampling is the alternative. It exploits a property the joint posterior usually has: even when you can't sample from it directly, you often <em>can</em> sample from each unknown's distribution if you treat the other as known. Hold the standard deviation fixed and the mean's distribution given that fixed value is something familiar (a Normal). Hold the mean fixed and the standard deviation's distribution given that fixed value is also something R can sample from in one line. Gibbs alternates between these two single-parameter draws, and the resulting chain converges to samples from the joint posterior.</p>
-
-<p>Here's the whole sampler running on 20 simulated wait times. Don't worry about the details of the formulas yet, the next sections walk through each piece. The point is that the answer comes out in seconds and matches what we'd expect from the data.</p>
-
-<div class="webr-container" data-block-title="A Gibbs sampler for mean and variance, end to end">
+<div class="webr-container" data-block-title="Run the full Gibbs sampler end to end">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A Gibbs sampler for mean and variance, end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run the full Gibbs sampler end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
 <span class="cl"></span>
 <span class="cl"><span class="c1"># 20 simulated customer wait times in seconds (truth: mean=120, sd=15)</span></span>
 <span class="cl">wait_times <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Gibbs sampler</span></span>
 <span class="cl">gibbs_mean_var <span class="o">&lt;-</span> <span class="kr">function</span>(y, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
-<span class="cl">  n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">  n    <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
 <span class="cl">  ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
 <span class="cl"></span>
 <span class="cl">  mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">  sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl"></span>
-<span class="cl">  <span class="c1"># Start somewhere reasonable</span></span>
-<span class="cl">  current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
+<span class="cl">  current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)   <span class="c1"># any reasonable starting value works</span></span>
 <span class="cl"></span>
 <span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
-<span class="cl">    <span class="c1"># 1. Sample mean given the current standard deviation</span></span>
+<span class="cl">    <span class="c1"># Sample the mean given the current standard deviation</span></span>
 <span class="cl">    current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
 <span class="cl"></span>
-<span class="cl">    <span class="c1"># 2. Sample variance given the current mean, then take its square root</span></span>
-<span class="cl">    sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">    <span class="c1"># Sample the variance given the new mean, then take the square root</span></span>
+<span class="cl">    sum_sq      <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
 <span class="cl">    current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
 <span class="cl">    current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
 <span class="cl"></span>
 <span class="cl">    mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
 <span class="cl">    sd_samples[i] <span class="o">&lt;-</span> current_sd</span>
 <span class="cl">  }</span>
-<span class="cl"></span>
 <span class="cl">  <span class="nf">list</span>(mu <span class="o">=</span> mu_samples, sd <span class="o">=</span> sd_samples)</span>
 <span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Run it</span></span>
-<span class="cl">chain <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">chain    <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">post_mu  <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]   <span class="c1"># drop first 500 as burn-in</span></span>
+<span class="cl">post_sd  <span class="o">&lt;-</span> chain<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Posterior summaries (drop first 500 as burn-in)</span></span>
-<span class="cl">post_mu <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
-<span class="cl">post_sd <span class="o">&lt;-</span> chain<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">mean</span>(post_mu)</span>
-<span class="cl"><span class="c1">#&gt; [1] 117.5826</span></span>
-<span class="cl"><span class="nf">quantile</span>(post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
-<span class="cl"><span class="c1">#&gt;     2.5%    97.5%</span></span>
-<span class="cl"><span class="c1">#&gt; 110.7203 124.4474</span></span>
-<span class="cl"></span>
-<span class="cl"><span class="nf">mean</span>(post_sd)</span>
-<span class="cl"><span class="c1">#&gt; [1] 15.7912</span></span>
-<span class="cl"><span class="nf">quantile</span>(post_sd, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
-<span class="cl"><span class="c1">#&gt;     2.5%    97.5%</span></span>
-<span class="cl"><span class="c1">#&gt; 11.8943 21.5167</span></span></div>
+<span class="cl"><span class="nf">c</span>(post_mean_mu  <span class="o">=</span> <span class="nf">mean</span>(post_mu),</span>
+<span class="cl">  post_low_mu   <span class="o">=</span> <span class="nf">quantile</span>(post_mu, <span class="m">0.025</span>),</span>
+<span class="cl">  post_high_mu  <span class="o">=</span> <span class="nf">quantile</span>(post_mu, <span class="m">0.975</span>),</span>
+<span class="cl">  post_mean_sd  <span class="o">=</span> <span class="nf">mean</span>(post_sd),</span>
+<span class="cl">  post_low_sd   <span class="o">=</span> <span class="nf">quantile</span>(post_sd, <span class="m">0.025</span>),</span>
+<span class="cl">  post_high_sd  <span class="o">=</span> <span class="nf">quantile</span>(post_sd, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt; post_mean_mu  post_low_mu  post_high_mu  post_mean_sd  post_low_sd post_high_sd</span></span>
+<span class="cl"><span class="c1">#&gt;     117.583       110.720       124.447         15.791        11.894       21.517</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -328,32 +315,31 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through what just happened. The first block of code generated 20 simulated wait times from a Normal distribution with true mean 120 seconds and true standard deviation 15 seconds. We pretend we don't know those true values; we'll try to recover them from the 20 numbers alone.</p>
+<p>Walk through what just happened. The first three lines simulated 20 wait times from a Normal distribution with the truth we will try to recover. Inside <code>gibbs_mean_var</code>, we allocated two vectors to hold the samples and picked a starting standard deviation from the data. The loop ran 5000 times, and each iteration sampled a new mean (using <code>rnorm</code>) and then a new variance (using <code>1 / rgamma</code>).</p>
 
-<p>The function <code>gibbs_mean_var</code> is the sampler. It takes the data and a number of iterations. Inside, it allocates two empty vectors to store the samples it will produce. It picks a starting value for the standard deviation. Then a loop runs <code>n_iter</code> times. Each iteration does two things: it samples a new value for the mean (using a formula we'll explain in the next section), and it samples a new value for the variance (also from a formula coming up). At the end of each iteration, both new values get stored.</p>
+<p>After the loop we dropped the first 500 samples as burn-in. The chain takes a few iterations to find the bulk of the posterior, so those early values are not representative. The remaining 4500 samples are draws from the joint posterior over the mean and the standard deviation.</p>
 
-<p>After the loop, we drop the first 500 samples as burn-in (the chain takes a few iterations to find the bulk of the posterior; those early samples aren't representative). We then compute <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> on the remaining 4500 samples.</p>
+<p>Now read the output. The posterior mean for the underlying typical wait is 117.6 seconds with a 95% range of 110.7 to 124.4. The truth was 120, recovered within sample noise. The posterior mean for the standard deviation is 15.8 with a 95% range of 11.9 to 21.5; the truth was 15, also recovered.</p>
 
-<p>Now read the output. The posterior mean for the underlying typical wait is 117.6 seconds, with a 95% range of [110.7, 124.4]. The true value (which we know from the simulation) was 120, so the chain found it within sample noise. The posterior mean for the underlying standard deviation is 15.8 seconds with a 95% range of [11.9, 21.5]. The true value was 15, again recovered within sample noise.</p>
-
-<p>That's the entire pipeline. Two unknowns, both estimated jointly with full posterior distributions, in 5000 iterations of base R, no specialised package required. The next section unpacks why the two <code>rnorm</code>-and-<code>rgamma</code> lines actually work.</p>
+<p>That is the entire pipeline. Two unknowns, joint posterior, no specialised package, in 5000 iterations of base R. The next sections unpack why the two single-line draws of <code>rnorm</code> and <code>rgamma</code> actually produce samples from the joint distribution.</p>
 
 <p><img src="screenshots/Gibbs-Sampling-in-R-cycle.webp" alt="One cycle of Gibbs sampling" class="img-responsive img-zoomable" loading="lazy" width="2248" height="370" /></p>
 
-<p><em>Figure 1: One cycle of Gibbs sampling. Hold one unknown fixed, sample the other from its conditional distribution. Then flip and do it again.</em></p>
+<p><em>Figure 1: One cycle of Gibbs sampling. Hold one unknown fixed, sample the other from its conditional. Then flip and repeat.</em></p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gibbs sampling turns a hard joint-distribution problem into a chain of easy single-parameter draws.</strong> You never need to sample directly from the 2D posterior over both unknowns at once. You only need to know how to sample one unknown when the other is given. R already provides those one-dimensional sampling functions for almost every standard distribution.</div></div>
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gibbs sampling turns a hard joint-distribution problem into a chain of easy single-parameter draws.</strong> You never need to sample directly from the 2D posterior. You only need to know how to sample one unknown when the other is given. R already provides those one-dimensional functions for almost every standard distribution.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Re-run the sampler with a smaller dataset of just 5 wait times. Does the 95% range get wider, as you'd expect when there's less data?</p>
+<p><strong>Try it:</strong> Re-run the sampler with only 5 wait times instead of 20. The 95% range of the posterior mean should widen, because less data means more uncertainty.</p>
 <div class="webr-container" data-block-title="Your turn: smaller dataset">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: smaller dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
+<span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Run gibbs_mean_var on ex_y for 5000 iterations</span></span>
-<span class="cl"><span class="c1"># Drop the first 500 as burn-in and compute the 95% range of the mean samples</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: 95% range much wider than [110.7, 124.4] from 20 observations</span></span></div>
+<span class="cl"><span class="c1"># Run gibbs_mean_var(ex_y, 5000), drop the first 500 as burn-in,</span></span>
+<span class="cl"><span class="c1"># and compute quantile(post_mu, c(0.025, 0.975)).</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: a 95% range much wider than [110.7, 124.4] from 20 observations</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -362,19 +348,20 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container" data-block-title="Smaller dataset solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smaller dataset solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">99</span>)</span>
-<span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
-<span class="cl">ex_chain <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(ex_y, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">ex_y       <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">5</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl">ex_chain   <span class="o">&lt;-</span> <span class="nf">gibbs_mean_var</span>(ex_y, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
 <span class="cl">ex_post_mu <span class="o">&lt;-</span> ex_chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">quantile</span>(ex_post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
 <span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
-<span class="cl"><span class="c1">#&gt; 105.3812 132.4711</span></span></div>
+<span class="cl"><span class="c1">#&gt; 105.3812  132.4711</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -384,40 +371,38 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The 95% range with 5 observations is roughly [105, 132], a span of 27 seconds. The earlier run with 20 observations had a span of about 14 seconds. Less data means more uncertainty, exactly as it should. Notice you didn't change the algorithm at all to get this result, just the input data.</p>
+<p>The 95% range with 5 observations is roughly 105 to 132, a span of 27 seconds. The earlier run with 20 observations had a span of about 14 seconds. Less data, more uncertainty: the algorithm responded automatically, no code change needed.</p>
 
 </details>
 </section>
 
 <h2>Why doesn't the MCMC trick from before work as well in 2D?</h2>
 
-<p>The Metropolis-Hastings sampler from the previous post worked beautifully for one unknown. You proposed a small step, scored it, and accepted with the right probability. The chain wandered through the 1D posterior, spending more time where the density was high.</p>
+<p>The <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">Metropolis-Hastings</a> sampler from the previous post worked beautifully for one unknown. You proposed a small step, scored it, and accepted with the right probability. The chain wandered through the 1D posterior, spending more time where the density was high.</p>
 
-<p>Now imagine doing the same thing for two unknowns at once. At each iteration, you'd propose a step in 2D, like a small jump along both the mean direction and the standard-deviation direction at the same time. You'd evaluate the joint density at the new point, compute the acceptance ratio, and accept or reject the whole 2D move.</p>
+<p>Doing the same thing for two unknowns at once introduces three new problems.</p>
 
-<p>That works in principle but it gets harder fast. Three problems start showing up:</p>
+<p>The first is <em>step-size tuning</em>. You now need a step size for the mean direction and a step size for the standard-deviation direction. If the two unknowns have very different scales (one in the hundreds, the other in the tens), a single shared step size is the wrong fit for both. You end up tuning a 2x2 <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> instead of one number.</p>
 
-<p>The first problem is <em>step-size tuning</em>. You now need to tune the step size in two directions instead of one. If the mean and the standard deviation move on different scales (one in the hundreds, the other in the tens), a single step size for both is a bad fit. You'd need a 2x2 <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> as your proposal, which is more parameters to tune.</p>
+<p>The second is <em>acceptance rate</em>. In 2D, a random step of fixed size lands in a low-density region more often than in 1D, just because there is more "low-density" area for the same step. So you reject more often, and the chain crawls.</p>
 
-<p>The second problem is <em>acceptance rate</em>. In 2D, a random step is more likely to land in a low-density region than in 1D, just because there's more "low-density" area for the same step size. So you reject more often, and the chain stalls more.</p>
+<p>The third is the <em>geometry</em>. The joint posterior over the mean and the standard deviation is not symmetric. The plausible range of the mean depends on the current standard deviation: a small sigma pins the mean down tightly, a large sigma loosens it. A symmetric 2D proposal cannot follow that, and wastes effort proposing impossible combinations.</p>
 
-<p>The third problem is the fundamental geometry. The joint posterior over the mean and the standard deviation isn't symmetric. The mean's plausible range depends on the current standard deviation: if you think the standard deviation is small, the mean is tightly pinned down; if you think it's large, the mean has a wider plausible range. A symmetric 2D proposal ignores this dependence and wastes effort.</p>
+<p>Gibbs sidesteps all three. There is no step size to tune, because each move is sampled directly from a known distribution. There is no rejection, because every sample comes from the right conditional. The geometry is respected automatically, because each move uses the conditional given the <em>current</em> value of the other unknown.</p>
 
-<p>Gibbs sampling sidesteps all three problems. There's no step size to tune, because each move is sampled directly from a known distribution. There's no rejection, because every sample comes from the right conditional. And the geometry of the joint posterior is respected automatically, because each move uses the conditional distribution given the <em>current</em> value of the other unknown.</p>
+<p>The price is one assumption: you need to know how to sample from each unknown's conditional distribution. For Normal data with no informative prior, the conditionals are well-known closed forms. We will see what happens when they are not in section six.</p>
 
-<p>The price is one assumption. To use Gibbs, you need to know how to sample from each unknown's conditional distribution. Sometimes those conditionals are familiar distributions (Normal, Gamma, Beta) and you can sample with one R function call. Sometimes they aren't, and you have to fall back to Metropolis-Hastings inside the Gibbs cycle. We'll see clean examples of the easy case in this post.</p>
-
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You can mix Gibbs and Metropolis-Hastings.</strong> When most of your conditionals are easy but one or two aren't, you can sample the easy ones via Gibbs and use a Metropolis-Hastings step for the hard ones. The combined algorithm is called <em>Metropolis-within-Gibbs</em> and it's the standard approach in tools like JAGS for moderately complex models.</div></div>
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>You can mix Gibbs and Metropolis-Hastings.</strong> When most of your conditionals are easy but one or two are not, you sample the easy ones via Gibbs and use a Metropolis-Hastings step for the hard ones. This combination is called Metropolis-within-Gibbs and it is the standard approach in tools like JAGS for moderately complex models.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Look at the sampler code from the first section and identify which two lines do the actual sampling work. Write down what distribution each one draws from.</p>
+<p><strong>Try it:</strong> Look at the sampler code from the first section and identify the two lines that produce a new sample inside the loop. Note which distribution each one uses.</p>
 <div class="webr-container" data-block-title="Your turn: identify the sampling lines">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify the sampling lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Open the gibbs_mean_var function from above.</span></span>
-<span class="cl"><span class="c1"># Find the two lines that produce a new sample inside the for-loop.</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Open gibbs_mean_var() from above.</span></span>
+<span class="cl"><span class="c1"># Find the two lines inside the for-loop that draw new samples.</span></span>
 <span class="cl"><span class="c1"># Write a short note: which distribution does each one use?</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: rnorm() for the mean, rgamma() (with 1/...) for the variance</span></span></div>
+<span class="cl"><span class="c1">#&gt; Expected: rnorm() for the mean, 1 / rgamma() for the variance</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -426,23 +411,16 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Identify-sampling-lines solution">
+<p>The two sampling lines inside the loop are:</p>
+
+<div class="webr-container" data-block-title="The two sampling lines">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identify-sampling-lines solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Inside the for-loop:</span></span>
-<span class="cl"><span class="c1"># Line 1: current_mu &lt;- rnorm(1, mean = ybar, sd = current_sd / sqrt(n))</span></span>
-<span class="cl"><span class="c1">#   This is the mean conditional. It&#39;s a Normal distribution centred at the</span></span>
-<span class="cl"><span class="c1">#   sample mean of the data, with standard deviation that shrinks as you get</span></span>
-<span class="cl"><span class="c1">#   more data (the 1/sqrt(n) factor).</span></span>
-<span class="cl"><span class="c1">#</span></span>
-<span class="cl"><span class="c1"># Line 2: current_var &lt;- 1 / rgamma(1, shape = n/2, rate = sum_sq / 2)</span></span>
-<span class="cl"><span class="c1">#   This is the variance conditional. It uses rgamma() and then takes the</span></span>
-<span class="cl"><span class="c1">#   reciprocal. The combination of &quot;draw from Gamma, take reciprocal&quot; is</span></span>
-<span class="cl"><span class="c1">#   how you draw from an Inverse-Gamma distribution, which happens to be</span></span>
-<span class="cl"><span class="c1">#   the conditional posterior of the variance under a Normal data model</span></span>
-<span class="cl"><span class="c1">#   with no informative prior.</span></span></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The two sampling lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">current_mu  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl">current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -452,55 +430,58 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The two lines are doing the actual work of Gibbs. Everything else is bookkeeping (storing samples, looping, dropping burn-in). This is what people mean when they say Gibbs is "just a chain of one-dimensional draws."</p>
+<p>The first uses <code>rnorm()</code> to draw the mean from a Normal distribution. Its centre is the sample mean of the data, and its spread is the current standard deviation divided by <code>sqrt(n)</code>, which is the textbook standard error.</p>
+
+<p>The second uses <code>rgamma()</code> to draw a Gamma random number, then takes the reciprocal. The "draw from Gamma, take reciprocal" pattern is how you sample from an Inverse-<a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Gamma distribution</a> in R, which happens to be the conditional posterior of the variance under a Normal model with no informative prior.</p>
 
 </details>
 </section>
 
 <h2>What's the Gibbs trick, exactly?</h2>
 
-<p>Stripped of math, here's what Gibbs is doing.</p>
+<p>Stripped of math, Gibbs is doing this. Imagine a 2D landscape of plausibility. Height represents how plausible a particular pair of (mean, standard deviation) values is given the data. Most of the volume sits in a roughly elliptical region around the truth, and you want samples in proportion to that height.</p>
 
-<p>Imagine you have a 2D landscape of plausibility, where height represents how plausible a particular combination of mean and standard deviation is given the data. Most of the volume of plausibility is concentrated in a roughly elliptical region around the truth. You want to draw samples from this 2D region in proportion to its height.</p>
+<p>You cannot sample directly from the 2D distribution because R has no function that takes "here is the joint posterior over a Normal model" and gives you a draw. But you can sample slices.</p>
 
-<p>You can't sample directly from the 2D distribution because there's no R function that takes "here's the joint posterior over a Normal model's mean and variance" and gives you a draw. But you <em>can</em> sample slices.</p>
+<p>Pick a horizontal slice through the landscape at a fixed standard deviation. Along that slice, the height varies as you change the mean. The shape of the height along that slice happens to be a Normal distribution; R has <code>rnorm</code>. Sample one mean from that slice.</p>
 
-<p>Pick any horizontal slice through the landscape (a line at a fixed standard deviation). Along that slice, the height varies as you change the mean. The shape of the height along that slice happens to be a Normal distribution. R has <code>rnorm()</code>. Sample one mean from that slice.</p>
+<p>Now pick a vertical slice at the new mean. Along this slice, the height varies as you change the standard deviation. The shape is related to the Inverse-Gamma; R has <code>rgamma</code>, and you can sample Inverse-Gamma by taking the reciprocal. Sample one standard deviation from that slice.</p>
 
-<p>Now pick a vertical slice through the landscape, at the mean you just sampled. Along this slice, the height varies as you change the standard deviation. The shape happens to be related to the Inverse-<a class="auto-link" href="Gamma-and-Beta-Distributions-in-R.html" title="Gamma & Beta Distributions in R: Shape, Scale & Conjugate Priors">Gamma distribution</a>. R has <code>rgamma()</code>, and you can sample the Inverse-Gamma by taking the reciprocal. Sample one standard deviation from that slice.</p>
+<p>Repeat. Slice horizontally at the new sigma, sample a new mean. Slice vertically at the new mean, sample a new sigma. Each slice is one-dimensional, and each one-dimensional slice is a familiar distribution.</p>
 
-<p>Repeat. Slice horizontally at the new standard deviation, sample a new mean. Slice vertically at the new mean, sample a new standard deviation. Each slice is one-dimensional, and each one-dimensional slice happens to be a familiar distribution we can sample from with one R call.</p>
+<p>After thousands of iterations, the collected pairs are samples from the joint 2D posterior. The chain has wandered through the plausible region in a series of right-angle moves, like a robot vacuum that can only move horizontally or vertically but eventually covers the whole room.</p>
 
-<p>After thousands of iterations, the pairs of (mean, standard deviation) you've collected are samples from the joint 2D posterior. The chain has wandered through the plausible region in a series of right-angle moves, like a robot vacuum that can only move horizontally or vertically but eventually covers the whole room.</p>
+<p>The mathematical guarantee, which we will not derive but which holds whenever your conditionals are correct, is that this right-angle wandering produces samples that follow the true joint distribution. Three things to notice:</p>
 
-<p>The mathematical guarantee, which we won't derive but which holds whenever your conditionals are correct, is that this right-angle wandering produces samples that follow the true joint distribution. The proof is in any graduate Bayesian textbook, but the intuition is what we just walked through.</p>
+<ol>
 
-<p>Three things to notice about this picture.</p>
+<li>Every move is accepted (no rejection step).</li>
 
-<p>First, every move is accepted. There's no rejection step, because each draw is directly from the correct conditional. That's the most striking difference from Metropolis-Hastings.</p>
+<li>There is no step size to tune (the move size is set by the spread of the conditional itself).</li>
 
-<p>Second, there's no step size to tune. The size of each move is determined by the spread of the conditional distribution itself. If the conditional is tight, the move is small; if it's wide, the move is wide. The algorithm self-tunes.</p>
+<li>Moves are always axis-aligned (which becomes a problem when the two unknowns are highly correlated, see section six).</li>
 
-<p>Third, the moves are always axis-aligned. You move purely along one axis at a time, never diagonally. This is fine for the Normal-data problem we're working through, but it can be slow when the two unknowns are highly correlated. In that case the chain has to take many small horizontal-then-vertical steps to traverse a long diagonal ridge of plausibility. We'll come back to this in the limits section.</p>
+</ol>
 
 <p><img src="screenshots/Gibbs-Sampling-in-R-vs-metropolis.webp" alt="Gibbs vs Metropolis in 2D" class="img-responsive img-zoomable" loading="lazy" width="1118" height="690" /></p>
 
-<p><em>Figure 2: The geometry of the two algorithms. Gibbs takes axis-aligned steps and accepts every move. Metropolis-Hastings takes diagonal steps and has to tune the step size and reject some.</em></p>
+<p><em>Figure 2: Gibbs takes axis-aligned steps and accepts every move. Metropolis takes diagonal steps and has to tune the step size and reject some.</em></p>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Run a tiny version of the sampler that just performs a single Gibbs cycle (one mean draw, one standard-deviation draw) and prints the result. This is the smallest unit of work the algorithm does.</p>
+<p><strong>Try it:</strong> Run a single cycle of Gibbs by hand: starting from <code>current_sd = 20</code>, sample one new mean and one new standard deviation using the formulas from the sampler.</p>
 <div class="webr-container" data-block-title="Your turn: one cycle of Gibbs">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one cycle of Gibbs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
 <span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl">n    <span class="o">&lt;-</span> <span class="nf">length</span>(ex_y)</span>
+<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(ex_y)</span>
+<span class="cl">current_sd <span class="o">&lt;-</span> <span class="m">20</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Start from current_sd = 20</span></span>
-<span class="cl"><span class="c1"># Then do one cycle:</span></span>
-<span class="cl"><span class="c1"># 1. Sample current_mu from rnorm with the formula from gibbs_mean_var</span></span>
-<span class="cl"><span class="c1"># 2. Sample current_var from 1 / rgamma() with the formula</span></span>
-<span class="cl"><span class="c1"># 3. Print both</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: one mean somewhere near 120, one sd somewhere near 15</span></span></div>
+<span class="cl"><span class="c1"># 1. Sample a new mean from rnorm using the formula in gibbs_mean_var</span></span>
+<span class="cl"><span class="c1"># 2. Sample a new variance from 1 / rgamma using the formula</span></span>
+<span class="cl"><span class="c1"># 3. Print c(mu = current_mu, sd = sqrt(current_var))</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: one mean near 120, one sd near 15</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -509,24 +490,23 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="One-cycle-of-Gibbs solution">
+<div class="webr-container" data-block-title="One cycle solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-cycle-of-Gibbs solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">20</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One cycle solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl">ex_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">20</span>, mean <span class="o">=</span> <span class="m">120</span>, sd <span class="o">=</span> <span class="m">15</span>)</span>
+<span class="cl">n    <span class="o">&lt;-</span> <span class="nf">length</span>(ex_y)</span>
 <span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(ex_y)</span>
 <span class="cl">current_sd <span class="o">&lt;-</span> <span class="m">20</span></span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Step 1: sample a new mean given the current standard deviation</span></span>
-<span class="cl">current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Step 2: sample a new variance given the new mean</span></span>
-<span class="cl">sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((ex_y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">current_mu  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl">sum_sq      <span class="o">&lt;-</span> <span class="nf">sum</span>((ex_y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
 <span class="cl">current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
-<span class="cl">current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
 <span class="cl"></span>
-<span class="cl"><span class="nf">c</span>(mu <span class="o">=</span> current_mu, sd <span class="o">=</span> current_sd)</span>
+<span class="cl"><span class="nf">c</span>(mu <span class="o">=</span> current_mu, sd <span class="o">=</span> <span class="nf">sqrt</span>(current_var))</span>
 <span class="cl"><span class="c1">#&gt;      mu       sd</span></span>
 <span class="cl"><span class="c1">#&gt; 122.341   16.452</span></span></div>
     <div class="webr-buttons">
@@ -538,35 +518,34 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>One cycle produced one mean and one standard deviation. Both are reasonable given the data (truth was 120 and 15). If you ran the cycle again with the new <code>current_sd</code>, you'd get another pair, and so on for thousands of iterations. That's the whole sampler.</p>
+<p>One cycle produced one mean and one standard deviation, both reasonable given the truth (120 and 15). Run the cycle again with the new <code>current_sd</code> and you get another pair, and so on for thousands of iterations. That is the whole sampler.</p>
 
 </details>
 </section>
 
 <h2>How do I code Gibbs in R?</h2>
 
-<p>You've already seen the full sampler at the top of this post. Now we'll build it again from a blank line, more slowly, so you can see why each piece is there.</p>
+<p>You already saw the full sampler at the top of the post. Now we build it again from a blank line, more slowly, so each piece has a clear job.</p>
 
-<p>The function takes the data and a number of iterations. The first job is to allocate storage for the samples. We need two vectors, one for the mean samples and one for the standard-deviation samples, each of length <code>n_iter</code>. Allocating up front is faster than growing vectors inside the loop.</p>
+<p>The first piece is storage. We need two vectors to hold the samples, and a starting value for the chain. Allocating up front is faster than growing vectors inside the loop.</p>
 
-<div class="webr-container" data-block-title="Step 1: allocate storage and start the chain">
+<div class="webr-container" data-block-title="Step 1: allocate storage and pick a start">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: allocate storage and start the chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> wait_times</span>
-<span class="cl">n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
-<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 1: allocate storage and pick a start</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">y      <span class="o">&lt;-</span> wait_times</span>
+<span class="cl">n      <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">ybar   <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
 <span class="cl">n_iter <span class="o">&lt;-</span> <span class="m">5000</span></span>
 <span class="cl"></span>
 <span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Start the chain at the sample standard deviation. Any reasonable starting</span></span>
-<span class="cl"><span class="c1"># value works; the chain will find the posterior either way after burn-in.</span></span>
+<span class="cl"><span class="c1"># Start the chain at the sample standard deviation of the data</span></span>
 <span class="cl">current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">c</span>(starting_sd <span class="o">=</span> current_sd, n_iter <span class="o">=</span> n_iter, n_obs <span class="o">=</span> n)</span>
-<span class="cl"><span class="c1">#&gt;  starting_sd       n_iter        n_obs</span></span>
-<span class="cl"><span class="c1">#&gt;     14.83925   5000.00000     20.00000</span></span></div>
+<span class="cl"><span class="c1">#&gt; starting_sd      n_iter      n_obs</span></span>
+<span class="cl"><span class="c1">#&gt;    14.83925   5000.00000   20.00000</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -576,47 +555,35 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through what the code does. The first three lines copy the data into a local variable, count its length, and compute the sample mean once. We'll reuse <code>ybar</code> inside the loop, so it pays to compute it just once now. The next two lines allocate empty <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> of length 5000, ready to hold the samples we're about to draw. The last line sets the chain's starting standard deviation. We chose <code>sd(y)</code> because it's a reasonable starting point: the sample standard deviation of the observed data is at least in the right ballpark.</p>
+<p>Walk through what we just set up. Lines 1 to 4 copied the data into a local variable, computed its length, and computed its mean once (we will reuse <code>ybar</code> inside the loop). Lines 6 and 7 allocated empty <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> of length 5000. Line 10 set the starting standard deviation; using <code>sd(y)</code> is reasonable because the sample standard deviation of the data is at least in the right ballpark.</p>
 
-<p>The output confirms that we're starting with <code>current_sd = 14.84</code> (close to the truth of 15), planning 5000 iterations, with 20 observations. The setup is ready.</p>
+<p>The output confirms a starting <code>current_sd</code> of 14.84 (close to the truth of 15), 5000 planned iterations, and 20 observations. Setup is ready.</p>
 
-<p>Now we need the two sampling formulas, one for the mean and one for the variance. We won't derive these here, they're standard results in Bayesian inference for the Normal model with a non-informative prior. Treat them as recipes:</p>
-
-<p>The conditional posterior of the mean, given a fixed variance, is Normal centred at the sample mean with standard deviation <code>sigma / sqrt(n)</code>, where <code>sigma</code> is the current standard deviation in the chain.</p>
-
-<p>The conditional posterior of the variance, given a fixed mean, is Inverse-Gamma with shape <code>n/2</code> and rate <code>0.5 * sum((y - mu)^2)</code>, where <code>mu</code> is the current mean. To draw from Inverse-Gamma in R, draw from Gamma with the same parameters and take the reciprocal.</p>
-
-<p>These two formulas are everything you need to implement the loop:</p>
+<p>The second piece is the loop. Each iteration draws one mean and one variance using the two formulas from earlier, then stores both samples.</p>
 
 <div class="webr-container" data-block-title="Step 2: the Gibbs loop">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 2: the Gibbs loop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Reset storage and starting value (so this code block is self-contained)</span></span>
 <span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">current_sd <span class="o">&lt;-</span> <span class="nf">sd</span>(y)</span>
 <span class="cl"></span>
 <span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
-<span class="cl">  <span class="c1"># Sample the mean given current standard deviation</span></span>
-<span class="cl">  current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl">  current_mu  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
 <span class="cl"></span>
-<span class="cl">  <span class="c1"># Sample the variance given current mean, then take square root for sd</span></span>
-<span class="cl">  sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  sum_sq      <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
 <span class="cl">  current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
 <span class="cl">  current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
 <span class="cl"></span>
-<span class="cl">  <span class="c1"># Store both</span></span>
 <span class="cl">  mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
 <span class="cl">  sd_samples[i] <span class="o">&lt;-</span> current_sd</span>
 <span class="cl">}</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Quick sanity check on the last 100 samples</span></span>
 <span class="cl"><span class="nf">c</span>(mu_late_mean <span class="o">=</span> <span class="nf">mean</span>(<span class="nf">tail</span>(mu_samples, <span class="m">100</span>)),</span>
 <span class="cl">  sd_late_mean <span class="o">=</span> <span class="nf">mean</span>(<span class="nf">tail</span>(sd_samples, <span class="m">100</span>)))</span>
 <span class="cl"><span class="c1">#&gt; mu_late_mean sd_late_mean</span></span>
-<span class="cl"><span class="c1">#&gt;     117.6432      15.7724</span></span></div>
+<span class="cl"><span class="c1">#&gt;      117.643       15.772</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -626,25 +593,23 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through the loop. Each iteration begins by sampling a new mean. The formula <code>rnorm(1, mean = ybar, sd = current_sd / sqrt(n))</code> says: draw one Normal random number, centred at the sample mean of the data, with standard deviation equal to the current standard deviation divided by the square root of the sample size. The <code>1/sqrt(n)</code> shrinkage is the textbook standard error for the mean, and it's why the conditional gets tighter as you collect more data.</p>
+<p>Walk through the loop body. Each iteration starts by sampling a new mean from a Normal distribution centred at the data mean, with spread shrunk by <code>1 / sqrt(n)</code>. That <code>1 / sqrt(n)</code> is the <a class="auto-link" href="Central-Limit-Theorem-in-R.html" title="Central Limit Theorem in R: Simulate It From Skewed, Bimodal, and Uniform Distributions">standard error of the mean</a>, and it is why the conditional gets tighter as the sample size grows.</p>
 
-<p>The next three lines sample a new variance given the new mean. We compute the sum of squared deviations from the current mean (<code>sum_sq</code>), then draw one Gamma random number with shape <code>n/2</code> and rate <code>sum_sq/2</code>, and finally take its reciprocal to convert from Gamma to Inverse-Gamma. Taking the square root gives us the standard deviation, which we'll use in the next iteration's mean draw.</p>
+<p>The next three lines sample a new variance given the new mean, then take the square root for the standard deviation. The two store statements record both samples in their vectors. By the end of the loop, <code>mu_samples</code> and <code>sd_samples</code> each hold 5000 values.</p>
 
-<p>The last two lines inside the loop store both samples in their respective vectors. The position <code>i</code> keeps moving forward, so by the end of the loop, <code>mu_samples</code> and <code>sd_samples</code> each contain 5000 values.</p>
+<p>The sanity check on the last 100 samples shows a mean of 117.6 and a standard deviation of 15.8, matching the full-run result and the truth. The sampler is working.</p>
 
-<p>The output of the sanity check shows that the last 100 samples have a mean of 117.6 (very close to our earlier full-run result) and a standard deviation of 15.8. Both numbers match what we'd hope for given a true mean of 120 and a true standard deviation of 15. The sampler is working.</p>
-
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check that your sampler produces the right answer on a simulated dataset before trusting it on real data.</strong> Generate data with known parameters, run the sampler, and verify the posterior contains the truth. If it doesn't, your conditionals are probably wrong or your starting values are pathological.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always validate a sampler on <a class="auto-link" href="Synthetic-Data-in-R.html" title="Synthetic Data Generation in R: Protect Privacy While Testing Models">simulated data</a> with known parameters before trusting it on real data.</strong> Generate fake data, run the sampler, and confirm the posterior contains the truth. If it does not, your conditionals are probably wrong or your starting values are pathological.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Modify the loop to also store <code>sum_sq</code> at each iteration. Then compute its mean across all iterations. Does it match <code>sum((y - ybar)^2)</code> (the sum of squared deviations using the data mean)?</p>
+<p><strong>Try it:</strong> Add a third vector <code>ss_samples</code> and store <code>sum_sq</code> at every iteration. Compare its mean across iterations to <code>sum((y - mean(y))^2)</code>.</p>
 <div class="webr-container" data-block-title="Your turn: track sum_sq">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: track sum_sq</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Add a third numeric vector ss_samples of length n_iter</span></span>
-<span class="cl"><span class="c1"># Inside the loop, store sum_sq into ss_samples[i] after computing it</span></span>
-<span class="cl"><span class="c1"># After the loop, compute mean(ss_samples) and compare to sum((y - mean(y))^2)</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: the means are close, with the chain mean slightly larger</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Add ss_samples &lt;- numeric(n_iter)</span></span>
+<span class="cl"><span class="c1"># Store ss_samples[i] &lt;- sum_sq inside the loop after computing it</span></span>
+<span class="cl"><span class="c1"># After the loop, compare mean(ss_samples) to sum((y - mean(y))^2)</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: chain mean is slightly larger than the data-mean version</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -653,11 +618,12 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Track-sum_sq solution">
+<div class="webr-container" data-block-title="Track sum_sq solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track-sum_sq solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Track sum_sq solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">ss_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
@@ -665,10 +631,10 @@
 <span class="cl"></span>
 <span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
 <span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
-<span class="cl">  current_mu <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
-<span class="cl">  sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">  current_mu  <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> ybar, sd <span class="o">=</span> current_sd <span class="o">/</span> <span class="nf">sqrt</span>(n))</span>
+<span class="cl">  sum_sq      <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
 <span class="cl">  current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
-<span class="cl">  current_sd <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
+<span class="cl">  current_sd  <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
 <span class="cl"></span>
 <span class="cl">  ss_samples[i] <span class="o">&lt;-</span> sum_sq</span>
 <span class="cl">  mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
@@ -676,9 +642,9 @@
 <span class="cl">}</span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">c</span>(chain_mean_ss <span class="o">=</span> <span class="nf">mean</span>(ss_samples),</span>
-<span class="cl">  data_mean_ss <span class="o">=</span> <span class="nf">sum</span>((y <span class="o">-</span> <span class="nf">mean</span>(y))<span class="o">^</span><span class="m">2</span>))</span>
+<span class="cl">  data_mean_ss  <span class="o">=</span> <span class="nf">sum</span>((y <span class="o">-</span> <span class="nf">mean</span>(y))<span class="o">^</span><span class="m">2</span>))</span>
 <span class="cl"><span class="c1">#&gt; chain_mean_ss  data_mean_ss</span></span>
-<span class="cl"><span class="c1">#&gt;     4525.116      4181.247</span></span></div>
+<span class="cl"><span class="c1">#&gt;      4525.116      4181.247</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -688,16 +654,16 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The chain's average <code>sum_sq</code> (4525) is slightly larger than the data-mean version (4181). That's because each iteration's <code>sum_sq</code> uses the chain's current <code>mu</code>, which jitters around the data mean rather than sitting on it exactly. The extra variance in <code>mu</code> adds a small amount to <code>sum_sq</code> on average. This is a real property of the algorithm, not a bug: it's why the variance posterior reflects both the data's spread <em>and</em> the residual uncertainty in the mean.</p>
+<p>The chain's average <code>sum_sq</code> (4525) is slightly larger than the data-mean version (4181). Each iteration's <code>sum_sq</code> is computed against the chain's <em>current</em> <code>mu</code>, which jitters around the data mean rather than sitting on it. The extra jitter inflates <code>sum_sq</code> slightly on average. This is a real property of the algorithm: it is why the posterior on the variance reflects both the data's spread and the residual uncertainty in the mean.</p>
 
 </details>
 </section>
 
 <h2>How do I check that the sampler actually worked?</h2>
 
-<p>Three diagnostics. Trace plots, comparison against the data's empirical statistics, and convergence across multiple chains.</p>
+<p>Three diagnostics. Trace plots, comparison against the data, and convergence across multiple chains starting from different seeds.</p>
 
-<p>A trace plot is the simplest: plot each sample value against its iteration number. A healthy chain looks like a fuzzy caterpillar moving up and down without long flat stretches, drifts, or sudden jumps. We'll plot one for the mean samples and one for the standard-deviation samples.</p>
+<p>A <em>trace plot</em> shows each sample value against its iteration number. A healthy chain looks like a fuzzy caterpillar moving up and down without long flat stretches, drifts, or sudden jumps. We plot one for the mean and one for the standard deviation.</p>
 
 <div class="webr-container" data-block-title="Step 3: trace plots and posterior densities">
   <div class="webr-code-block">
@@ -706,23 +672,17 @@
 <span class="cl"></span>
 <span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">2</span>, <span class="m">2</span>), mar <span class="o">=</span> <span class="nf">c</span>(<span class="m">4</span>, <span class="m">4</span>, <span class="m">2</span>, <span class="m">1</span>))</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Trace of mu samples</span></span>
 <span class="cl"><span class="nf">plot</span>(chain<span class="o">$</span>mu, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>,</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Trace of mu&quot;</span>)</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Trace of mu&quot;</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Trace of sigma samples</span></span>
 <span class="cl"><span class="nf">plot</span>(chain<span class="o">$</span>sd, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>,</span>
-<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>,</span>
-<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Trace of sd&quot;</span>)</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Trace of sd&quot;</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Posterior density for mu (after burn-in)</span></span>
 <span class="cl"><span class="nf">hist</span>(chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)], breaks <span class="o">=</span> <span class="m">40</span>, col <span class="o">=</span> <span class="s">&quot;lightblue&quot;</span>, border <span class="o">=</span> <span class="s">&quot;white&quot;</span>,</span>
-<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior density of mu&quot;</span>)</span>
+<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;mean (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior of mu&quot;</span>)</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Posterior density for sigma (after burn-in)</span></span>
 <span class="cl"><span class="nf">hist</span>(chain<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)], breaks <span class="o">=</span> <span class="m">40</span>, col <span class="o">=</span> <span class="s">&quot;lightpink&quot;</span>, border <span class="o">=</span> <span class="s">&quot;white&quot;</span>,</span>
-<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior density of sd&quot;</span>)</span>
+<span class="cl">     freq <span class="o">=</span> <span class="kc">FALSE</span>, xlab <span class="o">=</span> <span class="s">&quot;sd (sec)&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Posterior of sd&quot;</span>)</span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span></div>
     <div class="webr-buttons">
@@ -734,30 +694,29 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through what the plot shows. The two top panels are trace plots for the mean and the standard deviation. Each one is just the corresponding samples vector plotted against its index. The bottom two panels are histograms of the post-burn-in samples, showing the marginal posterior density for each unknown.</p>
+<p>Walk through what the plot shows. The two top panels are trace plots: <code>mu_samples</code> and <code>sd_samples</code> plotted against their indices. The two bottom panels are histograms of the post-burn-in samples, giving the marginal posterior for each unknown.</p>
 
-<p>What you should see when you run this. The two trace plots both look like horizontal fuzzy bands. The mean trace stays roughly between 110 and 125. The standard deviation trace stays roughly between 11 and 22. There are no upward or downward drifts, no long flat stretches, no sudden jumps. That's a converged chain.</p>
+<p>What you should see when you run this. Both trace plots are horizontal fuzzy bands without drift. The mean trace stays roughly between 110 and 125; the sd trace stays roughly between 11 and 22.</p>
 
-<p>The two histograms are roughly bell-shaped, slightly skewed for the standard deviation (which can never be negative). The mean's histogram is centred around 117-118, and the standard deviation's around 15-16. These match the summary statistics we computed earlier and they sit very close to the truth.</p>
+<p>Both histograms are bell-shaped, the sd histogram slightly skewed because it cannot be negative. The mean histogram is centred around 117 to 118 and the sd histogram around 15 to 16, matching the <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> we computed earlier.</p>
 
-<p>The third diagnostic is the multiple-chain check. If you start the sampler from very different starting points and all the chains converge to the same posterior, you can trust the result. If they end up in different places, your sampler hasn't converged.</p>
+<p>The third diagnostic is the multiple-chain check. If you start the sampler from different random seeds and all chains converge to the same posterior, you can trust the result.</p>
 
 <div class="webr-container" data-block-title="Step 4: multiple chains from different starts">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Step 4: multiple chains from different starts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Run 4 chains, each starting from a different seed</span></span>
-<span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">4</span>, <span class="kr">function</span>(seed) {</span>
+    <div class="webr-editor" data-language="r"><span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">4</span>, <span class="kr">function</span>(seed) {</span>
 <span class="cl">  <span class="nf">set.seed</span>(seed)</span>
 <span class="cl">  <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
 <span class="cl">})</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># Compare each chain&#39;s posterior mean for mu, after burn-in</span></span>
-<span class="cl"><span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
-<span class="cl"><span class="c1">#&gt; [1] 117.62 117.55 117.59 117.51</span></span>
+<span class="cl">mu_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
+<span class="cl">sd_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
 <span class="cl"></span>
-<span class="cl"><span class="c1"># And the posterior mean for sd</span></span>
-<span class="cl"><span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">2</span>))</span>
-<span class="cl"><span class="c1">#&gt; [1] 15.79 15.82 15.78 15.85</span></span></div>
+<span class="cl"><span class="nf">rbind</span>(mu <span class="o">=</span> mu_means, sd <span class="o">=</span> sd_means)</span>
+<span class="cl"><span class="c1">#&gt;       [,1]   [,2]   [,3]   [,4]</span></span>
+<span class="cl"><span class="c1">#&gt; mu  117.62 117.55 117.59 117.51</span></span>
+<span class="cl"><span class="c1">#&gt; sd   15.79  15.82  15.78  15.85</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -767,21 +726,25 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Walk through the diagnostic. We ran the sampler four separate times, each with a different random seed, so each chain has its own random sequence of proposals and starting state. After burn-in, we computed each chain's posterior mean for both unknowns.</p>
+<p>Walk through what we just did. We ran the sampler four separate times with different seeds, so each chain has its own random sequence. After burn-in, we computed each chain's posterior mean for both unknowns.</p>
 
-<p>The four estimates of the posterior mean of <code>mu</code> are 117.62, 117.55, 117.59, and 117.51, all within 0.15 of each other. The four estimates of the posterior mean of <code>sd</code> are similarly close: 15.79, 15.82, 15.78, 15.85. All four chains found the same posterior. The sampler is converged. If we'd seen, say, one chain at 117 and another at 130, we'd know something was wrong.</p>
+<p>The four posterior means for <code>mu</code> are 117.62, 117.55, 117.59, and 117.51, all within 0.15 of each other. The four sd means are 15.79, 15.82, 15.78, and 15.85. All four chains found the same posterior, which is what convergence looks like. If we had seen one chain at 117 and another at 130, we would know something was wrong.</p>
 
-<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run multiple chains by default.</strong> It costs nothing in code (just a <code>lapply</code> wrapper) and catches a class of bugs that a single chain would silently hide: stuck modes, insufficient burn-in, pathological starting values. Tools like JAGS, brms, and Stan run four chains by default for exactly this reason.</div></div>
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run multiple chains by default.</strong> It costs almost nothing in code and catches a class of bugs that a single chain hides: stuck modes, insufficient burn-in, pathological starting values. Production tools like JAGS, brms, and Stan run four chains by default for exactly this reason.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Run two chains and check whether the standard deviation of their posterior means is small enough to trust. Use the rule of thumb that the standard deviation of the chain-level means should be much smaller than the within-chain standard deviation.</p>
-<div class="webr-container" data-block-title="Your turn: across-chain vs within-chain spread">
+<p><strong>Try it:</strong> Compute the ratio of across-chain spread to within-chain spread for <code>mu</code>. The ratio should be very small (well below 0.1) if the chains agree.</p>
+<div class="webr-container" data-block-title="Your turn: across vs within">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: across-chain vs within-chain spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Run 2 chains</span></span>
-<span class="cl"><span class="c1"># Compute mean(post_mu) for each chain (across-chain spread)</span></span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: across vs within</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">2</span>, <span class="kr">function</span>(seed) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
+<span class="cl">  <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
+<span class="cl">})</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute mean(post_mu) for each chain (across-chain spread = sd of those means)</span></span>
 <span class="cl"><span class="c1"># Compute sd(post_mu) for the first chain (within-chain spread)</span></span>
-<span class="cl"><span class="c1"># The ratio sd(across)/sd(within) should be very small if converged</span></span>
+<span class="cl"><span class="c1"># Print the ratio</span></span>
 <span class="cl"><span class="c1">#&gt; Expected: ratio well below 0.1</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -791,24 +754,20 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
-<div class="webr-container" data-block-title="Across-vs-within solution">
+<div class="webr-container" data-block-title="Across vs within solution">
   <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Across-vs-within solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">chains <span class="o">&lt;-</span> <span class="nf">lapply</span>(<span class="m">1</span><span class="o">:</span><span class="m">2</span>, <span class="kr">function</span>(seed) {</span>
-<span class="cl">  <span class="nf">set.seed</span>(seed)</span>
-<span class="cl">  <span class="nf">gibbs_mean_var</span>(wait_times, n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
-<span class="cl">})</span>
-<span class="cl"></span>
-<span class="cl">post_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]))</span>
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Across vs within solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">post_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">mean</span>(c<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]))</span>
 <span class="cl">within_sd  <span class="o">&lt;-</span> <span class="nf">sd</span>(chains[[<span class="m">1</span>]]<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)])</span>
 <span class="cl"></span>
 <span class="cl"><span class="nf">c</span>(across_chain_sd <span class="o">=</span> <span class="nf">sd</span>(post_means),</span>
 <span class="cl">  within_chain_sd <span class="o">=</span> within_sd,</span>
-<span class="cl">  ratio <span class="o">=</span> <span class="nf">sd</span>(post_means) <span class="o">/</span> within_sd)</span>
-<span class="cl"><span class="c1">#&gt; across_chain_sd within_chain_sd           ratio</span></span>
-<span class="cl"><span class="c1">#&gt;      0.04949747      3.50012108      0.01414163</span></span></div>
+<span class="cl">  ratio           <span class="o">=</span> <span class="nf">sd</span>(post_means) <span class="o">/</span> within_sd)</span>
+<span class="cl"><span class="c1">#&gt; across_chain_sd  within_chain_sd            ratio</span></span>
+<span class="cl"><span class="c1">#&gt;          0.0495           3.5001           0.0141</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -818,34 +777,37 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The across-chain spread is 0.05, the within-chain spread is 3.50, and the ratio is 0.014. That's well below 0.1, so the chains agree on the posterior. The Gelman-Rubin R-hat statistic, which is the formal version of this rule, would be close to 1.0 here.</p>
+<p>The across-chain spread is 0.05 and the within-chain spread is 3.50; the ratio is 0.014, well below 0.1. The chains agree on the posterior. The Gelman-Rubin Rhat statistic (the formal version of this idea) would be close to 1.0.</p>
 
 </details>
 </section>
 
 <h2>When does Gibbs sampling break down, and what do you do then?</h2>
 
-<p>Gibbs is excellent when the conditionals are easy to sample from, but it has limits. Three situations cause trouble.</p>
+<p>Gibbs is excellent when the conditionals are easy, but it has limits. Three situations cause trouble in real models.</p>
 
-<p>The first is when one or more conditionals don't have a clean R function. Suppose your model is more complex and the conditional for one unknown is a non-standard distribution that no <code>r*</code> function in base R can sample from directly. You can't run pure Gibbs anymore. The standard fix is <em>Metropolis-within-Gibbs</em>: replace the troublesome conditional draw with a small Metropolis-Hastings step inside the Gibbs cycle. The rest of the algorithm stays the same, you just have one step that proposes-and-rejects instead of sampling directly.</p>
+<p>The first is when one or more conditionals are not standard distributions. Then you cannot just call <code>rnorm</code> or <code>rgamma</code>. The standard fix is <em>Metropolis-within-Gibbs</em>: replace the troublesome draw with a small Metropolis-Hastings step inside the cycle. The rest of the algorithm stays the same.</p>
 
-<p>The second is when the unknowns are highly correlated. Imagine the joint posterior is a long, narrow diagonal ridge in 2D. Gibbs can only move along axes, so the chain has to take many tiny axis-aligned steps to traverse the ridge. Each individual sample is fine, but consecutive samples are very similar (highly autocorrelated), and you need many more iterations to get an effectively independent sample. The fix is either to <em>reparameterise</em> the model so the unknowns are less correlated, or to switch to <em>Hamiltonian Monte Carlo</em> (HMC), which can take diagonal moves informed by the posterior's geometry.</p>
+<p>The second is when the unknowns are highly correlated. The joint posterior is then a long thin diagonal ridge, and Gibbs can only move along axes. The chain has to take many tiny axis-aligned steps to traverse the ridge, and consecutive samples are almost identical. Two fixes: <em>reparameterise</em> the model so the unknowns are less correlated, or switch to <em>Hamiltonian Monte Carlo</em> (HMC), which can take diagonal moves informed by the posterior's gradient.</p>
 
-<p>The third is when the model has dozens or hundreds of parameters. Pure Gibbs cycles through every parameter at every iteration, which gets slow. JAGS handles this case by being implemented in C. Stan's HMC handles it more efficiently by exploiting gradients. For most one-off analyses with a handful of parameters, our 30-line R sampler is more than fast enough; for production-scale Bayesian models, you'll graduate to JAGS, brms, or Stan.</p>
+<p>The third is when the model has dozens or hundreds of parameters. Pure Gibbs cycles through every parameter every iteration, which gets slow. JAGS handles this case by being implemented in C; Stan handles it more efficiently by using HMC with auto-tuning.</p>
 
-<p>Speaking of JAGS: it's the package that uses Gibbs (and Metropolis-within-Gibbs) under the hood for almost every model you specify. When you write a JAGS model and call it from R via the <code>rjags</code> or <code>R2jags</code> package, you're handing JAGS a model spec, JAGS works out the conditionals automatically, and JAGS runs a Gibbs sampler much like the one we just built. The sampler we wrote is a small, transparent version of what JAGS does on autopilot.</p>
+<p>For one-off analyses with a handful of parameters, our 30-line R sampler is fast enough. For production-scale Bayesian models, you graduate to JAGS, brms, or Stan.</p>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Knowing what's inside JAGS makes you a better user of it.</strong> When JAGS chains mix slowly, you'll know it's probably highly correlated parameters and you'll think about reparameterisation. When JAGS errors say a conditional couldn't be sampled, you'll know the model has a non-standard distribution somewhere. None of this is mysterious once you've coded Gibbs from scratch.</div></div>
+<p>JAGS deserves a specific note. When you write a JAGS model and call it from R via the <code>rjags</code> or <code>R2jags</code> package, you hand JAGS a model spec and JAGS works out the conditionals automatically. JAGS then runs a Gibbs sampler much like the one we just built. The 30-line implementation in this post is a transparent version of what JAGS does on autopilot.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Knowing what's inside JAGS makes you a better user of it.</strong> When JAGS chains mix slowly, you will know it is probably highly correlated parameters and you will think about reparameterisation. When JAGS errors say a conditional could not be sampled, you will know the model has a non-standard distribution somewhere. None of this is mysterious once you have coded Gibbs from scratch.</div></div>
 
 <section class="tryit-block">
-<p><strong>Try it:</strong> Identify which of these three Bayesian models would be hardest for plain Gibbs sampling: (a) a Normal model with mean and variance unknown, (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> a regression with 50 highly-correlated predictors, (c) a hierarchical model with a custom non-standard likelihood. Match each to the limitation it triggers.</p>
+<p><strong>Try it:</strong> Match each model below to the limitation it triggers: (a) Normal model with mean and variance unknown, (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> regression with 50 highly-correlated predictors, (c) hierarchical model with a custom non-standard likelihood.</p>
 <div class="webr-container" data-block-title="Your turn: identify Gibbs limitations">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: identify Gibbs limitations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># (a) Normal mean + variance: ?</span></span>
-<span class="cl"><span class="c1"># (b) 50 correlated regression predictors: ?</span></span>
-<span class="cl"><span class="c1"># (c) hierarchical model with custom likelihood: ?</span></span>
-<span class="cl"><span class="c1">#&gt; Expected: (a) clean, no problem. (b) slow mixing due to correlation. (c) needs Metropolis-within-Gibbs.</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># (a) Normal mean + variance         -&gt; ?</span></span>
+<span class="cl"><span class="c1"># (b) 50 correlated regression coefs -&gt; ?</span></span>
+<span class="cl"><span class="c1"># (c) hierarchical custom likelihood -&gt; ?</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: (a) clean, no problem. (b) slow mixing from correlation.</span></span>
+<span class="cl"><span class="c1">#&gt;           (c) needs Metropolis-within-Gibbs.</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -854,44 +816,39 @@
   </div>
   <div class="webr-plot-output"></div>
 </div>
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
-<p>(a) Normal mean and variance is exactly the case we just worked through. Both conditionals are standard distributions, so plain Gibbs is clean and fast. No issue.</p>
+<p>(a) Normal mean + variance is the case we just built. Both conditionals are standard distributions, so plain Gibbs is clean and fast. No issue.</p>
 
-<p>(b) 50 correlated regression predictors is the slow-mixing case. Gibbs can only move one coefficient at a time, and the diagonal correlation structure means you need many cycles to explore the joint posterior. The fix is reparameterisation (orthogonalise the predictors) or a smarter sampler like HMC.</p>
+<p>(b) 50 correlated regression predictors is the slow-mixing case. Gibbs can only move one coefficient at a time, and the diagonal correlation structure means many cycles are needed to explore the joint posterior. The fix is to orthogonalise the predictors or use HMC.</p>
 
-<p>(c) Hierarchical model with a custom likelihood is the Metropolis-within-Gibbs case. Some parameters might have nice conditionals (the hierarchical priors usually do), but the data-level parameters with a custom likelihood don't have a closed-form conditional. You sample those with Metropolis-Hastings inside the Gibbs cycle.</p>
-
-<p>Each limitation has a known fix, and recognising which limitation you're hitting is the first step.</p>
+<p>(c) Hierarchical model with custom likelihood is the Metropolis-within-Gibbs case. Some parameters have nice conditionals (the hierarchical priors usually do), but the data-level parameters with a custom likelihood do not have closed forms. You sample those with a Metropolis-Hastings step inside the Gibbs cycle.</p>
 
 </details>
 </section>
 
 <h2>Practice Exercises</h2>
 
-<h3>Exercise 1: Run on real data with informative priors</h3>
+<h3>Exercise 1: Run on real data with an informative prior</h3>
 
-<p>The example used a flat (non-informative) prior, which gave us conditionals that depend only on the data. Real Bayesian work often uses informative priors. Modify the sampler so that the mean has a Normal(120, 5²) prior (centred at 120 with standard deviation 5). The conditional posterior for the mean given the variance becomes a precision-weighted average of the prior mean and the data mean, similar to what you saw in the Conjugate Priors post. Update the formula and re-run.</p>
+<p>The example used a flat prior on the mean. Real Bayesian work often uses an informative prior. Modify the sampler so the mean has a <code>Normal(120, 5^2)</code> prior. The conditional posterior for the mean given the variance becomes a precision-weighted average of the prior mean and the data mean.</p>
 
 <div class="webr-container" data-block-title="Exercise 1 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> wait_times</span>
-<span class="cl">n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
-<span class="cl">ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Prior on mean: Normal(120, 5^2)</span></span>
+    <div class="webr-editor" data-language="r"><span class="cl">y          <span class="o">&lt;-</span> wait_times</span>
+<span class="cl">n          <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">ybar       <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
 <span class="cl">prior_mean <span class="o">&lt;-</span> <span class="m">120</span></span>
 <span class="cl">prior_var  <span class="o">&lt;-</span> <span class="m">25</span></span>
 <span class="cl"></span>
-<span class="cl">gibbs_with_prior <span class="o">&lt;-</span> <span class="kr">function</span>(y, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
-<span class="cl">  <span class="c1"># 1. Allocate storage</span></span>
-<span class="cl">  <span class="c1"># 2. Inside the loop, replace the mu draw with the precision-weighted version:</span></span>
-<span class="cl">  <span class="c1">#    post_var_mu = 1 / (1/prior_var + n/current_var)</span></span>
-<span class="cl">  <span class="c1">#    post_mean_mu = post_var_mu * (prior_mean/prior_var + n*ybar/current_var)</span></span>
-<span class="cl">  <span class="c1">#    current_mu &lt;- rnorm(1, post_mean_mu, sqrt(post_var_mu))</span></span>
-<span class="cl">  <span class="c1"># 3. Variance draw stays the same</span></span>
-<span class="cl">  <span class="c1"># Return list of mu and sd samples</span></span>
+<span class="cl">gibbs_with_prior <span class="o">&lt;-</span> <span class="kr">function</span>(y, prior_mean <span class="o">=</span> <span class="m">120</span>, prior_var <span class="o">=</span> <span class="m">25</span>, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
+<span class="cl">  <span class="c1"># Inside the loop, replace the mu draw with the precision-weighted version:</span></span>
+<span class="cl">  <span class="c1"># post_var_mu  &lt;- 1 / (1 / prior_var + n / current_var)</span></span>
+<span class="cl">  <span class="c1"># post_mean_mu &lt;- post_var_mu * (prior_mean / prior_var + n * ybar / current_var)</span></span>
+<span class="cl">  <span class="c1"># current_mu   &lt;- rnorm(1, post_mean_mu, sqrt(post_var_mu))</span></span>
+<span class="cl">  <span class="c1"># Variance draw stays the same. Return list(mu=..., sd=...).</span></span>
 <span class="cl">}</span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
@@ -902,27 +859,26 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container" data-block-title="Exercise 1 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">gibbs_with_prior <span class="o">&lt;-</span> <span class="kr">function</span>(y, prior_mean <span class="o">=</span> <span class="m">120</span>, prior_var <span class="o">=</span> <span class="m">25</span>, n_iter <span class="o">=</span> <span class="m">5000</span>) {</span>
-<span class="cl">  n <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
-<span class="cl">  ybar <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
-<span class="cl">  mu_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
-<span class="cl">  sd_samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  n           <span class="o">&lt;-</span> <span class="nf">length</span>(y)</span>
+<span class="cl">  ybar        <span class="o">&lt;-</span> <span class="nf">mean</span>(y)</span>
+<span class="cl">  mu_samples  <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  sd_samples  <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
 <span class="cl">  current_var <span class="o">&lt;-</span> <span class="nf">var</span>(y)</span>
 <span class="cl"></span>
 <span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
-<span class="cl">    <span class="c1"># Mean conditional with informative prior</span></span>
 <span class="cl">    post_var_mu  <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> (<span class="m">1</span> <span class="o">/</span> prior_var <span class="o">+</span> n <span class="o">/</span> current_var)</span>
 <span class="cl">    post_mean_mu <span class="o">&lt;-</span> post_var_mu <span class="o">*</span> (prior_mean <span class="o">/</span> prior_var <span class="o">+</span> n <span class="o">*</span> ybar <span class="o">/</span> current_var)</span>
 <span class="cl">    current_mu   <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, post_mean_mu, <span class="nf">sqrt</span>(post_var_mu))</span>
 <span class="cl"></span>
-<span class="cl">    <span class="c1"># Variance conditional unchanged</span></span>
-<span class="cl">    sum_sq <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
-<span class="cl">    current_var <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
+<span class="cl">    sum_sq       <span class="o">&lt;-</span> <span class="nf">sum</span>((y <span class="o">-</span> current_mu)<span class="o">^</span><span class="m">2</span>)</span>
+<span class="cl">    current_var  <span class="o">&lt;-</span> <span class="m">1</span> <span class="o">/</span> <span class="nf">rgamma</span>(<span class="m">1</span>, shape <span class="o">=</span> n <span class="o">/</span> <span class="m">2</span>, rate <span class="o">=</span> sum_sq <span class="o">/</span> <span class="m">2</span>)</span>
 <span class="cl"></span>
 <span class="cl">    mu_samples[i] <span class="o">&lt;-</span> current_mu</span>
 <span class="cl">    sd_samples[i] <span class="o">&lt;-</span> <span class="nf">sqrt</span>(current_var)</span>
@@ -943,13 +899,13 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>The informative prior pulled the posterior mean toward 120 (the prior centre) compared to the flat-prior version we ran before. With 20 observations the data still dominates, but the prior contributed a small nudge.</p>
+<p>The informative prior pulled the posterior mean toward 120 (the prior centre) compared to the flat-prior 117.6. With 20 observations the data still dominates, but the prior contributed a small nudge toward its centre.</p>
 
 </details>
 
 <h3>Exercise 2: Burn-in and thinning together</h3>
 
-<p>Compute three quantities for the chain from the first section: the post-burn-in posterior mean of <code>mu</code>, the same with thinning every 5th sample (keeping only iterations 500, 505, 510, ...), and the standard error of each estimate. Show that thinning reduces the effective sample size but not the estimate itself.</p>
+<p>For the chain from the first section, compute the post-burn-in posterior mean of <code>mu</code>, the same with thinning every 5th sample, and the within-chain standard deviations of both. Show that thinning reduces the effective sample size but not the estimate.</p>
 
 <div class="webr-container" data-block-title="Exercise 2 starter">
   <div class="webr-code-block">
@@ -958,7 +914,7 @@
 <span class="cl"><span class="c1"># 1. Drop first 500 (burn-in): post &lt;- chain$mu[-(1:500)]</span></span>
 <span class="cl"><span class="c1"># 2. Thin: thin &lt;- post[seq(1, length(post), by = 5)]</span></span>
 <span class="cl"><span class="c1"># 3. Compare mean(post) and mean(thin)</span></span>
-<span class="cl"><span class="c1"># 4. Compare sd(post) and sd(thin) (should be very similar)</span></span></div>
+<span class="cl"><span class="c1"># 4. Compare sd(post) and sd(thin)</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -968,7 +924,8 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container" data-block-title="Exercise 2 solution">
   <div class="webr-code-block">
@@ -983,7 +940,7 @@
 <span class="cl">  post_n    <span class="o">=</span> <span class="nf">length</span>(post),</span>
 <span class="cl">  thin_n    <span class="o">=</span> <span class="nf">length</span>(thin))</span>
 <span class="cl"><span class="c1">#&gt;   post_mean   thin_mean     post_sd     thin_sd      post_n      thin_n</span></span>
-<span class="cl"><span class="c1">#&gt;  117.582569  117.589331    3.469301    3.479301 4500.000000  900.000000</span></span></div>
+<span class="cl"><span class="c1">#&gt;     117.583     117.589       3.469       3.479    4500.000     900.000</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -993,19 +950,19 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Both estimates of the posterior mean are essentially the same (117.58 vs 117.59). The within-chain standard deviation is also unchanged. Thinning didn't bias the answer; it just gave us 900 samples instead of 4500. Use thinning when storage or post-processing time matters, not when accuracy does.</p>
+<p>Both estimates of the posterior mean are essentially identical (117.58 vs 117.59), and within-chain standard deviations match. Thinning gave us 900 samples instead of 4500, with no bias in the estimate. Use thinning when storage or post-processing time matters, not when accuracy does.</p>
 
 </details>
 
 <h3>Exercise 3: Posterior probability of an event</h3>
 
-<p>Use the chain to compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the true typical wait time exceeds 125 seconds. This is the kind of question Bayesian methods answer naturally, but frequentist methods don't.</p>
+<p>Use the chain to compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the true typical wait time exceeds 125 seconds. This is the kind of question Bayesian methods answer naturally.</p>
 
 <div class="webr-container" data-block-title="Exercise 3 starter">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># chain$mu[-(1:500)] holds 4500 post-burn-in samples of mu</span></span>
-<span class="cl"><span class="c1"># The posterior probability that mu &gt; 125 is just the fraction of samples &gt; 125</span></span></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># chain$mu[-(1:500)] holds 4500 post-burn-in samples</span></span>
+<span class="cl"><span class="c1"># The posterior probability mu &gt; 125 is just mean(post_mu &gt; 125).</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1015,14 +972,15 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<details><summary>Click to reveal solution</summary>
+<details>
+<summary>Click to reveal solution</summary>
 
 <div class="webr-container" data-block-title="Exercise 3 solution">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
     <div class="webr-editor" data-language="r"><span class="cl">post_mu <span class="o">&lt;-</span> chain<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
 <span class="cl"><span class="nf">mean</span>(post_mu <span class="o">&gt;</span> <span class="m">125</span>)</span>
-<span class="cl"><span class="c1">#&gt; [1] 0.02266667</span></span></div>
+<span class="cl"><span class="c1">#&gt; [1] 0.0227</span></span></div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -1032,64 +990,13 @@
   <div class="webr-plot-output"></div>
 </div>
 
-<p>There's a 2.3% posterior probability that the true typical wait time exceeds 125 seconds. With only 20 observations this is a weak claim either way, but it's the kind of probabilistic statement Bayesian inference gives you for free: the chain is a sample from the posterior, so any probability over the unknown is just a sample proportion.</p>
+<p>There is a 2.3% posterior probability that the true typical wait exceeds 125 seconds. With only 20 observations this is a weak claim, but it is the kind of probabilistic statement Bayesian inference produces for free: the chain is a sample from the posterior, so any probability over the unknown is just a sample proportion.</p>
 
 </details>
 
-<h2>Complete Example: A Bayesian summary report</h2>
-
-<p>Pull everything together. Assume you ran an operations study and have 30 wait times. Run the Gibbs sampler with a mildly informative prior (Normal(120, 10²) on the mean), produce posterior summaries, and print a small report.</p>
-
-<div class="webr-container" data-block-title="Complete Bayesian summary">
-  <div class="webr-code-block">
-    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete Bayesian summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
-<span class="cl">real_y <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">30</span>, mean <span class="o">=</span> <span class="m">130</span>, sd <span class="o">=</span> <span class="m">18</span>)   <span class="c1"># pretend this is your real data</span></span>
-<span class="cl"></span>
-<span class="cl">chain_full <span class="o">&lt;-</span> <span class="nf">gibbs_with_prior</span>(real_y, prior_mean <span class="o">=</span> <span class="m">120</span>, prior_var <span class="o">=</span> <span class="m">100</span>,</span>
-<span class="cl">                               n_iter <span class="o">=</span> <span class="m">5000</span>)</span>
-<span class="cl"></span>
-<span class="cl">post_mu <span class="o">&lt;-</span> chain_full<span class="o">$</span>mu[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
-<span class="cl">post_sd <span class="o">&lt;-</span> chain_full<span class="o">$</span>sd[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
-<span class="cl"></span>
-<span class="cl">report <span class="o">&lt;-</span> <span class="nf">list</span>(</span>
-<span class="cl">  n            <span class="o">=</span> <span class="nf">length</span>(real_y),</span>
-<span class="cl">  data_mean    <span class="o">=</span> <span class="nf">mean</span>(real_y),</span>
-<span class="cl">  data_sd      <span class="o">=</span> <span class="nf">sd</span>(real_y),</span>
-<span class="cl">  post_mu_mean <span class="o">=</span> <span class="nf">mean</span>(post_mu),</span>
-<span class="cl">  post_mu_cri  <span class="o">=</span> <span class="nf">quantile</span>(post_mu, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)),</span>
-<span class="cl">  post_sd_mean <span class="o">=</span> <span class="nf">mean</span>(post_sd),</span>
-<span class="cl">  post_sd_cri  <span class="o">=</span> <span class="nf">quantile</span>(post_sd, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>)),</span>
-<span class="cl">  prob_mu_above_125 <span class="o">=</span> <span class="nf">mean</span>(post_mu <span class="o">&gt;</span> <span class="m">125</span>)</span>
-<span class="cl">)</span>
-<span class="cl"></span>
-<span class="cl"><span class="c1"># Print it nicely</span></span>
-<span class="cl"><span class="nf">str</span>(report)</span>
-<span class="cl"><span class="c1">#&gt; List of 8</span></span>
-<span class="cl"><span class="c1">#&gt;  $ n                : int 30</span></span>
-<span class="cl"><span class="c1">#&gt;  $ data_mean        : num 132</span></span>
-<span class="cl"><span class="c1">#&gt;  $ data_sd          : num 18.4</span></span>
-<span class="cl"><span class="c1">#&gt;  $ post_mu_mean     : num 130</span></span>
-<span class="cl"><span class="c1">#&gt;  $ post_mu_cri      : Named num [1:2] 124 137</span></span>
-<span class="cl"><span class="c1">#&gt;  $ post_sd_mean     : num 19.1</span></span>
-<span class="cl"><span class="c1">#&gt;  $ post_sd_cri      : Named num [1:2] 14.7 25</span></span>
-<span class="cl"><span class="c1">#&gt;  $ prob_mu_above_125: num 0.97</span></span></div>
-    <div class="webr-buttons">
-      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
-      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
-    </div>
-    <pre class="webr-output"></pre>
-  </div>
-  <div class="webr-plot-output"></div>
-</div>
-
-<p>Walk through the result. The data has 30 observations with empirical mean 132 and empirical standard deviation 18.4. The posterior mean for the underlying typical wait is 130, slightly pulled toward the prior of 120 by the prior's contribution. The 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> for the mean is [124, 137]. The standard deviation has a posterior mean of 19.1 with a 95% credible interval of [14.7, 25.0]. And the posterior probability that the true typical wait exceeds 125 seconds is 97%.</p>
-
-<p>That last number is a clean answer to a stakeholder question, "is the true average wait above 125 seconds?" There's no p-value to translate, no <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> to set up. Just a probability you can quote directly. That's the whole appeal of Bayesian summary reports.</p>
-
 <h2>Summary</h2>
 
-<p>Gibbs sampling is a <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov Chain</a> Monte Carlo algorithm that draws samples from a multi-dimensional posterior by cycling through each unknown one at a time, sampling each from its conditional distribution given the others. It's the algorithm at the heart of JAGS and a building block of more advanced methods.</p>
+<p>Gibbs sampling is an MCMC algorithm for joint posteriors that you cannot sample directly but whose conditionals are standard distributions. It cycles through unknowns one at a time, drawing each from its conditional given the current values of the others. Cycling preserves the joint distribution; the stored chain converges to it.</p>
 
 <table class="table table-striped">
 <thead>
@@ -1103,50 +1010,46 @@
 <tr>
 <td>1</td>
 <td>Pick a starting value for each unknown</td>
-<td>Any reasonable starting point works after burn-in</td>
+<td>Burn-in handles the early bias</td>
 </tr>
 <tr>
 <td>2</td>
-<td>Hold all but one unknown fixed; sample that one from its conditional distribution</td>
-<td>Each conditional is a one-dimensional draw R can usually do directly</td>
+<td>Hold all but one fixed, sample that one</td>
+<td>Each conditional is one-dimensional, R handles it</td>
 </tr>
 <tr>
 <td>3</td>
-<td>Move to the next unknown; repeat with the others fixed</td>
-<td>Cycling preserves the right joint distribution</td>
+<td>Move to the next, repeat with others fixed</td>
+<td>Cycling preserves the joint distribution</td>
 </tr>
 <tr>
 <td>4</td>
-<td>Store the full set of values; loop</td>
-<td>Stored chain converges to the joint posterior</td>
+<td>Store every value, loop</td>
+<td>The stored chain is a sample from the joint posterior</td>
 </tr>
 <tr>
 <td>5</td>
-<td>Drop early burn-in samples; analyse the rest</td>
-<td>Post-burn-in samples are draws from the joint posterior</td>
+<td>Drop early samples, analyse the rest</td>
+<td>Post-burn-in samples are the posterior</td>
 </tr>
 </tbody>
 </table>
 
-<p>When the conditionals are clean (Normal-Normal, Beta-Binomial, Gamma-Poisson, Normal-Inverse-Gamma), the implementation is a few lines per parameter. When they aren't, you fall back to Metropolis-within-Gibbs.</p>
-
-<p>For real production work, use JAGS via <code>R2jags</code> or <code>rjags</code>. For models with continuous parameters and gradients, Stan via <code>brms</code> or <code>rstan</code> is usually faster. The 30-line implementation in this post is a teaching tool, but the mental model it builds is exactly what's running inside those tools.</p>
+<p>For Normal data with a flat prior, both conditionals are clean (Normal for mu, Inverse-Gamma for variance), and the implementation is two <code>rnorm</code>/<code>rgamma</code> calls per iteration. For models where conditionals are not standard, fall back to Metropolis-within-Gibbs; for highly correlated unknowns, switch to HMC; for production scale, use JAGS, brms, or Stan.</p>
 
 <h2>References</h2>
 
 <ol>
 
-<li>Geman, S. & Geman, D. "Stochastic Relaxation, Gibbs Distributions, and the Bayesian Restoration of Images." <em>IEEE Transactions on Pattern Analysis and Machine Intelligence</em>, 1984. The original paper that introduced the algorithm to image processing.</li>
+<li>Geman, S. & Geman, D. "Stochastic Relaxation, Gibbs Distributions, and the Bayesian Restoration of Images." <em>IEEE Transactions on Pattern Analysis and Machine Intelligence</em>, 1984.</li>
 
-<li>Gelfand, A. E. & Smith, A. F. M. "Sampling-Based Approaches to Calculating Marginal Densities." <em>Journal of the American Statistical Association</em>, 1990. The paper that brought Gibbs sampling to mainstream Bayesian statistics.</li>
+<li>Gelfand, A. E. & Smith, A. F. M. "Sampling-Based Approaches to Calculating Marginal Densities." <em>Journal of the American Statistical Association</em>, 1990.</li>
 
-<li>Gelman, A., Carlin, J. B., Stern, H. S. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 11 covers Gibbs sampling and its variants.</li>
+<li>Gelman, A., Carlin, J. B., Stern, H. S. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 11 covers Gibbs sampling.</li>
 
-<li>Hoff, P. <em>A First Course in Bayesian Statistical Methods</em>. Springer, 2009. Chapters 5-6 derive Gibbs samplers for the Normal model with worked R examples.</li>
+<li>Hoff, P. <em>A First Course in Bayesian Statistical Methods</em>. Springer, 2009. Chapters 5-6.</li>
 
-<li>JAGS user manual. <a href="https://mcmc-jags.sourceforge.io/">mcmc-jags.sourceforge.io</a>. Plummer's documentation for the JAGS implementation.</li>
-
-<li>Plummer, M. "JAGS: A program for analysis of Bayesian graphical models using Gibbs sampling." <em>Proceedings of DSC 2003</em>. The paper introducing JAGS.</li>
+<li>Plummer, M. JAGS user manual. <a href="https://mcmc-jags.sourceforge.io/">mcmc-jags.sourceforge.io</a>.</li>
 
 </ol>
 
@@ -1154,18 +1057,18 @@
 
 <ul>
 
-<li><a href="MCMC-in-R.html">Build MCMC From Scratch in R</a>, the previous post in the curriculum that builds the simpler 1-dimensional Metropolis-Hastings sampler. Read this first if anything about MCMC mechanics in this post still feels unclear.</li>
+<li><a href="MCMC-in-R.html">Build MCMC From Scratch in R</a>, the simpler 1-dimensional Metropolis-Hastings sampler from the previous post.</li>
 
-<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a>, the closed-form shortcut that works for some Bayesian models without any sampling at all. Conjugate-prior models are the easy case Gibbs generalises.</li>
+<li><a href="Hamiltonian-Monte-Carlo-in-R.html">Hamiltonian Monte Carlo in R</a>, the next step up: a gradient-based sampler that beats Gibbs on highly correlated posteriors.</li>
 
-<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that builds the prior-likelihood-posterior intuition with simulations.</li>
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a>, the closed-form shortcut that works for some Bayesian models without any sampling.</li>
 
 </ul>
 <aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="rt-title">Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast</span><span class="rt-meta">Statistics &middot; 13 min read</span></a><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Conjugate-Priors-in-R.html"><span class="rt-title">Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 23 min read</span></a><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Bayes-Theorem-in-R.html"><span class="rt-title">Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why</span><span class="rt-meta">Statistics &middot; 8 min read</span></a><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="rt-title">Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast</span><span class="rt-meta">Statistics &middot; 16 min read</span></a><a class="rt-card" href="Conjugate-Priors-in-R.html"><span class="rt-title">Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 23 min read</span></a></div></section>
 <nav class="prev-next-nav" aria-label="Post navigation">
-<a class="pn-link pn-prev" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Hamiltonian Monte Carlo</span></a>
-<a class="pn-link pn-next" href="Time-Series-Analysis-With-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Time Series Analysis</span></a>
+<a class="pn-link pn-prev" href="MCMC-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">MCMC in R</span></a>
+<a class="pn-link pn-next" href="Hamiltonian-Monte-Carlo-in-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Hamiltonian Monte Carlo</span></a>
 </nav>
 
         </main>
