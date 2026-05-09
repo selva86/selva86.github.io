@@ -160,8 +160,18 @@ def build_editor_bundle():
     return out_path
 
 
-def minify_assets():
-    """Create .min. siblings for own JS/CSS. Returns {basename: final_abs_path}."""
+def minify_assets(force=False):
+    """Create .min. siblings for own JS/CSS. Returns {basename: final_abs_path}.
+
+    Idempotent: skips re-minifying when the .min file already exists and is
+    newer than its source. Pass force=True to override (e.g. on --full builds)
+    so the .min content is guaranteed to reflect the current minifier output.
+
+    Why this matters: build.py uses the .min file mtimes as part of its
+    "global deps" mtime check. If we re-write every .min on every build, the
+    global_deps_mtime is always "now" and incremental rebuild collapses to
+    full rebuild. The skip below is what makes incremental work in practice.
+    """
     try:
         import rjsmin
         js_min = rjsmin.jsmin
@@ -188,11 +198,22 @@ def minify_assets():
         os.path.join(REPO_ROOT, 'www', 'highlight.css'),
     ]
 
+    def _is_fresh(min_path, src_path):
+        if force or not os.path.exists(min_path):
+            return False
+        try:
+            return os.path.getmtime(min_path) >= os.path.getmtime(src_path)
+        except OSError:
+            return False
+
     final = {}
     for path in own_js:
         base, ext = os.path.splitext(path)
         min_path = base + '.min' + ext
         basename = os.path.basename(path)
+        if _is_fresh(min_path, path):
+            final[basename] = min_path
+            continue
         if js_min:
             try:
                 src = open(path, 'r', encoding='utf-8').read()
@@ -210,6 +231,9 @@ def minify_assets():
         base, ext = os.path.splitext(path)
         min_path = base + '.min' + ext
         basename = os.path.basename(path)
+        if _is_fresh(min_path, path):
+            final[basename] = min_path
+            continue
         if css_min:
             try:
                 src = open(path, 'r', encoding='utf-8').read()
@@ -2228,7 +2252,7 @@ def main():
     print("Asset pipeline:")
     ensure_vendor_assets()
     build_editor_bundle()
-    final_paths = minify_assets()
+    final_paths = minify_assets(force=force_full)
     asset_hrefs, asset_final_paths = compute_asset_hrefs(final_paths)
     print(f"  Hashed {len(asset_hrefs)} assets")
 
@@ -2332,14 +2356,19 @@ def main():
 
     # Regenerate per-tool OG images. Each card pulls title + description from
     # the tool's <head>, so any rename / desc tweak propagates to social
-    # previews on the next build. Cheap (~0.5s for all 27).
+    # previews on the next build. Per-tool mtime check skips tools whose HTML
+    # hasn't been touched since the existing PNG was written; --full forces
+    # regen of all 27.
     try:
         from gen_og_images import main as render_og
         # Run silently — only print warnings
         import io, contextlib
         buf = io.StringIO()
+        og_argv = ['gen_og_images.py']
+        if force_full:
+            og_argv.append('--force')
         with contextlib.redirect_stdout(buf):
-            render_og(['gen_og_images.py'])
+            render_og(og_argv)
         print(f"  OG images: regenerated {buf.getvalue().count('->')} tool cards")
     except Exception as e:
         print(f"  WARN: OG image regen failed: {e}")

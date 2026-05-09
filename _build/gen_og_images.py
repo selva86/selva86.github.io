@@ -176,21 +176,44 @@ def render_one(tool):
 
 
 def main(argv):
+    """Regenerate per-tool OG images.
+
+    Skips tools whose existing PNG is at least as fresh as the tool's source
+    HTML. The tool HTML is the only input that affects the image (title +
+    description are read from the head); if the HTML is unchanged, the PNG
+    cannot have changed, so re-rendering wastes ~0.5s per tool.
+
+    Pass --force as the first arg to regenerate every PNG anyway.
+    """
     os.makedirs(OG_DIR, exist_ok=True)
+    args = list(argv[1:])
+    force = False
+    if '--force' in args:
+        force = True
+        args.remove('--force')
     tools = collect_tools()
-    if len(argv) > 1:
-        only = argv[1]
+    if args:
+        only = args[0]
         tools = [t for t in tools if t['slug'] == only]
         if not tools:
             print(f'No tool with slug={only}')
             sys.exit(1)
+    rendered = 0
     for t in tools:
         out = os.path.join(OG_DIR, f'{t["slug"]}.png')
+        html_path = os.path.join(REPO_ROOT, 'tools', f'{t["slug"]}.html')
+        if not force and os.path.exists(out):
+            try:
+                if os.path.getmtime(out) >= os.path.getmtime(html_path):
+                    continue
+            except OSError:
+                pass  # fall through to re-render
         img = render_one(t)
         img.save(out, 'PNG', optimize=True)
         size_kb = os.path.getsize(out) // 1024
         print(f'  {t["slug"]:42s} -> {out.replace(REPO_ROOT, ".")} ({size_kb}KB)')
-    print(f'Generated {len(tools)} OG images')
+        rendered += 1
+    print(f'Generated {rendered} of {len(tools)} OG images (skipped {len(tools) - rendered} up-to-date)')
 
 
 if __name__ == '__main__':
