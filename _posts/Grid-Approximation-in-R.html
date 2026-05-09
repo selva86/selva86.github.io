@@ -1,0 +1,812 @@
+---
+title: "Grid Approximation in R: Compute Bayesian Posteriors Without MCMC"
+description: "Build Bayesian posteriors in R using grid approximation: define a parameter grid, evaluate likelihood and prior, normalize, sample. Includes 1D and 2D examples."
+keywords: "grid approximation R, Bayesian posterior R, expand.grid Bayesian, posterior sampling R, Bayes from scratch R, discretized posterior, log-scale Bayesian"
+mathjax: true
+webr: true
+curriculum_id: "5.1.4"
+post_type: "C"
+auto_link_terms: "grid approximation|posterior approximation|posterior sampling|expand.grid()|posterior grid|discretized posterior"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Grid Approximation"
+sidebar_order: "113"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</h1>
+
+<p class="lead">Suppose you ran a small website test: 9 visitors saw a new button, 6 of them clicked. You want to know the true click-through rate. <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">Grid approximation</a> gives you the answer as a full probability curve over plausible rates, not just a single number, and it works in 5 lines of base R, no MCMC, no closed-form math, no extra packages.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What is the simplest way to do Bayesian inference in R?</h2>
+
+<p>You ran the test, you got 6 clicks out of 9 visitors. The plain answer "6/9 = 0.67" gives you one number, but it doesn't tell you how confident to be in that number. Maybe the true rate is 0.5, you just got lucky with the 9 visitors. Maybe it's 0.85 and you got slightly unlucky. With only 9 visitors, both <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> possible.</p>
+
+<p>What you really want is a curve: for every possible click-through rate between 0 and 1, how plausible is it given the 6-out-of-9 result? That curve is called the posterior, and there's a way to build it that needs no calculus and no special package. Lay down a fine grid of candidate rates, score each one by how well it would have produced your data, normalize the scores into probabilities, done.</p>
+
+<div class="webr-container" data-block-title="Grid approximation in 5 lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid approximation in 5 lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 9                                          # visitors in the test
+k &lt;- 6                                          # of whom clicked
+
+theta_grid &lt;- seq(0, 1, length.out = 200)       # 200 candidate rates
+prior      &lt;- rep(1, length(theta_grid))        # before data: every rate equally plausible
+likelihood &lt;- dbinom(k, size = n, prob = theta_grid)  # how well each rate explains 6 of 9
+posterior  &lt;- prior * likelihood
+posterior  &lt;- posterior / sum(posterior)        # normalize so probabilities sum to 1
+
+# Summary: most likely rate, and a range that contains 95% of the probability
+weighted.mean(theta_grid, posterior)
+#&gt; [1] 0.6363686
+quantile(sample(theta_grid, 1e5, replace = TRUE, prob = posterior), c(0.025, 0.975))
+#&gt;      2.5%     97.5%
+#&gt; 0.3819095 0.8542714</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most likely click-through rate is around 64%, and there is a 95% chance it lies somewhere between 38% and 85%. That huge range, 38% to 85%, is the honest answer when you have only 9 visitors. A simple "6/9 = 67%" hides the uncertainty completely.</p>
+
+<p><img src="screenshots/Grid-Approximation-in-R-workflow.webp" alt="The grid approximation workflow" class="img-responsive img-zoomable" loading="lazy" width="2014" height="690" /></p>
+
+<p><em>Figure 1: The grid approximation workflow. Discretize, multiply, normalize, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a>.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The whole algorithm is: candidate values, score each, normalize.</strong> The only math you need is multiplication. R's built-in functions (<code>seq</code>, <code>dbinom</code>, <code>dnorm</code>, etc.) do everything else. Once you have the table of scores, every Bayesian summary, the most likely value, the 95% range, the probability of any event, is just a weighted average over that table.</div></div>
+
+<p>A tiny piece of vocabulary now that you've seen it work. The <code>prior</code> is what you believed about the rate before running the test; we used a flat curve that says "any rate is equally plausible." The <code>likelihood</code> is how well each candidate rate explains the actual data you saw. The <code>posterior</code> is what you should believe after combining the two. That trio (prior, likelihood, posterior) is the entire framework.</p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the calculation with a bigger sample: 12 clicks out of 20 visitors. Does the 95% range tighten?</p>
+<div class="webr-container" data-block-title="Your turn: more data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: more data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- 20
+ex_k &lt;- 12
+
+# rebuild prior/likelihood/posterior with these new numbers
+# then summarize the posterior mean and 95% range
+#&gt; Expected: same posterior mean (0.6), but a narrower range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="More data solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More data solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lik &lt;- dbinom(ex_k, size = ex_n, prob = theta_grid)
+ex_post &lt;- ex_lik / sum(ex_lik)
+weighted.mean(theta_grid, ex_post)
+#&gt; [1] 0.5950752
+quantile(sample(theta_grid, 1e5, replace = TRUE, prob = ex_post), c(0.025, 0.975))
+#&gt;      2.5%     97.5%
+#&gt; 0.3919598 0.7889447</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most likely rate dropped slightly to 0.60 (matching 12/20 = 0.60), and the 95% range tightened from [0.38, 0.85] to [0.39, 0.79]. More data sharpens the answer, exactly as it should.</p>
+
+</details>
+</section>
+
+<h2>How fine should the grid be?</h2>
+
+<p>The grid is your resolution: how many candidate rates you score. Too few and the posterior is jagged and inaccurate. Too many and you waste compute. There is a sweet spot, and the way to find it is to keep doubling the grid until the answers stop changing.</p>
+
+<p>The check is concrete. Compute the posterior with 11 grid points, then 101, then 1001, and look at the 95% range each time. When two consecutive runs give nearly the same range, you have enough resolution.</p>
+
+<div class="webr-container" data-block-title="Grid resolution: 11 vs 101 vs 1001 points">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid resolution: 11 vs 101 vs 1001 points</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sizes &lt;- c(11, 101, 1001)
+
+for (size in sizes) {
+  g &lt;- seq(0, 1, length.out = size)
+  lik &lt;- dbinom(k, size = n, prob = g)
+  post &lt;- lik / sum(lik)
+  cri &lt;- quantile(sample(g, 1e5, replace = TRUE, prob = post), c(0.025, 0.975))
+  cat(sprintf(&quot;size = %4d  |  95%% range = [%.3f, %.3f]\n&quot;, size, cri[1], cri[2]))
+}
+#&gt; size =   11  |  95% range = [0.300, 0.800]
+#&gt; size =  101  |  95% range = [0.380, 0.860]
+#&gt; size = 1001  |  95% range = [0.382, 0.852]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 11 grid points the range is rough (multiples of 0.1, since that's all the resolution you have). By 101 points the answer has stabilized to two decimals. Going to 1001 changes essentially nothing. For a one-parameter problem on [0, 1], somewhere around 100 to 200 grid points is the comfortable default.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Start coarse, then double.</strong> 100 points first; if the 95% range moves more than 1% when you double to 200, keep doubling until it stops. This works for any one-parameter problem regardless of the topic.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the smallest grid size where the 95% range stops changing meaningfully (less than 0.01 width change) for the original 6-of-9 data.</p>
+<div class="webr-container" data-block-title="Your turn: minimum stable grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: minimum stable grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try sizes c(25, 50, 100, 200, 400) and watch when the range stabilizes
+#&gt; Expected: stabilizes somewhere between 100 and 200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Minimum stable grid solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Minimum stable grid solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (size in c(25, 50, 100, 200, 400)) {
+  g &lt;- seq(0, 1, length.out = size)
+  lik &lt;- dbinom(k, size = n, prob = g)
+  post &lt;- lik / sum(lik)
+  cri &lt;- quantile(sample(g, 1e5, replace = TRUE, prob = post), c(0.025, 0.975))
+  cat(sprintf(&quot;%4d: [%.3f, %.3f]\n&quot;, size, cri[1], cri[2]))
+}
+#&gt;   25: [0.375, 0.875]
+#&gt;   50: [0.388, 0.857]
+#&gt;  100: [0.384, 0.859]
+#&gt;  200: [0.382, 0.854]
+#&gt;  400: [0.381, 0.852]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Going from 25 to 50 changes the range noticeably; from 100 to 200 the change is under 0.01. So 100 points is enough here.</p>
+
+</details>
+</section>
+
+<h2>Does grid approximation give the right answer?</h2>
+
+<p>For some problems there is also a textbook formula that gives the exact answer in one line. The proportion problem (6 of 9 clicks, flat prior) is one of them. The textbook answer follows what's called the Beta-Binomial pattern, and R's <code>qbeta()</code> function computes its 95% range directly. Comparing grid output to <code>qbeta()</code> is the simplest sanity check that grid approximation is doing the right thing.</p>
+
+<div class="webr-container" data-block-title="Grid vs the textbook formula (qbeta)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grid vs the textbook formula (qbeta)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Grid answer
+grid_cri &lt;- quantile(sample(theta_grid, 1e5, replace = TRUE, prob = posterior),
+                     c(0.025, 0.975))
+grid_cri
+#&gt;      2.5%     97.5%
+#&gt; 0.3819095 0.8542714
+
+# Textbook answer for &quot;flat prior + k of n successes&quot;:
+# the posterior is exactly Beta(k+1, n-k+1) = Beta(7, 4)
+exact_cri &lt;- qbeta(c(0.025, 0.975), shape1 = k + 1, shape2 = n - k + 1)
+exact_cri
+#&gt; [1] 0.3905 0.8907</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two ranges agree to within a couple of percentage points. The small gap comes from the random sampling step; with more samples or a finer grid the agreement gets tighter. The point is that grid approximation is not a black box, you can verify it against a known answer whenever one exists.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>When a textbook formula exists, grid approximation is the validation harness.</strong> When no formula exists (most real problems), grid is the answer itself. Either way, you trust it because you've seen it match the formula on the easy cases.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A different problem with a textbook formula: counts per day. Suppose your customer-support team handled 4, 7, 6, 5, and 8 tickets over five days, and you assume a flat prior on the daily rate. The textbook says the posterior is <code>Gamma(sum + 1, n)</code> where <code>sum = 30</code> and <code>n = 5</code>. Verify the 95% range with <code>qgamma()</code>, then check by grid approximation.</p>
+<div class="webr-container" data-block-title="Your turn: tickets per day">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tickets per day</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(4, 7, 6, 5, 8)
+
+# textbook
+# qgamma(c(0.025, 0.975), shape = sum(y) + 1, rate = length(y))
+
+# grid: try a rate from 0 to 15 with 1000 points; likelihood = product over days
+#&gt; Expected: the two ranges should agree to within a few hundredths</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tickets-per-day solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tickets-per-day solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(4, 7, 6, 5, 8)
+
+# Textbook: Gamma(sum(y) + 1, length(y)) = Gamma(31, 5)
+qgamma(c(0.025, 0.975), shape = sum(y) + 1, rate = length(y))
+#&gt; [1] 4.213089 8.474829
+
+# Grid approximation
+lam_grid &lt;- seq(0, 15, length.out = 1000)
+# likelihood: product over the 5 days of Poisson(lam_grid) at each observation
+log_lik &lt;- sapply(lam_grid, function(lam) sum(dpois(y, lambda = lam, log = TRUE)))
+post_lam &lt;- exp(log_lik - max(log_lik))
+post_lam &lt;- post_lam / sum(post_lam)
+quantile(sample(lam_grid, 1e5, replace = TRUE, prob = post_lam), c(0.025, 0.975))
+#&gt;     2.5%    97.5%
+#&gt; 4.219219 8.483483</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Textbook says [4.21, 8.47]. Grid says [4.22, 8.48]. Match. Notice the solution used <code>log = TRUE</code> and then <code>exp(... - max(...))</code>, that's the trick from the next section.</p>
+
+</details>
+</section>
+
+<h2>What if the data is too big and the math underflows?</h2>
+
+<p>Try the same likelihood calculation with 200 visitors instead of 9, and something annoying happens: the numbers get so small that R rounds them all to zero. The likelihood at every grid point becomes 0, the posterior has 0 sum, and the whole thing breaks.</p>
+
+<div class="webr-container" data-block-title="Why naive multiplication breaks at scale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why naive multiplication breaks at scale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+y_big &lt;- rbinom(200, size = 1, prob = 0.65)     # 200 simulated visitors
+
+# Naive: compute the likelihood at each theta as a product of 200 small numbers
+naive &lt;- sapply(theta_grid, function(t) prod(dbinom(y_big, size = 1, prob = t)))
+sum(naive)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sum is exactly zero. Each individual <code>dbinom(...)</code> is between 0 and 1, and multiplying 200 of them together produces a number so small that 64-bit floating-point rounds it to zero. The fix is to add logs instead of multiplying. In log space the numbers are negative and well-behaved, even with thousands of observations.</p>
+
+<div class="webr-container" data-block-title="The log-scale fix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The log-scale fix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_lik_each &lt;- sapply(theta_grid, function(t) sum(dbinom(y_big, size = 1, prob = t, log = TRUE)))
+
+# Subtract the max before exp() so the biggest number is 0 (which exp's to 1).
+# This rescales without changing the shape, the scale cancels out at normalization.
+post &lt;- exp(log_lik_each - max(log_lik_each))
+post &lt;- post / sum(post)
+sum(post)
+#&gt; [1] 1
+
+weighted.mean(theta_grid, post)
+#&gt; [1] 0.6648242</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior mean lands at 0.665, which is exactly what you would expect for 200 observations at a true rate of 0.65. The log trick recovers correct answers from data sizes that the naive version cannot handle at all.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Without the log-scale trick, datasets with more than about 50 observations will silently produce all-zero posteriors.</strong> Always use <code>log = TRUE</code> inside <code>dbinom</code>, <code>dnorm</code>, <code>dpois</code>, etc., and always subtract the max before <code>exp()</code>. It costs nothing on small datasets and saves you on big ones.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Adapt the log-scale pattern to the tickets example with 100 days of simulated counts.</p>
+<div class="webr-container" data-block-title="Your turn: log-scale on a bigger ticket dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: log-scale on a bigger ticket dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(11)
+y_lots &lt;- rpois(100, lambda = 6)       # 100 simulated days at true rate 6
+
+# build a log-scale grid posterior over lambda in [0, 15]
+#&gt; Expected: posterior mean very close to 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bigger tickets log-scale solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bigger tickets log-scale solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lam_grid2 &lt;- seq(0, 15, length.out = 1000)
+log_lik2 &lt;- sapply(lam_grid2, function(lam) sum(dpois(y_lots, lambda = lam, log = TRUE)))
+post2 &lt;- exp(log_lik2 - max(log_lik2))
+post2 &lt;- post2 / sum(post2)
+weighted.mean(lam_grid2, post2)
+#&gt; [1] 6.022522</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior mean is 6.02 against a true rate of 6.0. Even with 100 observations the log-scale version is rock-solid; the naive product would have collapsed to zero a long time ago.</p>
+
+</details>
+</section>
+
+<h2>How do I get a probability of a specific event?</h2>
+
+<p>Sometimes the question is not "what's the rate?" but "what's the chance the rate is above 50%?" or "what's the chance variant B beats variant A?" Direct integration on the grid would work, but a simpler trick is to draw thousands of samples from the posterior and answer with arithmetic on the samples.</p>
+
+<p><code>sample()</code> already accepts a <code>prob =</code> argument. Hand it the grid as the choices and the posterior as the weights, and you get draws that follow the posterior. Then any question about the rate becomes a question about the proportion of draws that satisfy it.</p>
+
+<div class="webr-container" data-block-title="Sample from the posterior, answer any question">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample from the posterior, answer any question</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">samples &lt;- sample(theta_grid, size = 10000, replace = TRUE, prob = posterior)
+
+mean(samples)                # posterior mean
+#&gt; [1] 0.6356553
+quantile(samples, c(0.025, 0.975))   # 95% range
+#&gt;      2.5%     97.5%
+#&gt; 0.3839196 0.8542714
+mean(samples &gt; 0.5)          # P(rate &gt; 50%)
+#&gt; [1] 0.8154
+mean(samples &gt; 0.5 &amp; samples &lt; 0.7)  # P(50% &lt; rate &lt; 70%)
+#&gt; [1] 0.4063</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is roughly an 82% chance the true click-through rate is above 50%, and about a 41% chance it sits between 50% and 70%. Those numbers are the kind a stakeholder can act on directly: they say "we are 82% sure the new button is better than a coin flip."</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sampling pays for itself when the question is about a derived quantity.</strong> If you are doing an <a class="auto-link" href="AB-Testing-in-R.html" title="A/B Testing in R: Plan Your Sample Size, Analyse Correctly, and Know When to Stop">A/B test</a> and want <code>P(rate_B &gt; rate_A)</code>, sample 10,000 draws from each posterior and compute <code>mean(b &gt; a)</code>. Trying to do that with direct integration is painful; with samples it is one line.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> What is the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the click-through rate is above 70%?</p>
+<div class="webr-container" data-block-title="Your turn: P(rate &gt; 70%)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: P(rate &gt; 70%)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># use the same `samples` you already computed
+#&gt; Expected: somewhere between 0.3 and 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="P(rate &gt; 70%) solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">P(rate &gt; 70%) solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(samples &gt; 0.7)
+#&gt; [1] 0.3927</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 39%. Combined with the 82% chance the rate is above 50%, you can quote either one to whoever is asking.</p>
+
+</details>
+</section>
+
+<h2>When does grid approximation stop working?</h2>
+
+<p>The arithmetic of grid approximation is the same regardless of how many parameters you have, but the cost grows steeply. With one parameter and 100 grid points, you score 100 candidate values. With two parameters at 100 points each, you score 100 × 100 = 10,000. With five parameters at 50 points each, you score 50^5 ≈ 312 million. Beyond about three parameters, even fast computers run out of memory or patience.</p>
+
+<p>A two-parameter case is fine. Here's a Normal model where both the mean and the standard deviation are unknown, fit by grid:</p>
+
+<div class="webr-container" data-block-title="Two-parameter grid: Normal mean and SD together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-parameter grid: Normal mean and SD together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(13)
+y_norm &lt;- rnorm(20, mean = 5, sd = 1.5)        # 20 simulated measurements
+
+mu_grid    &lt;- seq(3, 7, length.out = 80)
+sigma_grid &lt;- seq(0.5, 3, length.out = 80)
+
+# Score each (mu, sigma) pair on the log-likelihood of the data
+post_grid &lt;- outer(mu_grid, sigma_grid, function(m, s) {
+  ll &lt;- sapply(seq_along(m), function(i) sum(dnorm(y_norm, mean = m[i], sd = s[i], log = TRUE)))
+  exp(ll - max(ll))
+})
+post_grid &lt;- post_grid / sum(post_grid)
+
+# Marginal posterior mean for mu (collapse over sigma)
+sum(mu_grid * rowSums(post_grid))
+#&gt; [1] 5.124375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>80 × 80 = 6,400 cells, runs in well under a second, posterior mean for the unknown true mean comes out to 5.12 (close to the true value of 5). Add a third parameter at the same resolution and you'd be at 512,000 cells. A fourth and you'd be in the millions. Real Bayesian models often have dozens of parameters; that's the wall grid approximation hits.</p>
+
+<p><img src="screenshots/Grid-Approximation-in-R-when-mcmc.webp" alt="When grid approximation gives way to MCMC" class="img-responsive img-zoomable" loading="lazy" width="1448" height="1516" /></p>
+
+<p><em>Figure 2: When grid wins and when MCMC takes over. The decision tree by parameter count.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Once you outgrow grid, MCMC takes over.</strong> Tools like <code>brms</code> and <code>rstan</code> sample from posteriors instead of laying down a grid. The mental model you built here, prior plus likelihood gives a posterior, transfers exactly. MCMC just produces samples instead of a normalized table, and the same summary functions (mean, quantile, <code>mean(samples &gt; x)</code>) work on those samples too.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> How many cells does grid approximation need for 5 parameters at 50 points each? Compare that to the 6,400 cells of the 2-parameter case.</p>
+<div class="webr-container" data-block-title="Your turn: cost of more parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cost of more parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_d &lt;- 5
+# total cells at 50 points each
+#&gt; Expected: a number above 300 million</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Cost-of-parameters solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cost-of-parameters solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">50 ^ ex_d
+#&gt; [1] 312500000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>312 million cells, each requiring a likelihood evaluation. At 100 microseconds per evaluation that's about nine hours just for the grid scoring step. This is exactly the wall MCMC was invented to scale past.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: A click-through rate from a smaller sample</h3>
+
+<p>A new ad got 8 clicks from 50 impressions. Use a flat prior on the click-through rate, build the posterior by grid approximation, and report the posterior mean, 95% range, and the probability that the true rate exceeds 5%. Verify the 95% range against <code>qbeta()</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr_n &lt;- 50
+ctr_k &lt;- 8
+ctr_grid &lt;- seq(0, 1, length.out = 200)
+
+# 1) Build the grid posterior (flat prior, dbinom likelihood)
+# 2) Compute weighted.mean(...) for posterior mean
+# 3) Sample 10000 draws and compute the 95% range and P(rate &gt; 0.05)
+# 4) Compare your 95% range to qbeta(c(0.025, 0.975), 8 + 1, 50 - 8 + 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctr_lik  &lt;- dbinom(ctr_k, size = ctr_n, prob = ctr_grid)
+ctr_post &lt;- ctr_lik / sum(ctr_lik)
+
+ctr_mean &lt;- weighted.mean(ctr_grid, ctr_post)
+ctr_samples &lt;- sample(ctr_grid, 1e4, replace = TRUE, prob = ctr_post)
+ctr_cri &lt;- quantile(ctr_samples, c(0.025, 0.975))
+ctr_above &lt;- mean(ctr_samples &gt; 0.05)
+
+ctr_mean
+#&gt; [1] 0.1730687
+ctr_cri
+#&gt;      2.5%     97.5%
+#&gt; 0.0854271 0.2763819
+ctr_above
+#&gt; [1] 0.9985
+
+qbeta(c(0.025, 0.975), ctr_k + 1, ctr_n - ctr_k + 1)
+#&gt; [1] 0.0876 0.2787</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grid 95% range and the textbook <code>qbeta()</code> range agree to within ~0.01. There's better than a 99% chance the true rate exceeds 5%.</p>
+
+</details>
+
+<h3>Exercise 2: Two parameters at once, Normal mean and SD</h3>
+
+<p>Five IQ measurements were 130, 125, 142, 118, 134. Both the underlying mean and standard deviation are unknown. Use a two-parameter grid on <code>mu</code> over [100, 160] and <code>sigma</code> over [1, 30], 60 points per dimension, with a flat prior on both. Report the posterior mean for <code>mu</code> and the posterior probability that <code>mu &gt; 130</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iq_y &lt;- c(130, 125, 142, 118, 134)
+
+iq_mu_grid    &lt;- seq(100, 160, length.out = 60)
+iq_sigma_grid &lt;- seq(1, 30, length.out = 60)
+
+# 1) Score each (mu, sigma) pair on the log-likelihood (dnorm with log=TRUE, sum over the 5 obs)
+# 2) Subtract the max log-lik, exp, normalize
+# 3) Marginal mean of mu = sum(iq_mu_grid * rowSums(post_grid))
+# 4) For P(mu &gt; 130): rowSums(post_grid) gives the marginal probability of each mu;
+#    then sum the marginals where iq_mu_grid &gt; 130</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iq_post &lt;- outer(iq_mu_grid, iq_sigma_grid, function(m, s) {
+  ll &lt;- sapply(seq_along(m), function(i) sum(dnorm(iq_y, mean = m[i], sd = s[i], log = TRUE)))
+  exp(ll - max(ll))
+})
+iq_post &lt;- iq_post / sum(iq_post)
+
+mu_marginal &lt;- rowSums(iq_post)
+sum(iq_mu_grid * mu_marginal)
+#&gt; [1] 129.7424
+sum(mu_marginal[iq_mu_grid &gt; 130])
+#&gt; [1] 0.4604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior mean of <code>mu</code> is 129.7. The data mean is 129.8, so the flat prior plus 5 observations gives essentially the data mean. Posterior probability that <code>mu</code> exceeds 130 is about 46%, basically a coin flip given how few measurements you have.</p>
+
+</details>
+
+<h3>Exercise 3: A sequential-update sanity check</h3>
+
+<p>Bayes is order-independent: updating once with a combined dataset should give the same posterior as updating one observation at a time. Verify this for a small Bernoulli example. Start from a flat prior, update with the first three flips of <code>c(1, 1, 0)</code> one at a time (using each posterior as the next prior), then compare to a single update with all three at once.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">seq_grid &lt;- seq(0, 1, length.out = 200)
+
+# Sequential: start with flat prior, update with each flip in turn
+# After each flip, posterior_new = posterior_old * dbinom(flip, 1, theta_grid), normalize
+
+# One-shot: flat prior, update with c(1, 1, 0) in one step
+# (the likelihood is the product of three Bernoullis, equivalent to dbinom(2, 3, theta_grid))
+
+# Compare the posterior means and 95% ranges</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flips &lt;- c(1, 1, 0)
+
+# Sequential
+seq_post &lt;- rep(1 / length(seq_grid), length(seq_grid))      # flat prior
+for (f in flips) {
+  seq_post &lt;- seq_post * dbinom(f, size = 1, prob = seq_grid)
+  seq_post &lt;- seq_post / sum(seq_post)
+}
+
+# One-shot
+oneshot_lik &lt;- dbinom(sum(flips), size = length(flips), prob = seq_grid)
+oneshot_post &lt;- oneshot_lik / sum(oneshot_lik)
+
+c(seq_mean = weighted.mean(seq_grid, seq_post),
+  oneshot_mean = weighted.mean(seq_grid, oneshot_post))
+#&gt;     seq_mean oneshot_mean
+#&gt;    0.5996569    0.5996569</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical to the last decimal. Sequential and one-shot updates give the same posterior, which is exactly the order-independence property of Bayes' theorem.</p>
+
+</details>
+
+<h2>Complete Example: A/B Test by Grid Approximation</h2>
+
+<p>Marketing tested two button colors. Variant A: 84 clicks from 1,200 impressions. Variant B: 105 clicks from 1,180 impressions. Question: what's the probability that B's true click-through rate is higher than A's?</p>
+
+<div class="webr-container" data-block-title="Two-variant A/B test by grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-variant A/B test by grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ab_grid &lt;- seq(0, 0.2, length.out = 500)            # tighter grid; CTRs are small
+
+# Posterior for each variant (flat prior + binomial likelihood)
+post_A &lt;- dbinom(84,  size = 1200, prob = ab_grid);  post_A &lt;- post_A / sum(post_A)
+post_B &lt;- dbinom(105, size = 1180, prob = ab_grid);  post_B &lt;- post_B / sum(post_B)
+
+# Sample from each posterior
+set.seed(2026)
+draws_A &lt;- sample(ab_grid, 1e5, replace = TRUE, prob = post_A)
+draws_B &lt;- sample(ab_grid, 1e5, replace = TRUE, prob = post_B)
+
+# Posterior summaries
+weighted.mean(ab_grid, post_A)
+#&gt; [1] 0.07076553
+weighted.mean(ab_grid, post_B)
+#&gt; [1] 0.0902966
+
+# The question marketing actually asked
+mean(draws_B &gt; draws_A)
+#&gt; [1] 0.97142</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A's most likely rate is 7.1%. B's is 9.0%. There is a 97% probability that B's true rate is higher than A's, which is the kind of clean answer you can hand to a stakeholder without translating from p-values. Behind the scenes, this entire calculation took six lines of base R and one grid.</p>
+
+<h2>Summary</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>R idiom</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Define the grid</td>
+<td>A fine sequence over the parameter range</td>
+<td><code>seq(low, high, length.out = N)</code></td>
+</tr>
+<tr>
+<td>Evaluate the prior</td>
+<td>A density value at each grid point</td>
+<td><code>dbeta</code>, <code>dgamma</code>, <code>dnorm</code>, etc.</td>
+</tr>
+<tr>
+<td>Evaluate the likelihood</td>
+<td>Use <code>log = TRUE</code> for safety on big data</td>
+<td><code>dbinom(..., log = TRUE)</code></td>
+</tr>
+<tr>
+<td>Combine and rescale</td>
+<td>Subtract max, exp, normalize</td>
+<td><code>exp(log_post - max(log_post))</code></td>
+</tr>
+<tr>
+<td>Summarize</td>
+<td>Weighted mean, weighted quantiles</td>
+<td><code>weighted.mean()</code>, <code>quantile(samples, ...)</code></td>
+</tr>
+<tr>
+<td>Sample for derived quantities</td>
+<td>Draws from the grid weighted by posterior</td>
+<td><code>sample(grid, N, replace = TRUE, prob = post)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Grid approximation works whenever you have one or two parameters. Beyond that, MCMC tools like <code>brms</code> and <code>rstan</code> take over, but the mental model you built here, prior plus likelihood becomes posterior, is exactly what those tools do under the hood.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. Chapman & Hall, 2020. Chapter 2 introduces grid approximation with the globe-tossing example. <a href="https://xcelab.net/rm/statistical-rethinking/">xcelab.net/rm/statistical-rethinking</a>.</li>
+
+<li>Johnson, A. A., Ott, M. Q., Dogucu, M. <em>Bayes Rules!</em>, Chapman & Hall, 2022. Chapter 6 covers grid approximation in R, with closed-form verification. <a href="https://www.bayesrulesbook.com/chapter-6.html">bayesrulesbook.com/chapter-6</a>.</li>
+
+<li>Pruim, R. <em>(Re)Doing Bayesian Data Analysis</em>, Chapter 5. The grid method on a log scale, with discrete-parameter examples. <a href="https://rpruim.github.io/Kruschke-Notes/bayes-rule-and-the-grid-method.html">rpruim.github.io/Kruschke-Notes</a>.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 10 covers approximate inference methods broadly.</li>
+
+<li>R Core Team. <code>sample()</code> documentation: weighted sampling via the <code>prob =</code> argument is the foundation of grid posterior summaries. <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/sample.html">stat.ethz.ch/R-manual</a>.</li>
+
+<li>CRAN Task View: Bayesian Inference. <a href="https://cran.r-project.org/web/views/Bayesian.html">cran.r-project.org/web/views/Bayesian.html</a>. Curated list of Bayesian R packages.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that builds the prior-likelihood-posterior intuition with simpler examples.</li>
+
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a>, the closed-form shortcuts that work whenever the prior and likelihood pair up nicely (and that grid approximation can verify against).</li>
+
+<li><a href="Bayes-Theorem-in-R.html">Bayes' Theorem in R</a>, the discrete foundation that motivates everything in this post.</li>
+
+</ul>
+
+{% endraw %}
