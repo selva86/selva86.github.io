@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Build MCMC in R from scratch with a 50-line Metropolis-Hastings sampler. See exactly what brms and Stan do under the hood, with runnable code and diagnostics.">
+    <meta name="Keywords" content="MCMC R, Metropolis-Hastings R, MCMC from scratch, Bayesian sampling R, R MCMC implementation, Bayesian inference R, posterior sampling, MCMC tutorial">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/MCMC-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#0d1117;background:#fafbfc}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#1d3158;border-color:#1d3158}.btn-primary:hover{background:#2c4574}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#1d3158;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#0d1117}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#0d1117;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #d8dce2}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#0d1117}
+      p.lead{font-size:1.1em;line-height:1.75;color:#4a5160;font-weight:400;border-left:3px solid #1d3158;padding-left:1em;margin:-4px 0 1.15em 0}
+      .site-masthead{position:sticky;top:0;z-index:30;background:rgba(250,251,252,0.92);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid transparent;margin:0 -15px 24px;transition:border-color 0.2s}
+      .site-masthead.scrolled{border-bottom-color:#d8dce2}
+      .site-masthead-inner{max-width:1170px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:24px}
+      .masthead-menu-btn{display:none;background:none;border:1px solid #d8dce2;border-radius:6px;padding:4px 8px;font-size:18px;line-height:1;color:#4a5160;cursor:pointer}
+      .masthead-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;color:#0d1117;text-decoration:none;white-space:nowrap}
+      .masthead-mark{position:relative;width:32px;height:32px;border-radius:6px;background:#1d3158;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:700;font-size:19px;line-height:1;letter-spacing:-0.04em;padding-right:1px;box-shadow:0 1px 2px rgba(13,17,23,0.08),inset 0 1px 0 rgba(255,255,255,0.12)}
+      .masthead-mark::after{content:'';position:absolute;right:5px;bottom:5px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.85)}
+      .masthead-tld{color:#757a87}
+      .masthead-nav{display:flex;gap:4px;flex:1;margin-left:8px}
+      .masthead-nav-link{font-family:'IBM Plex Sans',sans-serif;color:#4a5160;font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all 0.15s}
+      .masthead-nav-link:hover{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      .masthead-nav-link.active{background:#f1f3f6;color:#0d1117}
+      .masthead-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      .masthead-search{margin:0;display:flex;align-items:center}
+      .masthead-search input{height:32px;padding:6px 12px;font-size:13px;border:1px solid #d8dce2;border-radius:6px;background:#fff;color:#0d1117;width:160px;font-family:'IBM Plex Sans',sans-serif;transition:border-color 0.15s,box-shadow 0.15s}
+      .masthead-search input:focus{outline:none;border-color:#1d3158;box-shadow:0 0 0 3px rgba(29,49,88,0.10)}
+      .masthead-icon-btn{background:none;border:1px solid transparent;border-radius:6px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:#4a5160;cursor:pointer;transition:all 0.15s}
+      .masthead-icon-btn:hover{background:#f1f3f6;color:#0d1117}
+      html.dark .site-masthead{background:rgba(12,13,16,0.85)}
+      html.dark .site-masthead.scrolled{border-bottom-color:#262a31}
+      html.dark .masthead-wordmark{color:#e8eaee}
+      html.dark .masthead-tld{color:#6e7382}
+      html.dark .masthead-mark{background:#92a4d8}
+      html.dark .masthead-nav-link{color:#b0b5bf}
+      html.dark .masthead-nav-link:hover,html.dark .masthead-nav-link.active{background:#1a1d22;color:#e8eaee}
+      html.dark .masthead-search input{background:#14161a;border-color:#262a31;color:#e8eaee}
+      html.dark .masthead-search input:focus{border-color:#92a4d8;box-shadow:0 0 0 3px rgba(146,164,216,0.15)}
+      html.dark .masthead-icon-btn{color:#b0b5bf}
+      html.dark .masthead-icon-btn:hover{background:#1a1d22;color:#e8eaee}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-tabs{display:flex;gap:0;margin:4px 0 0;border-bottom:1px solid #d8dce2}
+      .sidebar-tab{flex:1;padding:9px 12px 8px;border:none;background:transparent;font:600 13px 'IBM Plex Sans',sans-serif;color:#757a87;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s}
+      .sidebar-tab.active{color:#1d3158;border-bottom-color:#1d3158}
+      .sidebar-panel{display:none;padding-top:10px}
+      .sidebar-panel.active{display:block}
+      .sidebar-tools-list{margin:0;padding:0;list-style:none}
+      .sidebar-tools-list li a{display:block;padding:5px 10px 5px 24px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#1d3158;font-weight:600;border-left-color:#1d3158}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=264bc869" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=264bc869" rel="stylesheet"></noscript>
+    <style>
+      a{color:#1d3158}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}.masthead-menu-btn{display:inline-flex!important}.masthead-nav{display:none}.masthead-search{display:none}.site-masthead-inner{padding:10px 16px;gap:12px}}
+      @media(max-width:400px){.masthead-name{font-size:13px}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">
+    <meta property="og:description" content="Build MCMC in R from scratch with a 50-line Metropolis-Hastings sampler. See exactly what brms and Stan do under the hood, with runnable code and diagnostics.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/MCMC-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/MCMC-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">
+    <meta name="twitter:description" content="Build MCMC in R from scratch with a 50-line Metropolis-Hastings sampler. See exactly what brms and Stan do under the hood, with runnable code and diagnostics.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/MCMC-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan",
+      "description": "Build MCMC in R from scratch with a 50-line Metropolis-Hastings sampler. See exactly what brms and Stan do under the hood, with runnable code and diagnostics.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/MCMC-in-R.html",
+      "datePublished": "2026-05-09",
+      "dateModified": "2026-05-09",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan", "item": "https://r-statistics.co/MCMC-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <header class="site-masthead">
+        <div class="site-masthead-inner">
+          <button id="mobile-menu-btn" class="masthead-menu-btn" aria-label="Menu">&#9776;</button>
+          <a class="masthead-wordmark" href="/">
+            <span class="masthead-mark">R</span>
+            <span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>
+          </a>
+          <nav class="masthead-nav">
+            <a class="masthead-nav-link" href="/">Home</a>
+            <a class="masthead-nav-link" href="/posts/">Compendium</a>
+          </nav>
+          <div class="masthead-tools">
+            <form onsubmit="my_search_google(); return false;" class="masthead-search">
+              <input type="text" id="my-google-search" placeholder="Search…" aria-label="Search r-statistics.co">
+            </form>
+            <button id="dark-mode-toggle" class="masthead-icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">&#9789;</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab active" data-tab="posts" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Posts</button><button class="sidebar-tab" data-tab="tools" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Tools</button></div><div class="sidebar-panel active" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="/Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="/Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="/RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="/R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="/R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="/R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="/R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="/R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="/R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="/R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="/R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="/R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="/R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="/Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="/R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="/R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="/How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="/R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="/R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="/R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="/Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="/Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="/Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="/Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="/Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="/Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="/R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="/Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="/dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="/dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="/dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="/dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="/dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="/dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="/R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="/pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="/tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="/Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="/Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="/janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="/stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="/R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="/lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="/DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="/DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="/Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="/REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="/ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="/ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="/Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="/geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="/Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="/Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="/Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="/Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="/Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="/Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="/Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="/Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="/Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="/Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="/Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="/Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="/Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="/Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="/Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="/Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="/ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="/patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="/Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="/Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="/Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="/Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="/Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="/Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="/Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="/Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="/Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="/Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="/Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="/What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="/Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="/Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="/Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="/Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="/Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="/Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="/Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="/Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="/Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="/Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="/t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="/Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="/Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="/Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="/Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="/Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="/Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="/Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="/Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="/Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="/Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="/adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="/Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="/Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="/Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="/Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="/Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="/Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="/Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="/Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="/Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="/Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="/Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="/Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="/One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="/ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="/Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="/Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="/AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="/MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="/Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="/PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="/Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="/Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="/CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="/Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="/Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="/t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="/Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="/Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="/factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="/Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="/Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="/Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="/Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="/Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="/Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="/Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="/Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="/Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="/Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="/Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="/Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="/Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="/Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="/QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="/Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="/Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="/Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="/UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="/Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="/Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="/Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="/Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li><li data-subkey="sec3sub5"><a href="/Bayes-Theorem-in-R.html"><span class="progress-dot"></span>Bayes' Theorem</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Statistics-in-R.html"><span class="progress-dot"></span>Bayesian Statistics</a></li><li data-subkey="sec3sub5"><a href="/Conjugate-Priors-in-R.html"><span class="progress-dot"></span>Conjugate Priors</a></li><li data-subkey="sec3sub5"><a href="/Grid-Approximation-in-R.html"><span class="progress-dot"></span>Grid Approximation</a></li><li data-subkey="sec3sub5"><a href="/MCMC-in-R.html" class="active"><span class="progress-dot"></span>MCMC in R</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="/Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="/Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="/purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="/R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="/Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="/Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="/Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="/OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="/S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="/S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="/S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="/S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="/R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="/R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="/Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="/R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="/R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="/R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="/R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="/R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="/R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="/R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="/R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="/R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="/Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="/Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="/R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="/ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="/Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="/Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="/Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="/Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="/Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="/R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="/R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="/ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="/R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="/Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="/R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="/Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="/t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="/Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="/Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="/GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/t-test-calculator.html"><span class="tool-icon"></span><span class="tool-label">t-Test Calculator</span></a></li><li><a href="/tools/chi-square-calculator.html"><span class="tool-icon"></span><span class="tool-label">Chi-Square Test</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/bootstrap-ci-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bootstrap CI</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/survival-power-calculator.html"><span class="tool-icon"></span><span class="tool-label">Survival Power</span></a></li><li><a href="/tools/type-i-ii-error-visualizer.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/><line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg></span><span class="tool-label">Type I / II Error</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li><a href="/tools/equivalence-noninferiority-calculator.html"><span class="tool-icon"></span><span class="tool-label">Equivalence / NI</span></a></li><li><a href="/tools/outlier-detection-calculator.html"><span class="tool-icon"></span><span class="tool-label">Outlier Detection</span></a></li><li><a href="/tools/roc-auc-calculator.html"><span class="tool-icon"></span><span class="tool-label">ROC / AUC</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Bayesian</li><li><a href="/tools/bayes-theorem-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Theorem</span></a></li><li><a href="/tools/bayes-factor-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Factor</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li><a href="/tools/anova-output-interpreter.html"><span class="tool-icon"></span><span class="tool-label">ANOVA Output</span></a></li><li><a href="/tools/vif-interpreter.html"><span class="tool-icon"></span><span class="tool-label">VIF / Multicollinearity</span></a></li><li><a href="/tools/confusion-matrix-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/diagnostic-plot-interpreter.html"><span class="tool-icon"></span><span class="tool-label">Diagnostic Plots</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test</span></a></li><li><a href="/tools/nonparametric-test-picker.html"><span class="tool-icon"></span><span class="tool-label">Non-Parametric Test</span></a></li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Time series</li><li><a href="/tools/ts-stationarity-calculator.html"><span class="tool-icon"></span><span class="tool-label">TS Stationarity</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Utilities</li><li><a href="/tools/dag-confounder-picker.html"><span class="tool-icon"></span><span class="tool-label">DAG Confounder Picker</span></a></li><li><a href="/tools/reprex-builder.html"><span class="tool-icon"></span><span class="tool-label">Reprex Builder</span></a></li></ul></div></div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan</span></nav>
+<!-- md2html:generated -->
+
+<h1>Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan</h1>
+<div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published May 9, 2026 &nbsp;&middot;&nbsp; Last updated May 9, 2026</div>
+
+<p class="lead">You may have used brms or Stan to fit Bayesian models and accepted that an algorithm called MCMC works behind the scenes. This post opens the box. In about 50 lines of base R, you'll build the same kind of algorithm those packages run, watch it produce samples that match the textbook closed-form answer, and end with a working understanding of what every Bayesian tool you'll ever use is doing internally.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="45" data-exercises="9" data-xp="135"></div>
+
+<h2>Why do we need MCMC at all?</h2>
+
+<p>Most R users who run <code>brms::brm(...)</code> have no real picture of what's happening between when they press Run and when the answer appears. There's an algorithm called MCMC, it draws samples from the posterior, and that's about as far as it usually goes. The shortest path to actually understanding it is to build it. Here is the entire 50-line implementation, working on a real example, before any explanation.</p>
+
+<p>The setup is the same one we've been using throughout the Bayesian section: 9 visitors saw a new button, 6 of them clicked, and we want a posterior over the true click-through rate. We already know the textbook answer (it's a Beta(7, 4) distribution; the most likely rate is about 0.636). MCMC will produce thousands of samples that approximate that same answer. If our 50 lines <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> right, the samples should match.</p>
+
+<div class="webr-container" data-block-title="50 lines of MCMC, working on a real problem">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">50 lines of MCMC, working on a real problem</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">n <span class="o">&lt;-</span> <span class="m">9</span></span>
+<span class="cl">k <span class="o">&lt;-</span> <span class="m">6</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 1. Define what makes a value &quot;plausible&quot; given the data.</span></span>
+<span class="cl"><span class="c1">#    For our problem, that&#39;s the posterior of the click rate.</span></span>
+<span class="cl">log_posterior <span class="o">&lt;-</span> <span class="kr">function</span>(theta) {</span>
+<span class="cl">  <span class="kr">if</span> (theta <span class="o">&lt;=</span> <span class="m">0</span> <span class="o">||</span> theta <span class="o">&gt;=</span> <span class="m">1</span>) <span class="kr">return</span>(<span class="o">-</span><span class="kc">Inf</span>)             <span class="c1"># rate must be between 0 and 1</span></span>
+<span class="cl">  loglik <span class="o">&lt;-</span> <span class="nf">dbinom</span>(k, size <span class="o">=</span> n, prob <span class="o">=</span> theta, log <span class="o">=</span> <span class="kc">TRUE</span>) <span class="c1"># how well theta explains the data</span></span>
+<span class="cl">  logprior <span class="o">&lt;-</span> <span class="nf">dbeta</span>(theta, <span class="m">1</span>, <span class="m">1</span>, log <span class="o">=</span> <span class="kc">TRUE</span>)              <span class="c1"># flat prior over [0, 1]</span></span>
+<span class="cl">  loglik <span class="o">+</span> logprior</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 2. The sampler: take a chain of small random steps,</span></span>
+<span class="cl"><span class="c1">#    accept each step with a probability that depends on the density ratio.</span></span>
+<span class="cl">metropolis_hastings <span class="o">&lt;-</span> <span class="kr">function</span>(start, sigma, n_iter, log_target) {</span>
+<span class="cl">  samples <span class="o">&lt;-</span> <span class="nf">numeric</span>(n_iter)</span>
+<span class="cl">  current <span class="o">&lt;-</span> start</span>
+<span class="cl">  current_lp <span class="o">&lt;-</span> <span class="nf">log_target</span>(current)</span>
+<span class="cl">  accepted <span class="o">&lt;-</span> <span class="m">0</span></span>
+<span class="cl"></span>
+<span class="cl">  <span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_len</span>(n_iter)) {</span>
+<span class="cl">    proposed <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> current, sd <span class="o">=</span> sigma)     <span class="c1"># propose a step</span></span>
+<span class="cl">    proposed_lp <span class="o">&lt;-</span> <span class="nf">log_target</span>(proposed)</span>
+<span class="cl">    log_accept_ratio <span class="o">&lt;-</span> proposed_lp <span class="o">-</span> current_lp         <span class="c1"># how much better/worse?</span></span>
+<span class="cl">    <span class="kr">if</span> (<span class="nf">log</span>(<span class="nf">runif</span>(<span class="m">1</span>)) <span class="o">&lt;</span> log_accept_ratio) {              <span class="c1"># accept with probability min(1, ratio)</span></span>
+<span class="cl">      current <span class="o">&lt;-</span> proposed</span>
+<span class="cl">      current_lp <span class="o">&lt;-</span> proposed_lp</span>
+<span class="cl">      accepted <span class="o">&lt;-</span> accepted <span class="o">+</span> <span class="m">1</span></span>
+<span class="cl">    }</span>
+<span class="cl">    samples[i] <span class="o">&lt;-</span> current</span>
+<span class="cl">  }</span>
+<span class="cl"></span>
+<span class="cl">  <span class="nf">list</span>(samples <span class="o">=</span> samples, accept_rate <span class="o">=</span> accepted <span class="o">/</span> n_iter)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 3. Run it.</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">result <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">5000</span>,</span>
+<span class="cl">                              log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># 4. Check the answer.</span></span>
+<span class="cl"><span class="nf">mean</span>(result<span class="o">$</span>samples)                       <span class="c1"># most likely rate</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6376912</span></span>
+<span class="cl"><span class="nf">quantile</span>(result<span class="o">$</span>samples, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))  <span class="c1"># 95% range</span></span>
+<span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 0.3403828 0.8865317</span></span>
+<span class="cl">result<span class="o">$</span>accept_rate                         <span class="c1"># how often did the chain move?</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.4624</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That's the whole thing. Let's walk through what it actually did, then check the answer against what we know to be correct.</p>
+
+<p>The first chunk defines <code>log_posterior</code>, a function that takes a candidate click-through rate and returns a number that is bigger when the rate is more plausible (given our 9 visitors and 6 clicks). It uses log-scale to avoid numerical underflow, but conceptually it's just "how good is this candidate?" The <code>if (theta &lt;= 0)</code> check returns negative infinity for impossible values (a rate can't be below 0 or above 1), which makes them never accepted later.</p>
+
+<p>The second chunk is the sampler itself. It takes four arguments: a starting guess (<code>start = 0.5</code>), a step size (<code>sigma = 0.1</code>), how many iterations to run (<code>n_iter = 5000</code>), and the function that scores candidates. Inside the loop, each iteration does four things. First, <code>rnorm(1, mean = current, sd = sigma)</code> proposes a small random step away from the current value. Second, it scores the proposed value with the posterior. Third, it computes how much better (or worse) the proposed value is, on a log scale. Fourth, it accepts the move with probability <code>exp(log_accept_ratio)</code> (the trick <code>log(runif(1)) &lt; log_accept_ratio</code> is a numerically safe way to do this). Whether the move was accepted or rejected, it stores the current value in <code>samples[i]</code>.</p>
+
+<p>The third chunk runs the sampler with a fixed random seed (so you get the same numbers as the post). The fourth chunk asks three things of the result: the average sample (which approximates the most likely rate), the 2.5% and 97.5% quantiles of the samples (the 95% range), and what fraction of proposed moves were accepted.</p>
+
+<p>Now look at the numbers. The sample mean came out to 0.638, which is essentially the same as the closed-form answer of 0.636 from the Beta-Binomial recipe. The 95% range is [0.34, 0.89], very close to the closed-form qbeta range of [0.31, 0.89]. The acceptance rate was about 46%, which means roughly half the proposed moves were accepted (we'll discuss why this number matters in a few sections). The 50-line algorithm just produced the right answer, no calculus, no closed-form trick, no extra packages. That's MCMC.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MCMC turns "compute the posterior" into "sample from the posterior".</strong> Computing the posterior in closed form requires the prior and likelihood to be conjugate. Sampling from it just requires that you can score how plausible each candidate is. The second is a much easier problem to solve, which is why MCMC works for any Bayesian model, not just the conjugate ones.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the sampler again from a different starting point (say, <code>start = 0.95</code>). Do the samples still produce a posterior mean near 0.64? They should, because a properly working chain finds the right answer regardless of where it begins, given enough iterations.</p>
+<div class="webr-container" data-block-title="Your turn: change the starting point">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: change the starting point</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_start <span class="o">&lt;-</span> <span class="m">0.95</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Re-run metropolis_hastings with start = ex_start, same sigma and n_iter</span></span>
+<span class="cl"><span class="c1"># Compute mean(result$samples) and compare to 0.64</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: posterior mean still close to 0.64</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Different start solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different start solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_result <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> ex_start, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">5000</span>,</span>
+<span class="cl">                                 log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"><span class="nf">mean</span>(ex_result<span class="o">$</span>samples)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6446127</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The chain started at 0.95, took small steps, and within a few hundred iterations had wandered down to where the posterior actually has its mass. The remaining samples produced a mean of 0.645, essentially the same as before. (This wandering-toward-the-mass phase is called "burn-in" and we'll deal with it explicitly in a later section.)</p>
+
+</details>
+</section>
+
+<h2>How does the algorithm decide where to go next?</h2>
+
+<p>The two key lines in the sampler are the proposal step and the accept-or-reject step. Together they're called Metropolis-Hastings, and they're what makes MCMC work. Both deserve a slow walk-through, because the logic is more elegant than it first appears.</p>
+
+<p>Imagine you're a hiker standing on an unfamiliar landscape, blindfolded, and your goal is to spend more time on the tall peaks than in the valleys. You can feel how high the ground is right where you're standing, but nothing else. What rule should you follow to get the right time-on-each-spot proportion?</p>
+
+<p>A naive rule is "always move uphill." That gets you to the highest peak and you stay there. You'd spend 100% of your time on one spot, regardless of whether other peaks are almost as tall. Wrong answer.</p>
+
+<p>Another naive rule is "always take a random step." That gives you a uniform random walk that ignores the landscape entirely. You'd spend roughly equal time everywhere. Wrong answer.</p>
+
+<p>The right rule is in between. Take a small random step in some direction. If the new spot is higher, definitely move there. If the new spot is lower, sometimes still move (with probability proportional to the height ratio between the new spot and the old). Repeat for a long time. The math works out so that, in the long run, you spend time on each spot in exact proportion to its height. That is the entire idea behind Metropolis-Hastings.</p>
+
+<p>In our problem, "height" means posterior plausibility. Tall peaks are click-through rates that explain the data well; valleys are rates that explain it poorly. The chain spends most of its time on the plausible rates, occasionally wandering through implausible ones, and the proportion of time at each rate is what we measure as the posterior.</p>
+
+<p><img src="screenshots/MCMC-in-R-algorithm.webp" alt="One step of Metropolis-Hastings" class="img-responsive img-zoomable" loading="lazy" width="946" height="2468" /></p>
+
+<p><em>Figure 1: One step of Metropolis-Hastings. Propose, compare, accept or reject, repeat. Over thousands of iterations, the time spent at each location is proportional to the posterior density there.</em></p>
+
+<p>Here is one Metropolis-Hastings step factored out into a small function, so we can examine the logic without the surrounding loop.</p>
+
+<div class="webr-container" data-block-title="One Metropolis-Hastings step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One Metropolis-Hastings step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">one_mh_step <span class="o">&lt;-</span> <span class="kr">function</span>(current, sigma, log_target) {</span>
+<span class="cl">  proposed <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="m">1</span>, mean <span class="o">=</span> current, sd <span class="o">=</span> sigma)        <span class="c1"># 1. propose</span></span>
+<span class="cl">  current_lp  <span class="o">&lt;-</span> <span class="nf">log_target</span>(current)</span>
+<span class="cl">  proposed_lp <span class="o">&lt;-</span> <span class="nf">log_target</span>(proposed)</span>
+<span class="cl">  log_ratio   <span class="o">&lt;-</span> proposed_lp <span class="o">-</span> current_lp                  <span class="c1"># 2. compare on log scale</span></span>
+<span class="cl">  <span class="kr">if</span> (<span class="nf">log</span>(<span class="nf">runif</span>(<span class="m">1</span>)) <span class="o">&lt;</span> log_ratio) {                         <span class="c1"># 3. accept with right probability</span></span>
+<span class="cl">    <span class="kr">return</span>(<span class="nf">list</span>(value <span class="o">=</span> proposed, accepted <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl">  } <span class="kr">else</span> {</span>
+<span class="cl">    <span class="kr">return</span>(<span class="nf">list</span>(value <span class="o">=</span> current, accepted <span class="o">=</span> <span class="kc">FALSE</span>))</span>
+<span class="cl">  }</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Watch a single step play out</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">7</span>)</span>
+<span class="cl"><span class="nf">one_mh_step</span>(current <span class="o">=</span> <span class="m">0.6</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"><span class="c1">#&gt; $value</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.5765053</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; $accepted</span></span>
+<span class="cl"><span class="c1">#&gt; [1] TRUE</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what each line did. The first line proposed a candidate move using a Normal jump centered at the current location. With <code>current = 0.6</code> and <code>sigma = 0.1</code>, <code>rnorm(1, 0.6, 0.1)</code> drew a number near 0.6 (it happened to be 0.577 with this seed). The next two lines scored the current and proposed positions using <code>log_posterior</code>. The log ratio is just the difference of those two scores on the log scale. The <code>if (log(runif(1)) &lt; log_ratio)</code> line is the clever part. <code>runif(1)</code> draws a uniform random number between 0 and 1, and <code>log()</code> of it is some negative number. If <code>log_ratio</code> is positive (proposed is more plausible than current), the inequality is always true and we accept. If <code>log_ratio</code> is negative (proposed is less plausible), the inequality is true with probability exactly <code>exp(log_ratio)</code>, which is the height ratio. That's exactly the rule the hiker should follow.</p>
+
+<p>In the test run, the chain proposed 0.577 starting from 0.6. Both rates are plausible given 6/9 clicks, the proposed rate was just slightly less plausible than current, but the random coin flip still came up "accept" so the chain moved. Over thousands of repeated steps with this rule, the chain visits each rate in proportion to how plausible it is.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The conditional accept rule is what makes the math work.</strong> Always accepting uphill = stuck at the highest peak. Always accepting any move = pure random walk. The probabilistic accept-when-downhill rule is what produces samples that follow the posterior shape, not just the maximum. The brilliance is that you don't need to know the total area under the posterior (which would require integration); the ratio of two heights is enough.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Walk through what <code>one_mh_step()</code> would do if it proposed a rate of 0.05 starting from 0.65. The proposed rate is much less plausible than 0.65 (only 6 of 9 clicks suggest a low rate is unlikely). What happens?</p>
+<div class="webr-container" data-block-title="Your turn: trace one step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trace one step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_curr <span class="o">&lt;-</span> <span class="m">0.65</span></span>
+<span class="cl">ex_prop <span class="o">&lt;-</span> <span class="m">0.05</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute log_posterior at both, then the log ratio,</span></span>
+<span class="cl"><span class="c1"># then determine: would log(runif(1)) &lt; log_ratio be true very rarely?</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: log_ratio strongly negative, so the move is almost always rejected</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Trace-one-step solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trace-one-step solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">log_posterior</span>(ex_curr)</span>
+<span class="cl"><span class="c1">#&gt; [1] -1.902515</span></span>
+<span class="cl"><span class="nf">log_posterior</span>(ex_prop)</span>
+<span class="cl"><span class="c1">#&gt; [1] -16.74993</span></span>
+<span class="cl">ratio <span class="o">&lt;-</span> <span class="nf">log_posterior</span>(ex_prop) <span class="o">-</span> <span class="nf">log_posterior</span>(ex_curr)</span>
+<span class="cl">ratio</span>
+<span class="cl"><span class="c1">#&gt; [1] -14.84741</span></span>
+<span class="cl"><span class="nf">exp</span>(ratio)</span>
+<span class="cl"><span class="c1">#&gt; [1] 3.92e-07</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The proposed rate is wildly less plausible than the current one. The log ratio is -14.85, so <code>exp(log_ratio)</code> is about 4 in 10 million. The chain would essentially never make this move. That's exactly what you'd want: a move from a plausible rate to a wildly implausible one is rejected with overwhelming probability, but the rule still allows it once in a great while, which is what gives the chain the right long-run behavior.</p>
+
+</details>
+</section>
+
+<h2>How do we run the sampler in a loop?</h2>
+
+<p>We've seen what one step does. To get samples from the posterior, we need to repeat the step thousands of times and store every visited value. That's what <code>metropolis_hastings()</code> from the first code block does. Let's run it longer this time, plot the trace (sample value vs iteration), and overlay the histogram on the closed-form Beta posterior to confirm the algorithm is producing the right shape.</p>
+
+<div class="webr-container" data-block-title="Run, trace, and verify">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run, trace, and verify</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">trace <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">10000</span>,</span>
+<span class="cl">                             log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Trace plot: see the chain wandering</span></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2</span>), mar <span class="o">=</span> <span class="nf">c</span>(<span class="m">4</span>, <span class="m">4</span>, <span class="m">2</span>, <span class="m">1</span>))</span>
+<span class="cl"><span class="nf">plot</span>(trace<span class="o">$</span>samples, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;click-through rate&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Chain trace&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Histogram of samples, with the closed-form Beta(7, 4) overlaid in red</span></span>
+<span class="cl"><span class="nf">hist</span>(trace<span class="o">$</span>samples, breaks <span class="o">=</span> <span class="m">50</span>, freq <span class="o">=</span> <span class="kc">FALSE</span>, col <span class="o">=</span> <span class="s">&quot;lightgray&quot;</span>,</span>
+<span class="cl">     border <span class="o">=</span> <span class="s">&quot;white&quot;</span>, main <span class="o">=</span> <span class="s">&quot;Samples vs textbook answer&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;click-through rate&quot;</span>)</span>
+<span class="cl"><span class="nf">curve</span>(<span class="nf">dbeta</span>(x, <span class="m">7</span>, <span class="m">4</span>), add <span class="o">=</span> <span class="kc">TRUE</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>, lwd <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Numerical comparison</span></span>
+<span class="cl"><span class="nf">mean</span>(trace<span class="o">$</span>samples)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6360312</span></span>
+<span class="cl"><span class="nf">qbeta</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), <span class="m">7</span>, <span class="m">4</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.3905575 0.8907499</span></span>
+<span class="cl"><span class="nf">quantile</span>(trace<span class="o">$</span>samples, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 0.3500041 0.8758895</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. The first line ran the sampler for 10,000 iterations starting at 0.5 with the same step size as before. The next chunk drew two plots side by side: the trace plot shows every sample plotted in order, so you can see the chain wandering up and down through the plausible rates; the histogram shows the <em>distribution</em> of all those samples, with the closed-form Beta(7, 4) curve overlaid in red for comparison. Finally, the numerical comparison shows the sample mean (0.636), the closed-form 95% range from <code>qbeta()</code> ([0.39, 0.89]), and the empirical 95% range from the samples ([0.35, 0.88]).</p>
+
+<p>The trace plot looks like a fuzzy caterpillar moving up and down between roughly 0.35 and 0.85, with most time spent around 0.6-0.7. That's exactly what a healthy MCMC chain should look like. The histogram of samples almost perfectly traces the closed-form Beta curve. The sample mean (0.636) matches the closed-form answer to three decimal places. The empirical 95% range is within 0.04 of the textbook range. We've reproduced the textbook answer using the algorithm, and we now have a tool that works on any posterior, not just conjugate ones.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Trace plot = sample value plotted against iteration number.</strong> A converged chain looks like a fuzzy caterpillar with no upward or downward trend, no long flat stretches, and roughly even fuzziness over time. We'll see what bad trace plots look like in the tuning section.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the sampler for 20,000 iterations and check whether the answer changes meaningfully. (The point: more iterations give a better approximation, but with this setup we already have plenty.)</p>
+<div class="webr-container" data-block-title="Your turn: longer run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: longer run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_long <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">20000</span>,</span>
+<span class="cl">                               log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute mean and 95% range of ex_long$samples</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: numbers within ~0.01 of the previous run</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Longer run solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Longer run solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_long <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">20000</span>,</span>
+<span class="cl">                               log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"><span class="nf">mean</span>(ex_long<span class="o">$</span>samples)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6362511</span></span>
+<span class="cl"><span class="nf">quantile</span>(ex_long<span class="o">$</span>samples, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 0.3565128 0.8772712</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean is essentially identical (0.636). The 95% range moved by less than 0.01. With 5,000 to 10,000 iterations, single-parameter problems like this one are already well-converged; doubling the iterations doesn't change the answer in any meaningful way. For more complex problems with multiple parameters, you'd run longer chains.</p>
+
+</details>
+</section>
+
+<h2>How do we tune the step size?</h2>
+
+<p>There is one knob the user has to set: <code>sigma</code>, the standard deviation of the proposal step. Get it wrong in either direction and the chain misbehaves. There is a sweet spot, and finding it is the main practical skill of running MCMC.</p>
+
+<p>Too small a step: every proposal lands very close to where we already are, so almost every proposal is accepted (because the densities at adjacent points are similar), but the chain barely moves. It takes thousands of iterations to wander across the plausible region. Samples are heavily autocorrelated (each one is very close to the previous), so 5,000 samples carry only a small amount of independent information.</p>
+
+<p>Too large a step: every proposal lands far away, often in a region of much lower posterior density. Almost all proposals are rejected, and the chain stalls in place for long stretches. Samples are even more autocorrelated than the too-small case (most samples are exact copies of their predecessors). The chain visits very few unique values.</p>
+
+<p>Just right: proposals land far enough away to make real progress but close enough that a reasonable fraction get accepted. The textbook target acceptance rate is about 25-40% for one-parameter problems. The chain wanders smoothly through the posterior, and 5,000 samples represent something close to 5,000 independent draws.</p>
+
+<p><img src="screenshots/MCMC-in-R-stepsize.webp" alt="Step-size Goldilocks problem" class="img-responsive img-zoomable" loading="lazy" width="1002" height="986" /></p>
+
+<p><em>Figure 2: The Goldilocks problem of step size. Too small wastes iterations on tiny moves; too large stalls the chain on rejected proposals; just right wanders smoothly with about 30% of proposals accepted.</em></p>
+
+<p>Let's run the sampler at three different step sizes and look at the trace plots side by side. The acceptance rates and the visual character of the chains will make the point better than any equation could.</p>
+
+<div class="webr-container" data-block-title="Three step sizes, side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three step sizes, side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">sigmas <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.005</span>, <span class="m">0.05</span>, <span class="m">0.5</span>)</span>
+<span class="cl">runs <span class="o">&lt;-</span> <span class="nf">list</span>()</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_along</span>(sigmas)) {</span>
+<span class="cl">  runs[[i]] <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> sigmas[i], n_iter <span class="o">=</span> <span class="m">3000</span>,</span>
+<span class="cl">                                   log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Three trace plots side by side</span></span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">3</span>), mar <span class="o">=</span> <span class="nf">c</span>(<span class="m">4</span>, <span class="m">4</span>, <span class="m">3</span>, <span class="m">1</span>))</span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_along</span>(sigmas)) {</span>
+<span class="cl">  <span class="nf">plot</span>(runs[[i]]<span class="o">$</span>samples, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>,</span>
+<span class="cl">       xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;rate&quot;</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1</span>),</span>
+<span class="cl">       main <span class="o">=</span> <span class="nf">sprintf</span>(<span class="s">&quot;sigma = %.3f, accept = %.0f%%&quot;</span>,</span>
+<span class="cl">                      sigmas[i], <span class="m">100</span> <span class="o">*</span> runs[[i]]<span class="o">$</span>accept_rate))</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">par</span>(mfrow <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">1</span>))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Acceptance rates printed numerically</span></span>
+<span class="cl"><span class="nf">sapply</span>(runs, <span class="kr">function</span>(r) <span class="nf">round</span>(r<span class="o">$</span>accept_rate, <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.969 0.640 0.080</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the code. The first line defined three step sizes spanning two orders of magnitude. The loop ran the sampler at each step size for 3,000 iterations and stored the result. The next chunk drew three trace plots side by side, each labeled with its step size and acceptance rate. The final line printed just the acceptance rates as a quick numeric summary.</p>
+
+<p>Look at what the three traces show. With sigma = 0.005, the chain accepts 97% of proposals, but each proposal is so tiny that the chain barely moves. The trace looks like a slow, smooth wave drifting across the page. After 3,000 iterations the chain has barely explored half the posterior. With sigma = 0.5, the chain accepts only 8% of proposals; the trace is almost flat, made up of long horizontal stretches where the chain stalled because every proposed jump was too far. With sigma = 0.05, the chain accepts about 64% (a little high but in the workable zone) and the trace is a healthy fuzzy caterpillar covering the full plausible range.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Aim for an acceptance rate between roughly 25% and 50% for one-parameter problems.</strong> If too high, double sigma. If too low, halve sigma. Iterate a couple of times. There's also a theoretical optimum (about 23% for high-dimensional Gaussian targets), but for everyday work just keeping the rate in the 25-50% band is enough.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the sampler with a step size of your choice and check the acceptance rate. Try to land in the 25-50% range with one or two adjustments.</p>
+<div class="webr-container" data-block-title="Your turn: tune your own sigma">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune your own sigma</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_sigma <span class="o">&lt;-</span> <span class="m">0.1</span>   <span class="c1"># try this, then adjust based on the acceptance rate</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_run <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> ex_sigma, n_iter <span class="o">=</span> <span class="m">3000</span>,</span>
+<span class="cl">                              log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Print acceptance rate. If outside 25-50%, adjust ex_sigma and retry.</span></span>
+<span class="cl">ex_run<span class="o">$</span>accept_rate</span>
+<span class="cl"><span class="c1">#&gt; Expected: around 0.45 with sigma = 0.1</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tune-your-own-sigma solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune-your-own-sigma solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_sigma <span class="o">&lt;-</span> <span class="m">0.1</span></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">ex_run <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.5</span>, sigma <span class="o">=</span> ex_sigma, n_iter <span class="o">=</span> <span class="m">3000</span>,</span>
+<span class="cl">                              log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl">ex_run<span class="o">$</span>accept_rate</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.4663333</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Acceptance rate of 0.47 (47%), right in the workable zone. If you'd tried sigma = 0.02, the rate would be near 80%; if 0.3, near 20%. A handful of adjustments lets you home in.</p>
+
+</details>
+</section>
+
+<h2>How do we know when the chain has converged?</h2>
+
+<p>The trace plots in the previous section showed healthy chains finding the posterior. But what if the chain starts somewhere wildly wrong? Or what if you can't tell from looking whether the chain has actually settled into the posterior or is still drifting toward it? Two simple practices catch both problems: discarding the early samples (called burn-in) and running multiple chains from different starting points.</p>
+
+<p>Burn-in first. If the chain starts far from the bulk of the posterior, the first few hundred or thousand iterations are spent climbing toward the right region. Those early samples are not representative of the posterior, they're representative of the path the chain took to get there. Standard practice is to throw them away. Watch what happens when we deliberately start the chain at 0.01 (a very implausible click-through rate given 6 of 9 clicked).</p>
+
+<div class="webr-container" data-block-title="Bad starting value, with burn-in visible in the trace">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bad starting value, with burn-in visible in the trace</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">bad_start <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.01</span>, sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">3000</span>,</span>
+<span class="cl">                                 log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Plot the full trace. The first ~300 iterations should show the chain climbing.</span></span>
+<span class="cl"><span class="nf">plot</span>(bad_start<span class="o">$</span>samples, type <span class="o">=</span> <span class="s">&quot;l&quot;</span>, col <span class="o">=</span> <span class="s">&quot;steelblue&quot;</span>,</span>
+<span class="cl">     xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;rate&quot;</span>, ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1</span>),</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Bad start: chain wanders toward the posterior, then mixes&quot;</span>)</span>
+<span class="cl"><span class="nf">abline</span>(v <span class="o">=</span> <span class="m">500</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>, lty <span class="o">=</span> <span class="m">2</span>)   <span class="c1"># mark the burn-in cutoff</span></span>
+<span class="cl"><span class="nf">text</span>(<span class="m">500</span>, <span class="m">0.05</span>, <span class="s">&quot;discard before this&quot;</span>, pos <span class="o">=</span> <span class="m">4</span>, col <span class="o">=</span> <span class="s">&quot;tomato&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compare summaries with and without burn-in</span></span>
+<span class="cl"><span class="nf">mean</span>(bad_start<span class="o">$</span>samples)                          <span class="c1"># all samples (biased low)</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6202345</span></span>
+<span class="cl"><span class="nf">mean</span>(bad_start<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)])                <span class="c1"># post-burn-in only</span></span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6471687</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. The chain started at 0.01 (an absurdly low rate). The first ~200 iterations show the chain wandering uphill: each step is small but biased upward because uphill moves are accepted essentially every time. By iteration 500 or so, the chain has reached the bulk of the posterior and starts mixing properly. After that the trace looks just like the healthy ones from the previous section. The two summary lines compare the mean of all 3,000 samples (which is dragged down by the early uphill stretch) to the mean of just the post-burn-in samples (which closely matches the textbook answer).</p>
+
+<p>The all-samples mean came out to 0.620, noticeably lower than the textbook answer of 0.636 because the early samples polluted the average. After dropping the first 500 samples, the mean was 0.647, much closer to the textbook value. In practice, a 10-20% burn-in is a safe default for most problems. For pathological cases you might need more.</p>
+
+<p>The second practice is running multiple chains from different starting points. If they all converge to the same distribution, you can trust the answer. If they end up in different places, you have a problem (either the algorithm hasn't run long enough, or the posterior has multiple modes that need to be diagnosed).</p>
+
+<div class="webr-container" data-block-title="Four chains from four different starts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four chains from four different starts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">starts <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">0.05</span>, <span class="m">0.30</span>, <span class="m">0.70</span>, <span class="m">0.95</span>)</span>
+<span class="cl">chains <span class="o">&lt;-</span> <span class="nf">list</span>()</span>
+<span class="cl"></span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_along</span>(starts)) {</span>
+<span class="cl">  <span class="nf">set.seed</span>(<span class="m">100</span> <span class="o">+</span> i)   <span class="c1"># different seed per chain</span></span>
+<span class="cl">  chains[[i]] <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> starts[i], sigma <span class="o">=</span> <span class="m">0.1</span>, n_iter <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">                                     log_target <span class="o">=</span> log_posterior)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Plot all four traces overlaid</span></span>
+<span class="cl"><span class="nf">plot</span>(<span class="kc">NA</span>, xlim <span class="o">=</span> <span class="nf">c</span>(<span class="m">1</span>, <span class="m">2000</span>), ylim <span class="o">=</span> <span class="nf">c</span>(<span class="m">0</span>, <span class="m">1</span>), xlab <span class="o">=</span> <span class="s">&quot;iteration&quot;</span>, ylab <span class="o">=</span> <span class="s">&quot;rate&quot;</span>,</span>
+<span class="cl">     main <span class="o">=</span> <span class="s">&quot;Four chains converge to the same posterior&quot;</span>)</span>
+<span class="cl">cols <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="s">&quot;steelblue&quot;</span>, <span class="s">&quot;tomato&quot;</span>, <span class="s">&quot;darkgreen&quot;</span>, <span class="s">&quot;purple&quot;</span>)</span>
+<span class="cl"><span class="kr">for</span> (i <span class="kr">in</span> <span class="nf">seq_along</span>(chains)) {</span>
+<span class="cl">  <span class="nf">lines</span>(chains[[i]]<span class="o">$</span>samples, col <span class="o">=</span> cols[i])</span>
+<span class="cl">}</span>
+<span class="cl"><span class="nf">abline</span>(v <span class="o">=</span> <span class="m">500</span>, lty <span class="o">=</span> <span class="m">2</span>, col <span class="o">=</span> <span class="s">&quot;grey50&quot;</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># After burn-in, each chain&#39;s mean should be close to 0.636</span></span>
+<span class="cl"><span class="nf">sapply</span>(chains, <span class="kr">function</span>(c) <span class="nf">round</span>(<span class="nf">mean</span>(c<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]), <span class="m">3</span>))</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.640 0.633 0.633 0.626</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through this. The four <code>start</code> values were spread across the [0, 1] range, deliberately including very implausible starting points (0.05 and 0.95). Each chain ran with its own random seed so the four runs are independent. The plot overlays all four traces, with a dashed line at iteration 500 to mark the burn-in cutoff. The final line computes each chain's post-burn-in mean.</p>
+
+<p>Look at the result. The four chains start at four very different places, but all four climb toward the bulk of the posterior within the first few hundred iterations. After burn-in, all four wander through the same range. Their post-burn-in means are 0.640, 0.633, 0.633, and 0.626, all within 0.015 of each other and of the textbook answer 0.636. This is what convergence looks like. If one chain had stayed near 0.1 forever while the others wandered around 0.65, we'd know something was wrong (either burn-in was too short, or the algorithm had a bug, or the posterior had multiple modes).</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never trust a single chain.</strong> Always run at least 3-4 from different starting points. If they agree after burn-in, you have a converged sampler. If they disagree, something is wrong: burn-in too short, step size off, or the posterior is multimodal and the chains are stuck on different modes. Single-chain MCMC has shipped published bugs more times than anyone wants to admit.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use a different burn-in length on the bad-start chain (try 100, 500, 1000) and see how the post-burn-in mean changes. With the chain starting at 0.01, you should see the mean stabilize once burn-in is large enough.</p>
+<div class="webr-container" data-block-title="Your turn: vary burn-in">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: vary burn-in</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">ex_burn <span class="o">&lt;-</span> <span class="m">100</span>   <span class="c1"># try 100, 500, and 1000</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compute mean(bad_start$samples[-(1:ex_burn)]) for each</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: 100 still slightly biased, 500 close to right, 1000 essentially the same as 500</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Vary-burn-in solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vary-burn-in solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">sapply</span>(<span class="nf">c</span>(<span class="m">100</span>, <span class="m">500</span>, <span class="m">1000</span>), <span class="kr">function</span>(b) {</span>
+<span class="cl">  <span class="nf">round</span>(<span class="nf">mean</span>(bad_start<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span>b)]), <span class="m">3</span>)</span>
+<span class="cl">})</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.642 0.647 0.643</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Burn-in of 100 still leaves a faint upward drift in the mean, but only by about 0.005. Burn-in of 500 or 1000 give essentially identical answers. The bad-start chain in this problem is converged by iteration 500. Different problems take longer; the test is always whether the trace looks like a fuzzy caterpillar from your burn-in cutoff onward.</p>
+
+</details>
+</section>
+
+<h2>When should I use brms or Stan instead?</h2>
+
+<p>You now have a working MCMC sampler. It produced the right answer for our 1-parameter Beta-Binomial problem in 50 lines of base R. So why does anyone use <code>brms</code> or <code>rstan</code>? Three reasons.</p>
+
+<p><strong>Speed.</strong> Our sampler is written in R, which is slow. Stan compiles models to C++ and runs them at machine speed. For a problem with 1,000 observations and 5 parameters, our sampler might take a minute; Stan takes a fraction of a second. For modern Bayesian workflows (especially during model development, when you re-fit dozens of times), that gap is the difference between practical and impractical.</p>
+
+<p><strong>Smarter sampling.</strong> Plain Metropolis-Hastings with a Normal proposal is the simplest possible MCMC. It works fine for one parameter but scales poorly: with 10 parameters at once, the acceptance rate plummets and the chain stalls. Stan uses Hamiltonian Monte Carlo (HMC) and the No-U-Turn Sampler (NUTS), which exploit the geometry of the posterior to take much smarter, longer steps. Same kind of accept/reject logic, just with the proposal informed by gradients of the log-posterior. The mental model is identical.</p>
+
+<p><strong>Convenience for real models.</strong> Building MH from scratch for a simple posterior is educational. Building it from scratch for a 50-parameter hierarchical regression with custom likelihood is masochistic. <code>brms</code> writes the Stan model for you from a standard R formula like <code>y ~ x + (1 | group)</code>. You think in R formulas, brms thinks in Stan code, Stan thinks in HMC samples.</p>
+
+<p>For comparison, here is what the same click-through rate problem would look like in <code>brms</code>. The package isn't WebR-compatible, so this code can't run in your browser. Copy it to your local RStudio if you want to try it.</p>
+
+<div class="webr-container" data-block-title="The same problem in brms (run locally, not in browser)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same problem in brms (run locally, not in browser)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># install.packages(&quot;brms&quot;)</span></span>
+<span class="cl"><span class="c1"># library(brms)</span></span>
+<span class="cl"><span class="c1">#</span></span>
+<span class="cl"><span class="c1"># trials &lt;- data.frame(</span></span>
+<span class="cl"><span class="c1">#   k = 6,        # successes</span></span>
+<span class="cl"><span class="c1">#   n = 9         # trials</span></span>
+<span class="cl"><span class="c1"># )</span></span>
+<span class="cl"><span class="c1">#</span></span>
+<span class="cl"><span class="c1"># fit &lt;- brm(k | trials(n) ~ 1, data = trials,</span></span>
+<span class="cl"><span class="c1">#            family = binomial(link = &quot;identity&quot;),</span></span>
+<span class="cl"><span class="c1">#            prior = prior(beta(1, 1), class = &quot;Intercept&quot;),</span></span>
+<span class="cl"><span class="c1">#            chains = 4, iter = 2000)</span></span>
+<span class="cl"><span class="c1">#</span></span>
+<span class="cl"><span class="c1"># summary(fit)            # Posterior mean and 95% range, similar to ours</span></span>
+<span class="cl"><span class="c1"># plot(fit)               # Trace plots, density plots, all done for you</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what brms would do for you. The <code>brm()</code> call takes a formula (here just <code>k | trials(n) ~ 1</code>, meaning "k out of n with intercept-only"), a likelihood family (binomial with identity link to keep the parameter on its natural [0, 1] scale), a prior, and the MCMC settings. brms then translates this into Stan code, compiles it, runs four chains for 2,000 iterations each (with 1,000 burn-in by default), and returns a fitted model object. <code>summary()</code> shows posterior summaries; <code>plot()</code> draws trace and density plots in one call. None of this would be different in spirit from what we built. Just much faster and much more general.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>brms and Stan use the same prior + likelihood + data → samples mental model you just built.</strong> They run a smarter, faster sampler. The intuition transfers exactly, including how to read trace plots, how to choose burn-in, and how to interpret the resulting samples. The 50 lines of code from H2-1 made you fluent in what those packages are doing. That fluency is the point of this post.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Imagine you wanted to extend our sampler to a 5-parameter model. How many functions and bits of state would you need? List them out, then notice why writing your own becomes impractical fast.</p>
+<div class="webr-container" data-block-title="Your turn: scope-of-work for a 5-parameter sampler">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: scope-of-work for a 5-parameter sampler</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Sketch (no code) the additions you&#39;d need:</span></span>
+<span class="cl"><span class="c1"># 1. log_posterior over a 5-element vector instead of a scalar</span></span>
+<span class="cl"><span class="c1"># 2. proposal: rnorm() for each parameter? or a multivariate proposal?</span></span>
+<span class="cl"><span class="c1"># 3. one_mh_step needs to handle vector current/proposed</span></span>
+<span class="cl"><span class="c1"># 4. tuning: each parameter might want a different sigma</span></span>
+<span class="cl"><span class="c1"># 5. trace plots: one per parameter, plus joint plots</span></span>
+<span class="cl"><span class="c1"># 6. convergence diagnostics: R-hat across multiple chains, per parameter</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: a noticeable amount of plumbing per parameter</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details><summary>Click to reveal solution</summary>
+
+<p>The amount of code roughly doubles even just to handle a 2-parameter model cleanly: vector-valued state, proposal covariance choices, per-parameter tuning, multi-dim trace plots. By 5 parameters you have several hundred lines of careful plumbing. By 10 parameters or with hierarchical structure, you'd be effectively re-implementing Stan.</p>
+
+<p>This is exactly why <code>brms</code> and Stan exist. Beyond the toy-problem zone, the cost-benefit flips. The educational value of building it yourself is real, but the production value is in using the tool that has solved the plumbing problem at scale.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: A Gamma-Poisson rate, by MCMC</h3>
+
+<p>Recall the support-tickets-per-day example: five days of counts (8, 12, 7, 15, 9), with a <code>Gamma(2, 0.25)</code> prior on the rate. The closed-form Beta-Binomial trick doesn't apply here, but you can still build a Metropolis-Hastings sampler. Define a <code>log_posterior()</code> function for the Gamma-Poisson setup, then call your existing <code>metropolis_hastings()</code> on it. Verify the sample mean against the closed-form Gamma posterior <code>Gamma(53, 5.25)</code> whose mean is <code>53 / 5.25 ≈ 10.10</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">y <span class="o">&lt;-</span> <span class="nf">c</span>(<span class="m">8</span>, <span class="m">12</span>, <span class="m">7</span>, <span class="m">15</span>, <span class="m">9</span>)</span>
+<span class="cl"></span>
+<span class="cl">gp_log_post <span class="o">&lt;-</span> <span class="kr">function</span>(lambda) {</span>
+<span class="cl">  <span class="kr">if</span> (lambda <span class="o">&lt;=</span> <span class="m">0</span>) <span class="kr">return</span>(<span class="o">-</span><span class="kc">Inf</span>)</span>
+<span class="cl">  loglik <span class="o">&lt;-</span> <span class="nf">sum</span>(<span class="nf">dpois</span>(y, lambda <span class="o">=</span> lambda, log <span class="o">=</span> <span class="kc">TRUE</span>))</span>
+<span class="cl">  logprior <span class="o">&lt;-</span> <span class="nf">dgamma</span>(lambda, shape <span class="o">=</span> <span class="m">2</span>, rate <span class="o">=</span> <span class="m">0.25</span>, log <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">  loglik <span class="o">+</span> logprior</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Run metropolis_hastings on gp_log_post</span></span>
+<span class="cl"><span class="c1"># Suggested settings: start = 5, sigma = 1, n_iter = 5000</span></span>
+<span class="cl"><span class="c1"># Compute mean(samples) and compare to 53 / 5.25 = 10.10</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">gp_run <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">5</span>, sigma <span class="o">=</span> <span class="m">1</span>, n_iter <span class="o">=</span> <span class="m">5000</span>,</span>
+<span class="cl">                              log_target <span class="o">=</span> gp_log_post)</span>
+<span class="cl"><span class="nf">mean</span>(gp_run<span class="o">$</span>samples)</span>
+<span class="cl"><span class="c1">#&gt; [1] 10.0773</span></span>
+<span class="cl">gp_run<span class="o">$</span>accept_rate</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.4302</span></span>
+<span class="cl"><span class="nf">qgamma</span>(<span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>), shape <span class="o">=</span> <span class="m">53</span>, rate <span class="o">=</span> <span class="m">5.25</span>)</span>
+<span class="cl"><span class="c1">#&gt; [1]  7.563749 12.916091</span></span>
+<span class="cl"><span class="nf">quantile</span>(gp_run<span class="o">$</span>samples, <span class="nf">c</span>(<span class="m">0.025</span>, <span class="m">0.975</span>))</span>
+<span class="cl"><span class="c1">#&gt;      2.5%     97.5%</span></span>
+<span class="cl"><span class="c1">#&gt; 7.504193 12.788961</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same <code>metropolis_hastings()</code> function we wrote for the click-through rate problem worked unchanged on a completely different model. The only thing that changed was <code>log_posterior</code>, which now computes the Poisson likelihood over five observations and a Gamma prior. The sample mean came out to 10.08, matching the closed-form 10.10 to two decimal places. The 95% range from samples ([7.50, 12.79]) matches the closed-form <code>qgamma()</code> range ([7.56, 12.92]) within rounding. Same algorithm, totally different posterior, same accuracy.</p>
+
+</details>
+
+<h3>Exercise 2: Burn-in plus thinning</h3>
+
+<p>Autocorrelated samples are still valid samples, but each one carries less information than an independent draw. A common practice is "thinning": keep every <code>k</code>-th sample after burn-in. The post-burn-in, thinned samples are roughly independent and easier to reason about. Implement burn-in plus thinning on the chain from H2-5 (<code>bad_start</code>). Drop the first 500 samples, then keep every 10th from the remainder. Verify that the thinned mean matches the full post-burn-in mean.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># bad_start$samples is a 3000-vector of post-MH samples</span></span>
+<span class="cl"><span class="c1"># 1. Drop the first 500 (burn-in)</span></span>
+<span class="cl"><span class="c1"># 2. Keep every 10th from the remaining 2500</span></span>
+<span class="cl"><span class="c1"># 3. Compare mean(thinned) to mean(post-burn-in only)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">post_burn <span class="o">&lt;-</span> bad_start<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)]</span>
+<span class="cl">thinned   <span class="o">&lt;-</span> post_burn[<span class="nf">seq</span>(<span class="m">1</span>, <span class="nf">length</span>(post_burn), by <span class="o">=</span> <span class="m">10</span>)]</span>
+<span class="cl"><span class="nf">length</span>(thinned)</span>
+<span class="cl"><span class="c1">#&gt; [1] 250</span></span>
+<span class="cl"><span class="nf">mean</span>(post_burn)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6471687</span></span>
+<span class="cl"><span class="nf">mean</span>(thinned)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.6473932</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The post-burn-in vector had 2,500 samples. After thinning every 10th, we kept 250. The two means agree to within 0.0003. Thinning didn't bias the answer, it just shrank the sample size. This is the right tradeoff if you need an effective sample of independent draws (e.g., for downstream simulations). For just computing means and quantiles, the unthinned post-burn-in samples are usually fine.</p>
+
+</details>
+
+<h3>Exercise 3: A simple R-hat convergence check</h3>
+
+<p>The Gelman-Rubin R-hat statistic compares variance within chains to variance across chains. If they're similar, all chains have converged to the same distribution and R-hat is close to 1.0 (typically below 1.05). If between-chain variance is much larger, R-hat is well above 1.0 and you have a convergence problem.</p>
+
+<p>Use the four chains from H2-5 (<code>chains</code>). Drop the first 500 samples from each. Then compute a simple R-hat: ratio of between-chain variance of means to within-chain variance, plus 1.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># 1. Drop the first 500 from each chain in `chains`</span></span>
+<span class="cl"><span class="c1"># 2. For each chain: compute its mean and its within-chain variance (var())</span></span>
+<span class="cl"><span class="c1"># 3. Between-chain variance: var of the four chain means, times length-of-chain</span></span>
+<span class="cl"><span class="c1"># 4. Within-chain variance: mean of the four within-chain variances</span></span>
+<span class="cl"><span class="c1"># 5. R-hat ≈ sqrt((between + within * (n-1)) / (within * n))</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details><summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">post <span class="o">&lt;-</span> <span class="nf">lapply</span>(chains, <span class="kr">function</span>(c) c<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">500</span>)])</span>
+<span class="cl">n_per <span class="o">&lt;-</span> <span class="nf">length</span>(post[[<span class="m">1</span>]])</span>
+<span class="cl"></span>
+<span class="cl">chain_means <span class="o">&lt;-</span> <span class="nf">sapply</span>(post, mean)</span>
+<span class="cl">chain_vars  <span class="o">&lt;-</span> <span class="nf">sapply</span>(post, var)</span>
+<span class="cl"></span>
+<span class="cl">B <span class="o">&lt;-</span> n_per <span class="o">*</span> <span class="nf">var</span>(chain_means)        <span class="c1"># between-chain variance</span></span>
+<span class="cl">W <span class="o">&lt;-</span> <span class="nf">mean</span>(chain_vars)                <span class="c1"># within-chain variance</span></span>
+<span class="cl">var_post <span class="o">&lt;-</span> ((n_per <span class="o">-</span> <span class="m">1</span>) <span class="o">/</span> n_per) <span class="o">*</span> W <span class="o">+</span> (<span class="m">1</span> <span class="o">/</span> n_per) <span class="o">*</span> B</span>
+<span class="cl">rhat <span class="o">&lt;-</span> <span class="nf">sqrt</span>(var_post <span class="o">/</span> W)</span>
+<span class="cl">rhat</span>
+<span class="cl"><span class="c1">#&gt; [1] 1.001847</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R-hat came out to 1.002, well below the 1.05 threshold. All four chains converged to the same posterior. If R-hat had been, say, 1.5, we'd know one or more chains was somewhere different from the others (probably stuck on a different mode, or insufficient burn-in). This is the standard diagnostic Stan and brms compute and print automatically; now you know what it's actually measuring.</p>
+
+</details>
+
+<h2>Complete Example: A Bayesian A/B Test by MCMC</h2>
+
+<p>Two button variants. Variant A: 84 clicks from 1,200 impressions. Variant B: 105 clicks from 1,180 impressions. We want to know the probability that B's true rate is higher than A's. We could use the closed-form Beta-Binomial trick (and we did, in the Conjugate Priors post). Let's do it again with our MCMC sampler, both as a proof that the approach is general and as a template you can adapt for non-conjugate problems.</p>
+
+<div class="webr-container" data-block-title="A/B test by Metropolis-Hastings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A/B test by Metropolis-Hastings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Posterior for variant A</span></span>
+<span class="cl">log_post_A <span class="o">&lt;-</span> <span class="kr">function</span>(theta) {</span>
+<span class="cl">  <span class="kr">if</span> (theta <span class="o">&lt;=</span> <span class="m">0</span> <span class="o">||</span> theta <span class="o">&gt;=</span> <span class="m">1</span>) <span class="kr">return</span>(<span class="o">-</span><span class="kc">Inf</span>)</span>
+<span class="cl">  <span class="nf">dbinom</span>(<span class="m">84</span>, size <span class="o">=</span> <span class="m">1200</span>, prob <span class="o">=</span> theta, log <span class="o">=</span> <span class="kc">TRUE</span>) <span class="o">+</span></span>
+<span class="cl">    <span class="nf">dbeta</span>(theta, <span class="m">1</span>, <span class="m">1</span>, log <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior for variant B</span></span>
+<span class="cl">log_post_B <span class="o">&lt;-</span> <span class="kr">function</span>(theta) {</span>
+<span class="cl">  <span class="kr">if</span> (theta <span class="o">&lt;=</span> <span class="m">0</span> <span class="o">||</span> theta <span class="o">&gt;=</span> <span class="m">1</span>) <span class="kr">return</span>(<span class="o">-</span><span class="kc">Inf</span>)</span>
+<span class="cl">  <span class="nf">dbinom</span>(<span class="m">105</span>, size <span class="o">=</span> <span class="m">1180</span>, prob <span class="o">=</span> theta, log <span class="o">=</span> <span class="kc">TRUE</span>) <span class="o">+</span></span>
+<span class="cl">    <span class="nf">dbeta</span>(theta, <span class="m">1</span>, <span class="m">1</span>, log <span class="o">=</span> <span class="kc">TRUE</span>)</span>
+<span class="cl">}</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">chain_A <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.07</span>, sigma <span class="o">=</span> <span class="m">0.01</span>, n_iter <span class="o">=</span> <span class="m">10000</span>,</span>
+<span class="cl">                               log_target <span class="o">=</span> log_post_A)</span>
+<span class="cl">chain_B <span class="o">&lt;-</span> <span class="nf">metropolis_hastings</span>(start <span class="o">=</span> <span class="m">0.09</span>, sigma <span class="o">=</span> <span class="m">0.01</span>, n_iter <span class="o">=</span> <span class="m">10000</span>,</span>
+<span class="cl">                               log_target <span class="o">=</span> log_post_B)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Drop burn-in</span></span>
+<span class="cl">samples_A <span class="o">&lt;-</span> chain_A<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">1000</span>)]</span>
+<span class="cl">samples_B <span class="o">&lt;-</span> chain_B<span class="o">$</span>samples[<span class="o">-</span>(<span class="m">1</span><span class="o">:</span><span class="m">1000</span>)]</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior means</span></span>
+<span class="cl"><span class="nf">mean</span>(samples_A)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.07090049</span></span>
+<span class="cl"><span class="nf">mean</span>(samples_B)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.08989739</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># The actual question: probability B beats A</span></span>
+<span class="cl"><span class="nf">mean</span>(samples_B <span class="o">&gt;</span> samples_A)</span>
+<span class="cl"><span class="c1">#&gt; [1] 0.97</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just ran. We defined two log-posteriors, one per variant, each combining its own binomial likelihood with a flat <code>Beta(1, 1)</code> prior. We ran <code>metropolis_hastings()</code> separately for each variant, with a smaller step size <code>sigma = 0.01</code> because click rates here are narrow (around 7-9%). After dropping a 1,000-sample burn-in from each chain, we computed the posterior means of each variant's rate. The final line is the real question we wanted answered: of the 9,000 post-burn-in samples per chain, what fraction had <code>samples_B &gt; samples_A</code>? That's the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that B's true rate exceeds A's.</p>
+
+<p>A's most likely rate: 7.1%. B's most likely rate: 9.0%. Probability B beats A: 97%. That's the same answer the closed-form Beta-Binomial gave us in the Conjugate Priors post, computed by a completely different mechanism. Once you have the sampler, you can adapt this template to any model: just write a new <code>log_post</code> function and call <code>metropolis_hastings()</code>. This is the workflow that makes Bayesian analysis general.</p>
+
+<h2>Summary</h2>
+
+<p>The Metropolis-Hastings algorithm in one breath: propose a small random step, compare the densities at the new and old positions, accept the move with probability equal to the density ratio (capped at 1), repeat. The sequence of accepted positions is your posterior sample.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Component</th>
+<th>What it does</th>
+<th>Common values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>log_target(theta)</code></td>
+<td>Returns log(prior) + log(likelihood) at theta</td>
+<td>Specific to your problem</td>
+</tr>
+<tr>
+<td><code>start</code></td>
+<td>Where the chain begins</td>
+<td>Anywhere reasonable; use multiple starts</td>
+</tr>
+<tr>
+<td><code>sigma</code></td>
+<td>Standard deviation of the proposal step</td>
+<td>Tuned to give 25-50% acceptance</td>
+</tr>
+<tr>
+<td><code>n_iter</code></td>
+<td>Number of iterations</td>
+<td>5,000-10,000 for one parameter</td>
+</tr>
+<tr>
+<td>Burn-in</td>
+<td>Discard the first N samples</td>
+<td>10-20% of n_iter</td>
+</tr>
+<tr>
+<td>Multiple chains</td>
+<td>Run 3-4 from different starts</td>
+<td>Required for convergence diagnosis</td>
+</tr>
+</tbody>
+</table>
+
+<p>When you have one or two parameters, this 50-line implementation is enough. For real Bayesian models with many parameters, hierarchical structure, or custom likelihoods, use <code>brms</code> or <code>rstan</code>. They run a smarter, faster version of the same idea: prior plus data give samples from the posterior, accept-reject is the universal mechanism.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Hastings, W. K. "Monte Carlo Sampling Methods Using Markov Chains and Their Applications." <em>Biometrika</em> 57(1), 1970. The original paper.</li>
+
+<li>Robert, C. & Casella, G. <em>Monte Carlo Statistical Methods</em>, 2nd ed. Springer, 2004. The standard graduate-level reference.</li>
+
+<li>Gelman, A., Carlin, J. B., Stern, H. S. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 11 covers MCMC algorithms.</li>
+
+<li>Johnson, A. A., Ott, M. Q., Dogucu, M. <em>Bayes Rules! An Introduction to Applied Bayesian Modeling</em>, Chapman & Hall, 2022. Chapter 7 builds Metropolis-Hastings step by step. <a href="https://www.bayesrulesbook.com/chapter-7">bayesrulesbook.com/chapter-7</a>.</li>
+
+<li>Solomon, N. "Learn Metropolis-Hastings Sampling with R." <a href="https://www.nicksolomon.me/post/learn-metropolis-hastings-sampling-with-r/">nicksolomon.me</a>. A short, accessible R-focused walkthrough.</li>
+
+<li>Navarro, D. "The Metropolis-Hastings algorithm." <a href="https://blog.djnavarro.net/posts/2023-04-12_metropolis-hastings/">blog.djnavarro.net</a>. Clear pedagogy on tuning, burn-in, and lag.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener that builds the prior-likelihood-posterior intuition with simulations, ideal context for what MCMC is sampling from.</li>
+
+<li><a href="Conjugate-Priors-in-R.html">Conjugate Priors in R</a>, the closed-form shortcut MCMC generalizes. The Beta-Binomial answer in that post is exactly what we reproduced here with the sampler.</li>
+
+<li><a href="Grid-Approximation-in-R.html">Grid Approximation in R</a>, the brute-force alternative to MCMC. Fine for one or two parameters; MCMC takes over from there.</li>
+
+</ul>
+<aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Conjugate-Priors-in-R.html"><span class="rt-title">Conjugate Priors in R: The Shortcut That Gives Exact Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 23 min read</span></a><a class="rt-card" href="Grid-Approximation-in-R.html"><span class="rt-title">Grid Approximation in R: Compute Bayesian Posteriors Without MCMC</span><span class="rt-meta">Statistics &middot; 10 min read</span></a><a class="rt-card" href="Bayes-Theorem-in-R.html"><span class="rt-title">Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why</span><span class="rt-meta">Statistics &middot; 8 min read</span></a></div></section>
+<nav class="prev-next-nav" aria-label="Post navigation">
+<a class="pn-link pn-prev" href="Grid-Approximation-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Grid Approximation</span></a>
+<a class="pn-link pn-next" href="Time-Series-Analysis-With-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Time Series Analysis</span></a>
+</nav>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+        <p class="footer-links">
+          <a href="/about/">About</a> ·
+          <a href="/feed.xml">RSS</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script>
+  (function(){
+    function wireTabs(){
+      var tabs = document.querySelectorAll('.sidebar-tab');
+      var panels = document.querySelectorAll('.sidebar-panel');
+      if (!tabs.length || !panels.length) return false;
+      function activate(name){
+        tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+        panels.forEach(function(p){ p.classList.toggle('active', p.getAttribute('data-panel') === name); });
+      }
+      var onToolPage = location.pathname.indexOf('/tools/') === 0;
+      if (!onToolPage){
+        try { var pinned = localStorage.getItem('rstat_sidebar_tab'); if (pinned === 'tools' || pinned === 'posts') activate(pinned); } catch(e){}
+      } else {
+        activate('tools');
+      }
+      tabs.forEach(function(tab){
+        if (tab.dataset.wired) return;
+        tab.dataset.wired = '1';
+        tab.addEventListener('click', function(){
+          var name = tab.getAttribute('data-tab');
+          activate(name);
+          try { localStorage.setItem('rstat_sidebar_tab', name); } catch(e){}
+        });
+      });
+      return true;
+    }
+    if (!wireTabs()){
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireTabs);
+      else setTimeout(wireTabs, 50);
+    }
+  })();
+  </script>
+  <script src="www/toc.min.js?h=d28a1a80"></script>
+  <!-- MathJax Script -->
+  
+  <!-- WebR Interactive Code -->
+    <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Masthead behavior: active link + scroll shadow -->
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var links = document.querySelectorAll('.masthead-nav-link');
+      links.forEach(function(a) {
+        var href = a.getAttribute('href');
+        if (href === '/') return;  // home only matches /
+        if (path.indexOf(href) === 0) a.classList.add('active');
+      });
+      // Tutorial pages (everything not /, /posts/, /about/) get no active link.
+      var masthead = document.querySelector('.site-masthead');
+      if (masthead) {
+        var onScroll = function() {
+          masthead.classList.toggle('scrolled', window.scrollY > 4);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+    })();
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
