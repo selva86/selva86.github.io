@@ -1,0 +1,378 @@
+---
+title: "dplyr cume_dist() in R: Empirical Cumulative Distribution"
+description: "Use dplyr cume_dist() to compute the empirical cumulative distribution proportion in R. Covers vs percent_rank, formula, ties, NA, and 5 worked examples."
+keywords: "dplyr cume_dist, R cumulative distribution, cume_dist vs percent_rank, dplyr ECDF, empirical CDF R, cume_dist formula, cume_dist ties"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cume_dist()|dplyr cume_dist|cumulative distribution|empirical CDF|cume_dist vs percent_rank"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr cume_dist() in R: Empirical Cumulative Distribution</h1>
+
+<p class="lead">The <code>cume_dist()</code> function in dplyr returns the empirical cumulative distribution: the proportion of values less than or equal to each value, in the range (0, 1].</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cume_dist(c(10, 20, 30, 40))<span class="qa-cmt">      # 0.25, 0.5, 0.75, 1</span>
+cume_dist(desc(x))<span class="qa-cmt">                  # reverse direction</span>
+df |&gt; mutate(cd = cume_dist(score))
+df |&gt; group_by(g) |&gt; mutate(cd = cume_dist(score))
+percent_rank(c(10, 20, 30, 40))<span class="qa-cmt">   # 0, 0.33, 0.67, 1 (different)</span>
+ecdf(x)(x)<span class="qa-cmt">                           # base R equivalent</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cume_dist() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">&quot;what fraction of values are &lt;= this&quot;</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cume_dist()</text><text x="125" y="126" class="branch-label">&quot;what fraction of values are STRICTLY below this&quot;</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">percent_rank()</text><text x="125" y="182" class="branch-label">bin into n equal-count quantiles</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ntile(x, n)</text><text x="125" y="238" class="branch-label">raw rank</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">min_rank() / dense_rank()</text><text x="125" y="294" class="branch-label">per-group cume_dist</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">group_by + cume_dist</text><text x="125" y="350" class="branch-label">explicit percentile</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">quantile(x, prob)</text></svg></div>
+
+<h2>What cume_dist() does in one sentence</h2>
+
+<p><strong><code>cume_dist(x)</code> returns <code>count(values &lt;= x_i) / n</code> for each element.</strong> This is the empirical <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">cumulative distribution function</a> (ECDF) at each observation. Values range over (0, 1]; the maximum value always gets 1.</p>
+
+<p>It is the dplyr / pipeline-friendly version of <code>ecdf(x)(x)</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>cume_dist(x)</code>. NAs stay NA. Output is in (0, 1].</strong></p>
+
+<div class="webr-container" data-block-title="Cumulative distribution of 4 values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cumulative distribution of 4 values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(10, 20, 30, 40)
+cume_dist(x)
+#&gt; [1] 0.25 0.50 0.75 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>cume_dist(x)</code> answers "what fraction of all values are AT MOST this one?".</strong> Useful for percentile reasoning ("this customer is in the top 5%") and ECDF plots.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Cumulative distribution</h3>
+
+<div class="webr-container" data-block-title="Each value&#x27;s cumulative proportion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each value&#x27;s cumulative proportion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cume_dist(c(50, 80, 90, 100))
+#&gt; [1] 0.25 0.50 0.75 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The smallest gets 1/n; the largest always gets 1.</p>
+
+<h3>2. Identify top-percentile observations</h3>
+
+<div class="webr-container" data-block-title="Top 10% (cume_dist &gt;= 0.9)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top 10% (cume_dist &gt;= 0.9)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(score = c(50, 60, 70, 80, 90, 95, 99, 100, 85, 75))
+
+df |&gt;
+  mutate(cd = cume_dist(score)) |&gt;
+  filter(cd &gt;= 0.9)
+#&gt;   score   cd
+#&gt; 1    99 0.9
+#&gt; 2   100 1.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Per-group cumulative distribution</h3>
+
+<div class="webr-container" data-block-title="Each group&#x27;s own ECDF">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each group&#x27;s own ECDF</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_g &lt;- data.frame(
+  team = c(&quot;A&quot;,&quot;A&quot;,&quot;A&quot;,&quot;B&quot;,&quot;B&quot;,&quot;B&quot;),
+  pts  = c(10, 20, 30, 40, 50, 60)
+)
+
+df_g |&gt;
+  group_by(team) |&gt;
+  mutate(cd = cume_dist(pts))
+#&gt; # A tibble: 6 x 3
+#&gt;   team   pts    cd
+#&gt;   A       10  0.333
+#&gt;   A       20  0.667
+#&gt;   A       30  1
+#&gt;   B       40  0.333
+#&gt;   B       50  0.667
+#&gt;   B       60  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Compare to percent_rank</h3>
+
+<div class="webr-container" data-block-title="Two formulas, two results">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two formulas, two results</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percent_rank(c(10, 20, 30, 40))
+#&gt; [1] 0.0000000 0.3333333 0.6666667 1.0000000
+
+cume_dist(c(10, 20, 30, 40))
+#&gt; [1] 0.25 0.50 0.75 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>percent_rank = (rank - 1) / (n - 1)</code>. <code>cume_dist = rank / n</code>. Both in [0, 1] but with different lower bounds.</p>
+
+<h3>5. Build a quantile-binned column</h3>
+
+<div class="webr-container" data-block-title="Quartile assignment via cume_dist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quartile assignment via cume_dist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(value = c(10, 50, 30, 90, 20, 70, 40, 60, 80, 100))
+
+df |&gt;
+  mutate(
+    cd       = cume_dist(value),
+    quartile = case_when(
+      cd &lt;= 0.25 ~ &quot;Q1&quot;,
+      cd &lt;= 0.50 ~ &quot;Q2&quot;,
+      cd &lt;= 0.75 ~ &quot;Q3&quot;,
+      TRUE       ~ &quot;Q4&quot;
+    )
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For direct binning, <code>ntile(value, 4)</code> is more concise.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>cume_dist(x)</code> is the <a class="auto-link" href="Kolmogorov-Smirnov-Two-Sample-Test-in-R.html" title="Kolmogorov-Smirnov Two-Sample Test in R: Compare Two Distributions">empirical CDF</a> evaluated at each observation.</strong> It answers "of all values, what proportion are at most this one?". The smallest value gets 1/n; the largest gets exactly 1. This makes it the natural choice for percentile reasoning.</div></div>
+
+<h2>cume_dist() vs percent_rank() vs ntile() vs ecdf()</h2>
+
+<p><strong>Four functions for relative-position computation in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output range</th>
+<th>Formula</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cume_dist(x)</code></td>
+<td>(0, 1]</td>
+<td>rank / n</td>
+<td>ECDF; "at most this fraction"</td>
+</tr>
+<tr>
+<td><code>percent_rank(x)</code></td>
+<td>[0, 1]</td>
+<td>(rank - 1) / (n - 1)</td>
+<td>"Strictly below this fraction"</td>
+</tr>
+<tr>
+<td><code>ntile(x, n)</code></td>
+<td>1 to n</td>
+<td>bin index</td>
+<td>Quantile binning</td>
+</tr>
+<tr>
+<td><code>ecdf(x)(x)</code></td>
+<td>(0, 1]</td>
+<td>Same as cume_dist</td>
+<td>Base R equivalent</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>cume_dist</code> inside dplyr pipelines.</li>
+
+<li><code>ecdf(x)(x)</code> in base R; identical result.</li>
+
+<li><code>percent_rank</code> if your convention puts min at 0.</li>
+
+<li><code>ntile</code> for direct quantile bins.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "percentile flag" pattern is the cume_dist sweet spot.</strong></p>
+
+<div class="webr-container" data-block-title="Top/bottom percentile flags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top/bottom percentile flags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(
+    cd        = cume_dist(score),
+    is_top_5  = cd &gt;= 0.95,
+    is_bottom_5 = cd &lt;= 0.05
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adds boolean flags for top and bottom percentiles. Useful for <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier detection</a> and stratified analysis.</p>
+
+<p>For per-segment percentiles:</p>
+
+<div class="webr-container" data-block-title="Per-segment cumulative distribution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-segment cumulative distribution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  group_by(segment) |&gt;
+  mutate(cd = cume_dist(score)) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each segment's cumulative distribution scales independently.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing with percent_rank.</strong> Both <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a> in [0, 1] but with different formulas. <code>cume_dist</code> is <code>rank / n</code> (min = 1/n, max = 1). <code>percent_rank</code> is <code>(rank - 1) / (n - 1)</code> (min = 0, max = 1). Pick based on convention.</p>
+
+<p><strong>Pitfall 2: tied values share cume_dist.</strong> Three tied values all get the same value (the max rank among them, divided by n).</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>cume_dist</code> is NOT a kernel-density estimate.</strong> It is the EMPIRICAL distribution at observed points only. For smooth density estimation, use <code>density(x)</code> (base R) or <a class="auto-link" href="https://r-statistics.co/ggplot2-geom_density-in-R.html" title="geom_density() in R: Density Plots with ggplot2 (With Examples)">geom_density</a> (ggplot2).</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Mark cars in <code>mtcars</code> as "high mpg" if their cume_dist for mpg is >= 0.75. Save to <code>ex_high_mpg</code>.</p>
+<div class="webr-container" data-block-title="Your turn: top quartile by mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top quartile by mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_high_mpg &lt;- mtcars |&gt;
+  # your code here
+
+sum(ex_high_mpg$is_high)
+#&gt; Expected: about 8 (top 25% of 32 cars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_high_mpg &lt;- mtcars |&gt;
+  mutate(
+    cd      = cume_dist(mpg),
+    is_high = cd &gt;= 0.75
+  )
+
+sum(ex_high_mpg$is_high)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cume_dist(mpg)</code> returns each row's percentile. <code>&gt;= 0.75</code> keeps the top quartile. 25% of 32 = 8 cars.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering cume_dist, look at:</p>
+
+<ul>
+
+<li><code>percent_rank()</code>: alternative formula (different convention)</li>
+
+<li><code>ntile()</code>: bin into n equal-count groups</li>
+
+<li><code>min_rank()</code> / <code>dense_rank()</code>: integer rank</li>
+
+<li><code>quantile()</code>: explicit percentile values</li>
+
+<li><code>ecdf()</code>: base R empirical CDF</li>
+
+<li><code>ggplot2::stat_ecdf()</code>: visualize ECDF</li>
+
+</ul>
+
+<p>For percentile-based analysis, cume_dist + filter is the cleanest dplyr idiom.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does cume_dist do in dplyr?</strong></p>
+
+<p><code>cume_dist(x)</code> returns the empirical cumulative distribution at each value: the proportion of all values that are less than or equal to that value. Output is in (0, 1].</p>
+
+<p><strong>What is the difference between cume_dist and percent_rank?</strong></p>
+
+<p>Different formulas. <code>cume_dist = rank / n</code>. <code>percent_rank = (rank - 1) / (n - 1)</code>. Both range over [0, 1] (or (0, 1]) but assign different values per rank position.</p>
+
+<p><strong>How do I find the top 5% by cume_dist?</strong></p>
+
+<p><code>filter(cume_dist(x) &gt;= 0.95)</code> keeps rows in the top 5% percentile.</p>
+
+<p><strong>Does cume_dist match the ECDF function?</strong></p>
+
+<p>Yes. <code>cume_dist(x)</code> returns the same values as <code>ecdf(x)(x)</code> in base R. dplyr's version integrates with <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> and group_by.</p>
+
+<p><strong>How do I get cume_dist within groups?</strong></p>
+
+<p><code>df |&gt; group_by(g) |&gt; mutate(cd = cume_dist(value))</code>. Each group has its own cumulative distribution.</p>

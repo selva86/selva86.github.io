@@ -1,0 +1,371 @@
+---
+title: "dplyr percent_rank() in R: Relative Position 0 to 1"
+description: "Use dplyr percent_rank() to compute the relative percentile position 0 to 1 of values in R. Covers vs cume_dist, ties, NA, formula, and 5 worked examples."
+keywords: "dplyr percent_rank, R percent rank, percent_rank vs cume_dist, dplyr percentile, ranking 0 to 1, relative position rank, percentile R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "percent_rank()|dplyr percent_rank|relative position rank|percent rank vs cume_dist|percentile rank"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr percent_rank() in R: Relative Position 0 to 1</h1>
+
+<p class="lead">The <code>percent_rank()</code> function in dplyr returns the relative position of each value in the range 0 to 1, scaled by rank. The smallest value gets 0; the largest gets 1.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>percent_rank(c(10, 20, 30, 40))<span class="qa-cmt">    # 0, 0.333, 0.667, 1</span>
+percent_rank(desc(x))<span class="qa-cmt">               # reverse direction</span>
+df |&gt; mutate(pr = percent_rank(score))
+df |&gt; group_by(g) |&gt; mutate(pr = percent_rank(score))
+cume_dist(c(10, 20, 30, 40))<span class="qa-cmt">        # 0.25, 0.5, 0.75, 1 (cumulative dist)</span>
+ntile(x, 4)<span class="qa-cmt">                          # bin into 4 quartiles</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is percent_rank() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">relative rank 0..1 (smallest = 0, largest = 1)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">percent_rank()</text><text x="125" y="126" class="branch-label">cumulative distribution (proportion ≤ x)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cume_dist()</text><text x="125" y="182" class="branch-label">bin into n equal-count groups</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ntile(x, n)</text><text x="125" y="238" class="branch-label">raw rank with ties</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">min_rank() or dense_rank()</text><text x="125" y="294" class="branch-label">per-group percent_rank</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + percent_rank</text><text x="125" y="350" class="branch-label">explicit quantile value</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">quantile(x, probs)</text></svg></div>
+
+<h2>What percent_rank() does in one sentence</h2>
+
+<p><strong><code>percent_rank(x)</code> returns <code>(min_rank(x) - 1) / (n - 1)</code> for each element, where n is the count.</strong> The smallest value gets 0; the largest gets 1; intermediate values are linearly spaced by RANK position.</p>
+
+<p>This answers: "what fraction of values are below this one?". Useful for percentile-style normalization.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>percent_rank(x)</code>. NAs stay NA. Output is in [0, 1].</strong></p>
+
+<div class="webr-container" data-block-title="Linear spacing by rank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear spacing by rank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(10, 20, 30, 40)
+percent_rank(x)
+#&gt; [1] 0.0000000 0.3333333 0.6666667 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>percent_rank</code> and <code>cume_dist</code> differ subtly: <code>percent_rank</code> excludes the current rank, <code>cume_dist</code> includes it.</strong> For c(10, 20, 30, 40), percent_rank gives 0, 1/3, 2/3, 1; cume_dist gives 1/4, 2/4, 3/4, 1.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Linear position by rank</h3>
+
+<div class="webr-container" data-block-title="Smallest = 0, largest = 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smallest = 0, largest = 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percent_rank(c(50, 80, 90, 100))
+#&gt; [1] 0.0000000 0.3333333 0.6666667 1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Descending direction</h3>
+
+<div class="webr-container" data-block-title="Largest gets percent_rank 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Largest gets percent_rank 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percent_rank(desc(c(50, 80, 90, 100)))
+#&gt; [1] 1.0000000 0.6666667 0.3333333 0.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Per-group percent_rank</h3>
+
+<div class="webr-container" data-block-title="Reset per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_g &lt;- data.frame(
+  team = c(&quot;A&quot;,&quot;A&quot;,&quot;A&quot;,&quot;B&quot;,&quot;B&quot;,&quot;B&quot;),
+  pts  = c(10, 20, 30, 40, 50, 60)
+)
+
+df_g |&gt;
+  group_by(team) |&gt;
+  mutate(pr = percent_rank(pts))
+#&gt; # A tibble: 6 x 3
+#&gt;   team   pts    pr
+#&gt;   A       10   0
+#&gt;   A       20   0.5
+#&gt;   A       30   1
+#&gt;   B       40   0
+#&gt;   B       50   0.5
+#&gt;   B       60   1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each team gets its own 0-to-1 scale.</p>
+
+<h3>4. Use as a normalized feature</h3>
+
+<div class="webr-container" data-block-title="Min-max normalization via rank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Min-max normalization via rank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(score = c(50, 80, 90, 100))
+
+df |&gt;
+  mutate(score_normalized = percent_rank(score))
+#&gt;   score score_normalized
+#&gt; 1    50        0.0000000
+#&gt; 2    80        0.3333333
+#&gt; 3    90        0.6666667
+#&gt; 4   100        1.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Useful when you want rank-based normalization (immune to outliers, unlike (x - min) / (x - max)).</p>
+
+<h3>5. Compare to cume_dist</h3>
+
+<div class="webr-container" data-block-title="Both produce values in [0, 1] but different formulas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Both produce values in [0, 1] but different formulas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">percent_rank(c(10, 20, 30, 40))
+#&gt; [1] 0.0000000 0.3333333 0.6666667 1.0000000
+
+cume_dist(c(10, 20, 30, 40))
+#&gt; [1] 0.25 0.50 0.75 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>percent_rank = (rank - 1) / (n - 1)</code>. <code>cume_dist = rank / n</code>. Pick based on the convention your downstream code expects.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>percent_rank(x) = (min_rank(x) - 1) / (n - 1)</code>.</strong> It is a rescaling of min_rank to [0, 1]. Tied values get the same percent_rank. The max percent_rank is always 1; the min is always 0 (unless n = 1).</div></div>
+
+<h2>percent_rank() vs cume_dist() vs ntile() vs min_rank()</h2>
+
+<p><strong>Four "relative position" functions in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output range</th>
+<th>Formula</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>percent_rank(x)</code></td>
+<td>0 to 1</td>
+<td>(min_rank - 1) / (n - 1)</td>
+<td>"Above what fraction of values"</td>
+</tr>
+<tr>
+<td><code>cume_dist(x)</code></td>
+<td>0 to 1</td>
+<td>rank / n</td>
+<td><a class="auto-link" href="Kolmogorov-Smirnov-Two-Sample-Test-in-R.html" title="Kolmogorov-Smirnov Two-Sample Test in R: Compare Two Distributions">Empirical CDF</a></td>
+</tr>
+<tr>
+<td><code>ntile(x, n)</code></td>
+<td>1 to n</td>
+<td>bin index</td>
+<td>Quartiles, deciles, percentiles</td>
+</tr>
+<tr>
+<td><code>min_rank(x)</code></td>
+<td>1 to n</td>
+<td>competition rank</td>
+<td>Sports / standings</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>percent_rank</code> for [0, 1] normalization with min = 0, max = 1.</li>
+
+<li><code>cume_dist</code> for empirical CDF (cumulative distribution).</li>
+
+<li><code>ntile</code> for binning into quantiles.</li>
+
+<li><code>min_rank</code> for raw rank.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use percent_rank as a robust normalizer for ML features when the distribution is heavy-tailed or has outliers.</strong></p>
+
+<div class="webr-container" data-block-title="Rank-based feature normalization">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank-based feature normalization</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">features |&gt;
+  mutate(across(where(is.numeric), ~ percent_rank(.x)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every numeric column becomes a [0, 1] rank-based version. Robust to outliers (unlike <code>(x - min) / (max - min)</code> which is dragged by extreme values).</p>
+
+<p>For per-group normalization:</p>
+
+<div class="webr-container" data-block-title="Per-category normalization">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-category normalization</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">features |&gt;
+  group_by(category) |&gt;
+  mutate(across(where(is.numeric), ~ percent_rank(.x))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each category's features rescale independently.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: ties produce identical percent_rank.</strong> Three rows tied for the median all get the same percent_rank. If unique percentiles matter, break ties first.</p>
+
+<p><strong>Pitfall 2: edge case at n = 1.</strong> <code>percent_rank(c(10))</code> returns NaN (division by 0). <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> or skip 1-row groups.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>percent_rank</code> and <code>cume_dist</code> are NOT interchangeable.</strong> <code>percent_rank(c(1, 2, 3, 4))</code> is <code>c(0, 0.33, 0.67, 1)</code>; <code>cume_dist</code> is <code>c(0.25, 0.5, 0.75, 1)</code>. Always check which formula your downstream code expects.</div></div>
+
+<h2>When percent_rank is the right scaling</h2>
+
+<p><strong>For machine-learning features, rank-based scaling has a key advantage over min-max scaling: it is robust to outliers.</strong> A single <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> with <code>value = 1e6</code> and the rest in <code>[0, 100]</code> would crush min-max-scaled features into a tiny range near 0 for almost every row. percent_rank ignores absolute magnitudes and uses only ordinal information, so the outlier still maps to 1 but the rest distribute cleanly across [0, 1]. The trade-off: you lose information about the magnitude of differences. Two values that are very close in absolute terms but happen to be adjacent ranks will get adjacent percent_rank values; two values that are far apart but adjacent in rank get the same gap.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the percent_rank of <code>mtcars$mpg</code> and find which cars are in the top 10% (percent_rank > 0.9). Save to <code>ex_top_pct</code>.</p>
+<div class="webr-container" data-block-title="Your turn: top 10% by percent_rank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top 10% by percent_rank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top_pct &lt;- mtcars |&gt;
+  # your code here
+
+ex_top_pct
+#&gt; Expected: rows in the top 10th percentile of mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top_pct &lt;- mtcars |&gt;
+  mutate(pr = percent_rank(mpg)) |&gt;
+  filter(pr &gt; 0.9)
+
+ex_top_pct[, c(&quot;mpg&quot;, &quot;pr&quot;)]
+#&gt;                 mpg     pr
+#&gt; Toyota Corolla 33.9 1.0000000
+#&gt; Fiat 128       32.4 0.9354839
+#&gt; Honda Civic    30.4 0.8709677
+#&gt; ... (top mpg cars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>percent_rank(mpg)</code> rescales mpg to [0, 1]. Filter for > 0.9 keeps the top 10%.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering percent_rank, look at:</p>
+
+<ul>
+
+<li><code>cume_dist()</code>: <a class="auto-link" href="Random-Variables-in-R.html" title="Random Variables in R: Discrete vs Continuous, PMF, PDF, and CDF — Visualised">cumulative distribution function</a></li>
+
+<li><code>ntile()</code>: bin into n equal groups</li>
+
+<li><code>min_rank()</code> / <code>dense_rank()</code>: integer ranks</li>
+
+<li><code>quantile()</code>: explicit percentile values</li>
+
+<li><code>scale()</code>: z-score normalization (mean 0, sd 1)</li>
+
+<li><code>rank()</code>: base R; defaults to average ties</li>
+
+</ul>
+
+<p>For ML feature engineering with robust scaling, percent_rank is often more useful than mean-sd scaling because it is outlier-robust.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does percent_rank do in dplyr?</strong></p>
+
+<p><code>percent_rank(x)</code> returns each value's relative position in [0, 1] computed as <code>(min_rank(x) - 1) / (n - 1)</code>. The smallest value gets 0; the largest gets 1.</p>
+
+<p><strong>What is the difference between percent_rank and cume_dist?</strong></p>
+
+<p>Different formulas. <code>percent_rank = (rank - 1) / (n - 1)</code>. <code>cume_dist = rank / n</code>. Both are in [0, 1] but they assign different values per rank.</p>
+
+<p><strong>How do I rank descending with percent_rank?</strong></p>
+
+<p>Wrap in <code>desc()</code>: <code>percent_rank(desc(x))</code>. The largest value gets 0; the smallest gets 1.</p>
+
+<p><strong>How does percent_rank handle ties?</strong></p>
+
+<p>Tied values get the same percent_rank (because min_rank gives ties the same rank, and percent_rank is a rescaling of min_rank).</p>
+
+<p><strong>Can percent_rank be used for normalization?</strong></p>
+
+<p>Yes. <code>percent_rank(x)</code> rescales any numeric vector to [0, 1] based on rank, robust to outliers. A common alternative to <code>(x - min) / (max - min)</code> for heavy-tailed data.</p>

@@ -1,0 +1,379 @@
+---
+title: "dplyr ntile() in R: Bin Values into N Equal-Count Groups"
+description: "Use dplyr ntile() to split values into n approximately equal-count quantile bins in R. Covers vs cut, quartiles, percentiles, NA, and 5 worked examples."
+keywords: "dplyr ntile, R quantile bins, ntile vs cut, dplyr quartile, percentile bins, ntile NA, equal-count groups, ntile per group"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "ntile()|dplyr ntile|quantile bins|equal-count groups|quartile binning"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr ntile() in R: Bin Values into N Equal-Count Groups</h1>
+
+<p class="lead">The <code>ntile()</code> function in dplyr divides a vector into n approximately equal-count quantile bins, returning an integer 1 to n for each value. It is the rank-based binning function for quartiles, deciles, and any equal-count split.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>ntile(1:10, 4)<span class="qa-cmt">                      # 4 quartiles</span>
+ntile(x, 10)<span class="qa-cmt">                         # 10 deciles</span>
+ntile(desc(x), 4)<span class="qa-cmt">                    # reverse direction</span>
+df |&gt; mutate(quartile = ntile(score, 4))
+df |&gt; group_by(g) |&gt; mutate(quartile = ntile(score, 4))
+cut(x, breaks = quantile(x, probs = seq(0, 1, 0.25)))<span class="qa-cmt">  # value-based bins (different)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is ntile() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">equal-COUNT bins (each bin has same n)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">ntile(x, n)</text><text x="125" y="126" class="branch-label">equal-WIDTH bins (each bin spans same range)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cut(x, breaks)</text><text x="125" y="182" class="branch-label">specific percentile cutpoints</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cut(x, breaks = quantile(x, probs))</text><text x="125" y="238" class="branch-label">relative position 0..1</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">percent_rank() / cume_dist()</text><text x="125" y="294" class="branch-label">per-group quantiles</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + ntile</text><text x="125" y="350" class="branch-label">4 bins (quartiles)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">ntile(x, 4)</text><text x="125" y="406" class="branch-label">10 bins (deciles)</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">ntile(x, 10)</text></svg></div>
+
+<h2>What ntile() does in one sentence</h2>
+
+<p><strong><code>ntile(x, n)</code> returns an integer between 1 and n indicating which quantile bin each value falls into; bins are sized to be approximately equal in COUNT.</strong> With 100 rows and <code>n = 4</code>, you get 25 rows per bin.</p>
+
+<p>The standard tool for "split this column into quartiles / deciles / quintiles".</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>ntile(x, n)</code>. Returns integers 1..n. Ties are broken arbitrarily by ntile.</strong></p>
+
+<div class="webr-container" data-block-title="Quartile bins for a sequence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quartile bins for a sequence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+ntile(1:12, 4)
+#&gt; [1] 1 1 1 2 2 2 3 3 3 4 4 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three values per bin (12 / 4 = 3).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>ntile(x, n)</code> always returns integers 1 to n.</strong> This makes it perfect for grouping or color-coding by quantile. Combine with <code>factor()</code> to get <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a> labels.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Quartiles (n = 4)</h3>
+
+<div class="webr-container" data-block-title="Standard quartile assignment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard quartile assignment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ntile(c(10, 20, 30, 40, 50, 60, 70, 80), 4)
+#&gt; [1] 1 1 2 2 3 3 4 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each quartile holds 2 values (8 / 4 = 2).</p>
+
+<h3>2. Deciles (n = 10)</h3>
+
+<div class="webr-container" data-block-title="10% bins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">10% bins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ntile(1:100, 10)
+#&gt; [1]  1  1  1  1  1  1  1  1  1  1  2  2 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Useful for "top 10%", "next 10%", etc.</p>
+
+<h3>3. Inside mutate as a derived column</h3>
+
+<div class="webr-container" data-block-title="Add quartile to data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add quartile to data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(mpg_quartile = ntile(mpg, 4)) |&gt;
+  count(mpg_quartile)
+#&gt;   mpg_quartile  n
+#&gt; 1            1  8
+#&gt; 2            2  8
+#&gt; 3            3  8
+#&gt; 4            4  8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>32 rows / 4 = 8 rows per quartile.</p>
+
+<h3>4. Reverse direction (highest = bin 1)</h3>
+
+<div class="webr-container" data-block-title="Top performers in bin 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top performers in bin 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ntile(desc(c(50, 80, 90, 100)), 4)
+#&gt; [1] 4 3 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>desc()</code> makes the highest value get bin 1.</p>
+
+<h3>5. Per-group ntile</h3>
+
+<div class="webr-container" data-block-title="Quartiles within each category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quartiles within each category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_g &lt;- data.frame(
+  team  = rep(c(&quot;A&quot;,&quot;B&quot;), each = 4),
+  pts   = c(10, 20, 30, 40, 50, 60, 70, 80)
+)
+
+df_g |&gt;
+  group_by(team) |&gt;
+  mutate(quartile = ntile(pts, 4))
+#&gt; # A tibble: 8 x 3
+#&gt;   team   pts quartile
+#&gt;   A       10        1
+#&gt;   A       20        2
+#&gt;   A       30        3
+#&gt;   A       40        4
+#&gt;   B       50        1
+#&gt;   B       60        2
+#&gt;   B       70        3
+#&gt;   B       80        4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>ntile(x, n)</code> produces equal-COUNT bins; <code>cut(x, breaks)</code> produces equal-WIDTH bins.</strong> They are different. Equal-count is what you want for "top decile" thinking; equal-width is what you want for histogram-like binning. Pick based on whether bin SIZE matters (equal-count) or bin RANGE matters (equal-width).</div></div>
+
+<h2>ntile() vs cut() vs quantile() vs percent_rank()</h2>
+
+<p><strong>Four binning / quantile functions in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Bin type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ntile(x, n)</code></td>
+<td>Integer 1..n</td>
+<td>Equal count</td>
+<td>Quartile / decile assignment</td>
+</tr>
+<tr>
+<td><code>cut(x, breaks)</code></td>
+<td>Factor</td>
+<td>Equal width or custom</td>
+<td>Histogram-style binning</td>
+</tr>
+<tr>
+<td><code>cut(x, quantile(x, probs))</code></td>
+<td>Factor</td>
+<td>Quantile-based</td>
+<td>Same as ntile but factor output</td>
+</tr>
+<tr>
+<td><code>quantile(x, probs)</code></td>
+<td>Numeric values</td>
+<td>(returns thresholds)</td>
+<td>Compute percentile boundaries</td>
+</tr>
+<tr>
+<td><code>percent_rank(x)</code></td>
+<td>0 to 1</td>
+<td>(continuous)</td>
+<td>Relative position, not bins</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>ntile</code> for clean integer bin assignment.</li>
+
+<li><code>cut</code> if you need factor labels or specific cutpoints.</li>
+
+<li><code>quantile</code> to find the actual percentile values (e.g., median = quantile(x, 0.5)).</li>
+
+<li><code>percent_rank</code> for continuous relative position.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "quartile-bucketed analysis" pattern is ntile's main use case.</strong></p>
+
+<div class="webr-container" data-block-title="Quartile-bucketed analysis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quartile-bucketed analysis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(price_q = ntile(price, 4)) |&gt;
+  group_by(price_q) |&gt;
+  summarise(
+    n           = n(),
+    avg_revenue = mean(revenue),
+    .groups     = &quot;drop&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bucket products by price quartile, then aggregate revenue per quartile. Useful for quick "are higher-priced items more profitable" analyses.</p>
+
+<p>For deciles with named labels:</p>
+
+<div class="webr-container" data-block-title="Decile labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decile labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(
+    decile      = ntile(score, 10),
+    decile_lbl  = paste0(&quot;D&quot;, decile)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: ties broken arbitrarily.</strong> ntile uses row order to break ties. Two rows with the same value may end up in different bins. For deterministic ties, sort the data first.</p>
+
+<p><strong>Pitfall 2: NA propagation.</strong> NAs in x become NA in the output. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> NAs before ntile if integer output is required.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>ntile(x, n)</code> does NOT compute true percentiles.</strong> Bins are equal-count, not bounded by exact percentile cutpoints. If you need quartile boundaries (Q1 = 25th percentile, etc.), use <code>quantile(x, probs)</code> instead.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Bin <code>mtcars$mpg</code> into 5 quintiles (1 = lowest, 5 = highest). Save to <code>ex_quintile</code>.</p>
+<div class="webr-container" data-block-title="Your turn: quintile assignment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: quintile assignment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quintile &lt;- mtcars |&gt;
+  # your code here
+
+count(ex_quintile, mpg_quintile)
+#&gt; Expected: 5 quintiles, ~6-7 rows each</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quintile &lt;- mtcars |&gt;
+  mutate(mpg_quintile = ntile(mpg, 5))
+
+count(ex_quintile, mpg_quintile)
+#&gt;   mpg_quintile n
+#&gt; 1            1 7
+#&gt; 2            2 6
+#&gt; 3            3 7
+#&gt; 4            4 6
+#&gt; 5            5 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ntile(mpg, 5)</code> splits the 32 cars into 5 quintiles. 32/5 is not even; some bins get an extra row.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering ntile, look at:</p>
+
+<ul>
+
+<li><code>cume_dist()</code> / <code>percent_rank()</code>: continuous relative position</li>
+
+<li><code>min_rank()</code> / <code>dense_rank()</code>: integer rank</li>
+
+<li><code>cut()</code>: base R; bins by value cutpoints</li>
+
+<li><code>quantile()</code>: compute percentile boundaries</li>
+
+<li><code>forcats::cut_number()</code> / <code>cut_interval()</code>: ggplot-style binning</li>
+
+<li><code>dplyr::case_when()</code>: custom bin definitions</li>
+
+</ul>
+
+<p>For ggplot binning, <code>forcats::cut_number()</code> is similar to ntile but returns a factor.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does ntile do in dplyr?</strong></p>
+
+<p><code>ntile(x, n)</code> divides x into n approximately equal-count bins and returns an integer 1..n for each value indicating its bin. With 100 rows and n = 4, each bin has 25 rows.</p>
+
+<p><strong>What is the difference between ntile and cut in R?</strong></p>
+
+<p><code>ntile(x, n)</code> produces equal-COUNT bins. <code>cut(x, n)</code> produces equal-WIDTH bins. ntile is for quantile assignment; cut is for value-range binning.</p>
+
+<p><strong>How do I get quartiles with ntile?</strong></p>
+
+<p><code>ntile(x, 4)</code> returns 1, 2, 3, or 4 per value. The smallest 25% are in bin 1; the largest 25% are in bin 4.</p>
+
+<p><strong>Does ntile handle ties?</strong></p>
+
+<p>Yes, but ties are broken arbitrarily by row order. Two rows with the same value may end up in different bins. Sort first for determinism.</p>
+
+<p><strong>How do I reverse ntile direction?</strong></p>
+
+<p>Wrap in <code>desc()</code>: <code>ntile(desc(x), n)</code>. The highest values get bin 1.</p>
