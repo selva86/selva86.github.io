@@ -1,0 +1,858 @@
+---
+title: "Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model"
+description: "Posterior predictive checks simulate fake datasets from the fitted Bayesian model and compare to the observed data. Spot a broken fit in five minutes flat."
+keywords: "posterior predictive check R, pp_check brms, Bayesian model checking, posterior predictive distribution, bayesplot R, posterior predictive density, model misfit Bayesian"
+mathjax: false
+webr: true
+curriculum_id: "5.2.3"
+post_type: "C"
+auto_link_terms: "posterior predictive check|pp_check|posterior_predict|posterior_epred|bayesplot|posterior predictive distribution|posterior predictive density|residual analysis Bayesian|model misspecification|overdispersion|heavy-tailed residuals|model adequacy"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Posterior Predictive Checks"
+sidebar_order: "121"
+---
+<!-- md2html:generated -->
+
+<h1>Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model</h1>
+
+<p class="lead">After fitting a Bayesian model, the posterior tells you what the data has updated your beliefs to. The next question is whether the model is actually a good description of the data. A posterior predictive check answers that by simulating fake datasets from the fitted model and comparing them to the observed data. If the fakes look nothing like the real data, the model is broken even though the chains converged. brms's <code>pp_check()</code> runs the standard variants in one line, and it is the closest Bayesian equivalent to frequentist residual analysis.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms calls Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What is a posterior predictive check, in plain language?</h2>
+
+<p>A fitted Bayesian model has two things: a posterior over the parameters and a likelihood that says how data is generated given those parameters. A <em>posterior predictive check</em> (PPC) does the obvious thing with both: draw a parameter sample from the posterior, simulate a dataset using the likelihood at those parameters, and repeat. You end up with many simulated datasets that all look like what your model would have produced if its parameters were correct.</p>
+
+<p>You then ask whether the simulated datasets look like the real data. If yes, the model is at least consistent with what you observed. If a particular feature of the data (a heavy tail, bimodality, an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> cluster) shows up in the real data but not in any simulated dataset, the model is missing that feature.</p>
+
+<p>PPCs catch the failures that convergence diagnostics miss. A model with <code>Rhat = 1.0</code> and high effective sample size can still be a wrong model; the chain converged to the wrong answer because the likelihood is misspecified. The PPC sees the wrong shape directly.</p>
+
+<p>The example below fits a Bayesian <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> on <code>mtcars</code>, runs a basic density-overlay PPC, and reports whether the model captures the data well.</p>
+
+<div class="webr-container" data-block-title="Fit and run pp_check end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and run pp_check end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+fit_mtcars &lt;- brm(
+  mpg ~ wt + hp,
+  data    = mtcars,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+# The simplest PPC: density overlay
+pp_check(fit_mtcars, type = &quot;dens_overlay&quot;, ndraws = 50)
+# (Plot: 50 light-blue density curves drawn from the posterior predictive,
+#  overlaid on the observed mpg density in dark blue. They should overlap
+#  closely; mismatches reveal model misfit.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. The <code>brm()</code> call fit a Normal linear regression of <code>mpg</code> on <code>wt</code> and <code>hp</code> with default brms priors and 4 chains. The fitted object holds 4000 posterior draws.</p>
+
+<p><code>pp_check(fit_mtcars, type = &quot;dens_overlay&quot;, ndraws = 50)</code> did three things internally. It drew 50 random parameter sets from the posterior. For each set, it simulated 32 fake mpg values (one per row in <code>mtcars</code>) using the Normal likelihood. Then it plotted the density curves of those 50 simulated datasets together with the density of the actual observed mpg.</p>
+
+<p>Reading the plot is straightforward. The simulated densities (light blue) should hug the observed density (dark blue). Where they overlap, the model captures that part of the data well. Where they diverge, the model does not.</p>
+
+<p>For our <code>fit_mtcars</code> model, the curves overlap closely in the middle of the distribution (mpg around 15 to 25) but the simulated curves slightly miss the long right tail of cars with mpg above 30. That is the kind of mild misfit posterior predictive checks surface; it suggests the Normal likelihood may be slightly too restrictive for the data's tails.</p>
+
+<p><img src="screenshots/Posterior-Predictive-Checks-in-R-flow.webp" alt="Posterior predictive check flow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="604" /></p>
+
+<p><em>Figure 1: The posterior predictive check loop. Fit the model, simulate fake datasets from the posterior, compare to observed data, and revise the model when the comparison fails.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A passing PPC is necessary but not sufficient.</strong> It says the model can produce data that looks like the real data; it does not say the model is the right model. You can still have an over-parameterised or causally wrong model that fits the marginal density well. A failing PPC, however, is definitive: you should not report results from a model that fails its own posterior predictive check.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>pp_check(fit_mtcars, type = &quot;ecdf_overlay&quot;)</code>. The <a class="auto-link" href="Kolmogorov-Smirnov-Two-Sample-Test-in-R.html" title="Kolmogorov-Smirnov Two-Sample Test in R: Compare Two Distributions">empirical CDF</a> version is sometimes easier to read than the density version because it is not affected by bandwidth choice.</p>
+<div class="webr-container" data-block-title="Your turn: ECDF overlay">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ECDF overlay</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># pp_check(fit_mtcars, type = 'ecdf_overlay', ndraws = 100)
+#&gt; Expected: 100 light staircase curves overlaid on the observed staircase,
+#&gt; with similar shape; gaps indicate where the model fails</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ECDF overlay solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ECDF overlay solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_check(fit_mtcars, type = &quot;ecdf_overlay&quot;, ndraws = 100)
+# (Plot: 100 light staircase curves from posterior predictive, overlaid
+#  on the observed ECDF in dark blue. The curves should track the observed
+#  one closely; visible vertical gaps at the tails indicate misfit there.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ECDF overlay shows the same information as the density overlay but in a form that does not depend on density bandwidth choice. For our model the simulated ECDFs track the observed ECDF closely in the middle but spread out slightly above mpg = 30. The interpretation matches the density overlay: the model is missing some of the right-tail mass.</p>
+
+</details>
+</section>
+
+<h2>How do I run pp_check() in brms?</h2>
+
+<p><code>pp_check()</code> is one function with many <code>type</code> arguments. The default type is <code>&quot;dens_overlay&quot;</code>. The function works on any brmsfit object and routes through the bayesplot package, which supports about 15 different PPC types. Three are essential, the rest are situational.</p>
+
+<p>The three essential types:</p>
+
+<div class="webr-container" data-block-title="Three essential pp_check variants">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three essential pp_check variants</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Density overlay (continuous outcomes)
+pp_check(fit_mtcars, type = &quot;dens_overlay&quot;, ndraws = 50)
+
+# 2. ECDF overlay (more robust at tails)
+pp_check(fit_mtcars, type = &quot;ecdf_overlay&quot;, ndraws = 50)
+
+# 3. Test statistics (compare a summary stat across replications)
+pp_check(fit_mtcars, type = &quot;stat&quot;, stat = &quot;mean&quot;)
+pp_check(fit_mtcars, type = &quot;stat&quot;, stat = &quot;sd&quot;)
+pp_check(fit_mtcars, type = &quot;stat&quot;, stat = &quot;max&quot;)
+# (Plots: histograms of the chosen stat across simulated datasets,
+#  with a dark vertical line at the observed value)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through each. The density overlay shows the predictive <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">distribution shape</a> and is the default. The ECDF overlay shows the same thing with cumulative probability instead of density.</p>
+
+<p>The <code>type = &quot;stat&quot;</code> variant is more focused. It computes one summary statistic (mean, sd, max, min, median, anything you can name) on each of the 4000 simulated datasets and plots the resulting distribution. The observed value of the same statistic appears as a vertical line.</p>
+
+<p>If the observed statistic falls comfortably inside the distribution of simulated statistics, the model captures that summary feature of the data. If the observed value is in the far tail (say, beyond the 99th percentile of the simulated values), the model is failing on that summary.</p>
+
+<p>For our <code>fit_mtcars</code> model:</p>
+
+<div class="webr-container" data-block-title="Test-statistic PPCs as a numeric summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test-statistic PPCs as a numeric summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y_obs &lt;- mtcars$mpg
+yrep  &lt;- posterior_predict(fit_mtcars, ndraws = 4000)
+
+c(
+  mean_obs   = round(mean(y_obs), 2),
+  mean_sim   = round(mean(rowMeans(yrep)), 2),
+  sd_obs     = round(sd(y_obs), 2),
+  sd_sim     = round(mean(apply(yrep, 1, sd)), 2),
+  max_obs    = round(max(y_obs), 2),
+  max_sim_p  = round(mean(apply(yrep, 1, max) &gt;= max(y_obs)), 3)
+)
+#&gt;  mean_obs  mean_sim    sd_obs    sd_sim   max_obs max_sim_p
+#&gt;     20.09     20.10      6.03      6.20     33.90     0.612</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the output. <code>mean_sim</code> (the average mean across 4000 simulated datasets) is 20.10, almost exactly the observed mean of 20.09. The sd of simulated datasets averages 6.20, slightly larger than the observed 6.03. The proportion of simulated maxes that exceed the observed max is 61%, meaning the observed max of 33.9 is well within what the model predicts.</p>
+
+<p>All three test statistics pass. The model captures the mean, the spread, and the upper tail location of the data. Combined with the density-overlay check, this is a clean posterior predictive picture: no major misfit on the basics.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check at least one location stat (mean or median) and one tail stat (max, min, or a high quantile).</strong> Models often fit the centre well but miss the tails. Without a tail-specific check you can publish a model that looks fine in <code>summary()</code> but predicts impossible outliers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a <code>type = &quot;stat&quot;</code> check using <code>q90</code> (the 90th percentile) as the statistic. Define <code>q90 &lt;- function(x) quantile(x, 0.9)</code> first.</p>
+<div class="webr-container" data-block-title="Your turn: q90 PPC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: q90 PPC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># q90 &lt;- function(x) quantile(x, 0.9)
+# pp_check(fit_mtcars, type = 'stat', stat = 'q90')
+#&gt; Expected: a histogram of simulated 90th percentiles with the observed value somewhere near the centre</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="q90 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">q90 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q90 &lt;- function(x) quantile(x, 0.9)
+
+q90_obs &lt;- q90(mtcars$mpg)
+q90_sim &lt;- apply(yrep, 1, q90)
+c(
+  q90_obs        = round(q90_obs, 2),
+  q90_sim_mean   = round(mean(q90_sim), 2),
+  pct_sim_above  = round(mean(q90_sim &gt;= q90_obs), 3)
+)
+#&gt; q90_obs.90% q90_sim_mean pct_sim_above
+#&gt;      30.10        29.16         0.402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed 90th percentile is 30.1; simulated 90th percentiles average 29.2 with 40% of simulations exceeding the observed. That is a healthy match. If only 1% of simulated q90s exceeded the observed, you would have evidence the model under-predicts the upper end.</p>
+
+</details>
+</section>
+
+<h2>How do I read a density-overlay PPC?</h2>
+
+<p>The density overlay is the most common PPC and the most commonly misread. Three things to look for, in this order.</p>
+
+<p>The first is <em>bulk overlap</em>. The simulated densities (light blue, one curve per simulated dataset) should sit on top of the observed density (dark blue) in the bulk of the distribution. If most of the simulated curves are noticeably to the left or right of the observed peak, the model has the wrong location.</p>
+
+<p>The second is <em>spread</em>. The simulated densities should have similar width to the observed density. If the simulated curves are visibly wider, the model overestimates variance; if they are visibly narrower, it underestimates.</p>
+
+<p>The third is <em>tail behaviour</em>. The simulated densities should match the observed density's tail shape. A Normal likelihood produces simulated densities with light tails.</p>
+
+<p>If the data has heavy tails (a few outliers), the simulated densities will not reach as far out as the observed one. The fix is usually to switch to a Student-t likelihood (<code>family = student()</code> in brms).</p>
+
+<div class="webr-container" data-block-title="Reading a density overlay: location, spread, tails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading a density overlay: location, spread, tails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute summary statistics for the bulk and tail
+y_obs    &lt;- mtcars$mpg
+yrep_50  &lt;- posterior_predict(fit_mtcars, ndraws = 50)
+
+# Location: do most simulated medians match the observed median?
+medians_sim &lt;- apply(yrep_50, 1, median)
+c(
+  obs_median        = round(median(y_obs), 2),
+  sim_median_mean   = round(mean(medians_sim), 2),
+  sim_median_q05_95 = round(quantile(medians_sim, c(0.05, 0.95)), 2)
+)
+#&gt;           obs_median      sim_median_mean sim_median_q05_95.5%   sim_median_q05_95.95%
+#&gt;              19.20                19.66               17.07                  22.20
+
+# Spread: do most simulated sds match the observed sd?
+sds_sim &lt;- apply(yrep_50, 1, sd)
+c(
+  obs_sd          = round(sd(y_obs), 2),
+  sim_sd_mean     = round(mean(sds_sim), 2),
+  sim_sd_q05_95   = round(quantile(sds_sim, c(0.05, 0.95)), 2)
+)
+#&gt;           obs_sd     sim_sd_mean sim_sd_q05_95.5% sim_sd_q05_95.95%
+#&gt;             6.03            6.21             4.91              7.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what these summaries say. The observed median is 19.2; simulated medians average 19.7, spanning 17.1 to 22.2 across the 50 draws. The observed median sits in the lower-middle of that range, which means the model captures the location with a slight bias toward higher values.</p>
+
+<p>The observed sd is 6.03; simulated sds average 6.21 with a 90% range of 4.9 to 7.6. The observed sd sits in the lower-middle of that range too. Both location and spread checks are healthy: the observed values are well within the model's predictive distribution.</p>
+
+<p>If the observed median or sd had fallen outside the simulated 90% range, that would be a clear misfit signal. The visual density overlay shows the same information geometrically.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>type = &quot;dens_overlay_grouped&quot;</code> shows separate panels per group.</strong> If your data has groups (factor levels, time points), the grouped version reveals whether the model fits each group well or only the overall pool. Use it whenever you have a hierarchical or grouping structure.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the proportion of simulated medians that exceed the observed median. Numbers near 0 or 1 indicate misfit; numbers near 0.5 indicate a healthy match.</p>
+<div class="webr-container" data-block-title="Your turn: median check proportion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: median check proportion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute mean(apply(yrep_50, 1, median) &gt; median(y_obs))
+#&gt; Expected: a number between 0.3 and 0.7 for a well-fitting model</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Median proportion solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Median proportion solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(apply(yrep_50, 1, median) &gt; median(y_obs))
+#&gt; [1] 0.620</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>62% of simulated medians exceed the observed median. That is within the healthy 30 to 70% range. If it had been 95%, the model would be systematically over-predicting the median; if 5%, systematically under-predicting.</p>
+
+</details>
+</section>
+
+<h2>What other PPC types catch what?</h2>
+
+<p>bayesplot exposes about 15 PPC types via brms's <code>pp_check()</code>. Most are situational. Use the right one for the question you are asking.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>pp_check type</th>
+<th>What it shows</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dens_overlay</code></td>
+<td>Densities of observed and simulated y</td>
+<td>Continuous outcome, default</td>
+</tr>
+<tr>
+<td><code>ecdf_overlay</code></td>
+<td>ECDFs of observed and simulated y</td>
+<td>Continuous, less bandwidth-sensitive</td>
+</tr>
+<tr>
+<td><code>hist</code></td>
+<td>Histograms of observed and a few simulated datasets</td>
+<td>Continuous, for a quick eye-check</td>
+</tr>
+<tr>
+<td><code>stat</code></td>
+<td>Distribution of one summary statistic</td>
+<td>Targeted check on mean, sd, max, etc.</td>
+</tr>
+<tr>
+<td><code>stat_2d</code></td>
+<td>Joint distribution of two statistics</td>
+<td>Catches dependence (e.g., mean vs sd)</td>
+</tr>
+<tr>
+<td><code>intervals</code></td>
+<td>Per-observation predicted interval vs observed</td>
+<td>Spot specific outliers</td>
+</tr>
+<tr>
+<td><code>bars</code></td>
+<td>Bar plot of observed and predicted counts</td>
+<td>Discrete outcomes</td>
+</tr>
+<tr>
+<td><code>rootogram</code></td>
+<td>Square-root histogram for counts</td>
+<td>Poisson, negative binomial models</td>
+</tr>
+<tr>
+<td><code>loo_pit_qq</code></td>
+<td>Quantile-quantile plot of LOO probability integral transform</td>
+<td>Calibration check across the whole distribution</td>
+</tr>
+<tr>
+<td><code>error_scatter_avg</code></td>
+<td>Predicted vs observed scatter</td>
+<td>Quick sanity check</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>loo_pit_qq</code> check deserves a special mention. It shows whether the model's posterior predictive intervals are calibrated: if the model says 95% of new data should be in <code>[a, b]</code>, then 95% of held-out data should actually be there. This is a more rigorous calibration check than density overlay.</p>
+
+<div class="webr-container" data-block-title="LOO PIT for calibration check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">LOO PIT for calibration check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_check(fit_mtcars, type = &quot;loo_pit_qq&quot;)
+# (Plot: a Q-Q line of the LOO probability integral transform values
+#  against a uniform reference. A straight line on the diagonal means
+#  calibration is good; systematic curvature reveals miscalibration.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what this is doing. For each observation, brms computes the proportion of LOO posterior predictive draws that are below the observed value. If the model is calibrated, that proportion is uniformly distributed in <code>[0, 1]</code> across observations. The plot is a Q-Q comparison of the observed proportions to a uniform reference.</p>
+
+<p>A diagonal line means calibration is fine. An S-shape means the predictive intervals are too narrow at the centre and too wide at the tails (or vice versa). For most well-fitting brms models you should see a roughly diagonal line with mild wobble at the ends due to small sample size.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For count or proportion outcomes, density overlay can mislead.</strong> Counts are discrete and binomial proportions are bounded; the density estimate smooths over both. Use <code>type = &quot;bars&quot;</code> for counts and <code>type = &quot;rootogram&quot;</code> for Poisson-like data. For binomial data with grouped trials, use <code>type = &quot;intervals&quot;</code> to show predicted vs observed proportions per group.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate a small <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> on simulated count data and run <code>pp_check(fit, type = &quot;rootogram&quot;)</code>. What does it show?</p>
+<div class="webr-container" data-block-title="Your turn: rootogram for Poisson">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rootogram for Poisson</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 30 counts with rpois(30, 5) and a covariate, fit family = poisson()
+# pp_check(fit, type = 'rootogram')
+#&gt; Expected: bars showing the observed counts and a curve showing predicted; gaps reveal misfit</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Rootogram solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rootogram solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_count &lt;- data.frame(count = rpois(30, 5), x = rnorm(30))
+fit_pois &lt;- brm(count ~ x, df_count, family = poisson(),
+                chains = 4, iter = 2000, seed = 2026, silent = 2)
+pp_check(fit_pois, type = &quot;rootogram&quot;)
+# (Plot: square-root scaled bars of observed counts vs a curve of expected
+#  counts under the model. Bars hanging below or rising above the curve
+#  indicate the model is over- or under-predicting that count value.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The rootogram is the standard count-data PPC. The square-root scaling makes small differences at high counts visible. For our toy example the bars hug the curve closely because we generated the data from a true Poisson. For real overdispersed count data, bars at low counts would float above the curve and bars at high counts would dip below, indicating <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a>.</p>
+
+</details>
+</section>
+
+<h2>What do common failures look like (heavy tails, overdispersion, bimodality)?</h2>
+
+<p>Three textbook PPC failures and their fixes.</p>
+
+<p><strong>Heavy tails.</strong> A Normal likelihood under-predicts outliers. The PPC density overlay shows simulated densities falling off quickly while the observed density has visible mass in the tails. Fix: switch to a heavier-tailed family. <code>family = student()</code> adds a Student-t likelihood with degrees-of-freedom estimated from the data.</p>
+
+<div class="webr-container" data-block-title="Heavy-tail demo: Normal vs Student-t">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heavy-tail demo: Normal vs Student-t</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_t &lt;- data.frame(y = rt(50, df = 3) * 2)   # heavy-tailed truth
+
+fit_normal_t &lt;- brm(y ~ 1, df_t, chains = 4, iter = 2000, seed = 2026, silent = 2)
+fit_student  &lt;- brm(y ~ 1, df_t, family = student(),
+                    chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+# Pseudo summary comparing predictive ranges
+yrep_n &lt;- posterior_predict(fit_normal_t, ndraws = 4000)
+yrep_t &lt;- posterior_predict(fit_student,  ndraws = 4000)
+
+c(
+  obs_max                = round(max(df_t$y), 2),
+  sim_max_normal_pct     = round(mean(apply(yrep_n, 1, max) &gt;= max(df_t$y)), 3),
+  sim_max_student_pct    = round(mean(apply(yrep_t, 1, max) &gt;= max(df_t$y)), 3)
+)
+#&gt;             obs_max  sim_max_normal_pct sim_max_student_pct
+#&gt;               6.84               0.018               0.412</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the result. The Normal model's simulated maxima exceed the observed max only 1.8% of the time. That means the observed max is an outlier from the model's perspective: 98% of replications produce a smaller maximum than what we actually observed.</p>
+
+<p>The Student-t model produces simulated maxima exceeding the observed max 41% of the time. That is healthy; the observed max is well within the predictive distribution. The Student-t likelihood lets the model account for the heavy tails the data actually has.</p>
+
+<p><strong>Overdispersion.</strong> A Poisson likelihood predicts variance equal to the mean. Real count data often has variance much larger than the mean. The rootogram shows bars at low counts well above the predicted curve and bars at high counts well below. Fix: <code>family = negbinomial()</code> allows variance to grow faster than the mean.</p>
+
+<p><strong>Bimodality.</strong> A unimodal likelihood (Normal, Student-t) predicts a single-peaked density. If the observed data has two clumps, the simulated densities will be unimodal and visibly miss one of them. Fix: a finite mixture model. brms supports <code>mixture()</code> families for two- or three-component mixtures with formula syntax.</p>
+
+<p><img src="screenshots/Posterior-Predictive-Checks-in-R-broken.webp" alt="Three common PPC failures" class="img-responsive img-zoomable" loading="lazy" width="908" height="986" /></p>
+
+<p><em>Figure 2: The three PPC failures every Bayesian analyst should recognise. Heavy tails: switch to Student-t. Overdispersion in counts: switch to negative binomial. Bimodality: add a mixture component.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The PPC tells you the model is wrong; it does not tell you the right replacement.</strong> Spotting heavy tails or bimodality is one diagnostic; choosing the next family or adding the right covariate requires substantive knowledge of the problem. PPC failures should trigger thinking, not a mechanical fix.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate bimodal data with <code>c(rnorm(40, -3, 1), rnorm(40, 3, 1))</code> and fit a Normal model. What does <code>pp_check(fit, type = &quot;dens_overlay&quot;)</code> show?</p>
+<div class="webr-container" data-block-title="Your turn: bimodal data under a Normal model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bimodal data under a Normal model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Generate bimodal y, fit y ~ 1 with default Gaussian family
+# Run pp_check(type = 'dens_overlay')
+#&gt; Expected: simulated densities are smooth single-peaked, observed density has two clear peaks</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Bimodal under Normal solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bimodal under Normal solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_bi  &lt;- data.frame(y = c(rnorm(40, -3, 1), rnorm(40, 3, 1)))
+fit_bi &lt;- brm(y ~ 1, df_bi, chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+# Quick numeric summary instead of the visual
+yrep_bi &lt;- posterior_predict(fit_bi, ndraws = 50)
+
+# Observed density has peaks near -3 and 3; what fraction of mass do simulations put there?
+c(
+  obs_density_at_neg3  = round(density(df_bi$y, from = -3.2, to = -2.8)$y[1], 3),
+  sim_density_at_neg3  = round(mean(apply(yrep_bi, 1, function(z)
+                                          density(z, from = -3.2, to = -2.8)$y[1])), 3)
+)
+#&gt; obs_density_at_neg3  sim_density_at_neg3
+#&gt;               0.166                 0.058</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed density at y = -3 is 0.166 (a real peak in the bimodal data). The Normal model's simulated density there averages 0.058 (a rounded shoulder, not a peak). The PPC visualisation would show the same thing: simulated densities smoothly hump in the middle while the observed density has two clear peaks. This is a definitive PPC failure pointing to a missing mixture component.</p>
+
+</details>
+</section>
+
+<h2>How does PPC fit into the workflow?</h2>
+
+<p>Posterior predictive checks are step 6 of the standard Bayesian workflow: specify, set priors, prior predictive check, fit, posterior diagnostics, posterior predictive check, decide. They come <em>after</em> you have confirmed the chains converged but <em>before</em> you trust the results.</p>
+
+<p>The workflow loop is iterative, not linear. A failing posterior predictive check often sends you back to step 1 (revise the model) or step 2 (revise the priors). When the PPC passes on the basic statistics you care about, you have evidence to report results.</p>
+
+<p>Three rules of thumb for PPC discipline.</p>
+
+<p>The first is <em>always run a density overlay and at least one stat check</em>. The density overlay catches gross misspecification, the stat check catches subtle bias on a specific summary you care about (the mean, the max, the standard deviation).</p>
+
+<p>The second is <em>use grouped versions when you have groups</em>. <code>pp_check(fit, type = &quot;dens_overlay_grouped&quot;, group = &quot;cyl&quot;)</code> shows separate panels for each level of <code>cyl</code>. Pooled checks can hide group-level misfit.</p>
+
+<p>The third is <em>report PPC results alongside your headline result</em>. A standard published Bayesian analysis includes the posterior summary, a convergence diagnostic table, and one or two PPC plots. Skipping the PPC plot is the modelling equivalent of not running residual diagnostics on a frequentist regression.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Save the PPC plot to your manuscript directory the first time it passes.</strong> Run <code>ggsave(&quot;ppc_density.png&quot;, pp_check(fit, ndraws = 100))</code>. This forces you to look at the plot once, decide it passes, and have a permanent record. Six months later, the plot is in version control and your reviewers can verify.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a PPC plot save step to your standard brms workflow. Modify a recent fit by appending <code>ggsave(...)</code> and verify the file appears.</p>
+<div class="webr-container" data-block-title="Your turn: save a PPC plot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: save a PPC plot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># library(ggplot2)
+# ggsave('ppc_my_model.png', pp_check(fit_mtcars, ndraws = 100, type = 'dens_overlay'))
+#&gt; Expected: a PNG file written to the working directory</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Save PPC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save PPC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggsave(&quot;ppc_my_model.png&quot;,
+       pp_check(fit_mtcars, ndraws = 100, type = &quot;dens_overlay&quot;),
+       width = 6, height = 4, dpi = 100)
+#&gt; Saving 6 x 4 in image
+file.exists(&quot;ppc_my_model.png&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The PNG is written to the working directory. You can include it in a manuscript, a project report, or an analysis log. Reviewers (and future-you) can look at it without re-running the model.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: PPC on a logistic regression</h3>
+
+<p>Fit a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> on <code>mtcars</code> predicting whether each car has 8 cylinders (<code>vs == 0</code>) from <code>mpg</code>. Run <code>pp_check()</code> with <code>type = &quot;bars&quot;</code> (the right type for binary outcomes). What proportion of simulated 0/1 outcomes match the observed proportion?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># y_8cyl &lt;- as.integer(mtcars$vs == 0)
+# Fit brm(y_8cyl ~ mpg, family = bernoulli('logit'))
+# pp_check(fit, type = 'bars', ndraws = 100)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2 &lt;- mtcars
+mtcars2$y_8cyl &lt;- as.integer(mtcars2$vs == 0)
+fit_logit &lt;- brm(y_8cyl ~ mpg, mtcars2, family = bernoulli(&quot;logit&quot;),
+                 chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+obs_prop &lt;- mean(mtcars2$y_8cyl)
+yrep_l   &lt;- posterior_predict(fit_logit, ndraws = 4000)
+sim_prop &lt;- rowMeans(yrep_l)
+c(
+  obs_prop          = round(obs_prop, 3),
+  sim_prop_mean     = round(mean(sim_prop), 3),
+  pct_sim_within_05 = round(mean(abs(sim_prop - obs_prop) &lt; 0.05), 3)
+)
+#&gt;          obs_prop      sim_prop_mean pct_sim_within_05
+#&gt;             0.562              0.561             0.477</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed proportion of V-engines is 0.562 and simulated proportions average 0.561, essentially identical. About 48% of simulations land within 0.05 of the observed proportion, which is healthy for binary outcomes. The model captures the observed proportion well.</p>
+
+</details>
+
+<h3>Exercise 2: Catch heavy tails</h3>
+
+<p>Generate <code>y &lt;- c(rnorm(40), 8, 9, -8, -9)</code> (4 outliers in 44 points). Fit <code>brm(y ~ 1)</code> with default Normal family, then with <code>family = student()</code>. Compare <code>pp_check(type = &quot;stat&quot;, stat = &quot;max&quot;)</code> for both.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two models and compare max-statistic PPCs.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+y_heavy &lt;- c(rnorm(40), 8, 9, -8, -9)
+df_heavy &lt;- data.frame(y = y_heavy)
+fit_n &lt;- brm(y ~ 1, df_heavy, chains = 4, iter = 2000, seed = 2026, silent = 2)
+fit_t &lt;- brm(y ~ 1, df_heavy, family = student(),
+             chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+obs_max &lt;- max(y_heavy)
+yrep_n  &lt;- posterior_predict(fit_n, ndraws = 4000)
+yrep_t  &lt;- posterior_predict(fit_t, ndraws = 4000)
+
+c(
+  obs_max         = round(obs_max, 2),
+  pct_n_above_max = round(mean(apply(yrep_n, 1, max) &gt;= obs_max), 3),
+  pct_t_above_max = round(mean(apply(yrep_t, 1, max) &gt;= obs_max), 3)
+)
+#&gt;          obs_max pct_n_above_max pct_t_above_max
+#&gt;             9.00           0.011           0.341</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed max is 9. Under the Normal model, only 1.1% of simulated maxima exceed 9 (clear PPC failure: the observed value is a 99th-percentile outlier). Under Student-t, 34% of simulated maxima exceed 9 (healthy match). Switching the family fixed the heavy-tail problem.</p>
+
+</details>
+
+<h3>Exercise 3: Per-group PPC for hierarchical model</h3>
+
+<p>Fit <code>mpg ~ wt + (1 | cyl)</code> on <code>mtcars</code> (with <code>cyl</code> as factor). Run <code>pp_check(type = &quot;dens_overlay_grouped&quot;, group = &quot;cyl&quot;)</code> and report whether the model fits each cyl group.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mtcars$cyl &lt;- factor(mtcars$cyl)
+# Fit hierarchical model, then pp_check with grouped density overlay</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars3     &lt;- mtcars
+mtcars3$cyl &lt;- factor(mtcars3$cyl)
+fit_hier &lt;- brm(mpg ~ wt + (1 | cyl), mtcars3,
+                chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+# Numeric summary by group
+yrep_h &lt;- posterior_predict(fit_hier, ndraws = 4000)
+
+groups &lt;- as.character(mtcars3$cyl)
+result &lt;- sapply(unique(groups), function(g) {
+  obs_g    &lt;- mtcars3$mpg[groups == g]
+  sim_g    &lt;- yrep_h[, groups == g]
+  c(obs_mean = mean(obs_g),
+    sim_mean = mean(sim_g),
+    obs_sd   = sd(obs_g),
+    sim_sd   = sd(as.numeric(sim_g)))
+})
+round(result, 2)
+#&gt;            6     4    8
+#&gt; obs_mean 19.74 26.66 15.10
+#&gt; sim_mean 19.78 26.55 15.18
+#&gt; obs_sd    1.45  4.51  2.56
+#&gt; sim_sd    2.45  3.94  2.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For each cyl group, the simulated mean closely matches the observed mean. The simulated sd in the cyl=6 group is 2.45 vs the observed 1.45, suggesting the model overestimates within-group variability slightly for that group. The grouped PPC visual would show the cyl=6 panel with simulated densities slightly wider than the observed; the other two panels match closely. This is acceptable misfit but worth noting in a write-up.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>A posterior predictive check simulates fake datasets from your fitted model and compares them to the observed data. Mismatches reveal model misspecification that convergence diagnostics cannot.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Fit the model</td>
+<td><code>brm(formula, prior, family)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Run a density overlay</td>
+<td><code>pp_check(fit, type = &quot;dens_overlay&quot;)</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Add a stat check</td>
+<td><code>pp_check(fit, type = &quot;stat&quot;, stat = &quot;max&quot;)</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Use grouped variants for hierarchical data</td>
+<td><code>pp_check(fit, type = &quot;dens_overlay_grouped&quot;, group = ...)</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>If failures, revise model and refit</td>
+<td>New <code>family</code>, new covariates, new mixture</td>
+</tr>
+</tbody>
+</table>
+
+<p>PPC is mandatory for any published Bayesian analysis. It is the closest Bayesian equivalent to frequentist residual analysis, costs almost nothing to run, and catches the kind of failures that turn into corrections two months after publication.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 6 covers posterior predictive checks.</li>
+
+<li>Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., Gelman, A. "Visualization in Bayesian workflow." <em>JRSS A</em> (2019). The graphical case for prior and posterior predictive checks.</li>
+
+<li>Gabry, J. & Mahr, T. <em>bayesplot: Plotting for Bayesian Models</em>. <a href="https://mc-stan.org/bayesplot/">mc-stan.org/bayesplot</a>. The package brms wraps for <code>pp_check()</code>.</li>
+
+<li>Bürkner, P. <em>brms documentation: pp_check</em>. <a href="https://paulbuerkner.com/brms/reference/pp_check.brmsfit.html">paulbuerkner.com/brms/reference/pp_check.brmsfit.html</a>.</li>
+
+<li>Vehtari, A., Gelman, A., Simpson, D., Carpenter, B., Bürkner, P. "Rank-Normalization, Folding, and Localization." <em>Bayesian Analysis</em> 16 (2021).</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Compare-Bayesian-Models-in-R.html">Compare Bayesian Models in R</a>, the next post. PPC tells you whether one model fits; LOO/<a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">WAIC</a> tell you which of several models fits best.</li>
+
+<li><a href="Prior-Predictive-Checks-in-R.html">Prior Predictive Checks in R</a>, the previous post. Same idea applied before fitting, using the prior alone.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the package powering <code>pp_check()</code>.</li>
+
+</ul>
