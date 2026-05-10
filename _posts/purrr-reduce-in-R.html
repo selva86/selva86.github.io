@@ -1,0 +1,327 @@
+---
+title: "purrr reduce() in R: Combine Elements With a Function"
+description: "Use purrr reduce() to combine a list or vector with a 2-argument function in R. Covers reduce, accumulate, .init, .dir, fold left vs right, and 5 examples."
+keywords: "purrr reduce, R fold function, reduce R example, accumulate purrr, R reduce list, fold left right R, base Reduce alternative"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr reduce|reduce()|accumulate()|fold function|combine list"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr reduce() in R: Combine Elements With a Function</h1>
+
+<p class="lead">The <code>reduce()</code> function in purrr applies a 2-argument function recursively across a list or vector, combining elements into a single result. <code>accumulate()</code> returns the intermediate steps as a vector.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>reduce(1:5, `+`)<span class="qa-cmt">                          # 15 (sum via fold)</span>
+reduce(1:5, `+`, .init = 100)<span class="qa-cmt">             # 115 (with init)</span>
+reduce(list(c(1,2), c(3,4)), c)<span class="qa-cmt">           # c(1,2,3,4) flatten</span>
+reduce(list_of_dfs, dplyr::full_join)<span class="qa-cmt">     # join many tables</span>
+accumulate(1:5, `+`)<span class="qa-cmt">                      # 1 3 6 10 15 (running sum)</span>
+reduce(1:5, `+`, .dir = &quot;backward&quot;)<span class="qa-cmt">       # right-fold</span>
+reduce2(1:3, c(10,20), ~ .x + .y + ..3)<span class="qa-cmt">   # two-input reduce</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is reduce() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">combine list to single value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">reduce()</text><text x="125" y="126" class="branch-label">need running totals / steps</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">accumulate()</text><text x="125" y="182" class="branch-label">combine right-to-left</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">reduce(..., .dir = &quot;backward&quot;)</text><text x="125" y="238" class="branch-label">reduce with two parallel inputs</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">reduce2()</text><text x="125" y="294" class="branch-label">common case</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">sum / mean / max: just sum() / <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">mean()</a> / max()</text><text x="125" y="350" class="branch-label">combine many data frames</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">reduce(list_of_dfs, <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">full_join</a>)</text><text x="125" y="406" class="branch-label">chain transformations</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">reduce(funs, ~ .y(.x), .init = data)</text></svg></div>
+
+<h2>What reduce() does in one sentence</h2>
+
+<p><strong><code>reduce(.x, .f)</code> calls <code>.f(first, second)</code>, then <code>.f(result, third)</code>, and so on, collapsing a list or vector into a single output.</strong> It is the functional-programming "fold" or "inject" operation.</p>
+
+<p><code>reduce()</code> is purrr's friendlier wrapper around base R's <code>Reduce()</code>. The main wins: cleaner argument names, lambda syntax, integration with <code>accumulate()</code> for running output.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>reduce(.x, .f, ..., .init, .dir = c(&quot;forward&quot;, &quot;backward&quot;))</code>. <code>.f</code> takes 2 args; <code>.init</code> is an optional starting value.</strong></p>
+
+<div class="webr-container" data-block-title="Sum 1 to 5 via reduce">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum 1 to 5 via reduce</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+reduce(1:5, `+`)
+#&gt; [1] 15
+
+reduce(1:5, `+`, .init = 100)
+#&gt; [1] 115</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For sum, mean, max, min, just call the specialized function (<code>sum()</code>, etc).</strong> They are MUCH faster (vectorized in C) than <code>reduce(x, +)</code>. Reach for <code>reduce</code> only when the operation is not already a built-in.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Combine list of data frames</h3>
+
+<div class="webr-container" data-block-title="Join many tables with reduce + dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Join many tables with reduce + dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+dfs &lt;- list(
+  data.frame(id = 1:3, a = 1:3),
+  data.frame(id = 1:3, b = 4:6),
+  data.frame(id = 1:3, c = 7:9)
+)
+
+reduce(dfs, full_join, by = &quot;id&quot;)
+#&gt;   id a b c
+#&gt; 1  1 1 4 7
+#&gt; 2  2 2 5 8
+#&gt; 3  3 3 6 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical use case: combining many data frames where you cannot easily use <code>bind_rows()</code>.</p>
+
+<h3>2. Flatten nested lists</h3>
+
+<div class="webr-container" data-block-title="Concatenate vectors in a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Concatenate vectors in a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reduce(list(c(1,2), c(3,4), c(5,6)), c)
+#&gt; [1] 1 2 3 4 5 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>c()</code> is the 2-arg combine function; <code>reduce</code> repeats it across the list.</p>
+
+<h3>3. Running total with accumulate</h3>
+
+<div class="webr-container" data-block-title="accumulate keeps every intermediate step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">accumulate keeps every intermediate step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate(1:5, `+`)
+#&gt; [1]  1  3  6 10 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>accumulate</code> is <code>reduce</code> with all intermediate results returned, useful for cumulative sums, factorials, recursive sequences.</p>
+
+<h3>4. Apply a chain of functions</h3>
+
+<div class="webr-container" data-block-title="Pipe via reduce">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipe via reduce</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">funs &lt;- list(
+  ~ .x * 2,
+  ~ .x + 10,
+  ~ sqrt(.x)
+)
+
+reduce(funs, ~ .y(.x), .init = 5)
+#&gt; [1] 4.472136</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Equivalent to <code>sqrt((5 * 2) + 10)</code>. <code>reduce</code> over a list of functions builds a transformation pipeline programmatically.</p>
+
+<h3>5. Right-fold for non-commutative ops</h3>
+
+<div class="webr-container" data-block-title="Direction matters when the op is not commutative">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Direction matters when the op is not commutative</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reduce(c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), paste0)
+#&gt; [1] &quot;abc&quot;
+
+reduce(c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), paste0, .dir = &quot;backward&quot;)
+#&gt; [1] &quot;abc&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For commutative ops (<code>+</code>, <code>c</code>), direction does not matter. For string concat or list cons, it does.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>reduce</code> is the functional "fold" operation.</strong> It generalizes sum, product, concatenation, and joining into a single pattern: "combine pairs left-to-right (or right-to-left) until one value remains". Recognizing when a problem fits this shape unlocks elegant pipelines.</div></div>
+
+<h2>reduce() vs accumulate() vs base Reduce()</h2>
+
+<p><strong>Three ways to fold a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">list in R</a>, with different output and ergonomics.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purrr::reduce()</code></td>
+<td>Single value</td>
+<td>Standard fold</td>
+</tr>
+<tr>
+<td><code>purrr::accumulate()</code></td>
+<td>Vector of intermediate values</td>
+<td>Cumulative sequences</td>
+</tr>
+<tr>
+<td><code>base::Reduce()</code></td>
+<td>Single value</td>
+<td>No purrr dependency</td>
+</tr>
+<tr>
+<td><code>base::Reduce(accumulate=TRUE)</code></td>
+<td>Vector</td>
+<td>Cumulative, no dep</td>
+</tr>
+</tbody>
+</table>
+
+<p>For modern code, prefer purrr's variants for cleaner syntax. Use base if avoiding tidyverse.</p>
+
+<h2>A practical reduce workflow</h2>
+
+<p><strong>Recognizing fold patterns is the key skill.</strong> Common problems that fit:</p>
+
+<ul>
+
+<li>Combining many CSV files into one data frame</li>
+
+<li>Building a final result step-by-step (e.g., training a model in stages)</li>
+
+<li>Reducing a list of pairs into a hash-map-like structure</li>
+
+<li>Cumulative metrics (running balance, running max, running concat)</li>
+
+<li>Composing functions dynamically</li>
+
+</ul>
+
+<p>Once you spot the pattern, reduce or accumulate produces compact, readable code.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: empty list error.</strong> <code>reduce(list(), +)</code> errors because there is nothing to fold. Provide <code>.init = 0</code> to handle empty input gracefully.</p>
+
+<p><strong>Pitfall 2: function arity confusion.</strong> <code>.f</code> MUST take exactly 2 arguments. <code>reduce(1:3, sum)</code> errors because <code>sum</code> is variadic. Use <code>\(x, y) x + y</code> or backtick <code>+</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>reduce</code> is SLOWER than vectorized alternatives for sum / product / mean / max.</strong> Always prefer <code>sum(x)</code> over <code>reduce(x, +)</code> for simple aggregations. Reach for reduce when no specialized function exists.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>reduce</code> with <code>intersect</code> to find IDs common to all 3 vectors. Save to <code>ex_common</code>.</p>
+<div class="webr-container" data-block-title="Your turn: intersection of many vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: intersection of many vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v1 &lt;- c(1, 2, 3, 4, 5)
+v2 &lt;- c(2, 3, 4, 5, 6)
+v3 &lt;- c(3, 4, 5, 6, 7)
+
+ex_common &lt;- # your code here
+
+ex_common
+#&gt; Expected: c(3, 4, 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_common &lt;- reduce(list(v1, v2, v3), intersect)
+ex_common
+#&gt; [1] 3 4 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>reduce</code> applies <code>intersect()</code> pairwise: first <code>intersect(v1, v2)</code> then <code>intersect(result, v3)</code>. Generalizes the 2-arg intersect to N inputs.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>After mastering reduce, look at:</p>
+
+<ul>
+
+<li><code>accumulate()</code>: keeps every intermediate result</li>
+
+<li><code>reduce2()</code>: parallel reduce over two inputs</li>
+
+<li><code>compose()</code>: function composition (a kind of fold over functions)</li>
+
+<li><code>partial()</code>: <a class="auto-link" href="R-Currying-and-Partial-Application.html" title="R Currying & Partial Application: purrr::partial() & rlang">partial function application</a></li>
+
+<li><code>map_*()</code>: when you want one output PER input, not a single fold result</li>
+
+</ul>
+
+<p>For <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame operations</a>, dplyr's <code>bind_rows()</code> and <code>summarise()</code> cover the common cases without needing reduce.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does reduce do in purrr?</strong></p>
+
+<p><code>reduce(.x, .f)</code> repeatedly applies <code>.f</code> (a 2-arg function) across <code>.x</code>, combining elements pairwise until a single value remains. It is the functional fold operation.</p>
+
+<p><strong>What is the difference between reduce and accumulate in purrr?</strong></p>
+
+<p><code>reduce</code> returns ONLY the final folded value. <code>accumulate</code> returns ALL intermediate values as a vector. Both apply the function the same way; they differ in what they keep.</p>
+
+<p><strong>How do I reduce in R without purrr?</strong></p>
+
+<p>Use <code>base::Reduce(f, x)</code>. It works the same way but with reversed argument order: function first, vector second. For accumulate behavior: <code>Reduce(f, x, accumulate = TRUE)</code>.</p>
+
+<p><strong>How do I combine many data frames with purrr?</strong></p>
+
+<p><code>reduce(list_of_dfs, dplyr::full_join, by = &quot;id&quot;)</code> joins them all on <code>id</code>. For row-binding, <code>purrr::list_rbind()</code> or <code>dplyr::bind_rows()</code> is more direct.</p>
+
+<p><strong>What is the .init argument in reduce?</strong></p>
+
+<p><code>.init</code> is the starting value of the accumulator. Without it, <code>reduce</code> uses the first element of <code>.x</code> as the initial value. With it, you start the fold from a specific seed (e.g., 0 for sum, 1 for product, empty data frame for joins).</p>
