@@ -1,0 +1,370 @@
+---
+title: "dplyr n_distinct() in R: Count Unique Values Fast"
+description: "Use dplyr n_distinct() to count unique values in a vector or column in R. Covers n_distinct vs length(unique()), na.rm, multi-column, 5 worked examples."
+keywords: "dplyr n_distinct, R count unique values, n_distinct vs length unique, dplyr unique count, na.rm n_distinct, multi-column unique"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "n_distinct()|dplyr n_distinct|count unique values|unique count|n_distinct na.rm"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr n_distinct() in R: Count Unique Values Fast</h1>
+
+<p class="lead">The <code>n_distinct()</code> function in dplyr counts the number of unique values in one or more vectors. It is the fast, dplyr-native equivalent of <code>length(unique(x))</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>n_distinct(x)<span class="qa-cmt">                          # unique values in x</span>
+n_distinct(x, na.rm = TRUE)<span class="qa-cmt">            # exclude NAs</span>
+n_distinct(x, y)<span class="qa-cmt">                       # unique combinations of x and y</span>
+df |&gt; summarise(n_unique = n_distinct(col))
+df |&gt; group_by(g) |&gt; summarise(n_unique = n_distinct(col))
+length(unique(x))<span class="qa-cmt">                       # base R equivalent (slower)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is n_distinct() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">count unique values in a vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">n_distinct(x)</text><text x="125" y="126" class="branch-label">count unique combinations of multiple cols</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">n_distinct(x, y, z)</text><text x="125" y="182" class="branch-label">exclude NA from the count</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">n_distinct(x, na.rm = TRUE)</text><text x="125" y="238" class="branch-label">count rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-count-in-R.html" title="dplyr count() in R: Count Rows and Frequencies">n()</a> or nrow()</text><text x="125" y="294" class="branch-label">show the distinct values</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">distinct(df, col) or unique(x)</text><text x="125" y="350" class="branch-label">per-group unique count</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">group_by + summarise(n_distinct(col))</text></svg></div>
+
+<h2>What n_distinct() does in one sentence</h2>
+
+<p><strong><code>n_distinct(x, ..., na.rm = FALSE)</code> returns the integer count of unique values in <code>x</code> (or unique combinations across <code>x, ...</code>).</strong> It is faster than <code>length(unique(x))</code> because it avoids materializing the full unique vector.</p>
+
+<p>The standard "how many unique customers / products / categories?" function in dplyr.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>n_distinct(..., na.rm = FALSE)</code>. Pass one or more vectors; counts unique combinations across them.</strong></p>
+
+<div class="webr-container" data-block-title="Unique values in a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unique values in a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(1, 2, 2, 3, 3, 3, NA)
+n_distinct(x)
+#&gt; [1] 4   (1, 2, 3, NA all counted as distinct)
+
+n_distinct(x, na.rm = TRUE)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>n_distinct(x)</code> is faster than <code>length(unique(x))</code>.</strong> dplyr uses a hash-based approach that avoids materializing the unique vector. On a million-element vector the difference is significant.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Unique values in one column</h3>
+
+<div class="webr-container" data-block-title="How many cylinder counts in mtcars?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many cylinder counts in mtcars?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_distinct(mtcars$cyl)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Inside summarise</h3>
+
+<div class="webr-container" data-block-title="Per-group unique count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group unique count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(n_gears = n_distinct(gear))
+#&gt;     cyl n_gears
+#&gt;     4       3
+#&gt;     6       3
+#&gt;     8       2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Multi-column combinations</h3>
+
+<div class="webr-container" data-block-title="Unique (cyl, gear) pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unique (cyl, gear) pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_distinct(mtcars$cyl, mtcars$gear)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass multiple vectors to count unique combinations.</p>
+
+<h3>4. Excluding NAs</h3>
+
+<div class="webr-container" data-block-title="Skip NAs in the count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip NAs in the count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;a&quot;, &quot;b&quot;, NA, &quot;a&quot;, NA)
+n_distinct(x, na.rm = TRUE)
+#&gt; [1] 2
+
+n_distinct(x, na.rm = FALSE)
+#&gt; [1] 3   (NA counted as one of the distinct values)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Inside mutate (per-group)</h3>
+
+<div class="webr-container" data-block-title="Add unique count column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add unique count column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(n_gear = n_distinct(gear))
+#&gt; Each row gets the count of unique gear in its cyl group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>n_distinct()</code> differs from <code>n()</code>: it counts UNIQUE values, not ROWS.</strong> <code>n()</code> returns the group size; <code>n_distinct(col)</code> returns how many distinct values appear in that column. Easy to confuse but very different semantics.</div></div>
+
+<h2>n_distinct() vs length(unique()) vs distinct() vs n()</h2>
+
+<p><strong>Four ways to handle "uniqueness" questions in dplyr / R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n_distinct(x)</code></td>
+<td>Integer count</td>
+<td>Quick count, <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">dplyr summarise</a></td>
+</tr>
+<tr>
+<td><code>length(unique(x))</code></td>
+<td>Integer count</td>
+<td>Base R, equivalent but slower</td>
+</tr>
+<tr>
+<td><code>dplyr::distinct(df, col)</code></td>
+<td>Filtered tibble</td>
+<td>"Show me the unique rows"</td>
+</tr>
+<tr>
+<td><code>unique(x)</code></td>
+<td>Vector of unique values</td>
+<td>Inspect what those values are</td>
+</tr>
+<tr>
+<td><code>n()</code></td>
+<td>Group size (row count)</td>
+<td>Different question</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>n_distinct(x)</code> inside summarise/mutate.</li>
+
+<li><code>length(unique(x))</code> for base R; same result, slightly slower.</li>
+
+<li><code>distinct(df, col)</code> to keep one row per unique value.</li>
+
+<li><code>unique(x)</code> to see the actual unique values.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "audit" pattern is the most common n_distinct use case in summary tables.</strong></p>
+
+<div class="webr-container" data-block-title="Dataset audit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dataset audit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  summarise(
+    rows         = n(),
+    unique_users = n_distinct(user_id),
+    unique_items = n_distinct(item_id),
+    avg_qty      = mean(qty),
+    .groups      = &quot;drop&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A first-pass dataset audit: how many rows, how many unique users, how many unique items. Tells you the table's shape at a glance.</p>
+
+<p>For per-group audits:</p>
+
+<div class="webr-container" data-block-title="Daily session and unique-user counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily session and unique-user counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  group_by(date) |&gt;
+  summarise(
+    sessions       = n(),
+    unique_users   = n_distinct(user_id),
+    .groups        = &quot;drop&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Daily session and unique-user counts.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: NA counted as distinct.</strong> Default <code>na.rm = FALSE</code> includes NA in the count. <code>n_distinct(c(1, NA, 1))</code> returns 2 (1 and NA). Add <code>na.rm = TRUE</code> to exclude.</p>
+
+<p><strong>Pitfall 2: passing multiple cols treats them as combinations.</strong> <code>n_distinct(x, y)</code> counts unique (x, y) PAIRS, not unique values in either. To count separately, call twice.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>n_distinct()</code> is faster than <code>length(unique(x))</code> but they CAN differ on edge cases.</strong> With factors and NA handling, results may vary. Pick one in a project and stick with it for consistency.</div></div>
+
+<h2>Performance note</h2>
+
+<p><strong>For very large data, <code>n_distinct()</code> is faster than <code>length(unique(x))</code> thanks to a hash-based implementation.</strong> On vectors with millions of elements the difference can be 2-10x. For everyday data sizes (thousands to hundreds of thousands of rows) both functions feel instant, so pick by readability and consistency. Inside dplyr pipelines, n_distinct is the idiomatic choice. For data.table users, <code>uniqueN()</code> plays the same role with similar performance. The underlying algorithm uses a hash set internally rather than building the full unique vector, which is what saves memory and time on big inputs.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each <code>cyl</code> group in mtcars, count the unique number of gears AND the unique number of carburetors. Save to <code>ex_uniq</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 2 unique-counts per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 2 unique-counts per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_uniq &lt;- mtcars |&gt;
+  # your code here
+
+ex_uniq
+#&gt; Expected: 3 rows (one per cyl) with n_gear and n_carb columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_uniq &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    n_gear = n_distinct(gear),
+    n_carb = n_distinct(carb),
+    .groups = &quot;drop&quot;
+  )
+
+ex_uniq
+#&gt; # A tibble: 3 x 3
+#&gt;     cyl n_gear n_carb
+#&gt;     4      3      2
+#&gt;     6      3      4
+#&gt;     8      2      4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>n_distinct(gear)</code> counts unique gear values per cyl. Same for carb. Two summary stats per group.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering n_distinct, look at:</p>
+
+<ul>
+
+<li><code>n()</code>: row count of current group</li>
+
+<li><code>count(df, g)</code>: count rows per group</li>
+
+<li><code>distinct(df, col)</code>: keep one row per unique value</li>
+
+<li><code>unique(x)</code>: base R; show the unique values</li>
+
+<li><code>summarise()</code>: standard aggregation context</li>
+
+<li><code>group_by()</code>: per-group n_distinct</li>
+
+</ul>
+
+<p>For "show me the actual unique rows", <code>distinct(df, col, .keep_all = TRUE)</code> is the cleaner tool.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does n_distinct do in dplyr?</strong></p>
+
+<p><code>n_distinct(x)</code> returns the count of unique values in x as an integer. Faster than <code>length(unique(x))</code> and integrates with summarise / mutate.</p>
+
+<p><strong>What is the difference between n_distinct and length(unique())?</strong></p>
+
+<p>Both return the same count. n_distinct is faster (hash-based) and is the dplyr-native idiom. length(unique()) is base R; works anywhere.</p>
+
+<p><strong>How do I exclude NAs from n_distinct?</strong></p>
+
+<p>Pass <code>na.rm = TRUE</code>: <code>n_distinct(x, na.rm = TRUE)</code>. Default counts NA as one of the distinct values.</p>
+
+<p><strong>How do I count unique combinations of multiple columns?</strong></p>
+
+<p><code>n_distinct(x, y, z)</code> counts unique tuples across the three vectors. Pass each column as a separate argument.</p>
+
+<p><strong>Is n_distinct different from n() in dplyr?</strong></p>
+
+<p>Yes. <code>n()</code> counts ROWS in the current group. <code>n_distinct(col)</code> counts UNIQUE values in a column. Different questions.</p>

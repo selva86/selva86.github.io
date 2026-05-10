@@ -1,0 +1,377 @@
+---
+title: "dplyr row_number() in R: Assign Sequential Row Indexes"
+description: "Use dplyr row_number() to assign 1, 2, 3 sequential indexes to rows in R. Covers row_number vs rank, ordering, ties, per-group row numbers, 5 examples."
+keywords: "dplyr row_number, R row number, row_number vs rank, dplyr sequential index, row_number per group, R numbering rows, row_number ordering"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "row_number()|dplyr row_number|sequential index|row number per group|ranking ties"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr row_number() in R: Assign Sequential Row Indexes</h1>
+
+<p class="lead">The <code>row_number()</code> function in dplyr returns sequential integer ranks 1, 2, 3, ... where TIES are broken by FIRST APPEARANCE. It is the most common ranking function in dplyr.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>row_number()<span class="qa-cmt">                            # 1, 2, 3, ... over current group</span>
+row_number(x)<span class="qa-cmt">                           # rank by x (ties: first appearance)</span>
+row_number(desc(x))<span class="qa-cmt">                     # rank by x descending</span>
+df |&gt; mutate(rn = row_number())
+df |&gt; group_by(g) |&gt; mutate(rn = row_number())
+df |&gt; filter(row_number() &lt;= 3)<span class="qa-cmt">         # top 3 per group (after sort)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is row_number() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sequential index 1..n</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">row_number()</text><text x="125" y="126" class="branch-label">rank by column, ties = first</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">row_number(col)</text><text x="125" y="182" class="branch-label">rank by column, ties = same rank</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">min_rank() / dense_rank()</text><text x="125" y="238" class="branch-label">top n rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">filter(row_number() &lt;= n) or slice_head(n)</text><text x="125" y="294" class="branch-label">per-group row numbers</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + row_number()</text><text x="125" y="350" class="branch-label">random ordering</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">order(<a class="auto-link" href="Weibull-Log-Normal-and-Uniform-Distributions-in-R.html" title="Weibull, Log-Normal & Uniform Distributions in R: Survival & Reliability">runif</a>(n()))</text></svg></div>
+
+<h2>What row_number() does in one sentence</h2>
+
+<p><strong><code>row_number()</code> (no arg) returns 1, 2, 3, ... in row order; <code>row_number(x)</code> returns the rank of each element of <code>x</code> with ties broken by FIRST APPEARANCE.</strong> Inside <code>group_by()</code>, numbering restarts in each group.</p>
+
+<p>The most common ranking function in dplyr. Use it when you want strictly increasing integers without tied ranks.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>row_number(x = NULL)</code>. With no arg, returns 1..n_rows. With an arg, ranks by that vector.</strong></p>
+
+<div class="webr-container" data-block-title="Sequential row numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sequential row numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  mutate(rn = row_number()) |&gt;
+  select(mpg, rn) |&gt;
+  head(3)
+#&gt;            mpg rn
+#&gt; Mazda RX4 21.0  1
+#&gt; Mazda RX4 Wag 21.0  2
+#&gt; Datsun 710 22.8  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>row_number()</code> (no arg) inside mutate to add a sequential id column.</strong> Combined with <code>arrange()</code>, it gives you a stable position index after sorting.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Add a sequential index</h3>
+
+<div class="webr-container" data-block-title="Number every row 1..n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Number every row 1..n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(id = row_number()) |&gt;
+  head(3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sequential id, useful for joining or referencing rows.</p>
+
+<h3>2. Rank by a column</h3>
+
+<div class="webr-container" data-block-title="Rank by mpg ascending">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank by mpg ascending</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;), score = c(10, 20, 20, 5))
+
+df |&gt;
+  mutate(rank = row_number(score))
+#&gt;   name score rank
+#&gt; 1    a    10    2
+#&gt; 2    b    20    3
+#&gt; 3    c    20    4   &lt;-- tie broken by first appearance
+#&gt; 4    d     5    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ties are broken by row order, NOT shared rank.</p>
+
+<h3>3. Rank descending</h3>
+
+<div class="webr-container" data-block-title="Top performers first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top performers first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(rank_desc = row_number(desc(score)))
+#&gt;   name score rank_desc
+#&gt; 1    a    10        3
+#&gt; 2    b    20        1
+#&gt; 3    c    20        2
+#&gt; 4    d     5        4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Per-group row numbers</h3>
+
+<div class="webr-container" data-block-title="1..k per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">1..k per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_g &lt;- data.frame(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;),
+  ts   = 1:5
+)
+
+df_g |&gt;
+  group_by(user) |&gt;
+  mutate(visit_num = row_number())
+#&gt; # A tibble: 5 x 3
+#&gt;   user  ts visit_num
+#&gt;   a      1         1
+#&gt;   a      2         2
+#&gt;   a      3         3
+#&gt;   b      4         1
+#&gt;   b      5         2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>User a's visits are numbered 1-3; user b's restart at 1.</p>
+
+<h3>5. Top n per group (filter)</h3>
+
+<div class="webr-container" data-block-title="Top 2 highest mpg per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top 2 highest mpg per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  arrange(desc(mpg)) |&gt;
+  filter(row_number() &lt;= 2) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sort by mpg desc within each group, then keep rows where row_number is 1 or 2.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>row_number()</code> always produces UNIQUE integer ranks.</strong> No ties. Two rows with the same value get adjacent ranks (e.g., 3 and 4). For shared ranks on ties, use <code>min_rank()</code> (1, 2, 2, 4) or <code>dense_rank()</code> (1, 2, 2, 3) instead.</div></div>
+
+<h2>row_number() vs min_rank() vs dense_rank() vs rank()</h2>
+
+<p><strong>Four ranking functions in R, with different tie-handling.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Ties</th>
+<th>Output for c(10, 20, 20, 5)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>row_number(x)</code></td>
+<td>Broken by row order</td>
+<td>2, 3, 4, 1</td>
+</tr>
+<tr>
+<td><code>min_rank(x)</code></td>
+<td>Tied values share min rank</td>
+<td>2, 3, 3, 1</td>
+</tr>
+<tr>
+<td><code>dense_rank(x)</code></td>
+<td>Tied values share rank, no gaps</td>
+<td>2, 3, 3, 1 (same here)</td>
+</tr>
+<tr>
+<td><code>base::rank(x)</code></td>
+<td>Tied values get average</td>
+<td>2, 3.5, 3.5, 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>row_number</code> for unique sequential IDs.</li>
+
+<li><code>min_rank</code> for "leaderboard with ties".</li>
+
+<li><code>dense_rank</code> to avoid gaps after ties.</li>
+
+<li><code>rank</code> if you need average-tie behavior (rare in dplyr).</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "<a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">top n per group</a>" pattern is row_number's signature use case.</strong></p>
+
+<div class="webr-container" data-block-title="Top 5 per category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top 5 per category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  group_by(category) |&gt;
+  arrange(desc(score)) |&gt;
+  filter(row_number() &lt;= 5) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Top 5 by score in each category. Equivalent to <code>slice_max(score, n = 5, by = category)</code> in modern dplyr (1.1+); slice_max is cleaner.</p>
+
+<p>For "first occurrence per group":</p>
+
+<div class="webr-container" data-block-title="First chronological row per user">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First chronological row per user</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  group_by(user) |&gt;
+  arrange(timestamp) |&gt;
+  filter(row_number() == 1) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same as <code>slice_min(timestamp, n = 1, by = user)</code>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting arrange.</strong> <code>row_number()</code> is positional. Without <code>arrange()</code>, the numbers reflect whatever <a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">order rows</a> happen to be in.</p>
+
+<p><strong>Pitfall 2: per-group reset can surprise.</strong> On a grouped tibble, row_number restarts at each group boundary. If you wanted a global row index, ungroup first or use <code>mutate(id = 1:n())</code> outside group_by.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>row_number(x)</code> and <code>row_number()</code> differ semantically.</strong> With no arg, it numbers rows 1..n in current order. With an arg, it RANKS by that column. Easy to confuse.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rank <code>mtcars</code> cars by <code>hp</code> descending and keep only the top 3 PER cyl group. Save to <code>ex_top3</code>.</p>
+<div class="webr-container" data-block-title="Your turn: top 3 hp per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: top 3 hp per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top3 &lt;- mtcars |&gt;
+  # your code here
+
+ex_top3
+#&gt; Expected: 9 rows (3 per cyl group)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top3 &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  arrange(desc(hp)) |&gt;
+  filter(row_number() &lt;= 3) |&gt;
+  ungroup()
+
+# Modern equivalent:
+ex_top3_v2 &lt;- mtcars |&gt;
+  slice_max(hp, n = 3, by = cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sort by hp desc within each cyl, keep rows where row_number <= 3. slice_max is the cleaner alternative in dplyr 1.1+.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering row_number, look at:</p>
+
+<ul>
+
+<li><code>min_rank()</code>: ties share min rank</li>
+
+<li><code>dense_rank()</code>: ties share rank, no gaps</li>
+
+<li><code>percent_rank()</code> / <code>cume_dist()</code>: relative-position rankings</li>
+
+<li><code>ntile()</code>: split rows into n bins</li>
+
+<li><code>slice_max()</code> / <code>slice_min()</code>: top/bottom n by column (cleaner than filter + row_number)</li>
+
+<li><code>cur_group_rows()</code>: row indices within current group</li>
+
+</ul>
+
+<p>For modern dplyr code, prefer <code>slice_max(col, n)</code> over <code>arrange(desc(col)) |&gt; filter(row_number() &lt;= n)</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does row_number do in dplyr?</strong></p>
+
+<p><code>row_number()</code> returns 1, 2, 3, ... sequential integers. <code>row_number(x)</code> ranks by x with ties broken by first appearance.</p>
+
+<p><strong>What is the difference between row_number, min_rank, and dense_rank?</strong></p>
+
+<p><code>row_number</code> always produces unique ranks (ties broken by row order). <code>min_rank</code> gives ties the same rank but leaves gaps (1, 2, 2, 4). <code>dense_rank</code> gives ties the same rank with no gaps (1, 2, 2, 3).</p>
+
+<p><strong>How do I get top n rows per group with row_number?</strong></p>
+
+<p><code>df |&gt; group_by(g) |&gt; arrange(desc(col)) |&gt; filter(row_number() &lt;= n)</code>. In dplyr 1.1+, <code>slice_max(col, n, by = g)</code> is cleaner.</p>
+
+<p><strong>Why does row_number reset on grouped tibbles?</strong></p>
+
+<p>Because dplyr applies it per group. To get a global row index, call <code>ungroup()</code> first or use <code>mutate(id = 1:n())</code> outside the grouping.</p>
+
+<p><strong>What is the difference between row_number() and 1:n()?</strong></p>
+
+<p><code>1:n()</code> is also valid inside dplyr verbs and produces the same result. <code>row_number()</code> is a window function with full dplyr support; <code>1:n()</code> is shorter but functionally equivalent for the no-arg case.</p>

@@ -1,0 +1,369 @@
+---
+title: "dplyr lag() in R: Look at the Previous Row's Value"
+description: "Use dplyr lag() to access the previous row's value in a column for time-series differencing in R. Covers n, default, order_by, lead mirror, 5 examples."
+keywords: "dplyr lag, R lag function, lag vs lead dplyr, R previous row value, dplyr time series shift, lag default, lag order_by"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "lag()|dplyr lag|previous row value|lag vs lead|order_by lag"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr lag() in R: Look at the Previous Row's Value</h1>
+
+<p class="lead">The <code>lag()</code> function in dplyr returns the value from the row N positions BEFORE the current row, padding with <code>NA</code> at the start. It is the mirror of <code>lead()</code> and the standard tool for "previous-row" comparisons.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>lag(x)<span class="qa-cmt">                            # previous value (n=1)</span>
+lag(x, n = 2)<span class="qa-cmt">                     # 2 rows back</span>
+lag(x, default = 0)<span class="qa-cmt">               # fill start with 0 instead of NA</span>
+lag(x, order_by = ts)<span class="qa-cmt">             # respect timestamp order</span>
+df |&gt; mutate(prev_val = lag(value))
+df |&gt; group_by(g) |&gt; mutate(prev_val = lag(value))
+diff(x)<span class="qa-cmt">                           # quick first-differences (length n-1)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is lag() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">previous row's value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">lag()</text><text x="125" y="126" class="branch-label">next row's value</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">lead() (mirror)</text><text x="125" y="182" class="branch-label">N rows back</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">lag(x, n = N)</text><text x="125" y="238" class="branch-label">difference from previous</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">x - lag(x)</text><text x="125" y="294" class="branch-label">per-group lag</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + lag</text><text x="125" y="350" class="branch-label">ordered by another column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">lag(x, order_by = col)</text><text x="125" y="406" class="branch-label">compare to first row</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">x - first(x) (use first instead)</text></svg></div>
+
+<h2>What lag() does in one sentence</h2>
+
+<p><strong><code>lag(x, n = 1, default = NA)</code> returns a vector where each position holds the value <code>n</code> rows BEFORE the current position; the first n positions are filled with <code>default</code>.</strong> It is the natural complement to <code>lead()</code>.</p>
+
+<p>The most common use case: time-series differencing, "change from previous period" calculations.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>lag(x, n = 1, default = NA, order_by = NULL)</code>. n is the lag amount; default fills the leading NA slots.</strong></p>
+
+<div class="webr-container" data-block-title="Previous row&#x27;s value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Previous row&#x27;s value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(10, 20, 30, 40, 50)
+lag(x)
+#&gt; [1] NA 10 20 30 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>x - lag(x)</code> is the canonical first-difference idiom in dplyr.</strong> It computes "change from previous row" while keeping the data frame's length intact (the first row gets NA).</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Previous-row value</h3>
+
+<div class="webr-container" data-block-title="What was the value last time?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What was the value last time?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 30, 40, 50)
+lag(x)
+#&gt; [1] NA 10 20 30 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. First-difference (period-over-period change)</h3>
+
+<div class="webr-container" data-block-title="Daily change in sales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily change in sales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(day = 1:5, sales = c(100, 120, 110, 140, 130))
+
+df |&gt;
+  mutate(change = sales - lag(sales))
+#&gt;   day sales change
+#&gt; 1   1   100     NA
+#&gt; 2   2   120     20
+#&gt; 3   3   110    -10
+#&gt; 4   4   140     30
+#&gt; 5   5   130    -10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first row has NA because there is no previous period.</p>
+
+<h3>3. Percentage change</h3>
+
+<div class="webr-container" data-block-title="Daily % change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily % change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(pct_change = (sales - lag(sales)) / lag(sales) * 100)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Standard finance / sales metric.</p>
+
+<h3>4. Per-group lag</h3>
+
+<div class="webr-container" data-block-title="Reset at each group boundary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset at each group boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;),
+  val  = c(10, 20, 30, 100, 200)
+)
+
+df |&gt;
+  group_by(user) |&gt;
+  mutate(prev_val = lag(val))
+#&gt; # A tibble: 5 x 3
+#&gt;   user  val prev_val
+#&gt;   a      10       NA
+#&gt;   a      20       10
+#&gt;   a      30       20
+#&gt;   b     100       NA
+#&gt;   b     200      100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each user's first row has NA because there is no previous row within the group.</p>
+
+<h3>5. Lag with a custom default</h3>
+
+<div class="webr-container" data-block-title="Use 0 instead of NA at the start">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use 0 instead of NA at the start</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lag(x, default = 0)
+#&gt; [1]  0 10 20 30 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Useful when you want the first row's "previous" to be a baseline instead of NA.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Always <code>arrange()</code> the data BEFORE using lag.</strong> lag is purely positional. "Previous row" only makes sense if rows are sorted by time (or another meaningful order). Without sorting, lag returns whatever happens to be the previous physical row, which may be meaningless.</div></div>
+
+<h2>lag() vs lead() vs diff()</h2>
+
+<p><strong>Three approaches to "change between rows" in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output length</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lag(x)</code></td>
+<td>Same as x</td>
+<td>dplyr pipelines; per-group</td>
+</tr>
+<tr>
+<td><code>lead(x)</code></td>
+<td>Same as x</td>
+<td>"Next row" comparisons</td>
+</tr>
+<tr>
+<td><code>diff(x)</code></td>
+<td>n-1</td>
+<td>Quick differencing; not pipeline-friendly</td>
+</tr>
+<tr>
+<td><code>data.table::shift(x)</code></td>
+<td>Same</td>
+<td>Very fast for big data</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>lag</code> for dplyr pipelines and per-group differencing.</li>
+
+<li><code>lead</code> for forward-looking comparisons.</li>
+
+<li><code>diff</code> for one-shot vector operations (loses one element).</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "period-over-period change" pattern is the most common lag use case.</strong></p>
+
+<div class="webr-container" data-block-title="Daily return per symbol">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily return per symbol</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  arrange(date) |&gt;
+  group_by(symbol) |&gt;
+  mutate(
+    daily_return = (price - lag(price)) / lag(price)
+  ) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For each symbol's chronological prices, compute daily return. Without lag, this would require a self-join.</p>
+
+<p>For multi-period changes:</p>
+
+<div class="webr-container" data-block-title="Multi-horizon changes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-horizon changes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  arrange(date) |&gt;
+  mutate(
+    change_1d  = price - lag(price, 1),
+    change_7d  = price - lag(price, 7),
+    change_30d = price - lag(price, 30)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>n = 7</code> and <code>n = 30</code> give weekly and monthly changes.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to arrange.</strong> lag is positional. Without <code>arrange(date_col)</code>, "previous row" is whatever happened to be loaded first.</p>
+
+<p><strong>Pitfall 2: per-group surprise.</strong> On grouped tibbles, lag resets at each group's start. The first row of every group has NA. Often desired but sometimes a bug source.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Default <code>default</code> is NA, which propagates through arithmetic.</strong> <code>x - lag(x)</code> returns NA at the first row. Use <code>default = 0</code> or filter NAs downstream if you need a numeric result.</div></div>
+
+<h2>Why lag matters for time-series in dplyr</h2>
+
+<p><strong>Without lag, computing changes across rows requires self-joins or manual indexing, both of which break the dplyr pipeline.</strong> lag turns "change since yesterday" or "compare to previous quarter" into a single mutate call. For per-group computation (each user, each symbol, each region), pair lag with group_by and arrange. The combination is so common that financial, marketing, and operational analytics all rely on it. Once you internalize the pattern, time-series transforms in R feel as natural as in SQL window functions.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the day-over-day percentage change in <code>mtcars$mpg</code> (treating row order as time order). Save to <code>ex_pct</code>.</p>
+<div class="webr-container" data-block-title="Your turn: row-over-row pct change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: row-over-row pct change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_mini &lt;- head(mtcars[, c(&quot;mpg&quot;)], 5)
+
+ex_pct &lt;- # your code here
+
+ex_pct
+#&gt; Expected: c(NA, 0, 8.57, -6.14, -12.62) approximately</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_vec &lt;- head(mtcars$mpg, 5)
+ex_pct  &lt;- (mpg_vec - lag(mpg_vec)) / lag(mpg_vec) * 100
+
+ex_pct
+#&gt; [1]        NA  0.000000  8.571429 -6.140351 -12.616822</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> First row is NA (no previous). Subsequent rows show pct change from the previous mpg value.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering lag, look at:</p>
+
+<ul>
+
+<li><code>lead()</code>: next row's value (mirror)</li>
+
+<li><code>first()</code>, <code>last()</code>, <code>nth()</code>: pick specific positions</li>
+
+<li><code>cumsum()</code>, <code>cummean()</code>, etc: cumulative aggregates</li>
+
+<li><code>group_by()</code>: per-group window operations</li>
+
+<li><code>arrange()</code>: sort before lag/lead</li>
+
+<li><code>slider::slide_dbl()</code>: rolling-window operations</li>
+
+</ul>
+
+<p>For multi-period lags or rolling differences, <code>slider::slide_dbl()</code> generalizes the pattern.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does lag do in dplyr?</strong></p>
+
+<p><code>lag(x, n = 1)</code> returns a vector where each position holds the value n rows BEFORE the current position. The first n positions are filled with NA (or <code>default</code>).</p>
+
+<p><strong>What is the difference between lag and lead in dplyr?</strong></p>
+
+<p><code>lag(x)</code> looks at the PREVIOUS row. <code>lead(x)</code> looks at the NEXT row. Mirror operations.</p>
+
+<p><strong>How do I compute first-differences with lag?</strong></p>
+
+<p><code>x - lag(x)</code> gives the change from the previous row to the current. The first position is NA because there is no previous row.</p>
+
+<p><strong>Why does my lag result have NAs at the start?</strong></p>
+
+<p>Because there is no row before the first position. lag defaults <code>default = NA</code> for those slots. Set <code>default = 0</code> or another value to avoid NA.</p>
+
+<p><strong>How do I lag within groups?</strong></p>
+
+<p><code>df |&gt; group_by(g) |&gt; mutate(prev = lag(x))</code>. group_by makes lag reset at each group boundary; the first row per group has NA.</p>
