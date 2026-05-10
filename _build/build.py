@@ -1141,9 +1141,16 @@ def build_post(
         '<a class="cr-link" data-continue-link href="#"></a>'
         '</aside>'
     )
-    # Inject author + dates byline immediately after the first H1
+    # Inject author + dates byline.
+    # Preferred placement: immediately after the first `<p class="lead">...</p>` block,
+    # so the snippet-eligible answer sits right under the H1 with no metadata between.
+    # Fallback: after the first H1 if no lead paragraph is present.
     byline_html = render_byline(date_published, date_modified)
-    if '</h1>' in content:
+    lead_match = re.search(r'<p class="lead"[^>]*>.*?</p>', content, re.DOTALL)
+    if lead_match:
+        end = lead_match.end()
+        content = content[:end] + '\n' + byline_html + content[end:]
+    elif '</h1>' in content:
         content = content.replace('</h1>', '</h1>\n' + byline_html, 1)
     content_with_breadcrumb = breadcrumb_html + '\n' + content
     content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
