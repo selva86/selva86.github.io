@@ -1,0 +1,317 @@
+---
+title: "apply() in R: Apply a Function Over Matrix Rows or Columns"
+description: "Use base R apply() to run a function over rows (MARGIN=1) or columns (MARGIN=2) of a matrix or data frame. Covers MARGIN, simplification, and 5 examples."
+keywords: "apply in R, R apply function rows, apply MARGIN, apply matrix R, apply vs sapply, R apply data frame, apply by column"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "apply()|base apply|apply over rows|apply over columns|R apply matrix"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>apply() in R: Apply a Function Over Matrix Rows or Columns</h1>
+
+<p class="lead">The <code>apply()</code> function in base R applies a function over rows (MARGIN = 1) or columns (MARGIN = 2) of a matrix or data frame. It is the matrix-specific cousin of <code>lapply</code> and <code>sapply</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>apply(m, MARGIN = 1, FUN = sum)<span class="qa-cmt">             # row sums</span>
+apply(m, MARGIN = 2, FUN = mean)<span class="qa-cmt">            # column means</span>
+apply(m, 2, function(x) sum(is.na(x)))<span class="qa-cmt">      # NA count per col</span>
+apply(m, 1, max)<span class="qa-cmt">                            # max per row</span>
+apply(m, c(1,2), fn)<span class="qa-cmt">                        # element-wise (rare)</span>
+rowSums(m); colSums(m)<span class="qa-cmt">                      # faster for sum/mean</span>
+matrixStats::rowMaxs(m)<span class="qa-cmt">                     # faster specialized</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is apply() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">function over matrix rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">apply(m, 1, fn)</text><text x="125" y="126" class="branch-label">function over matrix columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">apply(m, 2, fn)</text><text x="125" y="182" class="branch-label">column means / sums</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">colMeans / colSums (faster)</text><text x="125" y="238" class="branch-label">row means / sums</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rowMeans / rowSums (faster)</text><text x="125" y="294" class="branch-label">function over list / vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">lapply / sapply</text><text x="125" y="350" class="branch-label">mixed-type data frame</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">lapply or sapply (apply may fail)</text><text x="125" y="406" class="branch-label">N-dimensional array</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">apply(a, MARGIN = c(...), fn)</text></svg></div>
+
+<h2>What apply() does in one sentence</h2>
+
+<p><strong><code>apply(X, MARGIN, FUN)</code> repeatedly calls <code>FUN</code> on each row (MARGIN = 1) or column (MARGIN = 2) of a matrix or 2D array, returning the results as a vector or matrix.</strong> For data frames, apply implicitly converts to a matrix, which loses type information.</p>
+
+<p><code>apply()</code> is matrix-specific. For lists and vectors, use <code>lapply</code> or <code>sapply</code>. For column-wise transforms on data frames, prefer <code>dplyr::mutate(across(...))</code> or <code>lapply(df, fn)</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>apply(X, MARGIN, FUN, ...)</code>. MARGIN: 1 = rows, 2 = columns, c(1,2) = each cell.</strong></p>
+
+<div class="webr-container" data-block-title="Build a matrix and apply functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a matrix and apply functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- matrix(1:12, nrow = 3)
+m
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1    4    7   10
+#&gt; [2,]    2    5    8   11
+#&gt; [3,]    3    6    9   12
+
+apply(m, MARGIN = 1, sum)   # row sums
+#&gt; [1] 22 26 30
+
+apply(m, MARGIN = 2, mean)  # column means
+#&gt; [1]  2  5  8 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For sum / mean by row or column, use <code>rowSums</code>, <code>colSums</code>, <code>rowMeans</code>, <code>colMeans</code> instead of <code>apply</code>.</strong> They are faster and clearer. <code>apply(m, 2, sum)</code> and <code>colSums(m)</code> produce the same result; the latter is specialized C code.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Row sums, column sums</h3>
+
+<div class="webr-container" data-block-title="Most common apply uses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most common apply uses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">apply(m, 1, sum)
+#&gt; [1] 22 26 30
+
+apply(m, 2, sum)
+#&gt; [1]  6 15 24 33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For these specific cases, <code>rowSums(m)</code> and <code>colSums(m)</code> are the recommended fast alternatives.</p>
+
+<h3>2. Column-wise NA count</h3>
+
+<div class="webr-container" data-block-title="How many NAs per column?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many NAs per column?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m_na &lt;- matrix(c(1, NA, 3, NA, 5, 6), nrow = 2)
+apply(m_na, 2, function(x) sum(is.na(x)))
+#&gt; [1] 1 1 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>apply</code> with a custom function is the standard tool for arbitrary column-wise computations.</p>
+
+<h3>3. Max per row</h3>
+
+<div class="webr-container" data-block-title="Row-wise max">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row-wise max</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">apply(m, 1, max)
+#&gt; [1] 10 11 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Element-wise transformation (MARGIN = c(1, 2))</h3>
+
+<div class="webr-container" data-block-title="Apply fn to each cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply fn to each cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">apply(m, c(1, 2), function(x) x^2)
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]    1   16   49  100
+#&gt; [2,]    4   25   64  121
+#&gt; [3,]    9   36   81  144</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>MARGIN = c(1, 2)</code> calls fn on every element. Same as <code>m^2</code> for vectorized ops; only useful for non-vectorized functions.</p>
+
+<h3>5. apply on data frame (with caution)</h3>
+
+<div class="webr-container" data-block-title="apply silently converts df to matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">apply silently converts df to matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = 1:3, b = c(10, 20, 30))
+apply(df, 1, sum)
+#&gt; [1] 11 22 33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This works only because all columns are numeric. With a character column, <code>apply</code> converts everything to character, breaking the operation. For data frames, prefer <code>lapply(df, fn)</code> or <code>dplyr::summarise(across(...))</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>apply()</code> is for MATRICES; for DATA FRAMES, use <code>lapply()</code> or <code>purrr::map()</code>.</strong> Data frames may have mixed column types. <code>apply()</code> silently converts everything to the most general type (usually character), which breaks numeric operations. The matrix-specific <code>apply</code> is only safe when all data are the same type.</div></div>
+
+<h2>apply vs sapply vs lapply vs purrr::map</h2>
+
+<p><strong>Four <a class="auto-link" href="R-Control-Flow.html" title="R Control Flow: if/else, for, and while — Stop Avoiding Loops">R iteration</a> functions, each tuned to a different input shape and output expectation.</strong> Knowing which one to reach for is essentially a matter of "what shape is my input, and what shape do I want back?"</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apply()</code></td>
+<td>Matrix / 2D array</td>
+<td>Vector or matrix</td>
+<td>Row/column-wise on matrix</td>
+</tr>
+<tr>
+<td><code>sapply()</code></td>
+<td>List or vector</td>
+<td>Vector or matrix</td>
+<td>Quick interactive simplification</td>
+</tr>
+<tr>
+<td><code>lapply()</code></td>
+<td>List or vector</td>
+<td>List</td>
+<td>Type-predictable list output</td>
+</tr>
+<tr>
+<td><code>vapply()</code></td>
+<td>List or vector</td>
+<td>Type-strict vector</td>
+<td>Production code</td>
+</tr>
+<tr>
+<td><code>purrr::map_*()</code></td>
+<td>List or vector</td>
+<td>Type-strict per variant</td>
+<td>Tidyverse</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>apply()</code> only on matrices and 2D numeric arrays.</li>
+
+<li>Use <code>lapply</code> / <code>sapply</code> / <code>vapply</code> for lists and vectors.</li>
+
+<li>Use <code>dplyr::mutate(across(...))</code> for data frame column transforms.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: applying to a data frame with mixed types.</strong> <code>apply(df, 2, mean)</code> errors if any column is character. <code>apply</code> silently coerces; the coercion changes the data.</p>
+
+<p><strong>Pitfall 2: forgetting MARGIN.</strong> <code>apply(m, sum)</code> (no MARGIN) errors. Always specify <code>MARGIN = 1</code> or <code>2</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>apply()</code> is SLOWER than <code>rowSums()</code> / <code>colSums()</code> for sum / mean.</strong> For large matrices, the specialized functions are 10x faster. Use them for performance-sensitive code.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the standard deviation of each column in matrix <code>m</code> using <code>apply</code>. Save to <code>ex_sds</code>.</p>
+<div class="webr-container" data-block-title="Your turn: column SDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: column SDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- matrix(rnorm(20), nrow = 4)
+
+ex_sds &lt;- # your code here
+
+ex_sds
+#&gt; Expected: 5 SDs (one per column)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sds &lt;- apply(m, 2, sd)
+ex_sds
+#&gt; [1] (5 numbers, depends on random seed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>apply(m, 2, sd)</code> runs <code>sd()</code> on each of the 5 columns (MARGIN = 2 means columns). Each call returns one number; the result is a numeric vector of length 5.</p>
+
+</details>
+</section>
+
+<h2>Related apply functions</h2>
+
+<p>After mastering apply, look at:</p>
+
+<ul>
+
+<li><code>rowSums()</code>, <code>colSums()</code>, <code>rowMeans()</code>, <code>colMeans()</code>: fast specialized versions</li>
+
+<li><code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>: for lists and vectors</li>
+
+<li><code>mapply()</code>: multi-argument apply</li>
+
+<li><code>purrr::map()</code> family: tidyverse alternatives</li>
+
+<li><code>matrixStats</code> package: many specialized <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix operations</a></li>
+
+</ul>
+
+<p>For data frame transforms, <code>dplyr::summarise(across(...))</code> and <code>dplyr::mutate(across(...))</code> are more idiomatic than apply.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does the MARGIN argument do in apply?</strong></p>
+
+<p><code>MARGIN = 1</code> applies the function to each ROW. <code>MARGIN = 2</code> applies to each COLUMN. <code>MARGIN = c(1, 2)</code> applies to each ELEMENT.</p>
+
+<p><strong>What is the difference between apply and sapply in R?</strong></p>
+
+<p><code>apply()</code> works on matrices and 2D arrays, applying a function over rows or columns. <code>sapply()</code> works on lists and vectors, applying a function over elements. They serve different data shapes.</p>
+
+<p><strong>Can I use apply on a <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame in R</a>?</strong></p>
+
+<p>Yes, but it converts the data frame to a matrix first. If your columns are all numeric, this works. If any column is character, all data become character. For mixed data frames, prefer <code>lapply(df, fn)</code> or <code>dplyr::summarise(across(...))</code>.</p>
+
+<p><strong>How do I compute row means in R?</strong></p>
+
+<p>Use <code>rowMeans(m)</code> for fast specialized computation. Or <code>apply(m, 1, mean)</code> for the general approach. For data frames with mixed types, <code>dplyr::rowwise() %&gt;% mutate(rm = mean(c_across(everything())))</code>.</p>
+
+<p><strong>Why is apply slow on large matrices?</strong></p>
+
+<p><code>apply()</code> is implemented in R, so it loops in interpreted code. For sum / mean / etc., specialized C-level functions like <code>rowSums</code> and <code>colMeans</code> are much faster. For other operations on large matrices, consider the <code>matrixStats</code> package.</p>
