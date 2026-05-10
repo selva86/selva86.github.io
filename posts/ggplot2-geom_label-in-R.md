@@ -46,6 +46,7 @@ ggrepel::geom_label_repel()                 # auto-adjust
 ```r title="Boxed labels on scatter"
 library(ggplot2)
 
+library(tibble)
 mtcars |>
   tibble::rownames_to_column("car") |>
   head(5) |>

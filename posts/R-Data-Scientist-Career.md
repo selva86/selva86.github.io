@@ -29,6 +29,7 @@ Salary articles love vague promises. Let's skip them. Here is the 2026 pay distr
 library(dplyr)
 library(tibble)
 
+library(scales)
 salaries <- tribble(
   ~level,       ~low_k, ~mid_k, ~high_k, ~years,
   "Junior",         55,     68,      80,    1,

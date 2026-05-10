@@ -48,6 +48,7 @@ This is the data-frame analog of mathematical set difference. It is whole-row ex
 ```r title="Rows in x not in y"
 library(dplyr)
 
+library(tibble)
 x <- data.frame(id = 1:4, val = c("a","b","c","d"))
 y <- data.frame(id = c(2, 3), val = c("b","c"))
 

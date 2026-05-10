@@ -50,6 +50,7 @@ This is the outer join. Use it when missing matches are themselves the answer (e
 ```r title="All customers and all orders, even unmatched"
 library(dplyr)
 
+library(tibble)
 customers <- data.frame(id = 1:3, name = c("a","b","c"))
 orders    <- data.frame(id = c(1, 1, 4), amount = c(10, 20, 30))
 

@@ -52,6 +52,7 @@ Unlike base R's `merge()`, dplyr joins make the join type explicit in the functi
 ```r title="Set up two small data frames to join"
 library(dplyr)
 
+library(tibble)
 bands <- tibble(
   band   = c("Beatles","Beatles","Stones","Stones","Queen"),
   name   = c("John","Paul","Mick","Keith","Freddie")

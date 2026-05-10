@@ -24,6 +24,7 @@ difficulty: Intermediate
 One chi-square function in R, two very different questions. `chisq.test()` runs a goodness-of-fit test when you hand it a single count vector, and a test of independence when you hand it a two-way table. The decision hinges on whether you have one categorical variable or two. Here is the same function used both ways on two tiny datasets so you can see both calls before drilling into the 10 exercises.
 
 ```r title="One function, two chi-square questions"
+library(tibble)
 # Question 1 (goodness-of-fit): are these coin flips fair?
 coin_flips <- c(heads = 45, tails = 55)
 gof_res <- chisq.test(coin_flips, p = c(0.5, 0.5))

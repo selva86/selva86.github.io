@@ -52,6 +52,8 @@ If you find yourself writing `geom_bar(stat = "identity")`, you actually want `g
 ```r title="Load ggplot2 and set up data"
 library(ggplot2)
 
+library(forcats)
+library(scales)
 # Raw row data (one row per observation)
 mpg_subset <- mpg[, c("class", "manufacturer")]
 

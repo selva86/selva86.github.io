@@ -27,6 +27,10 @@ For years, the "R or Python" debate has run on vibes. You can actually settle mo
 library(ggplot2)
 library(dplyr)
 
+library(ggrepel)
+library(stringr)
+library(tibble)
+library(tidyr)
 # Usage share of R vs Python across four independent 2024-2026 datasets
 usage_df <- tibble::tribble(
   ~source,                 ~python, ~r,

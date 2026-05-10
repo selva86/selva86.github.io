@@ -33,6 +33,7 @@ Let's see ggrepel in action on a scatter plot of car data. Notice how every labe
 library(ggplot2)
 library(ggrepel)
 
+library(gapminder)
 # Label the 8 most fuel-efficient cars
 top_cars <- mtcars[order(-mtcars$mpg)[1:8], ]
 top_cars$car <- rownames(top_cars)

@@ -28,6 +28,7 @@ The code below layers three geoms on the same `Species → Sepal.Length` mapping
 library(ggplot2)
 library(ggdist)
 
+library(scales)
 ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
   stat_halfeye(adjust = 0.5, width = 0.6, justification = -0.2,
                .width = 0, point_colour = NA) +

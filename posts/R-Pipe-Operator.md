@@ -25,6 +25,7 @@ difficulty: "Intermediate"
 Without a pipe, multi-step transformations nest inside each other, and you read them inside-out. With a pipe, they read top-to-bottom like a recipe. Let's see both versions of the same computation.
 
 ```r title="Nested call vs piped chain"
+library(tibble)
 # Nested — reads inside-out
 round(mean(log(c(10, 100, 1000))), 2)
 #> [1] 5.3

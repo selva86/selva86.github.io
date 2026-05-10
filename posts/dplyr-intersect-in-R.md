@@ -48,6 +48,8 @@ The opposite of setdiff: where setdiff returns rows unique to x, intersect retur
 ```r title="Rows in both"
 library(dplyr)
 
+library(purrr)
+library(tibble)
 x <- data.frame(id = 1:4)
 y <- data.frame(id = c(2, 3, 5))
 

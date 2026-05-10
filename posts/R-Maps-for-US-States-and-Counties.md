@@ -28,6 +28,7 @@ The short version is three function calls plus a plot. `states()` fetches the sh
 library(tigris)
 library(ggplot2)
 
+library(scales)
 us_states <- states(cb = TRUE, year = 2024) |>
   shift_geometry()
 

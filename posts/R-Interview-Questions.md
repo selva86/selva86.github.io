@@ -25,6 +25,9 @@ Every question below is grouped by the seniority level at which it typically lan
 Junior interviews test whether you can read basic R code without flinching. Interviewers probe data types, vectorisation, and `NA` handling because these trip up people who memorised syntax but never ran a script. Start with a small payoff example so you can feel the "R way" before the questions begin.
 
 ```r title="Logical subsetting of a vector"
+library(data.table)
+library(readr)
+library(tibble)
 # Interviewer favourite: "What does this return?"
 x <- c(10, 20, 30, 40, 50)
 x[x > 25]              # logical subsetting

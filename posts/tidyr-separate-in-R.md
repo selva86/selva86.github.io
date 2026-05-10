@@ -52,6 +52,7 @@ For new code, prefer `separate_wider_delim()` and `separate_wider_regex()`. They
 ```r title="Build a sample column to split"
 library(tidyr)
 
+library(tibble)
 df <- tibble::tibble(
   id = 1:3,
   name = c("Alice Smith", "Bob Jones", "Carol Davis")

@@ -30,6 +30,7 @@ The block below builds a tiny synthetic loan dataset where two groups, call them
 library(dplyr)
 library(ggplot2)
 
+library(tidyr)
 set.seed(2026)
 n <- 1000
 group_vec <- sample(c("A", "B"), n, replace = TRUE)

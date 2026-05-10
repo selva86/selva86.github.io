@@ -25,6 +25,7 @@ difficulty: Intermediate
 Suppose you want to know whether automatic and manual cars get different miles per gallon, but a few outliers are pulling the means around. The Mann-Whitney U test ranks every observation across both groups and compares the rank totals, so a single odd value cannot dominate the result. One call to `wilcox.test()` does the whole thing.
 
 ```r title="Run wilcox.test on mtcars mpg by transmission"
+library(dplyr)
 # Split mpg by transmission: am = 0 is automatic, am = 1 is manual
 mpg_auto   <- mtcars$mpg[mtcars$am == 0]
 mpg_manual <- mtcars$mpg[mtcars$am == 1]

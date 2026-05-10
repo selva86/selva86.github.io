@@ -28,6 +28,8 @@ You have a polished ggplot2 scatter plot and your stakeholder asks "can I hover 
 library(ggplot2)
 library(plotly)
 
+library(htmlwidgets)
+library(tidyr)
 p <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
   geom_point(size = 2) +
   labs(title = "Engine Size vs Highway Mileage",

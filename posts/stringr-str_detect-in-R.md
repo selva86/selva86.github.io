@@ -52,6 +52,7 @@ It is the workhorse for filtering data frames by string conditions, validating u
 ```r title="Load stringr and test pattern"
 library(stringr)
 
+library(tibble)
 x <- c("apple", "banana", "cherry", "Date")
 
 str_detect(x, "an")

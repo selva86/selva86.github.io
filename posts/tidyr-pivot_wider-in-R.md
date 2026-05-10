@@ -51,6 +51,8 @@ This is the inverse of `pivot_longer()`. Use it when you want a presentation-fri
 ```r title="Build a long data frame and pivot wider"
 library(tidyr)
 
+library(dplyr)
+library(tibble)
 long <- tibble::tribble(
   ~country, ~year, ~sales,
   "USA",    2020,  100,

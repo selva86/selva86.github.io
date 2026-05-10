@@ -49,6 +49,7 @@ The test is widely used as an automated normality check before t-tests, ANOVA, o
 **`shapiro.test(x)` returns the W statistic and p-value.**
 
 ```r title="Test normality of mtcars$mpg"
+library(nortest)
 shapiro.test(mtcars$mpg)
 #>
 #>  Shapiro-Wilk normality test

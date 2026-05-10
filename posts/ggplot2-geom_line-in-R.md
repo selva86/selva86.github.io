@@ -52,6 +52,7 @@ Unlike `geom_path()` (which connects points in row order regardless of x), `geom
 ```r title="Load ggplot2 and economics data"
 library(ggplot2)
 
+library(tibble)
 head(economics)[, c("date", "unemploy", "pop")]
 #> # A tibble: 6 x 3
 #>   date       unemploy    pop

@@ -46,6 +46,7 @@ ggrepel::geom_text_repel()                # auto-adjust to avoid overlap
 ```r title="Label points with car names"
 library(ggplot2)
 
+library(tibble)
 mtcars |>
   tibble::rownames_to_column("car") |>
   head(10) |>

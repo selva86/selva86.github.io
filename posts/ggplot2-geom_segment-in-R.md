@@ -46,6 +46,7 @@ geom_curve(...)                          # curved version
 library(ggplot2)
 library(dplyr)
 
+library(tibble)
 mtcars |>
   tibble::rownames_to_column("car") |>
   arrange(mpg) |>

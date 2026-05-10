@@ -46,6 +46,7 @@ df |> expand(year, product)                           # different: from data
 ```r title="Year and product combinations"
 library(tidyr)
 
+library(pwr)
 expand_grid(year = 2024:2025, product = c("X","Y","Z"))
 #> # A tibble: 6 x 2
 #>    year product

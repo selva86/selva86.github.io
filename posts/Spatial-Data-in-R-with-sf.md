@@ -32,6 +32,7 @@ library(sf)
 library(ggplot2)
 library(dplyr)
 
+library(scales)
 # Create a data frame of cities with coordinates
 cities <- data.frame(
   name = c("New York", "Los Angeles", "Chicago", "Houston", "Phoenix"),

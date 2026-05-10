@@ -50,6 +50,7 @@ The big win: lets you call functions that weren't designed for vectors (`lm`, `p
 ```r title="Per-row sum over selected columns"
 library(dplyr)
 
+library(tidyr)
 df <- data.frame(x = 1:3, y = 4:6, z = 7:9)
 
 df |>

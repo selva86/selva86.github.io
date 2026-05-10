@@ -30,6 +30,8 @@ Scraping real URLs needs live network access, so the code blocks on this page ar
 ```r-static
 library(rvest)
 
+library(httr2)
+library(readr)
 url <- "https://en.wikipedia.org/wiki/List_of_countries_by_GDP_(nominal)"
 page <- read_html(url)
 

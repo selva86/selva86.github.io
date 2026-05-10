@@ -50,6 +50,7 @@ This and the rows_* family (rows_update, rows_upsert, rows_delete, rows_patch) i
 ```r title="Insert new rows"
 library(dplyr)
 
+library(tibble)
 x <- data.frame(id = 1:2, name = c("a","b"))
 y <- data.frame(id = 3:4, name = c("c","d"))
 

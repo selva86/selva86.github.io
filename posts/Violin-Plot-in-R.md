@@ -45,6 +45,7 @@ Let's start with the basics:
 ```r title="Basic violin plot by group"
 library(ggplot2)
 
+library(scales)
 # Basic violin plot: highway MPG distribution by drive type
 p_violin <- ggplot(mpg, aes(x = drv, y = hwy)) +
   geom_violin() +

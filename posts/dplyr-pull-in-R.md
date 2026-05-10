@@ -52,6 +52,7 @@ This matters when downstream code expects a vector (e.g., `mean()`, `length()`, 
 ```r title="Load dplyr and inspect mtcars"
 library(dplyr)
 
+library(tibble)
 mtcars |> pull(mpg) |> head()
 #> [1] 21.0 21.0 22.8 21.4 18.7 18.1
 ```

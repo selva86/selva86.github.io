@@ -46,6 +46,7 @@ geom_density_2d()                          # contour from raw points
 ```r title="Contour of a surface"
 library(ggplot2)
 
+library(dplyr)
 df <- expand.grid(x = seq(-3, 3, length = 50),
                   y = seq(-3, 3, length = 50)) |>
   dplyr::mutate(z = exp(-(x^2 + y^2) / 2))

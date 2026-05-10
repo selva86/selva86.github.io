@@ -52,6 +52,8 @@ This is one of the most-used data cleaning steps. Use it whenever an analysis ca
 ```r title="Build a small data frame with NAs"
 library(tidyr)
 
+library(dplyr)
+library(tibble)
 df <- tibble::tibble(
   id = 1:5,
   x = c(1, NA, 3, 4, NA),

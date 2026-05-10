@@ -43,6 +43,7 @@ geom_tile()                             # equivalent, slower for regular grids
 ```r title="Heatmap of correlation matrix"
 library(ggplot2)
 
+library(tidyr)
 cor_mat <- cor(mtcars[, 1:5])
 cor_long <- as_tibble(cor_mat, rownames = "x") |>
   tidyr::pivot_longer(-x, names_to = "y", values_to = "cor")

@@ -45,6 +45,7 @@ df |> nest(.by = group)                   # different: tibble list col
 library(tidyr)
 library(dplyr)
 
+library(purrr)
 df <- tibble(
   user = c("a","a","b","b","b"),
   visits = c(1, 2, 3, 4, 5)

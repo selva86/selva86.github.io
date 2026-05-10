@@ -51,6 +51,8 @@ Use area charts for time series where the magnitude (and how it composes by grou
 ```r title="Load ggplot2 and create sample time series"
 library(ggplot2)
 
+library(scales)
+library(tibble)
 df <- tibble::tibble(
   year = rep(2020:2024, 3),
   group = rep(c("A","B","C"), each = 5),

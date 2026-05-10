@@ -46,6 +46,7 @@ Let's start by loading ggplot2 and creating a focused subset of the built-in `di
 # Load ggplot2 and prepare data
 library(ggplot2)
 
+library(scales)
 # Use a random 2000-row sample for speed
 set.seed(101)
 diamonds_sm <- diamonds[sample(nrow(diamonds), 2000), ]

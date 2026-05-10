@@ -23,6 +23,8 @@ difficulty: "Intermediate"
 R resolves every function name by walking an ordered chain of environments called the **search path**. If nothing along that chain defines the name, you get this error. The fastest way to make the error stop feeling mysterious is to reproduce it on purpose, catch it with `tryCatch()`, and then print the chain R actually searched.
 
 ```r title="Reproduce the error and inspect search path"
+library(dplyr)
+library(nosuchpkg)
 # Step 1 — reproduce the error deliberately and capture the message
 msg <- tryCatch(
   some_made_up_fn(1:5),

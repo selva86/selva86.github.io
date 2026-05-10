@@ -25,6 +25,7 @@ You hit this error the moment you try to be clever about grouping. Instead of wr
 ```r title="Reproduce the single-string error"
 library(dplyr)
 
+library(rlang)
 my_col <- "cyl"
 mtcars |> group_by(my_col) |> summarise(n = n())
 #> Error in `group_by()`:

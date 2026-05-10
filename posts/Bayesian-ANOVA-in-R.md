@@ -35,6 +35,7 @@ The BayesFactor package is also pure R with no external Stan dependency, which m
 ```r title="Run a Bayesian ANOVA in three lines"
 library(BayesFactor)
 
+library(brms)
 set.seed(2026)
 
 # Three groups with different means: control, treatment_A, treatment_B

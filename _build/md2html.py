@@ -132,8 +132,50 @@ def convert_table(lines):
     out.extend(['</tbody>', '</table>'])
     return '\n'.join(out)
 
+CORE_R_PKGS = {
+    "base", "utils", "stats", "grDevices", "graphics",
+    "methods", "datasets", "tools", "compiler", "parallel",
+    "splines", "tcltk", "grid",
+}
+
+
+def auto_inject_libraries(body):
+    """Scan R code blocks for pkg::fn() calls and ensure each pkg has library(pkg).
+
+    If missing, prepend the missing library() calls into the FIRST r code block
+    (after any existing library() calls). Returns the (possibly modified) body.
+
+    Skips non-package namespaces like 'table::' which are common false positives.
+    """
+    code_blocks = re.findall(r"```r[^\n]*\n(.*?)\n```", body, re.DOTALL)
+    if not code_blocks:
+        return body
+    full = "\n".join(code_blocks)
+    used = set(re.findall(r"\b([a-z][a-z0-9_.]*)::", full))
+    loaded = set(re.findall(r"library\(([a-zA-Z0-9_.]+)\)", full))
+    missing = sorted(used - loaded - CORE_R_PKGS - {"table"})
+    if not missing:
+        return body
+
+    inj = "\n".join(f"library({p})" for p in missing)
+
+    # Inject into first r code block, after any existing library() calls
+    m = re.search(r"(```r[^\n]*\n)(.*?)(\n```)", body, re.DOTALL)
+    if not m:
+        return body
+    head, inner, tail = m.group(1), m.group(2), m.group(3)
+    lib_matches = list(re.finditer(r"^library\([^)]+\)\s*$", inner, re.MULTILINE))
+    if lib_matches:
+        last = lib_matches[-1]
+        new_inner = inner[: last.end()] + "\n" + inj + inner[last.end():]
+    else:
+        new_inner = inj + "\n" + inner
+    return body[: m.start()] + head + new_inner + tail + body[m.end():]
+
+
 def convert(md_text):
     fm, body = parse_frontmatter(md_text)
+    body = auto_inject_libraries(body)
 
     # Auto-derive engagement fields if not explicit in frontmatter.
     # exercise_count: count **Try it:** prompts + ### Exercise headings.

@@ -50,6 +50,7 @@ The cleanest tool for "what's in A but not in B?" questions, especially with mul
 ```r title="Customers without orders"
 library(dplyr)
 
+library(tibble)
 customers <- data.frame(id = 1:4, name = c("a","b","c","d"))
 orders    <- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
 

@@ -47,6 +47,7 @@ mtcars |> nest(.by = cyl) |> mutate(model = map(data, ~ lm(mpg ~ wt, .x)))
 library(tidyr)
 library(dplyr)
 
+library(broom)
 mtcars |>
   nest(.by = cyl)
 #> # A tibble: 3 x 2

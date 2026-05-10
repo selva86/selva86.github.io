@@ -46,6 +46,7 @@ That specialization is both its greatest strength and its biggest limitation. R 
 Here's proof. Click **Run** below to execute real R code in your browser, no installation needed:
 
 ```r title="First R code with basic stats"
+library(scales)
 # Your first R code — run it right now
 numbers <- c(23, 45, 12, 67, 34, 89, 56)
 

@@ -56,6 +56,7 @@ Before you visualize anything, you need a mental model for why data goes missing
 Let's create a sample dataset that demonstrates how to inspect missing values using base R before we bring in naniar.
 
 ```r title="Inspect airquality structure"
+library(dplyr)
 # Inspect the built-in airquality dataset
 aq <- airquality
 str(aq)

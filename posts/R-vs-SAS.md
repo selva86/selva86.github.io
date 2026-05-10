@@ -29,6 +29,8 @@ library(dplyr)
 library(tibble)
 library(scales)
 
+library(knitr)
+library(tidyr)
 # Usage share of R vs SAS across four independent 2024-2026 datasets
 usage_df <- tribble(
   ~source,                ~r_share, ~sas_share,

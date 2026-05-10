@@ -46,6 +46,7 @@ ggplot(df, aes(x, y)) + geom_bar(stat = "identity")  # equivalent to geom_col
 library(ggplot2)
 library(dplyr)
 
+library(scales)
 mtcars |>
   count(cyl) |>
   ggplot(aes(factor(cyl), n)) +

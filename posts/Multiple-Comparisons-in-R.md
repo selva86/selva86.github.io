@@ -25,6 +25,7 @@ difficulty: "Intermediate"
 A single test at alpha = 0.05 has a 5% chance of a false alarm under the null. Run 20 independent tests at once and the chance that at least one rejects by accident jumps to about 64%. The p-values are not wrong, they mean what they say: one in twenty. Multiple testing correction is what you need the moment you stop asking "is this one test significant?" and start asking "is any of these significant?" Let's simulate it.
 
 ```r title="Simulate family-wise error on pure noise"
+library(tidyr)
 # Under the null, p-values are Uniform(0, 1).
 # Simulate 10,000 families of 20 tests each and count how often
 # at least one of the 20 tests in a family dips below 0.05 by chance.

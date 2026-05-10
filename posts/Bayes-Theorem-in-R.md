@@ -42,6 +42,7 @@ For medical testing, $A$ is "patient has the disease" and $B$ is "patient tested
 library(ggplot2)
 library(dplyr)
 
+library(scales)
 # Bayes-derived PPV: P(disease | positive)
 bayes_pp <- function(prevalence, sens, spec) {
   numerator <- sens * prevalence

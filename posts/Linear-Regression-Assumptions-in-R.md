@@ -27,6 +27,7 @@ Ordinary least squares (OLS) returns unbiased slopes only when its assumptions h
 `par(mfrow = c(2, 2))` arranges all four plots in a single 2x2 grid for scanning at a glance.
 
 ```r title="Fit mtcars model and see all 4 diagnostics"
+library(dplyr)
 fit <- lm(mpg ~ hp + wt + disp, data = mtcars)
 
 par(mfrow = c(2, 2))

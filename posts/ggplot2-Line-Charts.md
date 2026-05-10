@@ -46,6 +46,7 @@ Let's start with R's built-in `economics` dataset, which tracks US economic indi
 ```r title="Subset economics to 20-year slice"
 library(ggplot2)
 
+library(scales)
 # Use a 20-year slice: 1995-2015
 econ_sm <- subset(economics, date >= as.Date("1995-01-01"))
 

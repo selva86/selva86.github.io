@@ -52,6 +52,7 @@ This is the "tidy" form of data: one observation per row, one variable per colum
 ```r title="Build a small wide data frame"
 library(tidyr)
 
+library(tibble)
 wide <- tibble::tribble(
   ~country, ~y2020, ~y2021, ~y2022,
   "USA",    100,    110,    120,

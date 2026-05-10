@@ -27,6 +27,7 @@ The basic template is always:
 ```r title="Minimal ggplot2 template"
 library(ggplot2)
 
+library(scales)
 # The universal ggplot2 template
 # ggplot(data, aes(x = ..., y = ...)) + geom_*() + scale_*() + theme_*()
 

@@ -38,6 +38,7 @@ Below is a full Bayesian linear regression on `mtcars`, with side-by-side compar
 
 ```r title="Bayesian linear regression vs lm() on the same data"
 library(brms)
+library(rstan)
 options(brms.backend = "cmdstanr", brms.silent = 2)
 
 # Frequentist baseline

@@ -29,6 +29,7 @@ Before you model anything, you need to know which variables are actually related
 library(ggplot2)
 library(dplyr)
 
+library(scales)
 ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = TRUE, color = "steelblue") +

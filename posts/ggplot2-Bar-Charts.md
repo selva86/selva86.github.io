@@ -52,6 +52,7 @@ Let's set up data for both scenarios:
 library(ggplot2)
 library(forcats)
 
+library(scales)
 # Scenario 1: raw data (one row per car)
 # mpg dataset - 234 rows, each row = one car model
 head(mpg[, c("class", "manufacturer", "hwy")])

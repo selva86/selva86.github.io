@@ -48,6 +48,7 @@ Part of the rows_* family (rows_insert, rows_update, rows_upsert, rows_delete, r
 ```r title="Delete two records by key"
 library(dplyr)
 
+library(tibble)
 x <- data.frame(id = 1:5, val = c(10, 20, 30, 40, 50))
 y <- data.frame(id = c(2, 4))
 

@@ -46,6 +46,7 @@ df |> nest(.by = group)                          # different: nest by row groups
 library(tidyr)
 library(dplyr)
 
+library(tibble)
 mtcars |>
   tibble::rownames_to_column("car") |>
   pack(performance = c(mpg, hp, qsec)) |>

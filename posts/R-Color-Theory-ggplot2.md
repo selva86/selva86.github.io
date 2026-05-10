@@ -46,6 +46,7 @@ Every color scale used in data visualization falls into one of three categories.
 library(ggplot2)
 library(RColorBrewer)
 
+library(scales)
 # Display all ColorBrewer palettes to see the three families
 display.brewer.all()
 ```

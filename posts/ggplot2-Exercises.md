@@ -42,6 +42,7 @@ Work through them in order (they progress from easier to harder) or jump to the 
 ```r title="Exercise 1: Iris scatter starter"
 library(ggplot2)
 
+library(scales)
 # Your code here
 # Hint: use aes(color = Species) inside ggplot()
 

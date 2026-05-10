@@ -48,6 +48,9 @@ This is the "nested" filter+merge pattern. Useful when you want each x row to ke
 ```r title="Each customer with all their orders nested"
 library(dplyr)
 
+library(purrr)
+library(tibble)
+library(tidyr)
 customers <- data.frame(id = 1:3, name = c("a","b","c"))
 orders    <- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
 

@@ -25,6 +25,7 @@ Before chasing fixes, pin down *what* RStan is trying to do when it fails. RStan
 Here's a self-contained `diagnose_rstan_toolchain()` helper you can drop into any R session. It inspects the five things that fail most often and returns a PASS/FAIL report:
 
 ```r title="Diagnose the RStan toolchain"
+library(rstan)
 diagnose_rstan_toolchain <- function() {
   checks <- list()
 

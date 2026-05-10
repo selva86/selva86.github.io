@@ -52,6 +52,7 @@ RStudio has its own strengths that Positron has not matched yet:
 # Same code in both IDEs. Try it here:
 library(dplyr)
 
+library(devtools)
 mtcars |>
   filter(cyl == 6) |>
   select(mpg, hp, wt) |>

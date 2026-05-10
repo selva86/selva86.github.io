@@ -26,6 +26,7 @@ Logistic regression is the default for binary outcomes because it gives clean od
 library(dplyr)
 library(tibble)
 
+library(tidyr)
 # Use am (0 = automatic, 1 = manual) as the binary outcome
 fit_logit   <- glm(am ~ mpg + wt, data = mtcars, family = binomial(link = "logit"))
 fit_probit  <- glm(am ~ mpg + wt, data = mtcars, family = binomial(link = "probit"))

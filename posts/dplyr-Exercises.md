@@ -27,6 +27,7 @@ The 15 problems below are grouped into three blocks of five. Exercises 1-5 cover
 # Warm-up: one dplyr pipeline you should feel comfortable writing by Exercise 5
 library(dplyr)
 
+library(tibble)
 mtcars |>
   filter(cyl == 4) |>
   summarise(n = n(), avg_mpg = round(mean(mpg), 1))

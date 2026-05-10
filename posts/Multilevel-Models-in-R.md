@@ -37,6 +37,7 @@ The same data with the wrong formula fits a wrong model. We work through both be
 
 ```r title="Simulate nested data and fit a multilevel model"
 library(brms)
+library(rstan)
 options(brms.backend = "cmdstanr", brms.silent = 2)
 
 set.seed(2026)

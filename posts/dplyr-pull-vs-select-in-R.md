@@ -45,6 +45,7 @@ df$mpg                                    # base R equivalent of pull(mpg)
 ```r title="Same column, different shapes"
 library(dplyr)
 
+library(tibble)
 # pull: returns a vector
 mtcars |> pull(mpg) |> head(3)
 #> [1] 21.0 21.0 22.8

@@ -23,6 +23,7 @@ difficulty: "Intermediate"
 The warning is R's way of telling you *some, but not all, of your values parsed*. R keeps the clean ones and swaps the rest with `NA`. Because it's a warning and not an error, your script keeps running, which is exactly why it's dangerous. The fastest diagnostic is to catch the coerced vector, then ask `which(is.na(...))` to print the positions that failed so you can look at the originals.
 
 ```r title="Find positions that failed to parse"
+library(tibble)
 raw <- c("23.5", "18", "N/A", "31.2", "error", "27.8")
 
 # suppressWarnings() lets us grab the coerced vector quietly, then inspect it

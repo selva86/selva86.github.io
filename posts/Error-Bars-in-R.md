@@ -40,6 +40,7 @@ Before adding error bars, you need a summary data frame with columns for the mea
 library(ggplot2)
 library(dplyr)
 
+library(tidyr)
 # Compute mean, SD, SE, 95% CI per species using iris
 summary_df <- iris |>
   group_by(Species) |>

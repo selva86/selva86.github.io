@@ -29,6 +29,7 @@ The code below simulates a small snapshot of the 2026 economist job market and s
 library(dplyr)
 library(ggplot2)
 
+library(tibble)
 jobs <- tibble::tribble(
   ~field,               ~n_postings, ~pct_stata, ~pct_r, ~pct_python,
   "Academic Econ",              620,       0.82,   0.34,        0.28,

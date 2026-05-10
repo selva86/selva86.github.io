@@ -42,6 +42,7 @@ The answer on Windows, macOS and Linux is the same tool: **rig**, the R installa
 Install rig once, then use it for every future R install.
 
 ```r title="Install rig to manage R versions"
+library(renv)
 # rig is a command-line tool installed OUTSIDE R.
 # Windows:  winget install Posit.rig
 # macOS:    brew install --cask rig

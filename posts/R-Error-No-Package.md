@@ -25,6 +25,8 @@ R looks up packages in a fixed list of folders called the **library path**. When
 ```r title="Reproduce there is no package"
 # Reproduce the error against a package you don't have
 library(thispackagedoesnotexist)
+library(remotes)
+library(renv)
 #> Error in library(thispackagedoesnotexist) :
 #>   there is no package called 'thispackagedoesnotexist'
 

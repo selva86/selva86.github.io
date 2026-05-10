@@ -47,6 +47,8 @@ df |> unnest_wider(col)                  # spread named list cols to columns
 library(tidyr)
 library(dplyr)
 
+library(broom)
+library(purrr)
 # nest creates list column:
 nested <- mtcars |> nest(.by = cyl)
 

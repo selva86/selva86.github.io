@@ -265,6 +265,27 @@ def check_auto_link_safety(fm, body):
     return True, "safe"
 
 
+_CORE_R = {
+    "base", "utils", "stats", "grDevices", "graphics",
+    "methods", "datasets", "tools", "compiler", "parallel",
+    "splines", "tcltk", "grid",
+}
+
+
+def check_libraries_loaded(fm, body):
+    """Every pkg::fn() call must have a matching library(pkg) somewhere in the post."""
+    blocks = re.findall(r"```r[^\n]*\n(.*?)\n```", body, re.DOTALL)
+    if not blocks:
+        return True, "no R blocks"
+    full = "\n".join(blocks)
+    used = set(re.findall(r"\b([a-z][a-z0-9_.]*)::", full))
+    loaded = set(re.findall(r"library\(([a-zA-Z0-9_.]+)\)", full))
+    missing = sorted(used - loaded - _CORE_R - {"table"})
+    if missing:
+        return False, f"namespaced calls without library(): {missing}"
+    return True, "all namespaced packages loaded"
+
+
 CHECKS = [
     ("01 word_count",            check_word_count),
     ("02 code_blocks",           check_code_blocks),
@@ -284,6 +305,7 @@ CHECKS = [
     ("16 quick_answer_block",    check_quick_answer),
     ("17 decision_tree_block",   check_decision_tree),
     ("18 tryit_exercise",        check_tryit_exercise),
+    ("19 libraries_loaded",      check_libraries_loaded),
 ]
 
 

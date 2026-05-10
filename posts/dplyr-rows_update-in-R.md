@@ -49,6 +49,7 @@ Part of the rows_* family (rows_insert, rows_update, rows_upsert, rows_delete, r
 ```r title="Update price for two products"
 library(dplyr)
 
+library(tibble)
 x <- data.frame(id = 1:4, price = c(10, 20, 30, 40))
 y <- data.frame(id = c(2, 4), price = c(99, 88))
 

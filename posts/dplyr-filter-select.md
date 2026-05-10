@@ -27,6 +27,7 @@ difficulty: "Intermediate"
 ```r title="Filter mtcars rows by mpg"
 library(dplyr)
 
+library(tibble)
 filter(mtcars, mpg > 25)
 #>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
 #> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1

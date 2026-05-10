@@ -28,6 +28,7 @@ The fastest way to feel why Arrow matters is to write a small data frame to Parq
 library(arrow)
 library(dplyr)
 
+library(data.table)
 set.seed(2026)
 arrow_demo <- tibble(
   id       = 1:50000,

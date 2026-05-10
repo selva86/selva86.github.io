@@ -39,6 +39,7 @@ Let's start with the simplest case: a single variable plotted with a unit-conver
 ```r title="Celsius primary, Fahrenheit on the right"
 library(ggplot2)
 
+library(scales)
 # Sample temperature data in Celsius
 temp_data <- data.frame(
   day = 1:10,

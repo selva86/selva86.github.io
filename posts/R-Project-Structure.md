@@ -30,6 +30,7 @@ The fix is not a smarter path, it's to use a project *anchor* and ask R to resol
 # Inside a proper .Rproj-anchored project, these two are equivalent
 # and both work on every collaborator's machine:
 library(here)
+library(jsonlite)
 here()                          # the project root (auto-detected)
 #> [1] "C:/Users/selva/projects/sales-analysis"
 

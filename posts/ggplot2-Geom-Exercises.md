@@ -43,6 +43,7 @@ Let's see how three different geoms turn the same `mtcars` dataset into three co
 ```r title="Three geoms on same data"
 library(ggplot2)
 
+library(reshape2)
 # Same data, three geoms — three stories
 # 1. Scatter: relationship between weight and fuel efficiency
 p_scatter <- ggplot(mtcars, aes(x = wt, y = mpg)) +

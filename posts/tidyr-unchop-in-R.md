@@ -45,6 +45,7 @@ df |> unnest_longer(col)                  # similar; alternative
 library(tidyr)
 library(dplyr)
 
+library(purrr)
 df <- tibble(g = c("a","b"), v = list(c(1,2,3), c(4,5)))
 
 df |> unchop(v)

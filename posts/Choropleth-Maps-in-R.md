@@ -31,6 +31,7 @@ library(ggplot2)
 library(dplyr)
 library(maps)
 
+library(scales)
 # Get world polygon geometry
 world_sf <- st_as_sf(maps::map("world", plot = FALSE, fill = TRUE))
 

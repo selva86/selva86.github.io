@@ -37,6 +37,7 @@ Below is a hierarchical Bayesian model on `mtcars` with `cyl` as the grouping va
 
 ```r title="A hierarchical model on mtcars by cyl"
 library(brms)
+library(rstan)
 options(brms.backend = "cmdstanr", brms.silent = 2)
 
 mtcars2     <- mtcars

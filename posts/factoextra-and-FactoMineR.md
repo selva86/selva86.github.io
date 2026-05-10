@@ -29,6 +29,7 @@ Here is the payoff. Run a scaled PCA on `iris`, then ask factoextra for a colour
 ```r title="Iris PCA biplot in three lines"
 library(factoextra)
 
+library(ggplot2)
 pc_iris <- prcomp(iris[, 1:4], scale. = TRUE)
 
 fviz_pca_biplot(

@@ -38,6 +38,7 @@ The `ggalluvial` package handles both inside ggplot2's grammar, giving you full 
 library(ggplot2)
 library(ggalluvial)
 
+library(scales)
 # Customer subscription journey: Month 1 → Month 2 → Month 3
 # alluvial format: each row is a combination of categories + frequency
 sub_df <- data.frame(

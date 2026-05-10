@@ -26,6 +26,7 @@ CSV is the workhorse format, flat, text-based, universal. R gives you three main
 
 ```r title="readcsv with readr basics"
 library(readr)
+library(writexl)
 sales <- read_csv("sales.csv")
 sales
 #> # A tibble: 6 x 4

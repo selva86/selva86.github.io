@@ -48,6 +48,7 @@ left_join(x, y, join_by(closest(date >= ts)))   # rolling join
 ```r title="Equality and inequality together"
 library(dplyr)
 
+library(tibble)
 events <- data.frame(event = c("a","b","c"), time = c(5, 15, 25))
 windows <- data.frame(window = c("morning","mid","late"),
                       start = c(0, 10, 20), end = c(10, 20, 30))

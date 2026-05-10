@@ -39,6 +39,10 @@ Loading the package is all it takes. Your existing dplyr code works unchanged.
 # Load duckplyr — this overrides dplyr methods for the session
 library(duckplyr)
 
+library(arrow)
+library(dplyr)
+library(duckdb)
+library(nycflights13)
 # Same dplyr code, now powered by DuckDB
 mtcars_result <- mtcars |>
   filter(mpg > 20) |>

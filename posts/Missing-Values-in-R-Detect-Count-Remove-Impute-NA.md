@@ -25,6 +25,7 @@ difficulty: "Intermediate"
 A single NA in a vector can make `mean()`, `sum()`, `sd()`, and most statistical functions return NA. That behavior is intentional: R refuses to silently pretend the missing data is zero. The fix is almost always a `na.rm = TRUE` argument, but the bigger question is why the NAs are there and what they mean. Here is the payoff scenario.
 
 ```r title="NA breaks mean and sum"
+library(lubridate)
 x <- c(10, 15, NA, 20, 25)
 
 mean(x)

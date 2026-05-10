@@ -23,6 +23,7 @@ difficulty: "Intermediate"
 The error message looks scary because it says "connection," but in R-speak a "connection" just means *the open handle to a file or URL*. R never got that far. Reproducing the error and printing one line of diagnostic info is enough to know which checklist item to chase next.
 
 ```r title="Reproduce the connection error"
+library(here)
 # Reproduce the error and capture the diagnostic in one shot
 bad_path <- "not-here.csv"
 

@@ -27,6 +27,7 @@ Bookmark it. Hit `Ctrl+F`, paste the error text, and jump to the fix. Every code
 Every R error has the same shape: the function that exploded, the thing that went wrong, and a pointer back to your code. If you can spot those three parts, you can fix most errors in under a minute, even ones you've never seen before. Let's trigger a real error inside a safe wrapper (so the page keeps running) and pull it apart.
 
 ```r title="Parse the three parts of an error"
+library(pkg)
 # Trigger a real error and capture the message
 err_msg <- tryCatch(
   mean(missing_vec),

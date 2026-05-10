@@ -26,6 +26,7 @@ The choice between a Completely Randomized Design (CRD), a Randomized Complete B
 ```r title="Three randomizations on 12 plots"
 library(dplyr)
 
+library(tibble)
 set.seed(17)
 treatments <- c("A", "B", "C")
 

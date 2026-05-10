@@ -52,6 +52,8 @@ For more flexible NA handling (e.g., conditional replacement, multi-column fallb
 ```r title="Replace NA in a vector"
 library(tidyr)
 
+library(dplyr)
+library(tibble)
 x <- c(1, NA, 3, NA, 5)
 replace_na(x, 0)
 #> [1] 1 0 3 0 5

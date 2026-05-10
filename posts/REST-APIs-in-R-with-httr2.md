@@ -58,6 +58,7 @@ Let's start with a simple GET request to httpbin.org, a free testing service tha
 install.packages("httr2")
 library(httr2)
 
+library(jsonlite)
 # Create and perform a GET request
 resp <- request("https://httpbin.org/get") |>
   req_perform()

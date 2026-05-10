@@ -48,6 +48,8 @@ It is the data-frame version of mathematical set union. Use it when you want a d
 ```r title="Combine two tables, dedup"
 library(dplyr)
 
+library(purrr)
+library(tibble)
 x <- data.frame(id = c(1, 2, 3))
 y <- data.frame(id = c(2, 3, 4))
 

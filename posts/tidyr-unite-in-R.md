@@ -51,6 +51,8 @@ This is the simplest tool for building composite keys (e.g., date from y/m/d), f
 ```r title="Combine first and last name"
 library(tidyr)
 
+library(dplyr)
+library(tibble)
 df <- tibble::tribble(
   ~first, ~last, ~age,
   "Alice", "Smith", 30,
