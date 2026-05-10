@@ -1,0 +1,307 @@
+---
+title: "dplyr matches() in R: Select Columns by Regex"
+description: "Use dplyr matches() tidyselect helper to select columns by regex pattern in R. Covers ignore.case, vs contains, regex syntax, and 5 worked examples."
+keywords: "dplyr matches, R tidyselect regex, matches vs contains, regex column select, dplyr regex name, matches pattern"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "matches()|tidyselect matches|regex column select|dplyr matches|column name regex"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr matches() in R: Select Columns by Regex</h1>
+
+<p class="lead">The <code>matches()</code> helper in dplyr selects columns whose names match a REGULAR EXPRESSION. It is the regex tidyselect helper, more flexible than starts_with, ends_with, or contains.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; select(matches(&quot;^score&quot;))<span class="qa-cmt">             # regex prefix</span>
+df |&gt; select(matches(&quot;\\d+$&quot;))<span class="qa-cmt">              # ends with digits</span>
+df |&gt; select(matches(&quot;^[A-Z]_\\w+&quot;))<span class="qa-cmt">        # complex pattern</span>
+df |&gt; select(matches(&quot;score|rating&quot;))<span class="qa-cmt">       # alternation</span>
+df |&gt; mutate(across(matches(&quot;^q\\d+$&quot;), as.factor))</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is matches() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">regex pattern in name</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">matches(&quot;regex&quot;)</text><text x="125" y="126" class="branch-label">literal prefix</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">starts_with()</a> (faster, simpler)</text><text x="125" y="182" class="branch-label">literal suffix</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ends_with()</text><text x="125" y="238" class="branch-label">literal substring</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">contains()</text><text x="125" y="294" class="branch-label">exact list of names</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">all_of()</text><text x="125" y="350" class="branch-label">predicate</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">where()</text></svg></div>
+
+<h2>What matches() does in one sentence</h2>
+
+<p><strong><code>matches(match, ignore.case = TRUE, perl = FALSE, vars = NULL)</code> selects columns whose names match the regex <code>match</code>.</strong> The most flexible name-based tidyselect helper.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>matches(match, ignore.case = TRUE, perl = FALSE, vars = NULL)</code>. Standard regex.</strong></p>
+
+<div class="webr-container" data-block-title="Columns whose names start with &#x27;q&#x27; followed by digits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Columns whose names start with &#x27;q&#x27; followed by digits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+df &lt;- tibble(q1 = 1, q2 = 2, q12 = 3, qa = 4, score = 5)
+
+df |&gt;
+  select(matches(&quot;^q\\d+$&quot;))
+#&gt;   q1 q2 q12   (qa dropped, no digit; score dropped, no q)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for matches when literal helpers (starts_with, ends_with, contains) can't express the pattern.</strong> For simple cases, the literal helpers are clearer.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Regex prefix</h3>
+
+<div class="webr-container" data-block-title="Same as starts_with but with regex">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same as starts_with but with regex</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; select(matches(&quot;^score&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>^</code> anchors to start.</p>
+
+<h3>2. Regex suffix</h3>
+
+<div class="webr-container" data-block-title="Names ending in digits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Names ending in digits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; select(matches(&quot;\\d+$&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>$</code> anchors to end.</p>
+
+<h3>3. Alternation</h3>
+
+<div class="webr-container" data-block-title="Multiple patterns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiple patterns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; select(matches(&quot;score|rating|score_pct&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>|</code> is OR in regex.</p>
+
+<h3>4. Character class</h3>
+
+<div class="webr-container" data-block-title="Names with format X_word">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Names with format X_word</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; select(matches(&quot;^[A-Z]_\\w+&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>[A-Z]</code> is uppercase; <code>\\w+</code> is word characters.</p>
+
+<h3>5. Multi-step transform</h3>
+
+<div class="webr-container" data-block-title="Convert all q1, q2, ... to factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert all q1, q2, ... to factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(across(matches(&quot;^q\\d+$&quot;), as.factor))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>matches()</code> is the only tidyselect helper that supports REGEX.</strong> Everything else (starts_with, ends_with, contains) uses literal strings. Use matches when the pattern is too complex for the literals.</div></div>
+
+<h2>matches() vs starts_with / ends_with / contains</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Helper</th>
+<th>Matches</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>starts_with(&quot;x&quot;)</code></td>
+<td>Literal prefix</td>
+<td>Simple prefixes</td>
+</tr>
+<tr>
+<td><code>ends_with(&quot;y&quot;)</code></td>
+<td>Literal suffix</td>
+<td>Simple suffixes</td>
+</tr>
+<tr>
+<td><code>contains(&quot;ab&quot;)</code></td>
+<td>Literal substring</td>
+<td>Substring anywhere</td>
+</tr>
+<tr>
+<td><code>matches(&quot;regex&quot;)</code></td>
+<td>Regex</td>
+<td>Complex patterns</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use literal helpers when possible (faster, clearer).</li>
+
+<li>Reach for matches only when regex is needed.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use matches for column names with structured patterns.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Q1, Q2, ..., Q20 columns -&gt; all factors
+df |&gt;
+  mutate(across(matches(&quot;^Q\\d+$&quot;), as.factor))
+
+# Year-stamped columns 2020-2024
+df |&gt;
+  select(matches(&quot;_(202[0-4])$&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For survey data with structured names, matches is essential.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: regex special characters.</strong> <code>matches(&quot;.&quot;)</code> matches every column (any character). Use <code>matches(&quot;\\.&quot;)</code> for literal period.</p>
+
+<p><strong>Pitfall 2: case-insensitive default.</strong> <code>matches(&quot;score&quot;)</code> matches "SCORE" and "ScOrE". Pass ignore.case = FALSE for strict.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Backslashes in R strings are double-escaped.</strong> Regex <code>\d</code> in a string is <code>&quot;\\d&quot;</code>. Common bug: writing <code>matches(&quot;\d+&quot;)</code> (errors).</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Select all iris columns ending in either "Length" or "Width". Save to <code>ex_dims</code>.</p>
+<div class="webr-container" data-block-title="Your turn: dimension columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: dimension columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dims &lt;- iris |&gt;
+  # your code here
+
+names(ex_dims)
+#&gt; Expected: 4 columns (Sepal/Petal Length/Width)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dims &lt;- iris |&gt;
+  select(matches(&quot;(Length|Width)$&quot;))
+
+names(ex_dims)
+#&gt; [1] &quot;Sepal.Length&quot; &quot;Sepal.Width&quot; &quot;Petal.Length&quot; &quot;Petal.Width&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>(Length|Width)$</code> matches either word at the end of the name.</p>
+
+</details>
+</section>
+
+<h2>Related tidyselect helpers</h2>
+
+<p>After mastering matches, look at:</p>
+
+<ul>
+
+<li><code>starts_with()</code> / <code>ends_with()</code> / <code>contains()</code>: literal helpers</li>
+
+<li><code>everything()</code>: all remaining</li>
+
+<li><code>where()</code>: predicate</li>
+
+<li><code>all_of()</code> / <code>any_of()</code>: explicit list</li>
+
+<li><code>num_range()</code>: numeric-suffixed names</li>
+
+</ul>
+
+<p>For 99% of name-based selection, the literal helpers are simpler and faster than matches.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does matches do in dplyr?</strong></p>
+
+<p><code>matches(pattern)</code> selects columns whose names match the regex <code>pattern</code>. Tidyselect helper for regex-based selection.</p>
+
+<p><strong>Is matches case-sensitive?</strong></p>
+
+<p>No by default. Pass <code>ignore.case = FALSE</code> for strict matching.</p>
+
+<p><strong>What is the difference between matches and contains?</strong></p>
+
+<p>matches uses regex; contains is literal substring. <code>matches(&quot;a.b&quot;)</code> is "a, any char, b"; <code>contains(&quot;a.b&quot;)</code> is the literal "a.b".</p>
+
+<p><strong>How do I anchor matches to start or end?</strong></p>
+
+<p>Use regex anchors: <code>^</code> for start (<code>matches(&quot;^score&quot;)</code>); <code>$</code> for end (<code>matches(&quot;score$&quot;)</code>).</p>
+
+<p><strong>Why does my pattern with backslashes error?</strong></p>
+
+<p>R strings double-escape backslashes. Regex <code>\d</code> is the string <code>&quot;\\d&quot;</code>. Use <code>matches(&quot;\\d+&quot;)</code>, not <code>matches(&quot;\d+&quot;)</code>.</p>
