@@ -1,0 +1,401 @@
+---
+title: "tidyr pivot_wider() in R: Long to Wide Format"
+description: "Use tidyr pivot_wider() to reshape long data to wide format in R. Covers names_from, values_from, multiple value cols, fill, name_glue, and 6 examples."
+keywords: "tidyr pivot_wider, R long to wide, reshape long to wide R, pivot wider examples, names_from values_from, spread replacement"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pivot_wider()|tidyr pivot_wider|long to wide|reshape wide|spread replacement"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr pivot_wider() in R: Long to Wide Format</h1>
+
+<p class="lead">The <code>pivot_wider()</code> function in tidyr reshapes long data into wide format by spreading one column's values into MULTIPLE new columns named by another column. It is the modern replacement for <code>spread()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pivot_wider(df, names_from = year, values_from = sales)<span class="qa-cmt">        # basic</span>
+pivot_wider(df, names_from = year, values_from = c(sales, costs))<span class="qa-cmt">  # multi-value</span>
+pivot_wider(df, names_from = year, values_from = sales, values_fill = 0)
+pivot_wider(df, names_from = year, values_from = sales, names_prefix = &quot;y&quot;)
+pivot_wider(df, names_from = c(metric, year), values_from = value)
+pivot_wider(df, names_from = year, values_from = sales, values_fn = sum)</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pivot_wider() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one column has names, another values</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pivot_wider(names_from, values_from)</text><text x="125" y="126" class="branch-label">aggregate then pivot</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a> first, then pivot_wider()</text><text x="125" y="182" class="branch-label">duplicates need aggregation</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">values_fn = sum/mean/etc.</text><text x="125" y="238" class="branch-label">wide -&gt; long</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">pivot_longer()</a></text><text x="125" y="294" class="branch-label">multiple values per cell</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pack/unpack or list-cols</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">contingency table</a> from raw</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">table() (base R) or count() then pivot_wider</text><text x="125" y="406" class="branch-label">pivot then summary</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">pivot_wider() |&gt; mutate(across(...))</text></svg></div>
+
+<h2>What pivot_wider() does in one sentence</h2>
+
+<p><strong><code>pivot_wider()</code> takes a long data frame and produces a wide one by using values from one column as NEW COLUMN NAMES, with values from another column filling the cells.</strong> Each row of the wide output corresponds to a unique combination of the columns NOT being pivoted.</p>
+
+<p>This is the inverse of <code>pivot_longer()</code>. Use it when you want a presentation-friendly table or when downstream code expects wide format.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>pivot_wider(data, names_from, values_from)</code> is the minimum.</strong> <code>names_from</code> is the column whose values become NEW column names; <code>values_from</code> is the column whose values fill the new columns.</p>
+
+<div class="webr-container" data-block-title="Build a long data frame and pivot wider">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a long data frame and pivot wider</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+long &lt;- tibble::tribble(
+  ~country, ~year, ~sales,
+  &quot;USA&quot;,    2020,  100,
+  &quot;USA&quot;,    2021,  110,
+  &quot;USA&quot;,    2022,  120,
+  &quot;UK&quot;,     2020,   80,
+  &quot;UK&quot;,     2021,   85,
+  &quot;UK&quot;,     2022,   88
+)
+
+long |&gt; pivot_wider(names_from = year, values_from = sales)
+#&gt; # A tibble: 2 x 4
+#&gt;   country `2020` `2021` `2022`
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 USA        100    110    120
+#&gt; 2 UK          80     85     88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>names_prefix</code> adds a prefix to new column names.</strong> <code>pivot_wider(names_from = year, values_from = sales, names_prefix = &quot;y&quot;)</code> produces columns <code>y2020</code>, <code>y2021</code>, <code>y2022</code>. Useful when names_from values are numeric and would create syntactically awkward column names.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Basic long to wide</h3>
+
+<div class="webr-container" data-block-title="One value column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One value column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">long |&gt; pivot_wider(names_from = year, values_from = sales)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each unique value of <code>year</code> becomes a column; values from <code>sales</code> fill the cells. The remaining column (<code>country</code>) becomes the row identifier.</p>
+
+<h3>2. Multiple value columns</h3>
+
+<div class="webr-container" data-block-title="Pivot two values at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivot two values at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">long2 &lt;- tibble::tribble(
+  ~country, ~year, ~sales, ~costs,
+  &quot;USA&quot;,    2020,  100, 50,
+  &quot;USA&quot;,    2021,  110, 55,
+  &quot;UK&quot;,     2020,   80, 40,
+  &quot;UK&quot;,     2021,   85, 42
+)
+
+long2 |&gt; pivot_wider(names_from = year, values_from = c(sales, costs))
+#&gt; # A tibble: 2 x 5
+#&gt;   country sales_2020 sales_2021 costs_2020 costs_2021
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;      &lt;dbl&gt;      &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 USA            100        110         50         55
+#&gt; 2 UK              80         85         40         42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>values_from = c(sales, costs)</code> produces TWO sets of columns: <code>sales_&lt;year&gt;</code> and <code>costs_&lt;year&gt;</code>.</p>
+
+<h3>3. Fill missing combinations</h3>
+
+<div class="webr-container" data-block-title="Fill missing cells with 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill missing cells with 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sparse &lt;- tibble::tribble(
+  ~country, ~year, ~sales,
+  &quot;USA&quot;,    2020,  100,
+  &quot;USA&quot;,    2021,  110,
+  &quot;UK&quot;,     2021,   85
+)
+
+sparse |&gt; pivot_wider(names_from = year, values_from = sales, values_fill = 0)
+#&gt; # A tibble: 2 x 3
+#&gt;   country `2020` `2021`
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 USA        100    110
+#&gt; 2 UK           0     85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>values_fill = 0</code> replaces missing combinations with 0 instead of NA. Useful for count tables where missing means "zero observed".</p>
+
+<h3>4. Aggregate when there are duplicates</h3>
+
+<div class="webr-container" data-block-title="Sum when multiple rows map to one cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum when multiple rows map to one cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dups &lt;- tibble::tribble(
+  ~country, ~year, ~sales,
+  &quot;USA&quot;,    2020,  100,
+  &quot;USA&quot;,    2020,   50,
+  &quot;USA&quot;,    2021,  110
+)
+
+dups |&gt; pivot_wider(names_from = year, values_from = sales, values_fn = sum)
+#&gt; # A tibble: 1 x 3
+#&gt;   country `2020` `2021`
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 USA        150    110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>values_fn = sum</code> aggregates duplicate rows (here: USA in 2020 has two rows; sum = 150). Without <code>values_fn</code>, pivot_wider warns and creates a list-column.</p>
+
+<h3>5. Composite column names from multiple keys</h3>
+
+<div class="webr-container" data-block-title="names_from with multiple columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">names_from with multiple columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi &lt;- tibble::tribble(
+  ~country, ~metric, ~year, ~value,
+  &quot;USA&quot;,    &quot;sales&quot;, 2020,  100,
+  &quot;USA&quot;,    &quot;sales&quot;, 2021,  110,
+  &quot;USA&quot;,    &quot;costs&quot;, 2020,   50,
+  &quot;USA&quot;,    &quot;costs&quot;, 2021,   55
+)
+
+multi |&gt; pivot_wider(names_from = c(metric, year), values_from = value)
+#&gt; # A tibble: 1 x 5
+#&gt;   country sales_2020 sales_2021 costs_2020 costs_2021
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;      &lt;dbl&gt;      &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1 USA            100        110         50         55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>names_from = c(metric, year)</code> combines both column values to build new column names.</p>
+
+<h3>6. Custom name template with names_glue</h3>
+
+<div class="webr-container" data-block-title="Build column names with a template">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build column names with a template</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi |&gt;
+  pivot_wider(names_from = c(metric, year),
+              values_from = value,
+              names_glue = &quot;{year}_{metric}&quot;)
+#&gt; # A tibble: 1 x 5
+#&gt;   country `2020_sales` `2021_sales` `2020_costs` `2021_costs`
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt;        &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1 USA              100          110           50           55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>names_glue</code> is a glue-style template referencing the names_from columns. Lets you control the order and separators of generated column names.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>If your data has duplicates for the same <code>(id, names_from)</code> combination, <code>pivot_wider()</code> will warn or create a list-column.</strong> Solutions: aggregate first with <code>summarise()</code>, or pass <code>values_fn</code> to aggregate during the pivot. Never let pivot_wider silently make wrong choices about duplicates.</div></div>
+
+<h2>pivot_wider() vs spread() vs reshape</h2>
+
+<p><strong><code>pivot_wider()</code> is the modern (tidyr 1.0+) replacement for <code>spread()</code>. Both reshape long to wide.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>Modern tidyr</th>
+<th>Old tidyr</th>
+<th>reshape2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Long to wide</td>
+<td>pivot_wider</td>
+<td>spread</td>
+<td>dcast</td>
+</tr>
+<tr>
+<td>Multiple values</td>
+<td>values_from = c(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></td>
+<td>(impossible)</td>
+<td>(manual)</td>
+</tr>
+<tr>
+<td>Fill missing</td>
+<td>values_fill</td>
+<td>fill arg</td>
+<td>fill arg</td>
+</tr>
+<tr>
+<td>Aggregate dups</td>
+<td>values_fn</td>
+<td>(errors)</td>
+<td>fun.aggregate</td>
+</tr>
+<tr>
+<td>Composite names</td>
+<td>names_from = c(a, b)</td>
+<td>(manual)</td>
+<td>(manual)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>pivot_wider()</code> for new code.</li>
+
+<li><code>spread()</code> is deprecated but still works.</li>
+
+<li><code>reshape2::dcast()</code> is still common in some tutorials but supersedeed by tidyr.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to name the value column.</strong> <code>pivot_wider(names_from = year)</code> is incomplete; you must specify <code>values_from</code> too. The error message is reasonably clear but easy to miss.</p>
+
+<p><strong>Pitfall 2: duplicate keys causing list-columns.</strong> If <code>(id, year)</code> appears more than once, pivot_wider may produce a list-column instead of a value. Aggregate first with <code>summarise()</code> or use <code>values_fn</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Numeric <code>names_from</code> produces NUMERIC-looking column names that are actually strings.</strong> <code>pivot_wider(names_from = year, values_from = sales)</code> with year = 2020:2022 makes columns named "2020", "2021", "2022" (strings). Refer to them with backticks: <code>df$\</code>2020\`<code> or </code>df[["2020"]]<code>. Use </code>names_prefix` to make them syntactically valid (e.g., "y2020").</div></div>
+
+<p><strong>Pitfall 3: <code>id_cols</code> confusion.</strong> When you have many columns and only some should be the row identifier, use <code>id_cols</code> to specify them explicitly: <code>pivot_wider(id_cols = c(country, region), ...)</code>. Otherwise tidyr infers them from non-pivoted columns.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the long iris-like data below and pivot it wider so each <code>Species</code> becomes a column with the mean <code>Sepal.Length</code> as values. Save to <code>ex_wide</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pivot iris means wider">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pivot iris means wider</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_long &lt;- iris |&gt;
+  dplyr::summarise(mean_sl = mean(Sepal.Length), .by = Species)
+
+iris_long
+#&gt; # A tibble: 3 x 2
+#&gt;   Species    mean_sl
+#&gt;   &lt;fct&gt;        &lt;dbl&gt;
+#&gt; 1 setosa        5.01
+#&gt; 2 versicolor    5.94
+#&gt; 3 virginica     6.59
+
+# Try it: pivot wider so each Species is a column
+ex_wide &lt;- iris_long |&gt;
+  # your code here
+
+ex_wide
+#&gt; Expected: 1-row tibble with 3 columns (setosa, versicolor, virginica)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wide &lt;- iris_long |&gt;
+  pivot_wider(names_from = Species, values_from = mean_sl)
+
+ex_wide
+#&gt; # A tibble: 1 x 3
+#&gt;   setosa versicolor virginica
+#&gt;    &lt;dbl&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   5.01       5.94      6.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>names_from = Species</code> makes each Species value a new column. <code>values_from = mean_sl</code> fills those columns with the mean Sepal.Length. The result has one row total because there were no other id columns.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering pivot_wider, look at:</p>
+
+<ul>
+
+<li><code>pivot_longer()</code>: inverse operation, <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">wide to long</a></li>
+
+<li><code>nest()</code>, <code>unnest()</code>: list-column reshaping</li>
+
+<li><code>complete()</code>: fill in missing combinations before pivoting</li>
+
+<li><code>expand()</code>, <code>expand_grid()</code>: generate combinations</li>
+
+<li><code>crossing()</code>: Cartesian product of vectors</li>
+
+</ul>
+
+<p>For data.table users, <code>dcast()</code> is the equivalent and is faster on large data.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I reshape long to wide in R?</strong></p>
+
+<p>Use <code>tidyr::pivot_wider(data, names_from = key_col, values_from = value_col)</code>. The values in <code>key_col</code> become NEW column names; the values in <code>value_col</code> fill the cells.</p>
+
+<p><strong>What is the difference between spread() and pivot_wider()?</strong></p>
+
+<p><code>pivot_wider()</code> is the modern replacement (tidyr 1.0+). It supports multiple value columns (<code>values_from = c(a, b)</code>), composite names (<code>names_from = c(a, b)</code>), fill values (<code>values_fill</code>), and aggregation (<code>values_fn</code>). <code>spread()</code> is deprecated but still works in old code.</p>
+
+<p><strong>How do I handle duplicates when pivoting wider?</strong></p>
+
+<p>Pass <code>values_fn = sum</code> (or <code>mean</code>, <code>first</code>, etc.) to aggregate duplicates during the pivot. Or aggregate beforehand with <code>summarise()</code>. Without one of these, pivot_wider produces a list-column for duplicate keys.</p>
+
+<p><strong>How do I fill <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> in pivot_wider?</strong></p>
+
+<p>Use <code>values_fill = 0</code> (or another value). Missing combinations of <code>names_from</code> keys become 0 instead of NA.</p>
+
+<p><strong>How do I keep multiple value columns when pivoting wider?</strong></p>
+
+<p>Pass a vector to <code>values_from</code>: <code>pivot_wider(names_from = year, values_from = c(sales, costs))</code>. The result has one set of columns per value column, named by the convention <code>&lt;value&gt;_&lt;name&gt;</code>.</p>
