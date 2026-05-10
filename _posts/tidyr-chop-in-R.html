@@ -1,0 +1,292 @@
+---
+title: "tidyr chop() in R: Group Rows Into List Columns"
+description: "Use tidyr chop() to combine rows into list columns by collapsing within groups in R. Covers vs nest, unchop, and 5 worked examples."
+keywords: "tidyr chop, R chop list column, chop vs nest, unchop tidyr, group rows to list, tidyr chop"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidyr::chop()|tidyr chop|chop list column|chop vs nest|group rows to list"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr chop() in R: Group Rows Into List Columns</h1>
+
+<p class="lead">The <code>chop()</code> function in tidyr collapses rows within groups into list-column cells. Each cell holds a vector of the values from rows in that group. It is a lighter-weight version of <code>nest()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; chop(c(value))<span class="qa-cmt">                    # vector list-col, one per group row</span>
+df |&gt; chop(c(value, score))<span class="qa-cmt">              # multiple list cols</span>
+df |&gt; unchop(value)<span class="qa-cmt">                       # opposite</span>
+df |&gt; nest(.by = group)<span class="qa-cmt">                   # different: tibble list col</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is chop() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 293" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="258"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">collapse rows into vector list-col</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">chop()</text><text x="125" y="126" class="branch-label">collapse rows into tibble list-col</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">nest()</text><text x="125" y="182" class="branch-label">expand list col back to rows</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">unchop()</text><text x="125" y="238" class="branch-label">specific cols only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">chop(c(specific_cols))</text></svg></div>
+
+<h2>What chop() does in one sentence</h2>
+
+<p><strong><code>chop(data, cols)</code> collapses each group's rows in <code>cols</code> into a list-column where each cell is a vector of the original values.</strong> Lighter than nest, which creates a tibble per cell.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>chop(data, cols, ..., error_call = caller_env())</code>. cols are the columns to collapse.</strong></p>
+
+<div class="webr-container" data-block-title="Chop values per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Chop values per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+df &lt;- tibble(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;,&quot;b&quot;),
+  visits = c(1, 2, 3, 4, 5)
+)
+
+df |&gt;
+  chop(visits)
+#&gt; # A tibble: 2 x 2
+#&gt;   user        visits
+#&gt;   &lt;chr&gt;       &lt;list&gt;
+#&gt; 1     a       &lt;int [2]&gt;
+#&gt; 2     b       &lt;int [3]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>chop is faster than nest when you only need vector list-cols, not tibbles.</strong> Use chop for "collapse this column into per-group lists".</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard chop</h3>
+
+<div class="webr-container" data-block-title="One vector per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One vector per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; chop(visits)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Group columns are detected automatically (the unchosen ones).</p>
+
+<h3>2. Multiple chopped columns</h3>
+
+<div class="webr-container" data-block-title="Two list-cols, parallel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two list-cols, parallel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; chop(c(visits, score))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Compute on chopped lists</h3>
+
+<div class="webr-container" data-block-title="Per-row aggregation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-row aggregation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  chop(visits) |&gt;
+  mutate(total = purrr::map_dbl(visits, sum),
+         n     = purrr::map_int(visits, length))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Round-trip with unchop</h3>
+
+<div class="webr-container" data-block-title="chop then unchop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">chop then unchop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; chop(visits) |&gt; unchop(visits) |&gt; identical(df)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Compare with nest</h3>
+
+<div class="webr-container" data-block-title="chop is lighter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">chop is lighter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; chop(visits)         # list of integer vectors
+df |&gt; nest(data = visits)  # list of 1-column tibbles (heavier)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>chop</code> is to <code>nest</code> as vectors are to data frames.</strong> chop creates list-of-vector cells; nest creates list-of-tibble cells. For single-column collapsing, chop is more efficient.</div></div>
+
+<h2>chop() vs nest() vs summarise(list(...))</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Cell type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>chop(col)</code></td>
+<td>Vector</td>
+<td>Single-column collapse</td>
+</tr>
+<tr>
+<td><code>nest(.by = g)</code></td>
+<td>Tibble</td>
+<td>Multi-column collapse</td>
+</tr>
+<tr>
+<td><code>summarise(x = list(col))</code></td>
+<td>Vector (manual)</td>
+<td>Inside <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> pipelines</td>
+</tr>
+</tbody>
+</table>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use chop for "list of values per group" patterns.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events |&gt;
+  chop(timestamp) |&gt;
+  mutate(first_event = purrr::map_int(timestamp, ~ as.integer(min(.x))),
+         last_event  = purrr::map_int(timestamp, ~ as.integer(max(.x))))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per group: list of timestamps, plus first and last.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting cols argument.</strong> <code>chop(df)</code> with no cols just returns df. You must specify which columns to collapse.</p>
+
+<p><strong>Pitfall 2: confusing with nest.</strong> chop = vectors; nest = tibbles. Different cell types.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>chop()</code> collapses by ALL non-chopped columns implicitly.</strong> All other columns must be unique per group, or chop creates surprising groupings.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Chop the value column per group, count items per group. Save to <code>ex_chopped</code>.</p>
+<div class="webr-container" data-block-title="Your turn: chop and count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: chop and count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(g = c(&quot;a&quot;,&quot;a&quot;,&quot;b&quot;), v = c(1, 2, 3))
+
+ex_chopped &lt;- df |&gt;
+  # your code here
+
+ex_chopped$count
+#&gt; Expected: c(2, 1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_chopped &lt;- df |&gt;
+  chop(v) |&gt;
+  mutate(count = purrr::map_int(v, length))
+
+ex_chopped$count
+#&gt; [1] 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> chop(v) collapses values per g; map_int(v, length) counts items.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering chop, look at:</p>
+
+<ul>
+
+<li><code>unchop()</code>: opposite (vectors to rows)</li>
+
+<li><code>nest()</code>: tibble version</li>
+
+<li><code>unnest()</code>: tibble version of unchop</li>
+
+<li><code>summarise(list(...))</code>: alternative for collapse</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does chop do in tidyr?</strong></p>
+
+<p><code>chop(data, cols)</code> collapses each group's rows in <code>cols</code> into a list-column where each cell is a vector. Lighter than nest.</p>
+
+<p><strong>What is the difference between chop and nest?</strong></p>
+
+<p>chop creates VECTOR list cells. nest creates TIBBLE list cells. chop for single-column collapse; nest for multi-column.</p>
+
+<p><strong>Is chop faster than nest?</strong></p>
+
+<p>Slightly, for single-column cases. The difference is small but chop avoids the tibble wrapping.</p>
+
+<p><strong>How do I expand chopped columns?</strong></p>
+
+<p><code>unchop(col)</code> is the inverse. Returns the original row-per-row form.</p>
+
+<p><strong>When should I use chop vs nest?</strong></p>
+
+<p>chop for one or a few related columns into vectors. nest for collapsing all non-grouping columns into a tibble.</p>
