@@ -59,28 +59,44 @@ Rules:
 - Use realistic placeholder names (`df`, `mpg`, `x`) so the snippet is copy-paste ready
 - No prose inside the block; the card auto-appends "Need explanation? Read on for examples and pitfalls."
 
-## 3b. Decision Tree block (recommended for function-deep PSEO with branching usage)
+## 3b. Decision Tree block (function-selector, NOT variant-selector)
 
 Place ONE `[DECISION TREE: <title>]` block after the Quick Answer. Renders as inline SVG with a vertical trunk and labeled horizontal branches to code boxes.
+
+**Critical content rule (do not violate):** the Decision Tree answers a DIFFERENT question from the Quick Answer. Quick Answer covers "how to write this function for various conditions" (variant selection). The Decision Tree covers "is this the right function for my problem?" (function selection). If the tree's content overlaps with Quick Answer, you have written it wrong.
+
+The first branch confirms the function is the right tool for the canonical use case. Remaining branches send the reader to OTHER functions for adjacent tasks. This makes the post a hub rather than a dead-end and reduces bounce rate when Google routes the reader to the wrong page.
 
 Markdown syntax:
 
 ```
-[DECISION TREE: Which form do I need?]
-- one: filter(df, x > 5)
-- AND: filter(df, x > 5, y < 10)
-- OR: filter(df, x > 5 | y < 10)
-- in set: filter(df, x %in% c(1, 2, 3))
-- range: filter(df, between(x, 1, 10))
-- NA-safe: filter(df, !is.na(x), x > 5)
-- by group: filter(df, x == max(x), .by = grp)
+[DECISION TREE: Is filter() the right tool?]
+- filter rows by condition: filter(df, x > 5)
+- drop columns (not rows): select(df, -bad_col)
+- top N by value: slice_max(df, x, n = 5)
+- drop rows with NA: drop_na(df, x)
+- remove duplicates: distinct(df)
+- match against another table: semi_join(df, lookup, by = "id")
 ```
 
 Rules:
 - 4 to 8 branches (fewer = no branching; more = visual clutter)
-- Branch labels short (1 to 2 words)
+- First branch confirms THIS function for its canonical use case
+- Remaining branches point to OTHER functions for related tasks
+- Branch labels are short phrases (3 to 5 words), not single keywords
 - Code lines must fit in ~70 characters (the box width)
-- Skip the block if the function has no meaningful branching choice (e.g., `glimpse()`)
+- Skip the block entirely if the function has no meaningful "is this the right tool" decision (e.g., `glimpse()`, `print()`)
+- The title must be a YES/NO style question: "Is X the right tool?" or "Should I use X?"
+
+## 3d. Jump-chip strip (auto-injected, do not write manually)
+
+For PSEO posts, `build.py` automatically injects a `<nav class="jump-chips">` strip immediately below the Decision Tree (or below the Quick Answer if no Decision Tree exists). The chips are anchor links generated from the post's H2 list.
+
+Authors do NOT write this. Authors do NOT need to add `id="..."` attributes to H2 headings; the build pipeline auto-slugifies headings to ids and emits matching anchor chips.
+
+Tail H2s like "FAQ", "Related dplyr functions", "Try it yourself" are included; `## Common pitfalls` is included; the first H2 (Definition / "What X does in one sentence") is INCLUDED so a reader who landed on the chip strip first can jump to the prose explanation.
+
+Opt-out via frontmatter `jump_chips: false` if a post should not advertise navigation (rare).
 
 ## 3c. Run-live callout (auto-injected, do not write manually)
 

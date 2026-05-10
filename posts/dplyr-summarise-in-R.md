@@ -30,14 +30,14 @@ summarise(df, across(where(is.numeric), mean))       # all numeric cols
 summarise(df, p25 = quantile(mpg, 0.25), p75 = quantile(mpg, 0.75))  # custom
 summarise(df, .by = cyl, n = n(), mn = min(mpg), mx = max(mpg))      # multi
 
-[DECISION TREE: What kind of summary?]
-- one stat over all rows: summarise(df, avg = mean(x))
-- many stats: summarise(df, n = n(), avg = mean(x), sd = sd(x))
-- by group (one-off): summarise(df, avg = mean(x), .by = g)
-- by group (persistent): group_by(df, g) |> summarise(avg = mean(x))
-- across many cols: summarise(df, across(where(is.numeric), mean))
-- custom function: summarise(df, p90 = quantile(x, 0.9))
-- count rows: summarise(df, n = n())
+[DECISION TREE: Is summarise() the right tool?]
+- collapse rows to one per group: summarise(df, m = mean(x), .by = g)
+- keep all rows but add summary col: mutate(df, m = mean(x), .by = g)
+- just count rows per group: count(df, g)
+- one row per group from raw data: distinct(df, g, .keep_all = TRUE)
+- multiple values per group (vector): reframe(df, q = quantile(x, c(.25, .75)), .by = g)
+- window function (rank, lag): mutate(df, rk = rank(x), .by = g)
+- aggregate without grouping: summarise(df, m = mean(x))
 
 ## What summarise() does in one sentence
 

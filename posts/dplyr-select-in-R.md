@@ -30,15 +30,14 @@ select(df, where(is.numeric))          # by type
 select(df, character = name)           # rename inside select
 select(df, name, mass, everything())   # reorder, keep rest
 
-[DECISION TREE: Which form do I need?]
-- by name: select(df, a, b, c)
-- drop one: select(df, -a)
-- range: select(df, a:c)
-- by prefix: select(df, starts_with("x"))
-- by substring: select(df, contains("x"))
-- by type: select(df, where(is.numeric))
-- rename: select(df, new = old)
-- reorder: select(df, b, a, everything())
+[DECISION TREE: Is select() the right tool?]
+- pick or drop columns: select(df, a, b, c)
+- subset rows by condition (not columns): filter(df, x > 5)
+- extract one column as a vector: pull(df, x)
+- rename columns without dropping any: rename(df, new = old)
+- reorder columns to a specific position: relocate(df, x, .before = y)
+- pick columns by pattern at scale: select(df, starts_with("x"))
+- summarise across many cols: summarise(df, across(where(is.numeric), mean))
 
 ## What select() does in one sentence
 

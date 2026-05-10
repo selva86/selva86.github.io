@@ -30,14 +30,14 @@ arrange(df, .by_group = TRUE)          # respect group_by()
 arrange(df, factor(grade, levels = c("A","B","C")))  # custom order
 arrange(df, pick(starts_with("date"))) # sort by tidyselect
 
-[DECISION TREE: How do I sort?]
-- ascending: arrange(df, mpg)
-- descending: arrange(df, desc(mpg))
-- multi-column: arrange(df, cyl, desc(mpg))
-- NAs first: arrange(df, desc(is.na(x)), x)
-- within groups: group_by(df, cyl) |> arrange(mpg, .by_group = TRUE)
-- custom order: arrange(df, factor(grade, levels = c("A","B","C")))
-- by pattern: arrange(df, pick(starts_with("date")))
+[DECISION TREE: Is arrange() the right tool?]
+- sort rows by column: arrange(df, mpg)
+- pick top N by value (sort + filter): slice_max(df, mpg, n = 5)
+- rank within groups: mutate(df, rk = rank(x), .by = g)
+- reorder columns (not rows): relocate(df, x, .before = y)
+- remove duplicates with order: arrange(df, x) |> distinct()
+- sort then mutate (window fns): arrange(df, x) |> mutate(lag_x = lag(x))
+- one-off ordered iteration: split(df, df$g) |> lapply(...)
 
 ## What arrange() does in one sentence
 

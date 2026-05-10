@@ -1175,6 +1175,111 @@ def build_post(
             runlive_html + '\n<div class="webr-container"',
             1,
         )
+
+    # PSEO posts: auto-inject jump-chip strip below the Decision Tree (or
+    # below the Quick Answer if no Decision Tree, or below the byline if
+    # neither). Chips link to every H2 by an auto-generated id slug.
+    # H2 elements get id="..." injected so anchors resolve.
+    # Opt-out via frontmatter `jump_chips: false`.
+    if (meta.get('post_type', '').strip() == 'PSEO'
+            and meta.get('jump_chips', 'true').lower() != 'false'):
+        # 1. Auto-add id attributes to H2s that lack one. Use a stable slug.
+        def _slugify(s):
+            s = re.sub(r'<[^>]+>', '', s)  # strip inline tags
+            s = s.lower()
+            s = re.sub(r'[^a-z0-9]+', '-', s)
+            return s.strip('-')
+
+        h2_pattern = re.compile(r'<h2(?P<attrs>[^>]*)>(?P<inner>.*?)</h2>', re.DOTALL)
+        h2_seen = []
+
+        def _h2_with_id(m):
+            attrs = m.group('attrs') or ''
+            inner = m.group('inner')
+            slug_text = _slugify(inner)
+            if 'id=' in attrs:
+                # extract existing id for chip target
+                id_match = re.search(r'id\s*=\s*"([^"]*)"', attrs)
+                existing_id = id_match.group(1) if id_match else slug_text
+                h2_seen.append((existing_id, inner.strip()))
+                return m.group(0)
+            h2_seen.append((slug_text, inner.strip()))
+            new_attrs = f' id="{slug_text}"' + attrs
+            return f'<h2{new_attrs}>{inner}</h2>'
+
+        content = h2_pattern.sub(_h2_with_id, content)
+
+        # 2. Build the chip strip if there are at least 3 H2s
+        if len(h2_seen) >= 3:
+            chip_links = []
+            for h2_id, h2_text in h2_seen:
+                # Strip inline HTML and tags for the label
+                label = re.sub(r'<[^>]+>', '', h2_text).strip()
+                lower = label.lower()
+                css_class = ''
+                # Friendly relabeling for known H2 patterns
+                if lower.startswith('what ') and 'in one sentence' in lower:
+                    chip_label = 'Definition'
+                elif lower.startswith('try it'):
+                    chip_label = '▶ Try it'
+                    css_class = ' class="try-it"'
+                elif 'common patterns' in lower or lower.startswith('seven ') or lower.startswith('six ') or lower.startswith('five ') or lower.startswith('eight '):
+                    chip_label = 'Examples'
+                elif ' vs ' in lower and ('base r' in lower or 'base-r' in lower):
+                    chip_label = 'vs Base R'
+                elif ' vs ' in lower:
+                    # e.g., "summarise() vs aggregate()" -> "vs aggregate"
+                    parts = label.split(' vs ', 1)
+                    rhs = parts[1].split()[0] if len(parts) > 1 else ''
+                    chip_label = f'vs {rhs}' if rhs else label[:22]
+                elif lower.startswith('common pitfalls'):
+                    chip_label = 'Pitfalls'
+                elif lower.startswith('related'):
+                    chip_label = 'Related'
+                elif lower == 'faq' or lower.startswith('faq'):
+                    chip_label = 'FAQ'
+                elif lower == 'syntax' or lower.startswith('syntax'):
+                    chip_label = 'Syntax'
+                else:
+                    # Generic truncation with cleaner cut at word boundary
+                    chip_label = label.split(':')[0]
+                    if len(chip_label) > 22:
+                        # Cut at last space before 22 chars
+                        cut = chip_label[:22].rsplit(' ', 1)[0]
+                        chip_label = cut if len(cut) >= 8 else chip_label[:20] + '…'
+                chip_links.append(f'<a href="#{h2_id}"{css_class}>{_esc_html(chip_label)}</a>')
+            chips_html = (
+                '<nav class="jump-chips" aria-label="On this page">'
+                '<span class="jc-label">Jump to</span>'
+                + ''.join(chip_links) +
+                '</nav>'
+            )
+            # 3. Insert position: after decision-tree, else after quick-answer,
+            # else after byline (which is just inserted above).
+            if '</div>' in content and 'class="decision-tree"' in content:
+                # Find the closing </div> of the decision-tree wrapper.
+                dt_match = re.search(r'<div class="decision-tree">.*?</div>\s*</div>', content, re.DOTALL)
+                if dt_match:
+                    end = dt_match.end()
+                    content = content[:end] + '\n' + chips_html + content[end:]
+                else:
+                    # Fallback: simpler closing-div detection
+                    dt_simple = re.search(r'<div class="decision-tree">.*?</svg></div>', content, re.DOTALL)
+                    if dt_simple:
+                        end = dt_simple.end()
+                        content = content[:end] + '\n' + chips_html + content[end:]
+            elif 'class="quick-answer"' in content:
+                qa_match = re.search(r'<div class="quick-answer">.*?</div>\s*(?:<p[^>]*class="qa-foot"[^>]*>.*?</p>\s*)?</div>', content, re.DOTALL)
+                if qa_match:
+                    end = qa_match.end()
+                    content = content[:end] + '\n' + chips_html + content[end:]
+            elif lead_match:
+                # No QA or DT: place chips after byline (which is right after lead)
+                # The byline was already inserted; find its end.
+                bl_match = re.search(r'<div class="post-byline".*?</div>', content, re.DOTALL)
+                if bl_match:
+                    end = bl_match.end()
+                    content = content[:end] + '\n' + chips_html + content[end:]
     content_with_breadcrumb = breadcrumb_html + '\n' + content
     content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
     if related_html:

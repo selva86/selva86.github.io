@@ -30,14 +30,14 @@ mutate(df, rank = row_number(), .by = cyl)               # within groups
 mutate(df, hp_z = (hp - mean(hp)) / sd(hp))              # z-score
 transmute(df, name, kpl = mpg * 0.425)     # mutate + drop other cols
 
-[DECISION TREE: What kind of new column?]
-- new from formula: mutate(df, y = a + b)
-- replace existing: mutate(df, y = round(y, 1))
-- conditional value: mutate(df, y = if_else(a > 0, "pos", "neg"))
-- many conditions: mutate(df, y = case_when(a < 0 ~ "neg", a == 0 ~ "zero", TRUE ~ "pos"))
-- apply to many cols: mutate(df, across(where(is.numeric), scale))
-- relative to group: mutate(df, y = x / sum(x), .by = grp)
-- only keep new cols: transmute(df, y = a + b)
+[DECISION TREE: Is mutate() the right tool?]
+- add or transform a column: mutate(df, y = x * 2)
+- collapse rows to one summary: summarise(df, y = mean(x))
+- drop other columns at the same time: transmute(df, y = x * 2)
+- rename without changing values: rename(df, new = old)
+- subset rows by condition: filter(df, x > 5)
+- sort rows (no transform): arrange(df, x)
+- row-by-row computation that wont vectorize: rowwise() |> mutate()
 
 ## What mutate() does in one sentence
 

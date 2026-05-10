@@ -30,15 +30,14 @@ semi_join(x, y, by = "id")              # x rows that match (no y cols)
 anti_join(x, y, by = "id")              # x rows with NO match
 left_join(x, y, by = c("id", "date"))   # multi-column join
 
-[DECISION TREE: Which join do I need?]
-- keep all of x: left_join(x, y, by = "id")
-- keep all of y: right_join(x, y, by = "id")
-- keep only matches: inner_join(x, y, by = "id")
-- keep all from both: full_join(x, y, by = "id")
-- filter x by membership: semi_join(x, y, by = "id")
-- filter x by non-membership: anti_join(x, y, by = "id")
-- match on multiple cols: left_join(x, y, by = c("a","b"))
-- match on different col names: left_join(x, y, by = c("xid"="yid"))
+[DECISION TREE: Is a join the right tool?]
+- combine 2 tables by key (keep all of x): left_join(x, y, by = "id")
+- combine 2 tables by key (only matches): inner_join(x, y, by = "id")
+- stack vertically (no key, same cols): bind_rows(x, y)
+- stack horizontally (no key, same rows): bind_cols(x, y)
+- filter x by membership in y (keep x cols): semi_join(x, y, by = "id")
+- find rows in x missing from y: anti_join(x, y, by = "id")
+- one row of x matched by many in y: nest_join(x, y, by = "id")
 
 ## What dplyr joins do in one sentence
 

@@ -30,13 +30,14 @@ group_by(df, cyl) |> filter(mpg == max(mpg))   # group + top per group
 df |> ungroup()                            # remove all grouping
 summarise(df, m = mean(mpg), .by = cyl)    # alternative without group_by
 
-[DECISION TREE: Should I use group_by or .by?]
+[DECISION TREE: Do I really need group_by()?]
+- chained verbs all need grouping: group_by(df, g) |> mutate() |> filter() |> ...
 - one-off grouped summarise: summarise(df, m = mean(x), .by = g)
 - one-off grouped mutate: mutate(df, z = scale(x), .by = g)
 - one-off grouped filter: filter(df, x == max(x), .by = g)
-- multiple chained verbs all need grouping: group_by(df, g) |> ...
-- preserve grouping in result: group_by(df, g) |> summarise(...)
-- legacy code base: group_by(df, g) |> ... |> ungroup()
+- count rows per group: count(df, g)
+- split-apply via list-cols: nest(df, .by = g) |> mutate(out = map(data, ...))
+- ungroup to stop grouping: df |> ungroup()
 
 ## What group_by() does in one sentence
 

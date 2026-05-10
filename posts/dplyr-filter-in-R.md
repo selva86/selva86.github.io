@@ -30,14 +30,14 @@ filter(df, between(hp, 100, 200))   # range
 filter(df, !is.na(x), x > 5)        # NA-safe
 filter(df, x == max(x), .by = grp)  # by group
 
-[DECISION TREE: Which form do I need?]
-- one: filter(df, x > 5)
-- AND: filter(df, x > 5, y < 10)
-- OR: filter(df, x > 5 | y < 10)
-- in set: filter(df, x %in% c(1, 2, 3))
-- range: filter(df, between(x, 1, 10))
-- NA-safe: filter(df, !is.na(x), x > 5)
-- by group: filter(df, x == max(x), .by = grp)
+[DECISION TREE: Is filter() the right tool?]
+- subset rows by condition: filter(df, x > 5)
+- drop columns (not rows): select(df, -bad_col)
+- top N by value: slice_max(df, x, n = 5)
+- drop rows with NA in column: drop_na(df, x)
+- remove duplicate rows: distinct(df)
+- match against another table: semi_join(df, lookup, by = "id")
+- filter then aggregate: filter(df, x > 5) |> summarise(m = mean(y))
 
 ## What filter() does in one sentence
 
