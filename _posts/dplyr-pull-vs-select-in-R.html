@@ -1,0 +1,359 @@
+---
+title: "dplyr pull vs select in R: Vector vs Data Frame Output"
+description: "Compare dplyr pull() vs select() in R: pull returns a vector, select returns a data frame. Covers when to use each, ergonomics, and 5 worked examples."
+keywords: "dplyr pull vs select, R pull select difference, dplyr extract column, pull single column, select keep column, dplyr vector vs tibble"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pull vs select|dplyr pull|dplyr select|extract column|vector from data frame"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr pull vs select in R: Vector vs Data Frame Output</h1>
+
+<p class="lead">In dplyr, <code>pull()</code> extracts ONE column as a VECTOR; <code>select()</code> keeps ONE OR MORE columns as a DATA FRAME. They serve different purposes despite both "selecting" columns.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; pull(mpg)<span class="qa-cmt">                          # numeric vector (length nrow(df))</span>
+df |&gt; select(mpg)<span class="qa-cmt">                        # 1-column tibble</span>
+df |&gt; pull(1)<span class="qa-cmt">                            # by position</span>
+df |&gt; pull(mpg, name)<span class="qa-cmt">                    # named vector</span>
+df |&gt; select(mpg, hp)<span class="qa-cmt">                    # 2-column tibble (pull can't do this)</span>
+df$mpg<span class="qa-cmt">                                    # base R equivalent of pull(mpg)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 pull or select?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need a VECTOR (1 column)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pull()</text><text x="125" y="126" class="branch-label">need a DATA FRAME (1+ columns)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">select()</text><text x="125" y="182" class="branch-label">multiple columns at once</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">select() (pull only does 1)</text><text x="125" y="238" class="branch-label">feed to a function expecting a vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pull()</text><text x="125" y="294" class="branch-label">feed to a function expecting a data frame</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">select()</text></svg></div>
+
+<h2>What pull() vs select() does in one sentence</h2>
+
+<p><strong><code>pull(df, col)</code> returns the values of one column as a VECTOR; <code>select(df, ...)</code> returns a DATA FRAME with only the specified columns.</strong> Both pick columns; they differ in output shape.</p>
+
+<h2>Side-by-side comparison</h2>
+
+<div class="webr-container" data-block-title="Same column, different shapes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same column, different shapes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+# pull: returns a vector
+mtcars |&gt; pull(mpg) |&gt; head(3)
+#&gt; [1] 21.0 21.0 22.8
+
+# select: returns a 1-column tibble
+mtcars |&gt; select(mpg) |&gt; head(3)
+#&gt;            mpg
+#&gt; Mazda RX4 21.0
+#&gt; Mazda RX4 Wag 21.0
+#&gt; Datsun 710 22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>pull()</code> when downstream code expects a VECTOR (e.g., <code>mean()</code>, <code>length()</code>).</strong> Use <code>select()</code> when downstream code expects a DATA FRAME (e.g., another dplyr verb).</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Extract one column</h3>
+
+<div class="webr-container" data-block-title="Vector vs tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector vs tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; pull(mpg)    # vector
+mtcars |&gt; select(mpg)  # tibble</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Compute a stat on a column</h3>
+
+<div class="webr-container" data-block-title="pull then mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pull then mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  filter(cyl == 4) |&gt;
+  pull(mpg) |&gt;
+  mean()
+#&gt; [1] 26.66364</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>select would return a tibble; mean would error.</p>
+
+<h3>3. Use a column as iteration target</h3>
+
+<div class="webr-container" data-block-title="Loop over a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Loop over a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">for (id in mtcars |&gt; pull(carb)) {
+  # process id
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>select would loop over a 1-column tibble.</p>
+
+<h3>4. Multiple columns: select only</h3>
+
+<div class="webr-container" data-block-title="pull can&#x27;t multi">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pull can&#x27;t multi</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; select(mpg, hp, wt)   # 3-column tibble
+mtcars |&gt; pull(mpg, hp)          # ERROR: pull takes ONE column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Named vector via pull</h3>
+
+<div class="webr-container" data-block-title="pull(value, name) returns named vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pull(value, name) returns named vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tibble::rownames_to_column(&quot;car&quot;) |&gt;
+  pull(mpg, name = car) |&gt;
+  head(3)
+#&gt; Mazda RX4    Mazda RX4 Wag    Datsun 710
+#&gt;      21.0             21.0          22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The difference is shape, not semantics.</strong> Both pull and select identify the SAME data; pull returns it as a vector, select as a data frame. Pick by what your downstream code expects.</div></div>
+
+<h2>pull() vs select() vs $ vs [[</h2>
+
+<p><strong>Four ways to <a class="auto-link" href="dplyr-pull-in-R.html" title="dplyr pull() in R: Extract a Column as a Vector">extract column</a> data in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Returns</th>
+<th>Pipe-friendly</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>`df</td>
+<td>> pull(col)`</td>
+<td>Vector</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>`df</td>
+<td>> select(col)`</td>
+<td>1-column tibble</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>df$col</code></td>
+<td>Vector</td>
+<td>No (LHS not pipeable)</td>
+</tr>
+<tr>
+<td><code>df[[&quot;col&quot;]]</code></td>
+<td>Vector</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>df[, &quot;col&quot;]</code></td>
+<td>Vector or tibble (depends)</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>pull</code> for vector inside a pipe.</li>
+
+<li><code>select</code> for data frame inside a pipe.</li>
+
+<li><code>$</code> for interactive scripting (no pipe).</li>
+
+<li><code>[[</code> for programmatic access with a string column name.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The common "pull at the end of a filter chain" pattern.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top_mpg &lt;- mtcars |&gt;
+  filter(cyl == 4) |&gt;
+  arrange(desc(mpg)) |&gt;
+  pull(mpg)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector <code>top_mpg</code> can now be fed to <code>mean</code>, <code>summary</code>, or any function expecting a numeric vector.</p>
+
+<p>The "select for downstream verb" pattern:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">key_cols &lt;- mtcars |&gt;
+  select(mpg, hp, wt)
+# Continue with: pivot_longer, summarise, etc.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>select keeps the data-frame shape for further dplyr operations.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: pull with multiple columns.</strong> <code>pull(mpg, hp)</code> is wrong (the second arg is for naming, not selecting). Use <code>select(mpg, hp)</code> for multiple columns.</p>
+
+<p><strong>Pitfall 2: forgetting that select returns a data frame.</strong> <code>select(mpg) |&gt; mean()</code> errors because mean expects a vector. Use <code>pull</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>pull(df, mpg, name)</code> reuses the second positional arg as <code>name</code>.</strong> This is what creates a named vector. If you intended a second selection column, use select instead.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Get the mean mpg of 4-cylinder cars in two ways: with pull and with $. Save to <code>ex_avg</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pull vs $">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pull vs $</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pipe-friendly version:
+ex_avg &lt;- mtcars |&gt;
+  filter(cyl == 4) |&gt;
+  # your code here
+
+ex_avg
+#&gt; Expected: ~26.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_avg &lt;- mtcars |&gt;
+  filter(cyl == 4) |&gt;
+  pull(mpg) |&gt;
+  mean()
+
+# Equivalent base R:
+ex_alt &lt;- mean(mtcars$mpg[mtcars$cyl == 4])
+
+ex_avg
+#&gt; [1] 26.66364</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> pull extracts mpg as a vector after filtering; mean computes the average.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr / base functions</h2>
+
+<p>After mastering pull vs select, look at:</p>
+
+<ul>
+
+<li><code>select()</code>: pick multiple columns</li>
+
+<li><code>pull()</code>: extract one column as vector</li>
+
+<li><code>$</code> / <code>[[</code>: base R extraction</li>
+
+<li><code>tibble::deframe()</code>: convert 2-column df to named vector</li>
+
+<li><code>dplyr::pluck()</code>: deeper extraction (purrr alternative)</li>
+
+</ul>
+
+<p>For named vector creation, <code>pull(df, value, name)</code> is a one-liner that replaces a multi-step deframe.</p>
+
+<h2>Why both functions exist</h2>
+
+<p><strong>dplyr separates "narrow <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a>" from "data extraction" deliberately.</strong> Most dplyr verbs work on data frames, so select fits naturally in a pipeline of verbs. But sometimes you need to BREAK OUT of the data-frame world (compute a scalar, build a named vector, feed a function that expects a vector), that's pull's job. Having two verbs with clear purposes is cleaner than overloading select to sometimes return a vector.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between pull and select in dplyr?</strong></p>
+
+<p>pull returns a VECTOR; select returns a DATA FRAME. pull is for one column; select can take multiple.</p>
+
+<p><strong>When should I use pull vs $ in R?</strong></p>
+
+<p>pull is pipe-friendly: <code>df |&gt; filter(...) |&gt; pull(col)</code>. <code>$</code> requires the data frame to be on the LHS of <code>$</code>, so it doesn't fit naturally in pipes.</p>
+
+<p><strong>Can pull extract multiple columns?</strong></p>
+
+<p>No. The second arg in pull is <code>name</code>, not a second column. For multiple columns, use select.</p>
+
+<p><strong>How do I create a named vector with pull?</strong></p>
+
+<p><code>pull(df, value, name)</code>. The values become the vector; the name column becomes vector names.</p>
+
+<p><strong>Is pull faster than $?</strong></p>
+
+<p>Negligibly different. pull does a tiny bit more work for tidyselect support but the difference doesn't matter for any practical use case.</p>

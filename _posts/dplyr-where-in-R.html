@@ -1,0 +1,357 @@
+---
+title: "dplyr where() in R: Select Columns by Predicate"
+description: "Use dplyr where() to select columns matching a predicate function (e.g., is.numeric, is.character) in R. Covers across, select, and 5 worked examples."
+keywords: "dplyr where, R where tidyselect, where is.numeric, dplyr select by type, where character columns, tidyselect predicate"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "where()|tidyselect where|where is.numeric|select columns by type|predicate selection"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr where() in R: Select Columns by Predicate</h1>
+
+<p class="lead">The <code>where()</code> tidyselect helper in dplyr selects columns where a PREDICATE function (like <code>is.numeric</code> or <code>is.character</code>) returns TRUE. It is the workhorse for "all numeric columns" or "all character columns" selection.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; select(where(is.numeric))<span class="qa-cmt">            # all numeric columns</span>
+df |&gt; select(where(is.character))<span class="qa-cmt">          # all character columns</span>
+df |&gt; mutate(across(where(is.numeric), ~ .x * 2))<span class="qa-cmt">   # multiply numerics</span>
+df |&gt; summarise(across(where(is.numeric), mean))<span class="qa-cmt">    # mean per numeric col</span>
+where(~ all(.x &gt; 0))<span class="qa-cmt">                        # custom predicate</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is where() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">select all numeric / character / logical columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">where(is.numeric/character/logical)</text><text x="125" y="126" class="branch-label">select by name pattern</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">starts_with()</a>, ends_with(), contains(), matches()</text><text x="125" y="182" class="branch-label">select all columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">everything()</text><text x="125" y="238" class="branch-label">select a range</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">x:y</text><text x="125" y="294" class="branch-label">select by custom logic per column</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">where(custom_predicate)</text></svg></div>
+
+<h2>What where() does in one sentence</h2>
+
+<p><strong><code>where(.fn)</code> selects columns where applying <code>.fn</code> to the column returns TRUE.</strong> It is a tidyselect helper used inside <code>select</code>, <code>across</code>, <code>pick</code>, <code>rename_with</code>, etc.</p>
+
+<p>The most common use: <code>where(is.numeric)</code> to grab all numeric columns. But any predicate function works.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>where(.fn)</code>. <code>.fn</code> is a function (or lambda) applied to each column; columns where it returns TRUE are kept.</strong></p>
+
+<div class="webr-container" data-block-title="All numeric columns of mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All numeric columns of mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  select(where(is.numeric)) |&gt;
+  head(3)
+#&gt; All 11 columns of mtcars are numeric, so all selected</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair <code>where()</code> with <code>across()</code> for "apply this function to all numeric columns" patterns: <code>mutate(across(where(is.numeric), fn))</code>.</strong> This is the standard dplyr idiom for type-based column transformations.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Select numeric columns</h3>
+
+<div class="webr-container" data-block-title="All numerics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All numerics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(name = c(&quot;a&quot;,&quot;b&quot;), age = c(20, 30), city = c(&quot;NYC&quot;,&quot;LA&quot;))
+
+df |&gt;
+  select(where(is.numeric))
+#&gt;     age
+#&gt;      20
+#&gt;      30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Select character columns</h3>
+
+<div class="webr-container" data-block-title="All character columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All character columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  select(where(is.character))
+#&gt;   name city
+#&gt;      a  NYC
+#&gt;      b   LA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Apply function to all numerics</h3>
+
+<div class="webr-container" data-block-title="Z-score every numeric col">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Z-score every numeric col</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(across(where(is.numeric), ~ (.x - mean(.x)) / sd(.x)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Custom predicate</h3>
+
+<div class="webr-container" data-block-title="Columns with no NAs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Columns with no NAs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_with_na &lt;- tibble(a = 1:3, b = c(1, NA, 3), c = c(&quot;x&quot;,&quot;y&quot;,&quot;z&quot;))
+
+df_with_na |&gt;
+  select(where(~ !any(is.na(.x))))
+#&gt;   a c
+#&gt;   1 x
+#&gt;   2 y
+#&gt;   3 z
+#&gt; (b dropped because it has NA)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Combine with other tidyselect helpers</h3>
+
+<div class="webr-container" data-block-title="Numeric columns starting with &#x27;m&#x27;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric columns starting with &#x27;m&#x27;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  select(where(is.numeric) &amp; starts_with(&quot;m&quot;))
+#&gt;            mpg
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>&amp;</code> and <code>|</code> combine tidyselect predicates.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>where()</code> accepts ANY function returning TRUE/FALSE.</strong> Common predicates are <code>is.numeric</code>, <code>is.character</code>, <code>is.logical</code>, <code>is.factor</code>. For custom logic, use a lambda: <code>where(~ all(.x &gt; 0))</code> selects columns where every value is positive.</div></div>
+
+<h2>where() vs starts_with() vs everything()</h2>
+
+<p><strong>Three tidyselect helpers, used for different selection strategies.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Helper</th>
+<th>Selects by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>where(.fn)</code></td>
+<td>Predicate function on the column</td>
+</tr>
+<tr>
+<td><code>starts_with(&quot;x&quot;)</code></td>
+<td>Column name prefix</td>
+</tr>
+<tr>
+<td><code>ends_with(&quot;y&quot;)</code></td>
+<td>Column name suffix</td>
+</tr>
+<tr>
+<td><code>contains(&quot;ab&quot;)</code></td>
+<td>Column name substring</td>
+</tr>
+<tr>
+<td><code>matches(&quot;regex&quot;)</code></td>
+<td>Column name regex</td>
+</tr>
+<tr>
+<td><code>everything()</code></td>
+<td>All columns</td>
+</tr>
+<tr>
+<td><code>x:z</code></td>
+<td>Column range</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>where</code> for type-based or content-based selection.</li>
+
+<li><code>starts_with</code> / <code>ends_with</code> / <code>contains</code> / <code>matches</code> for name-based.</li>
+
+<li><code>everything()</code> to grab all.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "type-based transformation" pattern is where's killer use case.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+cleaned &lt;- raw_data |&gt;
+  mutate(
+    across(where(is.character), trimws),         # trim whitespace from chars
+    across(where(is.numeric),   ~ na_if(.x, -99)) # convert -99 to NA
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Apply different transformations to different column types in one pipeline.</p>
+
+<p>For audits:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw_data |&gt;
+  summarise(across(where(is.numeric), ~ sum(is.na(.x))))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>NA counts per numeric column.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting where with across.</strong> <code>across(is.numeric, fn)</code> errors; <code>across(where(is.numeric), fn)</code> is correct. across needs the explicit tidyselect helper.</p>
+
+<p><strong>Pitfall 2: predicate must return single TRUE/FALSE.</strong> <code>where(~ .x &gt; 0)</code> (returns a vector) errors. Use <code>where(~ all(.x &gt; 0))</code> to reduce to single boolean.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>where()</code> is dplyr / tidyselect-specific.</strong> It doesn't work in base R or with <code>[</code>-style indexing. Inside dplyr verbs, use <code>where</code>; outside, use <code>sapply(df, is.numeric)</code> or <code>Filter</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From mtcars, select only the columns that have ALL values >= 1. Save to <code>ex_pos</code>.</p>
+<div class="webr-container" data-block-title="Your turn: columns with positive values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: columns with positive values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pos &lt;- mtcars |&gt;
+  # your code here
+
+names(ex_pos)
+#&gt; Expected: column names where every row is &gt;= 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pos &lt;- mtcars |&gt;
+  select(where(~ all(.x &gt;= 1)))
+
+names(ex_pos)
+#&gt; [1] &quot;mpg&quot; &quot;cyl&quot; &quot;disp&quot; &quot;hp&quot; &quot;drat&quot; &quot;wt&quot; &quot;qsec&quot; &quot;gear&quot; &quot;carb&quot;
+#&gt; (&quot;vs&quot; and &quot;am&quot; are 0/1 binary; dropped)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> where(~ all(.x >= 1)) checks each column for whether every value is >= 1. vs and am have 0s and are dropped.</p>
+
+</details>
+</section>
+
+<h2>Related tidyselect helpers</h2>
+
+<p>After mastering where, look at:</p>
+
+<ul>
+
+<li><code>everything()</code>: all columns</li>
+
+<li><code>starts_with()</code> / <code>ends_with()</code> / <code>contains()</code> / <code>matches()</code>: name-based</li>
+
+<li><code>num_range()</code>: numeric-suffixed names</li>
+
+<li><code>any_of()</code> / <code>all_of()</code>: literal column lists with strict / lax matching</li>
+
+<li><code>last_col()</code>: rightmost column</li>
+
+</ul>
+
+<p>For complex selection, combine with <code>&amp;</code>, <code>|</code>, <code>!</code> for set operations on selections.</p>
+
+<h2>Why where simplifies type-aware code</h2>
+
+<p><strong>Before tidyselect's <code>where</code>, applying a function to "all numeric columns" required <code>mutate_if(is.numeric, fn)</code> (now superseded) or hand-built loops.</strong> <code>where</code> brings type-based selection into the unified tidyselect grammar, so it composes cleanly with name-based selectors. <code>select(where(is.numeric) &amp; starts_with(&quot;score_&quot;))</code> reads naturally; building the same selection without where would require multiple steps.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does where do in dplyr?</strong></p>
+
+<p><code>where(.fn)</code> is a tidyselect helper that selects columns where <code>.fn(column)</code> returns TRUE. Used inside <code>select</code>, <code>across</code>, <code>pick</code>, etc.</p>
+
+<p><strong>Can I use where with custom predicates?</strong></p>
+
+<p>Yes. <code>where(~ all(.x &gt; 0))</code> selects columns where every value is positive. The predicate must reduce to a single TRUE/FALSE.</p>
+
+<p><strong>How do I select all numeric columns in dplyr?</strong></p>
+
+<p><code>select(df, where(is.numeric))</code>. For non-numeric columns, <code>select(df, where(\(x) !is.numeric(x)))</code>.</p>
+
+<p><strong>What is the difference between where and starts_with?</strong></p>
+
+<p>where uses a function (predicate) on the column. starts_with uses a name prefix. They can be combined: <code>where(is.numeric) &amp; starts_with(&quot;x_&quot;)</code>.</p>
+
+<p><strong>Does where work outside dplyr?</strong></p>
+
+<p>No. It is a tidyselect helper. Outside dplyr verbs, use <code>sapply(df, predicate)</code> or <code>Filter(predicate, df)</code>.</p>
