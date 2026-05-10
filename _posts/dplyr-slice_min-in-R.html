@@ -1,0 +1,343 @@
+---
+title: "dplyr slice_min() in R: Bottom N Rows by Column Value"
+description: "Use dplyr slice_min() to get the bottom n rows by a column value (per group). Covers n, prop, with_ties, .by, vs arrange + slice_head, and 5 examples."
+keywords: "dplyr slice_min, R bottom n by value, slice_min per group, dplyr lowest rows, slice_min with_ties, bottom n by column R, dplyr smallest"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "slice_min()|dplyr slice_min|bottom n by value|lowest rows by group|earliest per group"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr slice_min() in R: Bottom N Rows by Column Value</h1>
+
+<p class="lead">The <code>slice_min()</code> function in dplyr returns the rows with the SMALLEST values of a specified column, optionally per group. It is the mirror of <code>slice_max()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>slice_min(df, mpg, n = 5)<span class="qa-cmt">                   # 5 lowest by mpg</span>
+slice_min(df, mpg, prop = 0.1)<span class="qa-cmt">              # bottom 10%</span>
+slice_min(df, mpg, n = 3, by = cyl)<span class="qa-cmt">         # bottom 3 per cyl</span>
+slice_min(df, mpg, n = 3, with_ties = FALSE)# strict 3 (no ties)
+slice_min(df, mpg, n = -3)<span class="qa-cmt">                  # all but bottom 3</span>
+arrange(df, mpg) |&gt; slice_head(n = 5)<span class="qa-cmt">       # equivalent older form</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="dplyr-slice-in-R.html" title="dplyr slice() in R: Select Rows by Position">slice_min()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">bottom n by column value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">slice_min(col, n = N)</text><text x="125" y="126" class="branch-label">top n by column value</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">slice_max(col, n = N)</text><text x="125" y="182" class="branch-label">bottom n PER GROUP</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">slice_min(col, n, by = g)</text><text x="125" y="238" class="branch-label">bottom n by row order</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">slice_head(n = N)</text><text x="125" y="294" class="branch-label">bottom n%</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">slice_min(col, prop = 0.1)</text><text x="125" y="350" class="branch-label">random sample</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">slice_sample</a>(n = N)</text><text x="125" y="406" class="branch-label">handle ties strictly</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">with_ties = FALSE</text></svg></div>
+
+<h2>What slice_min() does in one sentence</h2>
+
+<p><strong><code>slice_min(.data, order_by, n)</code> sorts by <code>order_by</code> ascending and returns the bottom <code>n</code> rows.</strong> On a grouped tibble (or with <code>by = g</code>), it returns the bottom n per group.</p>
+
+<p>This is the cleanest way to answer "bottom N by metric" questions, and the natural mirror of <code>slice_max()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>slice_min(.data, order_by, n = NULL, prop = NULL, by = NULL, with_ties = TRUE, na_rm = FALSE)</code>.</strong></p>
+
+<div class="webr-container" data-block-title="Bottom 5 cars by MPG">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom 5 cars by MPG</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  slice_min(mpg, n = 5)
+#&gt;                       mpg cyl ...
+#&gt; Cadillac Fleetwood   10.4   8
+#&gt; Lincoln Continental  10.4   8
+#&gt; Camaro Z28           13.3   8
+#&gt; Duster 360           14.3   8
+#&gt; Chrysler Imperial    14.7   8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>slice_min()</code> is more explicit than <code>arrange(x) |&gt; head(n)</code>.</strong> It says exactly what it does: "bottom n by x". Reach for it whenever you mean "lowest N by metric".</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Bottom n by a column</h3>
+
+<div class="webr-container" data-block-title="3 lowest MPG cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">3 lowest MPG cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_min(mpg, n = 3)
+#&gt; Cadillac Fleetwood   10.4
+#&gt; Lincoln Continental  10.4   &lt;-- tie
+#&gt; Camaro Z28           13.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By default, ties are included.</p>
+
+<h3>2. Bottom n per group</h3>
+
+<div class="webr-container" data-block-title="Lowest MPG car per cylinder count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lowest MPG car per cylinder count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_min(mpg, n = 1, by = cyl)
+#&gt;                      mpg cyl
+#&gt; Volvo 142E          21.4   4
+#&gt; Merc 280C           17.8   6
+#&gt; Cadillac Fleetwood  10.4   8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>by = cyl</code> returns one row per cyl group.</p>
+
+<h3>3. Bottom fraction (prop)</h3>
+
+<div class="webr-container" data-block-title="Bottom 10% by MPG">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bottom 10% by MPG</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_min(mpg, prop = 0.1)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>10% of 32 = 3 rows (or more with ties).</p>
+
+<h3>4. Strict bottom n (no ties)</h3>
+
+<div class="webr-container" data-block-title="Exactly 3 rows, drop ties arbitrarily">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exactly 3 rows, drop ties arbitrarily</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_min(mpg, n = 3, with_ties = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>with_ties = FALSE</code> returns exactly <code>n</code> rows; ties broken arbitrarily.</p>
+
+<h3>5. Earliest record per group</h3>
+
+<div class="webr-container" data-block-title="First event per user (chronological)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First event per user (chronological)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- data.frame(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;),
+  ts   = as.Date(c(&quot;2024-01-01&quot;,&quot;2024-03-15&quot;,&quot;2024-02-10&quot;,&quot;2024-04-20&quot;)),
+  val  = c(10, 20, 30, 40)
+)
+
+events |&gt;
+  slice_min(ts, n = 1, by = user)
+#&gt;   user         ts val
+#&gt; 1    a 2024-01-01  10
+#&gt; 2    b 2024-02-10  30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mirror of "latest per group": earliest event per user via slice_min on timestamp.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>slice_min()</code> and <code>slice_max()</code> are exact mirrors.</strong> Anything you can do with one, you can do with the other by reversing the column sign or swapping the function. They share argument names, defaults, and group behavior.</div></div>
+
+<h2>slice_min() vs slice_max() vs arrange + slice_head vs base which.min</h2>
+
+<p><strong>Four ways to grab "bottom n" in R, with different ergonomics.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Sorts</th>
+<th>Per group</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slice_min(col, n)</code></td>
+<td>Yes (asc)</td>
+<td>Yes</td>
+<td>n rows</td>
+</tr>
+<tr>
+<td><code>slice_max(col, n)</code></td>
+<td>Yes (desc)</td>
+<td>Yes</td>
+<td>n rows</td>
+</tr>
+<tr>
+<td>`arrange(col)</td>
+<td>> slice_head(n)`</td>
+<td>Yes</td>
+<td>Yes if grouped</td>
+<td>n rows, sorted</td>
+</tr>
+<tr>
+<td><code>which.min(col)</code></td>
+<td>No</td>
+<td>No</td>
+<td>Single index</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>slice_min</code> for bottom-n-by-metric in dplyr.</li>
+
+<li><code>slice_max</code> for top-n-by-metric.</li>
+
+<li><code>arrange + slice_head</code> if you need the sorted intermediate state.</li>
+
+<li><code>which.min</code> for the single index of the minimum (base R, returns 1 element).</li>
+
+</ul>
+
+<h2>A practical slice_min workflow</h2>
+
+<p><strong>Use slice_min for "worst N", "earliest N", or "cheapest N" patterns.</strong></p>
+
+<p>Common variations:</p>
+
+<ul>
+
+<li>Worst 1 per group → <code>slice_min(metric, n = 1, by = g)</code></li>
+
+<li>Earliest record per user → <code>slice_min(timestamp, n = 1, by = user)</code></li>
+
+<li>Cheapest item per category → <code>slice_min(price, n = 1, by = category)</code></li>
+
+<li>10 worst-rated movies → <code>slice_min(rating, n = 10)</code></li>
+
+</ul>
+
+<p>The pattern parallels slice_max: pick the column, pick n, pick the group.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: ties expand the result.</strong> <code>slice_min(mpg, n = 3)</code> returns 4 rows if two share rank 3. Use <code>with_ties = FALSE</code> for strict n.</p>
+
+<p><strong>Pitfall 2: NAs and ascending order.</strong> With <code>na_rm = FALSE</code> (default), NAs sort last in ASC order, so they don't appear in <code>slice_min</code> output unless <code>n</code> is very large. Set <code>na_rm = TRUE</code> to be explicit.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>slice_min()</code> returns rows by ASCENDING column value; the original row order is NOT preserved.</strong> Output may appear in different order than input. Chain with <code>arrange(col)</code> if you want sorted output explicitly.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the 2 cars with the lowest <code>qsec</code> (quarter-mile time) for each <code>cyl</code> group. Save to <code>ex_fast</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 2 fastest qsec per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 2 fastest qsec per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fast &lt;- mtcars |&gt;
+  # your code here
+
+ex_fast
+#&gt; Expected: 6 rows (2 per cyl group)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fast &lt;- mtcars |&gt;
+  slice_min(qsec, n = 2, by = cyl)
+ex_fast
+#&gt; 6 rows: 2 lowest qsec per cyl group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>slice_min(qsec, n = 2, by = cyl)</code> finds the 2 lowest qsec per cylinder group. Lower qsec = faster acceleration.</p>
+
+</details>
+</section>
+
+<h2>Related slice functions</h2>
+
+<p>After mastering slice_min, look at:</p>
+
+<ul>
+
+<li><code>slice_max()</code>: top n by column (mirror)</li>
+
+<li><code>slice_head()</code> / <code>slice_tail()</code>: first/last n by row order</li>
+
+<li><code>slice_sample()</code>: random n rows</li>
+
+<li><code>slice()</code>: specific row indexes</li>
+
+<li><code>arrange()</code>: sort the entire frame</li>
+
+<li><code>which.min()</code> / <code>which.max()</code>: base R, returns single index</li>
+
+</ul>
+
+<p>For symmetric "top + bottom" reports, combine <code>slice_max</code> and <code>slice_min</code> results with <code>bind_rows</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between slice_min and slice_max?</strong></p>
+
+<p><code>slice_min</code> returns the LOWEST n rows by column value; <code>slice_max</code> returns the HIGHEST. Argument names and behavior are otherwise identical mirrors.</p>
+
+<p><strong>How does slice_min handle ties?</strong></p>
+
+<p>Default <code>with_ties = TRUE</code> includes all tied rows (may return more than n). Set <code>with_ties = FALSE</code> for exactly n rows, with ties broken arbitrarily.</p>
+
+<p><strong>How do I get the bottom n per group?</strong></p>
+
+<p>Pass <code>by = group_col</code> (dplyr 1.1+): <code>slice_min(df, col, n = 3, by = g)</code>. Or <code>df |&gt; group_by(g) |&gt; slice_min(col, n = 3) |&gt; ungroup()</code>.</p>
+
+<p><strong>How does slice_min handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>?</strong></p>
+
+<p>With <code>na_rm = FALSE</code> (default), NAs sort to the END of ascending order, so they appear in slice_min output only if n is large enough. Set <code>na_rm = TRUE</code> to filter them.</p>
+
+<p><strong>What is the difference between slice_min and which.min?</strong></p>
+
+<p><code>slice_min</code> is dplyr; returns N rows of a data frame. <code>which.min</code> is base R; returns a SINGLE INTEGER index of the row with the minimum value. Different output shapes for different use cases.</p>

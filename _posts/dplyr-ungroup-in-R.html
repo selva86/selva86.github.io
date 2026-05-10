@@ -1,0 +1,312 @@
+---
+title: "dplyr ungroup() in R: Remove Grouping Before Next Step"
+description: "Use dplyr ungroup() to drop group_by structure before mutate, summarise, or join in R. Covers when to ungroup, .by alternative, and 5 worked examples."
+keywords: "dplyr ungroup, R ungroup, group_by ungroup, dplyr remove grouping, when to ungroup R, dplyr .by, dplyr group structure"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "ungroup()|dplyr ungroup|remove grouping|grouped data frame|.by argument"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr ungroup() in R: Remove Grouping Before Next Step</h1>
+
+<p class="lead">The <code>ungroup()</code> function in dplyr removes the group structure that <code>group_by()</code> attached, so subsequent verbs operate on the whole data frame again. It is the explicit cleanup step every grouped pipeline needs.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; group_by(g) |&gt; mutate(rank = rank(x)) |&gt; ungroup()
+df |&gt; group_by(g) |&gt; summarise(n = n())<span class="qa-cmt">          # auto-ungroups one level</span>
+df |&gt; group_by(g) |&gt; ungroup() |&gt; nrow()<span class="qa-cmt">         # drop grouping, count all</span>
+df |&gt; group_by(g1, g2) |&gt; ungroup(g2)<span class="qa-cmt">            # remove ONE grouping var</span>
+mutate(df, .by = g, rank = rank(x))<span class="qa-cmt">              # alternative: per-call grouping, no ungroup needed</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Do you need ungroup()?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">finished a grouped operation, next step should see all rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">ungroup()</text><text x="125" y="126" class="branch-label">after <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a> with multiple group vars</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">still grouped by all but the last, ungroup() to be safe</text><text x="125" y="182" class="branch-label">pipeline ends here and result is consumed downstream</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">always ungroup()</text><text x="125" y="238" class="branch-label">using .by arg in dplyr 1.1+</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">no ungroup() needed</text><text x="125" y="294" class="branch-label">joining to another data frame</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">ungroup() first to avoid surprise group joins</text></svg></div>
+
+<h2>What ungroup() does in one sentence</h2>
+
+<p><strong><code>ungroup(.data, ...)</code> strips the <code>groups</code> attribute from a <code>grouped_df</code>, returning a regular tibble (or data frame) where the next verb sees every row in one bucket.</strong> With no extra args, it removes ALL grouping; with named columns, it removes only those.</p>
+
+<p>This is how dplyr separates "compute per-group" from "compute across the whole table". Forgetting <code>ungroup()</code> is the single most common source of "why is mutate giving me odd numbers?" bugs.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>ungroup(x, ...)</code>. With <code>...</code> empty it removes all grouping; with column names it removes those specific levels.</strong></p>
+
+<div class="webr-container" data-block-title="Ungroup after a grouped mutate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ungroup after a grouped mutate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(rel_mpg = mpg / mean(mpg)) |&gt;
+  ungroup() |&gt;
+  arrange(desc(rel_mpg)) |&gt;
+  head(3)
+#&gt;     mpg cyl ... rel_mpg
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>summarise()</code> peels off ONE grouping level automatically; <code>mutate()</code> and <code>filter()</code> do NOT.</strong> After <code>group_by(g1, g2) |&gt; summarise(...)</code> the result is still grouped by <code>g1</code>. Always <code>ungroup()</code> if downstream code shouldn't care.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard cleanup at the end of a grouped pipeline</h3>
+
+<div class="webr-container" data-block-title="Compute per-group then return ungrouped">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute per-group then return ungrouped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(z = (mpg - mean(mpg)) / sd(mpg)) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical pattern. Without <code>ungroup()</code>, downstream <code>mutate()</code>s would still operate per-group.</p>
+
+<h3>2. Drop only ONE grouping variable</h3>
+
+<div class="webr-container" data-block-title="Keep cyl, remove gear grouping">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep cyl, remove gear grouping</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl, gear) |&gt;
+  mutate(within = mean(mpg)) |&gt;
+  ungroup(gear)
+#&gt; # Groups: cyl</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ungroup(gear)</code> removes that one column from the group structure.</p>
+
+<h3>3. After summarise() with multiple groups</h3>
+
+<div class="webr-container" data-block-title="summarise leaves residual grouping">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">summarise leaves residual grouping</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl, gear) |&gt;
+  summarise(avg = mean(mpg), .groups = &quot;drop_last&quot;)
+# still grouped by cyl
+
+# Cleaner:
+mtcars |&gt;
+  group_by(cyl, gear) |&gt;
+  summarise(avg = mean(mpg), .groups = &quot;drop&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.groups = &quot;drop&quot;</code> is equivalent to chaining <code>ungroup()</code> after summarise.</p>
+
+<h3>4. Replace ungroup with .by (dplyr 1.1+)</h3>
+
+<div class="webr-container" data-block-title="Per-call grouping; no ungroup needed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-call grouping; no ungroup needed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(rel_mpg = mpg / mean(mpg), .by = cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.by</code> scopes grouping to ONE verb only. No grouping leaks into the next step. For new code, this often replaces <code>group_by() |&gt; mutate() |&gt; ungroup()</code>.</p>
+
+<h3>5. Ungroup before joining</h3>
+
+<div class="webr-container" data-block-title="Joining a grouped df can surprise you">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Joining a grouped df can surprise you</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">left  &lt;- mtcars |&gt; group_by(cyl) |&gt; summarise(avg = mean(mpg))
+right &lt;- data.frame(cyl = c(4, 6, 8), label = c(&quot;eco&quot;,&quot;mid&quot;,&quot;big&quot;))
+
+left |&gt; ungroup() |&gt; left_join(right, by = &quot;cyl&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Joining a grouped left side can carry grouping into the result, which is rarely what you want.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <code>.by</code> argument (dplyr >= 1.1.0) is the modern way to scope grouping per-verb without <code>group_by()</code>/<code>ungroup()</code> bookends.</strong> For one-step grouped computation, <code>mutate(df, .by = g, x = ...)</code> is cleaner. Reserve <code>group_by()</code> for multi-step grouped pipelines where every verb shares the same grouping.</div></div>
+
+<h2>ungroup() vs .by vs summarise(.groups=)</h2>
+
+<p><strong>Three ways to control grouping scope in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Scope</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>group_by()</code> + <code>ungroup()</code></td>
+<td>Pipeline-wide, explicit cleanup</td>
+<td>Multi-step grouped flows</td>
+</tr>
+<tr>
+<td><code>.by</code> argument</td>
+<td>Single verb only</td>
+<td>One-step grouped compute</td>
+</tr>
+<tr>
+<td><code>summarise(.groups = &quot;drop&quot;)</code></td>
+<td>Auto-drop after summarise</td>
+<td>Aggregations ending in summarise</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>.by</code> for short pipelines where grouping applies to one verb.</li>
+
+<li>Use <code>group_by()</code> + <code>ungroup()</code> for long flows where the same groups apply to mutate, filter, AND summarise.</li>
+
+<li>Use <code>.groups = &quot;drop&quot;</code> inside summarise for aggregation-only flows.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to ungroup before downstream code.</strong> A grouped tibble looks identical when printed but <code>nrow()</code>, <code>mutate()</code>, and <code>n()</code> behave per-group. <code>head(grouped_df, 3)</code> returns 3 rows PER GROUP, not 3 total.</p>
+
+<p><strong>Pitfall 2: <code>n()</code> returns per-group counts.</strong> Inside <code>mutate()</code> on a grouped df, <code>n()</code> is the group size, not the total rows. Use <code>dplyr::n()</code> carefully or switch to <code>nrow()</code> after <code>ungroup()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Functions like <code>slice_head(n=3)</code> operate PER GROUP on a grouped data frame.</strong> A grouped df with 4 groups returns 12 rows from <code>slice_head(n=3)</code>, not 3. Ungroup first if you want 3 total.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the within-cylinder mean MPG, then return an UNGROUPED data frame sorted by relative MPG. Save to <code>ex_result</code>.</p>
+<div class="webr-container" data-block-title="Your turn: group, mutate, ungroup, sort">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: group, mutate, ungroup, sort</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_result &lt;- mtcars |&gt;
+  # your code here
+
+head(ex_result, 5)
+#&gt; Expected: ungrouped tibble with rel_mpg column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_result &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(rel_mpg = mpg / mean(mpg)) |&gt;
+  ungroup() |&gt;
+  arrange(desc(rel_mpg))
+
+head(ex_result, 3)
+#&gt;    mpg cyl ... rel_mpg
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Group by cyl, compute relative MPG within each group, ungroup so <code>arrange()</code> sorts the entire frame (not within groups).</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering ungroup, look at:</p>
+
+<ul>
+
+<li><code>group_by()</code>: attach group structure</li>
+
+<li><code>groups()</code>: inspect current grouping</li>
+
+<li><code>group_split()</code>: split a grouped df into a list of data frames</li>
+
+<li><code>rowwise()</code>: group with one row per group (for non-vectorized ops)</li>
+
+<li><code>summarise(.groups = ...)</code>: control post-summarise grouping</li>
+
+<li><code>.by</code> arg in mutate / filter / summarise: per-verb grouping</li>
+
+</ul>
+
+<p>For modern dplyr code (>=1.1), prefer <code>.by</code> over <code>group_by()/ungroup()</code> when grouping applies to a single verb.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does ungroup do in dplyr?</strong></p>
+
+<p><code>ungroup()</code> removes the grouping structure attached by <code>group_by()</code>. After <code>ungroup()</code>, subsequent verbs (mutate, filter, summarise) operate on the entire data frame instead of per-group.</p>
+
+<p><strong>Do I always need ungroup() after group_by()?</strong></p>
+
+<p>Not always. <code>summarise()</code> peels off one grouping level automatically. <code>.by</code> scopes grouping to one verb only. But for pipelines mixing <code>group_by()</code> with <code>mutate()</code> and downstream code, ungroup is the safe default.</p>
+
+<p><strong>What is the difference between ungroup() and .by in dplyr?</strong></p>
+
+<p><code>.by = column</code> is a per-call grouping argument introduced in dplyr 1.1. It applies grouping to ONE verb only, no leftover state. <code>ungroup()</code> removes grouping that was attached by <code>group_by()</code>. For new code, <code>.by</code> is often cleaner.</p>
+
+<p><strong>How do I check if a data frame is grouped?</strong></p>
+
+<p>Use <code>is_grouped_df(df)</code> or <code>groups(df)</code>. The former returns TRUE/FALSE; the latter shows the grouping columns.</p>
+
+<p><strong>Why is my mutate producing weird results after group_by?</strong></p>
+
+<p>Because mutate is computing PER GROUP. <code>n()</code>, <code>mean()</code>, <code>rank()</code>, etc., are group-scoped. To compute across the entire data frame, ungroup first.</p>
