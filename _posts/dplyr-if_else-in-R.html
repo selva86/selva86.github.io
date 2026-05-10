@@ -1,0 +1,349 @@
+---
+title: "dplyr if_else() in R: Type-Strict Vectorized Conditional"
+description: "Use dplyr if_else() for a type-strict vectorized conditional in R. Covers if_else vs base ifelse, missing arg, NA handling, type preservation, 5 examples."
+keywords: "dplyr if_else, R if_else, if_else vs ifelse, dplyr conditional vector, R type-strict conditional, if_else missing argument, if_else NA"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "if_else()|dplyr if_else|type-strict conditional|if_else vs ifelse|missing argument"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr if_else() in R: Type-Strict Vectorized Conditional</h1>
+
+<p class="lead">The <code>if_else()</code> function in dplyr is a stricter, type-safer version of base R's <code>ifelse()</code>. It preserves Date / factor / POSIXct classes, errors on type mismatches, and accepts a separate <code>missing</code> argument for NA handling.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>if_else(x &gt; 0, &quot;pos&quot;, &quot;neg&quot;)<span class="qa-cmt">             # type-strict</span>
+if_else(x &gt; 0, x, -x)<span class="qa-cmt">                    # absolute value, preserves type</span>
+if_else(x &gt; 0, x, NA_integer_)<span class="qa-cmt">           # NA_&lt;type&gt;_ for integer NA</span>
+if_else(x &gt; 0, &quot;p&quot;, &quot;n&quot;, missing = &quot;?&quot;)<span class="qa-cmt">  # 3rd value for NAs</span>
+if_else(date_x &gt; today(), &quot;future&quot;, &quot;past&quot;)<span class="qa-cmt">  # preserves Date class</span>
+ifelse(x &gt; 0, &quot;p&quot;, &quot;n&quot;)<span class="qa-cmt">                   # base R: lenient, may strip class</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 if_else vs ifelse vs case_when?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">2 outcomes, type-strict</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dplyr::<a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">if_else()</a></text><text x="125" y="126" class="branch-label">2 outcomes, quick interactive</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">base <a class="auto-link" href="R-Control-Flow.html" title="R Control Flow: if/else, for, and while — Stop Avoiding Loops">ifelse()</a></text><text x="125" y="182" class="branch-label">3+ outcomes</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="dplyr-case_when-in-R.html" title="dplyr case_when() in R: Vectorized Multi-Way If-Else">dplyr::case_when()</a></text><text x="125" y="238" class="branch-label">preserve Date / POSIXct / factor</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">ALWAYS use dplyr::if_else()</text><text x="125" y="294" class="branch-label">explicit NA branch</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">if_else(..., missing = ...)</text><text x="125" y="350" class="branch-label">single scalar condition</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">base if/else</text></svg></div>
+
+<h2>What if_else() does in one sentence</h2>
+
+<p><strong><code>if_else(condition, true, false, missing)</code> returns <code>true</code> where condition is TRUE, <code>false</code> where FALSE, and <code>missing</code> (default NA) where condition is NA.</strong> All three branches must be the SAME TYPE; mismatch errors instead of silently coercing.</p>
+
+<p>This strictness is the main difference from base <code>ifelse()</code>. It catches type bugs early and preserves Date / factor classes.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>if_else(condition, true, false, missing = NA, ptype = NULL, size = NULL)</code>. condition, true, false must be vectors of the same length (or scalars).</strong></p>
+
+<div class="webr-container" data-block-title="Strict 2-way branch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strict 2-way branch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(-2, 0, 3, NA)
+
+if_else(x &gt; 0, &quot;positive&quot;, &quot;non-positive&quot;)
+#&gt; [1] &quot;non-positive&quot; &quot;non-positive&quot; &quot;positive&quot;     NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always reach for <code>dplyr::if_else()</code> when working with Date / POSIXct / factor / Date columns.</strong> Base <code>ifelse()</code> strips class attributes, returning a numeric where you expected a Date.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Two-way recoding</h3>
+
+<div class="webr-container" data-block-title="Binary label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Binary label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(0, 1, 0, 1, 1)
+if_else(y == 1, &quot;yes&quot;, &quot;no&quot;)
+#&gt; [1] &quot;no&quot;  &quot;yes&quot; &quot;no&quot;  &quot;yes&quot; &quot;yes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Replace negatives with zero</h3>
+
+<div class="webr-container" data-block-title="Floor at 0, preserving type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Floor at 0, preserving type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(-2, 0, 3, -5)
+if_else(x &lt; 0, 0L, x)
+#&gt; [1]  0  0  3  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is integer because both branches are integer. With base ifelse it would be double.</p>
+
+<h3>3. Explicit NA branch with missing</h3>
+
+<div class="webr-container" data-block-title="3rd value for NAs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">3rd value for NAs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, NA, 3)
+if_else(x &gt; 1, &quot;high&quot;, &quot;low&quot;, missing = &quot;unknown&quot;)
+#&gt; [1] &quot;low&quot;     &quot;unknown&quot; &quot;high&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>missing</code> defaults to NA; specify it for an explicit third branch.</p>
+
+<h3>4. Preserve Date class</h3>
+
+<div class="webr-container" data-block-title="if_else keeps Date; ifelse strips it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">if_else keeps Date; ifelse strips it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- as.Date(c(&quot;2024-01-15&quot;, &quot;2024-03-20&quot;, &quot;2024-07-04&quot;))
+class(if_else(d &gt; as.Date(&quot;2024-04-01&quot;), d, as.Date(NA)))
+#&gt; [1] &quot;Date&quot;
+
+class(ifelse(d &gt; as.Date(&quot;2024-04-01&quot;), d, as.Date(NA)))
+#&gt; [1] &quot;numeric&quot;   &lt;-- bug from base R</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Combine with mutate in a pipeline</h3>
+
+<div class="webr-container" data-block-title="Add a derived column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a derived column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(score = c(45, 78, 92, 55, 88))
+
+df |&gt;
+  mutate(status = if_else(score &gt;= 70, &quot;pass&quot;, &quot;fail&quot;))
+#&gt;   score status
+#&gt; 1    45   fail
+#&gt; 2    78   pass
+#&gt; 3    92   pass</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>if_else()</code> errors on type mismatch; base <code>ifelse()</code> silently coerces.</strong> <code>if_else(x, 1L, &quot;two&quot;)</code> errors. <code>ifelse(x, 1L, &quot;two&quot;)</code> returns a character vector. The strictness is a feature: it catches type bugs at the call site instead of letting them propagate.</div></div>
+
+<h2>if_else() vs ifelse() vs case_when() vs switch()</h2>
+
+<p><strong>Four conditional functions in R, with different strictness and scope.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Vectorized</th>
+<th>Type-strict</th>
+<th>NA arg</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dplyr::if_else()</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes (<code>missing</code>)</td>
+<td>Production pipelines</td>
+</tr>
+<tr>
+<td><code>base::ifelse()</code></td>
+<td>Yes</td>
+<td>No (coerces)</td>
+<td>No</td>
+<td>Quick interactive</td>
+</tr>
+<tr>
+<td><code>dplyr::case_when()</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Implicit (TRUE branch)</td>
+<td>3+ outcomes</td>
+</tr>
+<tr>
+<td><code>base::switch()</code></td>
+<td>No (scalar)</td>
+<td>Yes (per branch)</td>
+<td>No</td>
+<td>String dispatch</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>if_else</code> for 2-way branches in production code.</li>
+
+<li><code>ifelse</code> for quick scratch work where types don't matter.</li>
+
+<li><code>case_when</code> for 3 or more branches.</li>
+
+<li><code>switch</code> rarely; only for named-string scalar dispatch.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "type-preserving recode" pattern is the canonical if_else use case.</strong></p>
+
+<div class="webr-container" data-block-title="Multi-step type-preserving recoding">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-step type-preserving recoding</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(
+    flag       = if_else(score &gt;= 70, &quot;pass&quot;, &quot;fail&quot;),
+    bonus      = if_else(score &gt;= 90, score * 0.1, 0),
+    next_step  = if_else(is.na(score), &quot;review&quot;, &quot;graded&quot;, missing = &quot;review&quot;)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each line is type-strict: types must match within branches. Date / factor / POSIXct columns survive intact.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: type mismatch errors.</strong> <code>if_else(x &gt; 0, 1L, NA)</code> errors because <code>1L</code> is integer but <code>NA</code> is logical. Use <code>NA_integer_</code> to force integer NA. Common typed NAs: <code>NA_integer_</code>, <code>NA_real_</code>, <code>NA_character_</code>.</p>
+
+<p><strong>Pitfall 2: condition must be logical.</strong> <code>if_else(x, ...)</code> errors if <code>x</code> isn't logical. Use <code>if_else(x &gt; 0, ...)</code> or <code>if_else(as.logical(x), ...)</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>if_else()</code> requires <code>true</code> and <code>false</code> to have the SAME TYPE.</strong> <code>if_else(x, &quot;a&quot;, 1)</code> errors. This catches bugs but means more typing (e.g., <code>NA_integer_</code> instead of <code>NA</code>). Worth it for production code.</div></div>
+
+<h2>Why type strictness matters</h2>
+
+<p><strong>Silent <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">type coercion</a> is the #1 source of "why does my Date column look like a number?" bugs.</strong> Base <code>ifelse()</code> strips class attributes from the FALSE branch when types differ, turning Date into numeric, factor into integer, POSIXct into double. The fix is not "remember to call <code>as.Date()</code> after every ifelse"; it is to use <code>if_else()</code>, which errors on type mismatch. The minor inconvenience of typed NAs (<code>NA_integer_</code>, <code>NA_Date_</code>) is a small price for correctness. In a production pipeline, prefer <code>if_else()</code> everywhere; reserve base <code>ifelse()</code> for one-off interactive scripts where types are obvious.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Create a derived column on <code>mtcars</code> with "efficient" if mpg >= 20, "thirsty" otherwise. Use <code>if_else()</code>. Save to <code>ex_label</code>.</p>
+<div class="webr-container" data-block-title="Your turn: efficiency label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: efficiency label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_label &lt;- mtcars |&gt;
+  # your code here
+
+head(ex_label$category)
+#&gt; Expected: c(&quot;efficient&quot; or &quot;thirsty&quot; per row)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_label &lt;- mtcars |&gt;
+  mutate(category = if_else(mpg &gt;= 20, &quot;efficient&quot;, &quot;thirsty&quot;))
+
+head(ex_label[, c(&quot;mpg&quot;, &quot;category&quot;)])
+#&gt;                    mpg  category
+#&gt; Mazda RX4         21.0 efficient
+#&gt; Mazda RX4 Wag     21.0 efficient
+#&gt; Datsun 710        22.8 efficient
+#&gt; Hornet 4 Drive    21.4 efficient
+#&gt; Hornet Sportabout 18.7   thirsty
+#&gt; Valiant           18.1   thirsty</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>if_else(mpg &gt;= 20, &quot;efficient&quot;, &quot;thirsty&quot;)</code> is type-strict (both branches character) and vectorized.</p>
+
+</details>
+</section>
+
+<h2>Related conditional functions</h2>
+
+<p>After mastering if_else, look at:</p>
+
+<ul>
+
+<li><code>case_when()</code>: 3+ branches</li>
+
+<li><code>case_match()</code>: switch-style value matching</li>
+
+<li><code>coalesce()</code>: first non-NA across vectors</li>
+
+<li><code>na_if()</code>: convert specific value to NA</li>
+
+<li><code>dplyr::recode()</code>: 1-to-1 value mapping</li>
+
+<li><code>cut()</code>: bin numeric to intervals</li>
+
+</ul>
+
+<p>For 3+ outcomes, <code>case_when</code> is dramatically more readable than nested if_else.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between if_else and ifelse in R?</strong></p>
+
+<p><code>dplyr::if_else()</code> is type-strict (errors on mismatched branch types) and preserves classes (Date, factor, POSIXct). <code>base::ifelse()</code> is permissive (silently coerces) and strips classes.</p>
+
+<p><strong>Why does if_else error when ifelse worked?</strong></p>
+
+<p>Because if_else requires both branches to be the SAME TYPE. The error is intentional: it catches type bugs early.</p>
+
+<p><strong>How do I use NA in if_else?</strong></p>
+
+<p>Use a typed NA matching the other branch: <code>NA_integer_</code>, <code>NA_real_</code>, <code>NA_character_</code>, <code>NA_Date_</code>. <code>if_else(x &gt; 0, x, NA_real_)</code> works; <code>if_else(x &gt; 0, x, NA)</code> may not.</p>
+
+<p><strong>What is the missing argument in if_else?</strong></p>
+
+<p><code>missing</code> is the value used when the condition is NA. Default is NA (matching the other branches' type). Set it explicitly for a 3-way branch including NAs.</p>
+
+<p><strong>Should I use if_else or case_when?</strong></p>
+
+<p><code>if_else</code> for exactly 2 outcomes; <code>case_when</code> for 3 or more. case_when's vertical layout is much more readable than nested if_else.</p>

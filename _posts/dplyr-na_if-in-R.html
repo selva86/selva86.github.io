@@ -1,0 +1,343 @@
+---
+title: "dplyr na_if() in R: Convert a Specific Value to NA"
+description: "Use dplyr na_if() to convert specific sentinel values like -99 or empty strings to NA in R. Covers scalar and vector matching, vs replace_na, 5 examples."
+keywords: "dplyr na_if, R convert to NA, na_if sentinel, replace value with NA, na_if vs replace_na, dplyr clean missing values"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "na_if()|dplyr na_if|convert to NA|sentinel value|replace value with NA"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr na_if() in R: Convert a Specific Value to NA</h1>
+
+<p class="lead">The <code>na_if()</code> function in dplyr converts a specific sentinel value (like <code>-99</code>, <code>""</code>, or <code>"N/A"</code>) into proper <code>NA</code>. It is the inverse of <code>tidyr::replace_na()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>na_if(x, -99)<span class="qa-cmt">                        # convert -99 to NA</span>
+na_if(x, &quot;&quot;)<span class="qa-cmt">                         # empty string to NA</span>
+na_if(x, &quot;N/A&quot;)<span class="qa-cmt">                      # text sentinel to NA</span>
+df |&gt; mutate(across(where(is.numeric), ~ na_if(.x, -99)))
+df |&gt; mutate(name = na_if(name, &quot;&quot;))<span class="qa-cmt">  # in mutate</span>
+tidyr::replace_na(x, 0)<span class="qa-cmt">              # opposite: NA -&gt; 0</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is na_if() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one specific sentinel value -&gt; NA</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">na_if()</text><text x="125" y="126" class="branch-label">multiple sentinels</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">case_when()</a> or chain na_if calls</text><text x="125" y="182" class="branch-label">NA -&gt; something else</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">tidyr::replace_na()</a></text><text x="125" y="238" class="branch-label">recode many values to NA</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">case_when(value %in% sentinels ~ NA, TRUE ~ value)</text><text x="125" y="294" class="branch-label">empty string -&gt; NA on character columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">na_if(x, &quot;&quot;)</text><text x="125" y="350" class="branch-label">specific NA -&gt; first non-NA fallback</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">coalesce()</text></svg></div>
+
+<h2>What na_if() does in one sentence</h2>
+
+<p><strong><code>na_if(x, y)</code> returns a vector identical to <code>x</code> except every element equal to <code>y</code> is replaced with <code>NA</code> of the appropriate type.</strong> The two arguments must be the same type.</p>
+
+<p>This is the standard tool for cleaning datasets that use sentinel values (<code>-99</code>, <code>999</code>, <code>&quot;&quot;</code>, <code>&quot;N/A&quot;</code>) instead of true NA. Almost every real-world data cleaning pipeline calls it at least once.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>na_if(x, y)</code>. y is a single value (scalar) of the same type as x.</strong></p>
+
+<div class="webr-container" data-block-title="Convert -99 sentinels to NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert -99 sentinels to NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(10, -99, 30, -99, 50)
+na_if(x, -99)
+#&gt; [1] 10 NA 30 NA 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>na_if()</code> is most powerful inside <code>across()</code> for cleaning many columns at once.</strong> <code>mutate(across(everything(), ~ na_if(.x, -99)))</code> cleans every column in one step.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Numeric sentinel</h3>
+
+<div class="webr-container" data-block-title="-99 means missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">-99 means missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, -99, 30, -99, 50)
+na_if(x, -99)
+#&gt; [1] 10 NA 30 NA 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most common cleanup pattern from legacy datasets.</p>
+
+<h3>2. Empty string to NA</h3>
+
+<div class="webr-container" data-block-title="Common in scraped or CSV data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Common in scraped or CSV data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(&quot;alice&quot;, &quot;&quot;, &quot;bob&quot;, &quot;&quot;)
+na_if(y, &quot;&quot;)
+#&gt; [1] &quot;alice&quot; NA      &quot;bob&quot;   NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Text sentinel "N/A"</h3>
+
+<div class="webr-container" data-block-title="Convert text &#x27;N/A&#x27; to actual NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert text &#x27;N/A&#x27; to actual NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(&quot;A&quot;, &quot;B&quot;, &quot;N/A&quot;, &quot;C&quot;, &quot;N/A&quot;)
+na_if(codes, &quot;N/A&quot;)
+#&gt; [1] &quot;A&quot; &quot;B&quot; NA  &quot;C&quot; NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Apply across many columns</h3>
+
+<div class="webr-container" data-block-title="Clean -99 from every numeric column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean -99 from every numeric column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = c(1, -99, 3), b = c(-99, 5, 6), c = c(7, 8, -99))
+
+df |&gt;
+  mutate(across(everything(), ~ na_if(.x, -99)))
+#&gt;    a  b  c
+#&gt; 1  1 NA  7
+#&gt; 2 NA  5  8
+#&gt; 3  3  6 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>across(everything(), ~ na_if(.x, -99))</code> cleans every column in one step.</p>
+
+<h3>5. Multiple sentinels via chaining</h3>
+
+<div class="webr-container" data-block-title="Two sentinels: -99 and -999">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two sentinels: -99 and -999</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, -99, 30, -999, 50)
+x |&gt;
+  na_if(-99) |&gt;
+  na_if(-999)
+#&gt; [1] 10 NA 30 NA 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For many sentinels, prefer <code>case_when</code> or a custom helper.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>na_if(x, y)</code> and <code>tidyr::replace_na(x, y)</code> are inverses.</strong> <code>na_if</code> converts a specific value to NA. <code>replace_na</code> converts NA to a specific value. Together they let you switch back and forth between sentinel and proper-NA representations.</div></div>
+
+<h2>na_if() vs replace_na() vs case_when() vs base ifelse</h2>
+
+<p><strong>Four ways to handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> and sentinels in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Direction</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>na_if(x, y)</code></td>
+<td>value -> NA</td>
+<td>One specific sentinel</td>
+</tr>
+<tr>
+<td><code>tidyr::replace_na(x, y)</code></td>
+<td>NA -> value</td>
+<td>Convert NA to default</td>
+</tr>
+<tr>
+<td><code>case_when()</code></td>
+<td>many -> NA</td>
+<td>Multiple sentinels</td>
+</tr>
+<tr>
+<td><code>if_else(x == y, NA, x)</code></td>
+<td>one -> NA, explicit</td>
+<td>Equivalent of na_if</td>
+</tr>
+<tr>
+<td><code>coalesce(x, y)</code></td>
+<td>first-non-NA</td>
+<td>Fallback chain</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>na_if(x, y)</code> for one sentinel.</li>
+
+<li><code>case_when</code> for multiple sentinels in one shot.</li>
+
+<li><code>replace_na</code> for the inverse direction.</li>
+
+<li><code>coalesce</code> to pick the first non-NA across multiple vectors.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The standard "clean a CSV" pattern uses na_if + across to scrub sentinels.</strong></p>
+
+<div class="webr-container" data-block-title="Clean numeric and character sentinels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean numeric and character sentinels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  mutate(across(where(is.numeric), ~ na_if(.x, -99))) |&gt;
+  mutate(across(where(is.character), ~ na_if(.x, &quot;&quot;)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This cleans <code>-99</code> from numeric columns and empty strings from character columns in two lines. Combined with <code>summarise(across(everything(), ~ sum(is.na(.x))))</code> for an NA-count audit, it makes <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">data import</a> auditable.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: type mismatch.</strong> <code>na_if(c(1, 2, 3), &quot;1&quot;)</code> errors because <code>c(1, 2, 3)</code> is numeric but <code>&quot;1&quot;</code> is character. The two arguments must share a type.</p>
+
+<p><strong>Pitfall 2: only ONE sentinel per call.</strong> <code>na_if(x, c(-99, -999))</code> does NOT convert both. It treats the second as a recycling vector. Chain calls or use <code>case_when</code> for multiple sentinels.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>na_if(x, NA)</code> returns x unchanged.</strong> NA does not equal NA, so the equality test fails. To recode NA to something else, use <code>replace_na</code> (the inverse) or <code>coalesce</code>.</div></div>
+
+<h2>Why proper NAs matter</h2>
+
+<p><strong>Sentinel values like -99 or "" silently break statistical functions.</strong> <code>mean(c(10, -99, 30))</code> returns -19.7, not 20: the -99 is treated as a real observation. Switching to NA fixes this AS LONG AS the function accepts <code>na.rm = TRUE</code>. Even better, NA propagation through arithmetic and comparison is well-defined (<code>NA + 1</code> is NA), whereas sentinel propagation through <code>-99 + 1 = -98</code> produces nonsense without warning. The first step of any data import should be: identify the sentinels, convert with <code>na_if</code>, then audit with <code>summarise(across(everything(), ~ sum(is.na(.x))))</code>. This makes downstream analysis trustworthy.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Replace every "" (empty string) and "missing" sentinel in vector <code>survey</code> with NA. Save to <code>ex_clean</code>.</p>
+<div class="webr-container" data-block-title="Your turn: clean two sentinels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: clean two sentinels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey &lt;- c(&quot;yes&quot;, &quot;&quot;, &quot;no&quot;, &quot;missing&quot;, &quot;yes&quot;, &quot;&quot;)
+
+ex_clean &lt;- # your code here
+
+ex_clean
+#&gt; Expected: c(&quot;yes&quot;, NA, &quot;no&quot;, NA, &quot;yes&quot;, NA)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_clean &lt;- survey |&gt;
+  na_if(&quot;&quot;) |&gt;
+  na_if(&quot;missing&quot;)
+
+ex_clean
+#&gt; [1] &quot;yes&quot; NA    &quot;no&quot;  NA    &quot;yes&quot; NA
+
+# Alternative with case_when:
+ex_alt &lt;- case_when(
+  survey %in% c(&quot;&quot;, &quot;missing&quot;) ~ NA_character_,
+  TRUE ~ survey
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Chain two na_if calls, one per sentinel. case_when with <code>%in%</code> is cleaner for many sentinels.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr / tidyr functions</h2>
+
+<p>After mastering na_if, look at:</p>
+
+<ul>
+
+<li><code>tidyr::replace_na()</code>: inverse direction (NA -> value)</li>
+
+<li><code>dplyr::coalesce()</code>: first non-NA across vectors</li>
+
+<li><code>dplyr::case_when()</code>: multi-condition mapping including NA</li>
+
+<li><code>dplyr::case_match()</code>: switch-style value mapping</li>
+
+<li><code>is.na()</code>: detect <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a></li>
+
+<li><code>naniar::replace_with_na()</code>: tidyverse-extension; multi-sentinel cleaning</li>
+
+</ul>
+
+<p>For multi-sentinel cleaning at scale, <code>naniar::replace_with_na_all()</code> accepts a vector of sentinels.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does na_if do in dplyr?</strong></p>
+
+<p><code>na_if(x, y)</code> returns x with every element equal to y replaced by NA. Used to convert sentinel values (-99, "", "N/A") to proper NA.</p>
+
+<p><strong>How do I convert empty strings to NA in dplyr?</strong></p>
+
+<p><code>na_if(x, &quot;&quot;)</code> for one column. For all character columns: <code>mutate(across(where(is.character), ~ na_if(.x, &quot;&quot;)))</code>.</p>
+
+<p><strong>What is the difference between na_if and replace_na?</strong></p>
+
+<p>They are inverses. <code>na_if(x, y)</code> converts y to NA. <code>tidyr::replace_na(x, y)</code> converts NA to y. Use them together to switch between sentinel and proper-NA representations.</p>
+
+<p><strong>Can na_if handle multiple sentinels at once?</strong></p>
+
+<p>Not directly. Either chain calls (<code>na_if(x, -99) |&gt; na_if(-999)</code>) or use <code>case_when(x %in% sentinels ~ NA, TRUE ~ x)</code> for one-shot multi-sentinel cleaning.</p>
+
+<p><strong>Why didn't na_if(x, NA) work?</strong></p>
+
+<p>Because <code>NA == NA</code> is <code>NA</code>, not TRUE. The equality test fails. To recode NA, use <code>replace_na</code> (NA -> value) or <code>coalesce</code> (NA -> fallback).</p>

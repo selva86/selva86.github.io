@@ -1,0 +1,349 @@
+---
+title: "dplyr c_across() in R: Combine Columns Within rowwise()"
+description: "Use dplyr c_across() inside rowwise() to compute across columns row-wise in R. Covers c_across vs across, tidyselect helpers, pmap alternative, 5 examples."
+keywords: "dplyr c_across, R rowwise sum, c_across vs across, dplyr row sum, c_across tidyselect, R per row computation, c_across mean"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "c_across()|dplyr c_across|rowwise sum|row-wise computation|c_across vs across"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr c_across() in R: Combine Columns Within rowwise()</h1>
+
+<p class="lead">The <code>c_across()</code> function in dplyr concatenates values from multiple columns into a single vector, ROW BY ROW, when used inside <code>rowwise()</code>. It is the row-wise counterpart of <code>across()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; rowwise() |&gt; mutate(total = sum(c_across(x:z)))
+df |&gt; rowwise() |&gt; mutate(avg = mean(c_across(starts_with(&quot;score&quot;))))
+df |&gt; rowwise() |&gt; mutate(n_na = sum(is.na(c_across(everything()))))
+df |&gt; rowwise() |&gt; mutate(min_v = min(c_across(where(is.numeric))))
+df |&gt; mutate(total = rowSums(across(x:z)))<span class="qa-cmt">    # often faster</span>
+df |&gt; mutate(total = pmap_dbl(across(x:z), sum))<span class="qa-cmt"> # purrr alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is c_across() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">row-wise sum / mean over many columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rowwise + c_across, OR rowSums/rowMeans</text><text x="125" y="126" class="branch-label">per-column transformation</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">across() (no rowwise needed)</text><text x="125" y="182" class="branch-label">rowSums / rowMeans available</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">prefer those (faster)</text><text x="125" y="238" class="branch-label">variable-length per row</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rowwise + c_across</text><text x="125" y="294" class="branch-label">non-numeric reduction (paste, list)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rowwise + c_across is the right tool</text><text x="125" y="350" class="branch-label">count NAs per row</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rowwise + sum(is.na(c_across(everything())))</text></svg></div>
+
+<h2>What c_across() does in one sentence</h2>
+
+<p><strong><code>c_across(cols)</code> collects the values from <code>cols</code> of the CURRENT row into a single vector, so you can call <code>sum</code>, <code>mean</code>, <code>paste</code>, etc. on it.</strong> It only makes sense inside <code>rowwise()</code>; outside it, behavior is undefined.</p>
+
+<p><code>c_across()</code> is the row-wise sister of <code>across()</code>. Where <code>across()</code> applies a function to many COLUMNS, <code>c_across()</code> collects values from many columns into ONE row-wise vector.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>c_across(cols)</code>. <code>cols</code> uses tidyselect helpers: <code>everything()</code>, <code>starts_with()</code>, <code>where(is.numeric)</code>, <code>x:z</code>.</strong></p>
+
+<div class="webr-container" data-block-title="Sum across three columns row-wise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum across three columns row-wise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+df &lt;- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+df |&gt;
+  rowwise() |&gt;
+  mutate(total = sum(c_across(x:z))) |&gt;
+  ungroup()
+#&gt;   x y z total
+#&gt; 1 1 4 7    12
+#&gt; 2 2 5 8    15
+#&gt; 3 3 6 9    18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For row-wise sum or mean, <code>rowSums()</code> and <code>rowMeans()</code> are faster than <code>rowwise() + c_across()</code>.</strong> Reserve c_across for non-<a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">vectorized operations</a> like <code>paste</code>, <code>min</code>, <code>max</code> over arbitrary column subsets.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Row-wise sum</h3>
+
+<div class="webr-container" data-block-title="Total across columns x to z">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Total across columns x to z</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  rowwise() |&gt;
+  mutate(total = sum(c_across(x:z))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For pure sums, <code>mutate(total = rowSums(across(x:z)))</code> is faster.</p>
+
+<h3>2. Row-wise mean of selected columns</h3>
+
+<div class="webr-container" data-block-title="Mean of all numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of all numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  rowwise() |&gt;
+  mutate(avg = mean(c_across(where(is.numeric)))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>where(is.numeric)</code> selects numeric columns dynamically.</p>
+
+<h3>3. Count NAs per row</h3>
+
+<div class="webr-container" data-block-title="Number of missing values per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Number of missing values per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_na &lt;- data.frame(a = c(1, NA, 3), b = c(NA, 2, NA), c = c(1, 2, NA))
+
+df_na |&gt;
+  rowwise() |&gt;
+  mutate(n_na = sum(is.na(c_across(everything())))) |&gt;
+  ungroup()
+#&gt;   a  b  c n_na
+#&gt; 1 1 NA  1    1
+#&gt; 2 NA 2  2    1
+#&gt; 3 3 NA NA    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A common data-quality check.</p>
+
+<h3>4. Per-row min or max</h3>
+
+<div class="webr-container" data-block-title="Find the smallest value per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the smallest value per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  rowwise() |&gt;
+  mutate(min_v = min(c_across(x:z))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>base R has <code>pmin(x, y, z)</code> for parallel min; c_across is more general.</p>
+
+<h3>5. Combine string columns row-wise</h3>
+
+<div class="webr-container" data-block-title="Concatenate text columns per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Concatenate text columns per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">text_df &lt;- data.frame(
+  first = c(&quot;Alice&quot;, &quot;Bob&quot;),
+  last  = c(&quot;Smith&quot;, &quot;Jones&quot;)
+)
+
+text_df |&gt;
+  rowwise() |&gt;
+  mutate(full = paste(c_across(everything()), collapse = &quot; &quot;)) |&gt;
+  ungroup()
+#&gt;   first  last        full
+#&gt; 1 Alice Smith Alice Smith
+#&gt; 2   Bob Jones   Bob Jones</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For text-joining, <code>tidyr::unite()</code> is often cleaner.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>c_across()</code> requires <code>rowwise()</code> to make sense.</strong> Without rowwise, c_across either errors or returns the entire column. They are a paired idiom. If you forget rowwise, you get all values across the whole table, not per-row.</div></div>
+
+<h2>c_across() vs across() vs rowSums()</h2>
+
+<p><strong>Three approaches to "operate over columns" in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Style</th>
+<th>Speed</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>c_across(cols)</code></td>
+<td>Row-wise (one vector per row)</td>
+<td>Slower</td>
+<td>Non-vectorized reductions</td>
+</tr>
+<tr>
+<td><code>across(cols, fn)</code></td>
+<td>Column-wise (apply fn to each col)</td>
+<td>Fast</td>
+<td>Per-column transformations</td>
+</tr>
+<tr>
+<td><code>rowSums()</code> / <code>rowMeans()</code></td>
+<td>Built-in row-wise</td>
+<td>Fastest</td>
+<td>Sum / mean <a class="auto-link" href="dplyr-across-in-R.html" title="dplyr across() in R: Apply Functions to Many Columns">across columns</a></td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>rowSums(across(x:z))</code> for fast row-wise sum.</li>
+
+<li><code>c_across</code> inside rowwise for arbitrary row-wise reductions.</li>
+
+<li><code>across()</code> for "apply fn to each column" (no rowwise needed).</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Most c_across uses fall into three categories: row sums of subsets, NA counts per row, and string-paste per row.</strong> For each, there is a faster specialized tool, but c_across handles the irregular cases:</p>
+
+<ul>
+
+<li>Variable subset of columns chosen via tidyselect each call.</li>
+
+<li>Reductions that aren't <code>sum</code>/<code>mean</code> (e.g., <code>paste</code>, <code>var</code>, <code>median</code>).</li>
+
+<li>Custom logic per row (e.g., "is at least one column > threshold?").</li>
+
+</ul>
+
+<p>If you find yourself writing <code>rowwise() + c_across()</code> for sum/mean, switch to <code>rowSums()/rowMeans()</code> with <code>across()</code> for 10-100x speedup on large data.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting rowwise.</strong> <code>df |&gt; mutate(total = sum(c_across(x:z)))</code> returns the SUM OF THE ENTIRE x-to-z block, not per row. Add <code>rowwise()</code>.</p>
+
+<p><strong>Pitfall 2: forgetting to ungroup.</strong> <code>rowwise()</code> is a special grouping. Downstream operations stay rowwise unless you <code>ungroup()</code>. Subtle bugs result from this.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rowwise() + c_across()</code> is SLOW on large data frames.</strong> Each row does a separate function call. For sum/mean over many rows, use <code>rowSums()</code> or <code>rowMeans()</code> (vectorized C code). Reserve c_across for situations where vectorized alternatives don't exist.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each row of a data frame with columns a, b, c, d, compute the maximum value across the four columns. Save to <code>ex_maxes</code>.</p>
+<div class="webr-container" data-block-title="Your turn: row-wise max">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: row-wise max</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = c(3,5,1), b = c(2,4,6), c = c(7,1,2), d = c(4,3,8))
+
+ex_maxes &lt;- df |&gt;
+  # your code here
+
+ex_maxes
+#&gt; Expected: c(7, 5, 8) per row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_maxes &lt;- df |&gt;
+  rowwise() |&gt;
+  mutate(row_max = max(c_across(a:d))) |&gt;
+  ungroup() |&gt;
+  pull(row_max)
+
+ex_maxes
+#&gt; [1] 7 5 8
+
+# Alternative without rowwise (faster):
+ex_maxes2 &lt;- pmax(df$a, df$b, df$c, df$d)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>c_across(a:d)</code> collects each row's a, b, c, d values; <code>max()</code> reduces to a scalar. For pure pmax, base R is faster.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering c_across, look at:</p>
+
+<ul>
+
+<li><code>across()</code>: per-column counterpart</li>
+
+<li><code>rowwise()</code>: required pairing with c_across</li>
+
+<li><code>rowSums()</code> / <code>rowMeans()</code>: fast specialized</li>
+
+<li><code>pmap()</code> / <code>pmap_dbl()</code>: purrr alternative for row-wise mapping</li>
+
+<li><code>pmin()</code> / <code>pmax()</code>: parallel min/max in base R</li>
+
+<li><code>tidyr::unite()</code>: text concatenation across columns</li>
+
+</ul>
+
+<p>For most numeric row reductions, the rowSums/rowMeans family beats c_across on speed and clarity.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between c_across and across in dplyr?</strong></p>
+
+<p><code>across()</code> applies a function to each COLUMN; <code>c_across()</code> collects values from many columns into ONE row-wise vector. across is column-wise; c_across is row-wise (and requires rowwise).</p>
+
+<p><strong>Why do I need rowwise() with c_across?</strong></p>
+
+<p><code>c_across()</code> only makes sense per row. Without <code>rowwise()</code>, it returns the entire concatenated block of columns, not a per-row vector. They must be paired.</p>
+
+<p><strong>Is c_across slow for row sums?</strong></p>
+
+<p>Yes. For pure row sum or mean, prefer <code>rowSums(across(x:z))</code> or <code>rowMeans(across(x:z))</code>: vectorized C code, much faster than rowwise + c_across.</p>
+
+<p><strong>How do I count NAs per row in dplyr?</strong></p>
+
+<p><code>df |&gt; rowwise() |&gt; mutate(n_na = sum(is.na(c_across(everything())))) |&gt; ungroup()</code>. Or for speed: <code>mutate(n_na = rowSums(is.na(across(everything()))))</code>.</p>
+
+<p><strong>Can I use tidyselect helpers inside c_across?</strong></p>
+
+<p>Yes. <code>c_across(starts_with(&quot;x_&quot;))</code>, <code>c_across(where(is.numeric))</code>, <code>c_across(everything())</code> all work. Same syntax as <code>select()</code> and <code>across()</code>.</p>

@@ -1,0 +1,358 @@
+---
+title: "dplyr rowwise() in R: Compute One Row at a Time"
+description: "Use dplyr rowwise() to operate on a data frame one row at a time in R. Covers rowwise + c_across, when to prefer vectorized alternatives, and 5 examples."
+keywords: "dplyr rowwise, R rowwise mutate, rowwise vs vectorized, dplyr per-row, rowwise c_across, R row-by-row computation, rowwise alternative"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rowwise()|dplyr rowwise|per-row computation|rowwise mutate|row-by-row"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr rowwise() in R: Compute One Row at a Time</h1>
+
+<p class="lead">The <code>rowwise()</code> function in dplyr converts a tibble into a special grouped form where every row is its own group. Subsequent <code>mutate()</code> calls operate one row at a time, useful when a function is NOT vectorized.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; rowwise() |&gt; mutate(total = sum(c_across(x:z)))
+df |&gt; rowwise() |&gt; mutate(min_v = min(c(a, b, c)))
+df |&gt; rowwise() |&gt; mutate(model = list(lm(y ~ x, data = data)))
+df |&gt; rowwise(id) |&gt; mutate(...)<span class="qa-cmt">              # preserve id col</span>
+df |&gt; mutate(total = rowSums(across(x:z)))<span class="qa-cmt">    # vectorized alternative</span>
+df |&gt; mutate(model = pmap(list(...), fn))<span class="qa-cmt">     # purrr alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rowwise() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">per-row reduction (sum, mean) over columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">prefer rowSums/rowMeans/across</text><text x="125" y="126" class="branch-label">per-row call to a non-vectorized function</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rowwise()</text><text x="125" y="182" class="branch-label">per-row model fitting on list-column data</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rowwise() or purrr::map</text><text x="125" y="238" class="branch-label">per-row string paste</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rowwise + paste, or tidyr::unite</text><text x="125" y="294" class="branch-label">vectorized arithmetic on columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">just use mutate (no rowwise)</text><text x="125" y="350" class="branch-label">row min / max across cols</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pmin / pmax (base R)</text></svg></div>
+
+<h2>What rowwise() does in one sentence</h2>
+
+<p><strong><code>rowwise(.data, ...)</code> returns a tibble where each row forms its own group, so subsequent <code>mutate()</code> evaluates expressions ONE ROW AT A TIME.</strong> Optional grouping vars (<code>...</code>) are kept in the row identity but otherwise behave like grouping columns.</p>
+
+<p>The big win: lets you call functions that weren't designed for vectors (<code>lm</code>, <code>paste</code>, <code>min</code> over many columns) on each row independently. The big cost: speed.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rowwise(.data, ...)</code>. Returns a <code>rowwise_df</code>. Always pair with <code>ungroup()</code> afterwards.</strong></p>
+
+<div class="webr-container" data-block-title="Per-row sum over selected columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-row sum over selected columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+df &lt;- data.frame(x = 1:3, y = 4:6, z = 7:9)
+
+df |&gt;
+  rowwise() |&gt;
+  mutate(total = sum(c(x, y, z))) |&gt;
+  ungroup()
+#&gt;   x y z total
+#&gt; 1 1 4 7    12
+#&gt; 2 2 5 8    15
+#&gt; 3 3 6 9    18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For numeric reductions over columns, use <code>rowSums()</code> or <code>rowMeans()</code>: they are vectorized and much faster.</strong> rowwise is for cases vectorized alternatives can't handle.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Row-wise sum or mean</h3>
+
+<div class="webr-container" data-block-title="Sum across columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum across columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  rowwise() |&gt;
+  mutate(total = sum(c_across(x:z))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For real code, prefer <code>mutate(total = rowSums(across(x:z)))</code>: vectorized.</p>
+
+<h3>2. Per-row min / max with mixed columns</h3>
+
+<div class="webr-container" data-block-title="Smallest value per row across selected columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smallest value per row across selected columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  rowwise() |&gt;
+  mutate(min_v = min(c(x, y, z))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>pmin(df$x, df$y, df$z)</code> does the same vectorized.</p>
+
+<h3>3. Fit a model per group (with list-columns)</h3>
+
+<div class="webr-container" data-block-title="One model per group via rowwise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One model per group via rowwise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  tidyr::nest()
+
+nested |&gt;
+  rowwise() |&gt;
+  mutate(model = list(lm(mpg ~ wt, data = data))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>list()</code> wraps the model object so it fits in a list-column. Classic many-models pattern.</p>
+
+<h3>4. String paste per row</h3>
+
+<div class="webr-container" data-block-title="Concatenate columns row-wise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Concatenate columns row-wise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_text &lt;- data.frame(a = c(&quot;x&quot;,&quot;y&quot;), b = c(&quot;1&quot;,&quot;2&quot;))
+
+df_text |&gt;
+  rowwise() |&gt;
+  mutate(combo = paste(a, b, sep = &quot;-&quot;)) |&gt;
+  ungroup()
+#&gt;   a b combo
+#&gt; 1 x 1   x-1
+#&gt; 2 y 2   y-2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>paste()</code> IS vectorized; rowwise is unnecessary here. <code>mutate(combo = paste(a, b, sep=&quot;-&quot;))</code> works too.</p>
+
+<h3>5. Apply a non-vectorized custom function</h3>
+
+<div class="webr-container" data-block-title="Function that takes a vector, returns a scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function that takes a vector, returns a scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mode_val &lt;- function(v) {
+  ux &lt;- unique(v)
+  ux[which.max(tabulate(match(v, ux)))]
+}
+
+df |&gt;
+  rowwise() |&gt;
+  mutate(mode_xyz = mode_val(c(x, y, z))) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When no vectorized alternative exists, rowwise is the right tool.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>rowwise()</code> is a SPECIAL kind of grouping.</strong> Internally, dplyr treats each row as its own group. Most operations that work on grouped tibbles also work on rowwise tibbles. The key difference: every group has exactly one row.</div></div>
+
+<h2>rowwise() vs vectorized vs purrr::pmap</h2>
+
+<p><strong>Three approaches to per-row computation in R, with different speed and clarity.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Speed</th>
+<th>Clarity</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vectorized (<code>rowSums</code>, <code>pmin</code>, <code>paste</code>)</td>
+<td>Fastest</td>
+<td>Cleanest</td>
+<td>When a vectorized version exists</td>
+</tr>
+<tr>
+<td><code>rowwise()</code> + mutate</td>
+<td>Slow</td>
+<td>OK</td>
+<td>Non-vectorized functions; <a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">list-column workflows</a></td>
+</tr>
+<tr>
+<td><code>purrr::pmap()</code></td>
+<td>Medium</td>
+<td>OK</td>
+<td>Multi-arg row-wise mapping; type-safe via pmap_dbl etc.</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Always check for a vectorized alternative first. If <code>rowSums</code>, <code>pmin</code>, <code>paste</code>, <code>coalesce</code>, etc. exists, use that.</li>
+
+<li>If you have a function like <code>lm()</code>, <code>cor()</code>, <code>paste()</code> over many columns, rowwise is reasonable.</li>
+
+<li>For data-flow style (no list columns), <code>purrr::pmap_dbl(list(x, y, z), sum)</code> may be cleaner.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "many models" pattern is the killer use case for rowwise.</strong></p>
+
+<div class="webr-container" data-block-title="Many models via rowwise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Many models via rowwise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  tidyr::nest() |&gt;
+  rowwise() |&gt;
+  mutate(
+    model = list(lm(mpg ~ wt, data = data)),
+    r2    = summary(model)$r.squared
+  ) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row holds one nested data frame and one fitted model. List-columns + rowwise = elegant repeated modeling. Outside this pattern, prefer vectorized solutions.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: rowwise applies to ALL subsequent verbs.</strong> <code>df |&gt; rowwise() |&gt; mutate(total = sum(c(x,y,z))) |&gt; filter(total &gt; 10)</code> filters per-row (which works), but the <code>total &gt; 10</code> is also evaluated per-row. Always <code>ungroup()</code> when done.</p>
+
+<p><strong>Pitfall 2: passing column names without <code>c()</code>.</strong> <code>mutate(total = sum(x, y, z))</code> works only if <code>x</code>, <code>y</code>, <code>z</code> are length-1. With rowwise, they ARE length-1 per row, so it works. Without rowwise, <code>sum(x, y, z)</code> sums all three columns into one scalar.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rowwise()</code> is SLOW for big data.</strong> Each row spawns a separate evaluation context. For a 1M-row data frame, this is orders of magnitude slower than vectorized alternatives. Always benchmark before shipping rowwise-heavy code.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each row of <code>mtcars</code>, compute the max of <code>mpg</code>, <code>disp/100</code>, and <code>hp/10</code>. Save to <code>ex_max_metric</code>.</p>
+<div class="webr-container" data-block-title="Your turn: row-wise max of derived quantities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: row-wise max of derived quantities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_max_metric &lt;- mtcars |&gt;
+  # your code here
+
+head(ex_max_metric)
+#&gt; Expected: numeric vector of per-row max values</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_max_metric &lt;- mtcars |&gt;
+  rowwise() |&gt;
+  mutate(max_metric = max(mpg, disp/100, hp/10)) |&gt;
+  ungroup() |&gt;
+  pull(max_metric)
+
+head(ex_max_metric)
+#&gt; [1] 21.0 21.0 22.8 21.4 18.7 18.1   (depends on row)
+
+# Vectorized alternative:
+ex_alt &lt;- pmax(mtcars$mpg, mtcars$disp/100, mtcars$hp/10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> rowwise + max works per row. <code>pmax()</code> is the vectorized equivalent and is much faster.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering rowwise, look at:</p>
+
+<ul>
+
+<li><code>c_across()</code>: paired with rowwise for column-vector reductions</li>
+
+<li><code>across()</code>: column-wise transformation</li>
+
+<li><code>tidyr::nest()</code>: create list-columns for many-models workflows</li>
+
+<li><code>purrr::pmap()</code>: multi-arg row-wise mapping</li>
+
+<li><code>rowSums()</code> / <code>rowMeans()</code>: fast specialized</li>
+
+<li><code>ungroup()</code>: always pair with rowwise to drop the grouping</li>
+
+</ul>
+
+<p>For multi-input row-wise mapping, <code>purrr::pmap()</code> is often cleaner than rowwise + mutate.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rowwise do in dplyr?</strong></p>
+
+<p><code>rowwise(df)</code> makes every row its own group. Subsequent <code>mutate()</code> evaluates expressions one row at a time, useful when a function expects scalars.</p>
+
+<p><strong>When should I use rowwise vs <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">vectorized operations</a>?</strong></p>
+
+<p>Always prefer vectorized when possible (rowSums, pmin, paste, etc.). Use rowwise only when a function expects scalars and there is no vectorized alternative.</p>
+
+<p><strong>Is rowwise slower than mutate?</strong></p>
+
+<p>Yes, often 10-100x slower. Each row spawns a separate evaluation. For numeric reductions, switch to rowSums / rowMeans / pmin / pmax.</p>
+
+<p><strong>How do I fit one model per group with rowwise?</strong></p>
+
+<p><code>df |&gt; group_by(g) |&gt; tidyr::nest() |&gt; rowwise() |&gt; mutate(model = list(lm(y ~ x, data = data)))</code>. The <code>list()</code> wraps the model so it fits in a list-column.</p>
+
+<p><strong>Do I need to ungroup() after rowwise?</strong></p>
+
+<p>Yes. rowwise is a kind of grouping; downstream verbs continue to operate per-row unless you call <code>ungroup()</code>. Forgetting this is a common bug.</p>

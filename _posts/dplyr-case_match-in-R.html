@@ -1,0 +1,357 @@
+---
+title: "dplyr case_match() in R: Switch-Style Value Recoding"
+description: "Use dplyr case_match() to map specific input values to outputs in R. Covers case_match vs case_when, default, NA handling, vs recode, 5 worked examples."
+keywords: "dplyr case_match, R case_match, case_match vs case_when, dplyr recode replacement, R value mapping, case_match default, switch in dplyr"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "case_match()|dplyr case_match|switch-style mapping|case_match vs case_when|value recoding"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr case_match() in R: Switch-Style Value Recoding</h1>
+
+<p class="lead">The <code>case_match()</code> function in dplyr maps specific INPUT values to specific OUTPUTS. It is dplyr 1.1's switch-style sister of <code>case_when()</code>, optimized for value-based mapping.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>case_match(x, &quot;a&quot; ~ 1, &quot;b&quot; ~ 2)<span class="qa-cmt">            # value -&gt; value mapping</span>
+case_match(x, &quot;a&quot; ~ 1, &quot;b&quot; ~ 2, .default = 0)<span class="qa-cmt"> # default for unmatched</span>
+case_match(x, c(&quot;a&quot;,&quot;b&quot;) ~ &quot;letter&quot;, c(&quot;1&quot;,&quot;2&quot;) ~ &quot;digit&quot;)<span class="qa-cmt">  # multi-match</span>
+case_match(x, NA ~ &quot;missing&quot;)<span class="qa-cmt">               # NA handling</span>
+case_when(x == &quot;a&quot; ~ 1, x == &quot;b&quot; ~ 2)<span class="qa-cmt">      # case_when equivalent (verbose)</span>
+recode(x, a = 1, b = 2)<span class="qa-cmt">                     # superseded; do not use</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 case_match vs case_when vs if_else?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">map specific INPUT values to outputs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">case_match()</text><text x="125" y="126" class="branch-label">complex CONDITIONS, not just values</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">case_when()</a></text><text x="125" y="182" class="branch-label">2 outcomes only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="base-ifelse-in-R.html" title="ifelse() in R: Vectorized Conditional">if_else()</a></text><text x="125" y="238" class="branch-label">replace 1 value with another</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">case_match() or na_if()</text><text x="125" y="294" class="branch-label">many input values, same output</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">case_match(c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;) ~ &quot;X&quot;)</text><text x="125" y="350" class="branch-label">recode factor levels</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">forcats::fct_recode()</text></svg></div>
+
+<h2>What case_match() does in one sentence</h2>
+
+<p><strong><code>case_match(.x, val1 ~ out1, val2 ~ out2, ..., .default = NULL)</code> returns <code>out1</code> where <code>.x</code> equals <code>val1</code>, <code>out2</code> where it equals <code>val2</code>, etc.</strong> Multiple input values can map to one output: <code>c(&quot;a&quot;, &quot;b&quot;) ~ &quot;letter&quot;</code>.</p>
+
+<p>case_match is the modern (dplyr 1.1+) replacement for <code>recode()</code>. The formula syntax matches <code>case_when()</code> so the two scale together.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>case_match(.x, ..., .default = NULL, .ptype = NULL)</code>. Each <code>...</code> is a <code>value(s) ~ output</code> formula.</strong></p>
+
+<div class="webr-container" data-block-title="Map letters to numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map letters to numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, NA)
+
+case_match(
+  x,
+  &quot;a&quot; ~ 1,
+  &quot;b&quot; ~ 2,
+  .default = 0
+)
+#&gt; [1] 1 2 0 0 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>case_match</code> is faster and clearer than <code>case_when</code> when matching values, NOT conditions.</strong> For <code>case_when(x == &quot;a&quot; ~ 1, x == &quot;b&quot; ~ 2)</code>, <code>case_match(x, &quot;a&quot; ~ 1, &quot;b&quot; ~ 2)</code> is the cleaner equivalent.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Simple value mapping</h3>
+
+<div class="webr-container" data-block-title="Two-way value swap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way value swap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">case_match(c(&quot;y&quot;, &quot;n&quot;, &quot;y&quot;), &quot;y&quot; ~ TRUE, &quot;n&quot; ~ FALSE)
+#&gt; [1]  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Multiple inputs to one output</h3>
+
+<div class="webr-container" data-block-title="Group categories">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group categories</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">items &lt;- c(&quot;apple&quot;,&quot;banana&quot;,&quot;carrot&quot;,&quot;broccoli&quot;,&quot;grape&quot;)
+
+case_match(
+  items,
+  c(&quot;apple&quot;,&quot;banana&quot;,&quot;grape&quot;) ~ &quot;fruit&quot;,
+  c(&quot;carrot&quot;,&quot;broccoli&quot;)      ~ &quot;vegetable&quot;
+)
+#&gt; [1] &quot;fruit&quot;     &quot;fruit&quot;     &quot;vegetable&quot; &quot;vegetable&quot; &quot;fruit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>c(...)</code> on the left side groups multiple inputs to the same output.</p>
+
+<h3>3. Default for unmatched</h3>
+
+<div class="webr-container" data-block-title="Catch-all via .default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Catch-all via .default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(1, 2, 3, 99)
+
+case_match(
+  codes,
+  1 ~ &quot;low&quot;,
+  2 ~ &quot;med&quot;,
+  3 ~ &quot;high&quot;,
+  .default = &quot;unknown&quot;
+)
+#&gt; [1] &quot;low&quot;     &quot;med&quot;     &quot;high&quot;    &quot;unknown&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.default</code> replaces the older <code>TRUE ~ value</code> idiom from case_when.</p>
+
+<h3>4. Explicit NA handling</h3>
+
+<div class="webr-container" data-block-title="Map NA to a specific value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map NA to a specific value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;a&quot;, &quot;b&quot;, NA)
+
+case_match(
+  x,
+  &quot;a&quot; ~ 1,
+  &quot;b&quot; ~ 2,
+  NA  ~ 0
+)
+#&gt; [1] 1 2 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>NA on the left matches NA in the input.</p>
+
+<h3>5. Numeric recoding</h3>
+
+<div class="webr-container" data-block-title="Bucket integer codes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bucket integer codes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levels &lt;- c(1, 2, 3, 4, 5)
+
+case_match(
+  levels,
+  c(1, 2)    ~ &quot;low&quot;,
+  3          ~ &quot;med&quot;,
+  c(4, 5)    ~ &quot;high&quot;
+)
+#&gt; [1] &quot;low&quot;  &quot;low&quot;  &quot;med&quot;  &quot;high&quot; &quot;high&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>case_match()</code> replaces <code>recode()</code>, which is now superseded.</strong> Both do value-based mapping; case_match has clearer syntax (formulas), supports multiple-to-one mapping naturally, and handles NA explicitly. For new code, always prefer case_match.</div></div>
+
+<h2>case_match() vs case_when() vs recode() vs if_else()</h2>
+
+<p><strong>Four conditional / mapping tools in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Style</th>
+<th>Best for</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>case_match(x, v ~ out)</code></td>
+<td>Value-based mapping</td>
+<td>Mapping specific values</td>
+<td>Recommended (1.1+)</td>
+</tr>
+<tr>
+<td><code>case_when(cond ~ out)</code></td>
+<td>Condition-based</td>
+<td>Arbitrary conditions</td>
+<td>Recommended</td>
+</tr>
+<tr>
+<td><code>recode(x, old = new)</code></td>
+<td>Value-based mapping</td>
+<td>Same as case_match</td>
+<td>Superseded</td>
+</tr>
+<tr>
+<td><code>if_else(cond, t, f)</code></td>
+<td>2-way branch</td>
+<td>Two outcomes</td>
+<td>Recommended</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>case_match</code> for "value -> value" mapping.</li>
+
+<li><code>case_when</code> for arbitrary conditions (not just equality).</li>
+
+<li><code>if_else</code> for 2-way branches.</li>
+
+<li>Avoid <code>recode</code> in new code.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Most case_match uses are categorical recoding: short input domain, fixed output mapping.</strong></p>
+
+<p>Common variations:</p>
+
+<ul>
+
+<li>Country code -> region: <code>case_match(code, c(&quot;US&quot;,&quot;CA&quot;) ~ &quot;NA&quot;, c(&quot;UK&quot;,&quot;FR&quot;) ~ &quot;EU&quot;, ...)</code></li>
+
+<li>Survey response -> numeric: <code>case_match(resp, &quot;agree&quot; ~ 1, &quot;neutral&quot; ~ 0, &quot;disagree&quot; ~ -1)</code></li>
+
+<li>Status code -> label: <code>case_match(status, 200 ~ &quot;ok&quot;, c(404, 410) ~ &quot;not found&quot;, .default = &quot;other&quot;)</code></li>
+
+</ul>
+
+<p>For more dynamic mapping (read from a lookup table), use <code>dplyr::left_join()</code> with the lookup data frame instead.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: type mismatch on outputs.</strong> All output values must share a common type. <code>case_match(x, &quot;a&quot; ~ 1, &quot;b&quot; ~ &quot;two&quot;)</code> errors. Use <code>case_match(x, &quot;a&quot; ~ &quot;1&quot;, &quot;b&quot; ~ &quot;two&quot;)</code> or convert.</p>
+
+<p><strong>Pitfall 2: missing default value.</strong> Without <code>.default</code>, unmatched inputs return NA. If you want a fallback, set <code>.default = ...</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>case_match()</code> is dplyr 1.1+ only.</strong> If you target older dplyr versions, fall back to <code>case_when()</code> with <code>x == value</code> conditions. Check <code>packageVersion(&quot;dplyr&quot;)</code> to confirm.</div></div>
+
+<h2>Why case_match exists</h2>
+
+<p><strong><code>case_match</code> was added in dplyr 1.1 to fill a gap.</strong> Before it, value-based mapping was either <code>case_when</code> (verbose: <code>case_when(x == &quot;a&quot; ~ 1, x == &quot;b&quot; ~ 2)</code>) or <code>recode</code> (concise but with awkward syntax: <code>recode(x, a = 1, b = 2)</code>). case_match takes the best of both: the formula syntax of case_when, the value-mapping focus of recode, plus first-class multi-input matching with <code>c()</code>. For mapping a small fixed set of values to outputs, it is unambiguously the cleanest choice. The argument naming (<code>.default</code>, <code>.ptype</code>) follows the modern <code>dot-prefixed</code> convention dplyr uses for named arguments to avoid clashing with bare column names.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Map <code>mtcars$cyl</code> (4, 6, 8) to labels "small", "medium", "large". Save to <code>ex_size</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cyl-to-size label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cyl-to-size label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- mtcars$cyl |&gt;
+  # your code here
+
+head(ex_size)
+#&gt; Expected: c(&quot;medium&quot;, &quot;medium&quot;, &quot;small&quot;, ...) per row</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- case_match(
+  mtcars$cyl,
+  4 ~ &quot;small&quot;,
+  6 ~ &quot;medium&quot;,
+  8 ~ &quot;large&quot;
+)
+head(ex_size)
+#&gt; [1] &quot;medium&quot; &quot;medium&quot; &quot;small&quot;  &quot;medium&quot; &quot;large&quot;  &quot;medium&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each cyl value maps to one label. With three explicit branches and no <code>.default</code>, every row is covered.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering case_match, look at:</p>
+
+<ul>
+
+<li><code>case_when()</code>: condition-based; arbitrary tests</li>
+
+<li><code>if_else()</code>: 2-way branch</li>
+
+<li><code>recode()</code>: superseded predecessor of case_match</li>
+
+<li><code>na_if()</code>: convert specific value to NA</li>
+
+<li><code>coalesce()</code>: first non-NA across vectors</li>
+
+<li><code>forcats::fct_recode()</code>: factor-level recoding</li>
+
+</ul>
+
+<p>For <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">factor variables</a>, <code>forcats::fct_recode()</code> may be cleaner since it preserves factor structure.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between case_match and case_when in dplyr?</strong></p>
+
+<p><code>case_match</code> matches VALUES; <code>case_when</code> matches CONDITIONS. <code>case_match(x, &quot;a&quot; ~ 1)</code> checks <code>x == &quot;a&quot;</code>. <code>case_when(x &gt; 5 ~ 1)</code> checks an arbitrary condition.</p>
+
+<p><strong>How do I map multiple values to one output in case_match?</strong></p>
+
+<p>Use <code>c()</code> on the left: <code>case_match(x, c(&quot;a&quot;,&quot;b&quot;) ~ &quot;first&quot;, c(&quot;c&quot;,&quot;d&quot;) ~ &quot;second&quot;)</code>. All values in the vector map to the same output.</p>
+
+<p><strong>What is .default in case_match?</strong></p>
+
+<p><code>.default = value</code> is the catch-all for inputs not matching any pattern. Without it, unmatched inputs return NA.</p>
+
+<p><strong>How do I <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a> in case_match?</strong></p>
+
+<p>Add <code>NA ~ replacement</code> as a branch. NA on the left matches NA in the input vector.</p>
+
+<p><strong>Is recode() deprecated in dplyr?</strong></p>
+
+<p>Yes, superseded since dplyr 1.1. Use <code>case_match()</code> for value mapping, <code>case_when()</code> for conditions. recode still works but is no longer recommended.</p>
