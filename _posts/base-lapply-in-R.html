@@ -1,0 +1,336 @@
+---
+title: "lapply() in R: Apply a Function to a List or Vector"
+description: "Use base R lapply() to apply a function to every element of a list or vector and get a list back. Covers vs sapply, vs map, FUN argument, 5 examples."
+keywords: "lapply in R, lapply vs sapply, R apply function to list, base R lapply, lapply examples, R map function"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "lapply()|base lapply|apply function to list|R lapply|map function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lapply() in R: Apply a Function to a List or Vector</h1>
+
+<p class="lead">The <code>lapply()</code> function in base R applies a function to every element of a list or vector and returns a LIST of the results. Unlike <code>sapply()</code>, it always returns a list regardless of result shapes.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>lapply(1:5, function(x) x^2)<span class="qa-cmt">               # list of 5 numbers</span>
+lapply(1:5, sqrt)<span class="qa-cmt">                          # list of 5 sqrt values</span>
+lapply(list(a=1:3, b=4:6), mean)<span class="qa-cmt">           # list with names</span>
+lapply(mtcars, mean)<span class="qa-cmt">                       # one mean per column</span>
+result &lt;- lapply(files, read.csv)<span class="qa-cmt">          # read many files into list</span>
+do.call(rbind, lapply(...))<span class="qa-cmt">                # combine list of df into one df</span>
+purrr::map(1:5, ~ .^2)<span class="qa-cmt">                     # tidyverse equivalent</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is lapply() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">apply fn, want list output</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">lapply()</text><text x="125" y="126" class="branch-label">apply fn, want simplified output</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">sapply()</text><text x="125" y="182" class="branch-label">apply fn, type-strict output</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">vapply()</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">functional programming</a></text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">purrr::map()</text><text x="125" y="294" class="branch-label">combine result into data frame</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bind_rows(lapply(...)) or purrr::<a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">map_dfr</a></text><text x="125" y="350" class="branch-label">multi-arg apply</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mapply() or purrr::<a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map2</a></text><text x="125" y="406" class="branch-label">apply across many cols of df</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">lapply(df, fn) or <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> across</text></svg></div>
+
+<h2>What lapply() does in one sentence</h2>
+
+<p><strong><code>lapply(X, FUN)</code> applies <code>FUN</code> to each element of <code>X</code> and returns a list of length equal to <code>X</code>, with each element being the result of one call.</strong> Output structure is always a list, regardless of what FUN returns.</p>
+
+<p><code>lapply</code> is the workhorse of "apply this function to every X" patterns. The list output is consistent and predictable, making it safer for production code than <code>sapply()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>lapply(X, FUN, ...)</code>. X is a list or vector; FUN is the function; <code>...</code> passes extra arguments to FUN.</strong></p>
+
+<div class="webr-container" data-block-title="Apply sqrt to a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply sqrt to a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lapply(1:5, sqrt)
+#&gt; [[1]]
+#&gt; [1] 1
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 1.414214
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 1.732051
+#&gt;
+#&gt; [[4]]
+#&gt; [1] 2
+#&gt;
+#&gt; [[5]]
+#&gt; [1] 2.236068</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each call returns one number; the result is a list of 5 single-number elements.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>To convert a list to a vector after lapply, use <code>unlist()</code> or <code>do.call(c, ...)</code>.</strong> <code>unlist(lapply(1:5, sqrt))</code> returns a flat numeric vector. <code>sapply()</code> would have done this automatically, but <code>lapply</code> + <code>unlist</code> makes the conversion explicit.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Apply to a vector</h3>
+
+<div class="webr-container" data-block-title="Square each integer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Square each integer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lapply(1:5, function(x) x^2)[1:2]
+#&gt; [[1]]
+#&gt; [1] 1
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Apply to a named list</h3>
+
+<div class="webr-container" data-block-title="Mean of each list element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of each list element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- lapply(list(a = 1:3, b = 4:6, c = 7:9), mean)
+result
+#&gt; $a
+#&gt; [1] 2
+#&gt; $b
+#&gt; [1] 5
+#&gt; $c
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Names are preserved: result is a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>.</p>
+
+<h3>3. Apply over data frame columns</h3>
+
+<div class="webr-container" data-block-title="Mean of every numeric column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of every numeric column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lapply(mtcars[, c(&quot;mpg&quot;,&quot;hp&quot;,&quot;wt&quot;)], mean)
+#&gt; $mpg
+#&gt; [1] 20.09062
+#&gt; $hp
+#&gt; [1] 146.6875
+#&gt; $wt
+#&gt; [1] 3.21725</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Data frames ARE lists of columns. lapply iterates column-wise. To get a vector instead of list, use sapply or <code>unlist()</code>.</p>
+
+<h3>4. Read multiple files</h3>
+
+<div class="webr-container" data-block-title="Read N CSVs into a list of data frames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read N CSVs into a list of data frames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># files &lt;- list.files(&quot;data/&quot;, &quot;*.csv&quot;, full.names = TRUE)
+# dfs &lt;- lapply(files, read.csv)
+# Demo:
+dfs &lt;- lapply(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), function(x) data.frame(letter = x, n = 1:3))
+
+length(dfs)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Common pattern: read many files, get a list of data frames. Combine with <code>do.call(rbind, dfs)</code> or <code>dplyr::bind_rows(dfs)</code> for a single combined data frame.</p>
+
+<h3>5. Pass extra arguments through ...</h3>
+
+<div class="webr-container" data-block-title="Pass na.rm = TRUE to mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass na.rm = TRUE to mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ll &lt;- list(c(1, 2, NA), c(3, NA, 5))
+lapply(ll, mean, na.rm = TRUE)
+#&gt; [[1]]
+#&gt; [1] 1.5
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean</code> is called with <code>(element, na.rm = TRUE)</code> for each list element. Extra args after FUN go through.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>lapply()</code> is the safest of the apply family because it ALWAYS returns a list, regardless of what the function returns.</strong> <code>sapply()</code> may unexpectedly return a matrix if all calls produce same-length vectors. <code>vapply()</code> errors on type mismatch. lapply quietly handles any shape, useful when you don't know what FUN will return.</div></div>
+
+<h2>lapply vs sapply vs purrr::map</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lapply()</code></td>
+<td>List</td>
+<td>When you want a list (predictable)</td>
+</tr>
+<tr>
+<td><code>sapply()</code></td>
+<td>Vector / matrix / list (auto)</td>
+<td>Interactive, simple cases</td>
+</tr>
+<tr>
+<td><code>vapply()</code></td>
+<td>Vector of declared type</td>
+<td>Production, type-safe</td>
+</tr>
+<tr>
+<td><code>purrr::map()</code></td>
+<td>List (tidyverse)</td>
+<td>Tidyverse pipelines</td>
+</tr>
+<tr>
+<td><code>purrr::map_dbl()</code></td>
+<td>Numeric vector</td>
+<td>Type-safe tidyverse</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>lapply()</code> when you want predictable list output.</li>
+
+<li>Use <code>sapply()</code> for quick interactive simplification.</li>
+
+<li>Use <code>vapply()</code> or <code>purrr::map_*()</code> for type-safe production code.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing lapply with for loops.</strong> <code>lapply</code> is a FUNCTION; it returns a value. <code>for</code> loops are statements that update side effects. To collect results from a loop, use lapply or pre-allocate a list and assign by index.</p>
+
+<p><strong>Pitfall 2: forgetting to unlist for vector ops.</strong> <code>mean(lapply(x, fn))</code> errors because <code>mean</code> does not work on a list. Use <code>unlist()</code> or <code>sapply()</code>: <code>mean(unlist(lapply(x, fn)))</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>lapply</code> does NOT <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">modify in place</a>.</strong> <code>lapply(my_list, fn)</code> returns a NEW list; the original <code>my_list</code> is unchanged. To update the original, assign: <code>my_list &lt;- lapply(my_list, fn)</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>lapply</code> to compute the standard deviation of each numeric column in <code>mtcars</code>. Save to <code>ex_sds</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sd per column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sd per column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: sd of each col
+ex_sds &lt;- # your code here
+
+ex_sds[c(&quot;mpg&quot;,&quot;hp&quot;)]
+#&gt; Expected: list with mpg ~ 6.03, hp ~ 68.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_sds &lt;- lapply(mtcars, sd)
+ex_sds[c(&quot;mpg&quot;,&quot;hp&quot;)]
+#&gt; $mpg
+#&gt; [1] 6.026948
+#&gt;
+#&gt; $hp
+#&gt; [1] 68.56287</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lapply(mtcars, sd)</code> applies <code>sd()</code> to each column. Result is a named list. To get a numeric vector instead, use <code>sapply</code> or <code>unlist(lapply(...))</code>.</p>
+
+</details>
+</section>
+
+<h2>Related apply functions</h2>
+
+<p>After mastering lapply, look at:</p>
+
+<ul>
+
+<li><code>sapply()</code>: simplifies output to vector/matrix when possible</li>
+
+<li><code>vapply()</code>: type-strict version for safety</li>
+
+<li><code>mapply()</code>: multi-argument apply</li>
+
+<li><code>apply()</code>: for matrix rows/columns specifically</li>
+
+<li><code>purrr::map()</code> and family: tidyverse alternatives</li>
+
+<li><code>Map()</code>: multi-list apply (functional programming style)</li>
+
+</ul>
+
+<p>For data frame column transforms, <code>dplyr::mutate(across(...))</code> is more idiomatic than <code>lapply</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between lapply and sapply in R?</strong></p>
+
+<p><code>lapply()</code> always returns a LIST. <code>sapply()</code> tries to simplify the result to a vector or matrix; falls back to a list if shapes vary. Use lapply for predictable list output; sapply for convenient interactive use.</p>
+
+<p><strong>How do I apply a function to each element in R?</strong></p>
+
+<p><code>lapply(x, fn)</code> for list output. <code>sapply(x, fn)</code> for simplified output. <code>purrr::map(x, fn)</code> for tidyverse style. All apply <code>fn</code> to each element of <code>x</code>.</p>
+
+<p><strong>How do I pass extra arguments to FUN in lapply?</strong></p>
+
+<p>After FUN, list extra arguments: <code>lapply(x, fn, arg1 = val1, arg2 = val2)</code>. They are passed to fn for every call.</p>
+
+<p><strong>How do I combine the results of lapply into a single data frame?</strong></p>
+
+<p>Use <code>do.call(rbind, lapply(...))</code> or <code>dplyr::bind_rows(lapply(...))</code>. Both stack list-of-data-frames into one data frame vertically.</p>
+
+<p><strong>Should I use lapply or for loop?</strong></p>
+
+<p>For collecting results, <code>lapply</code> is cleaner and idiomatic. For side effects (printing, writing files), a for loop is fine. Performance is similar in modern R; readability is the main concern.</p>
