@@ -21,6 +21,24 @@ difficulty: "Beginner"
 
 <p class="lead">The <code>filter()</code> function in dplyr keeps rows that satisfy a logical condition and drops the rest. You can combine multiple conditions with <code>&</code>, <code>|</code>, <code>!</code>, or by listing them as separate arguments (treated as AND).</p>
 
+[QUICK ANSWER]
+filter(df, mpg > 20)                # single condition
+filter(df, mpg > 20, cyl == 4)      # AND
+filter(df, mpg > 20 | cyl == 4)     # OR
+filter(df, cyl %in% c(4, 6))        # set membership
+filter(df, between(hp, 100, 200))   # range
+filter(df, !is.na(x), x > 5)        # NA-safe
+filter(df, x == max(x), .by = grp)  # by group
+
+[DECISION TREE: Which form do I need?]
+- one: filter(df, x > 5)
+- AND: filter(df, x > 5, y < 10)
+- OR: filter(df, x > 5 | y < 10)
+- in set: filter(df, x %in% c(1, 2, 3))
+- range: filter(df, between(x, 1, 10))
+- NA-safe: filter(df, !is.na(x), x > 5)
+- by group: filter(df, x == max(x), .by = grp)
+
 ## What filter() does in one sentence
 
 **`filter()` is a row subsetter.** You hand it a data frame and one or more logical conditions, and it returns the rows where every condition evaluates to `TRUE`. Conditions can be simple comparisons (`mpg > 20`), set membership (`cyl %in% c(4, 6)`), range checks (`between(hp, 100, 200)`), or compound expressions joined with `&` and `|`.

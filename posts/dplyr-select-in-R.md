@@ -21,6 +21,25 @@ difficulty: "Beginner"
 
 <p class="lead">The <code>select()</code> function in dplyr returns a data frame with only the columns you ask for. You can pick columns by name, position, range, or pattern, and rename or reorder them in the same call.</p>
 
+[QUICK ANSWER]
+select(df, name, height, mass)         # by name
+select(df, -films, -vehicles)          # drop with minus
+select(df, name:eye_color)             # range with colon
+select(df, starts_with("hair"))        # by prefix
+select(df, where(is.numeric))          # by type
+select(df, character = name)           # rename inside select
+select(df, name, mass, everything())   # reorder, keep rest
+
+[DECISION TREE: Which form do I need?]
+- by name: select(df, a, b, c)
+- drop one: select(df, -a)
+- range: select(df, a:c)
+- by prefix: select(df, starts_with("x"))
+- by substring: select(df, contains("x"))
+- by type: select(df, where(is.numeric))
+- rename: select(df, new = old)
+- reorder: select(df, b, a, everything())
+
 ## What select() does in one sentence
 
 **`select()` is a column subsetter.** You pass a data frame and a list of columns (or rules for choosing columns), and you get back a data frame with just those columns. Unlike base R `[, ...]`, it gives you helpers for pattern matching (`starts_with()`, `contains()`, `where()`), supports negative selection with `-`, and combines naturally with the pipe `|>`.
