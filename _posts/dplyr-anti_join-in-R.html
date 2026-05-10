@@ -1,0 +1,359 @@
+---
+title: "dplyr anti_join() in R: Keep Rows Without Match in Right"
+description: "Use dplyr anti_join() to keep rows of the left table that have NO match in the right in R. Covers anti_join vs semi_join, multi-key, audit, 5 examples."
+keywords: "dplyr anti_join, R anti join, anti_join vs semi_join, dplyr exclude matches, anti_join filter, R rows not in"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "anti_join()|dplyr anti_join|anti join|exclude matches|find unmatched"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr anti_join() in R: Keep Rows Without Match in Right</h1>
+
+<p class="lead">The <code>anti_join()</code> function in dplyr keeps rows from the LEFT table that DO NOT have a match in the right table. It is the opposite of <code>semi_join()</code> and the standard tool for "find rows missing from the master list".</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>anti_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">             # x rows NOT in y</span>
+anti_join(x, y, by = c(&quot;id&quot;,&quot;date&quot;))<span class="qa-cmt">   # multi-key</span>
+semi_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">             # opposite: x rows IN y</span>
+filter(x, !(id %in% y$id))<span class="qa-cmt">             # equivalent for one-col key</span>
+anti_join(orders, customers, by = &quot;id&quot;)<span class="qa-cmt"> # orphan orders</span>
+anti_join(actual, expected, by = &quot;id&quot;)<span class="qa-cmt">  # missing from expected</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is anti_join() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">find x rows that have NO match in y</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">anti_join()</text><text x="125" y="126" class="branch-label">find x rows that DO match in y</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">semi_join()</a></text><text x="125" y="182" class="branch-label">single-column negation</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">filter(x, !col %in% y$col)</text><text x="125" y="238" class="branch-label">multi-column negation</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">anti_join() (cleaner)</text><text x="125" y="294" class="branch-label">data quality audit</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">anti_join(actual, expected)</text><text x="125" y="350" class="branch-label">find new rows (in current, not in previous)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">anti_join(curr, prev)</text></svg></div>
+
+<h2>What anti_join() does in one sentence</h2>
+
+<p><strong><code>anti_join(x, y, by)</code> returns rows of <code>x</code> whose <code>by</code> key DOES NOT appear in <code>y</code>, with NO columns added from y.</strong> It is a filter: same column count as x, fewer (or equal) rows.</p>
+
+<p>The cleanest tool for "what's in A but not in B?" questions, especially with multi-column keys.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>anti_join(x, y, by = NULL)</code>. Same key arguments as semi_join.</strong></p>
+
+<div class="webr-container" data-block-title="Customers without orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers without orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+customers &lt;- data.frame(id = 1:4, name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;))
+orders    &lt;- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
+
+anti_join(customers, orders, by = &quot;id&quot;)
+#&gt;   id name
+#&gt; 1  2    b
+#&gt; 2  4    d
+#&gt; (customers 1 and 3 dropped: they have orders)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>anti_join</code> is the dplyr idiom for data-quality audits: "what records exist in source A but not in source B?".</strong> Cleaner than the <code>filter(... !%in% ...)</code> workaround, especially with multi-column keys.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Find missing customers</h3>
+
+<div class="webr-container" data-block-title="Customers without any order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers without any order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anti_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Multi-column anti-join</h3>
+
+<div class="webr-container" data-block-title="Sales of products NOT in catalog">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sales of products NOT in catalog</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales   &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;,&quot;AS&quot;), product=c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;))
+catalog &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;))
+
+anti_join(sales, catalog, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt;   region product
+#&gt; 1     AS       Z
+#&gt; (only AS/Z is missing from catalog)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For multi-column negation, <code>filter(... %in% ...)</code> is awkward; anti_join is clean.</p>
+
+<h3>3. Find orphan records</h3>
+
+<div class="webr-container" data-block-title="Orders without a known customer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Orders without a known customer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anti_join(orders, customers, by = &quot;id&quot;)
+#&gt;   id amount
+#&gt; 1  5     40
+#&gt; (order 5's customer doesn't exist)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. New rows since last snapshot</h3>
+
+<div class="webr-container" data-block-title="Current rows not in previous snapshot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Current rows not in previous snapshot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prev_snapshot &lt;- data.frame(id = 1:5)
+curr_data     &lt;- data.frame(id = 1:8, value = 10:17)
+
+new_rows &lt;- anti_join(curr_data, prev_snapshot, by = &quot;id&quot;)
+new_rows
+#&gt;   id value
+#&gt; 1  6    15
+#&gt; 2  7    16
+#&gt; 3  8    17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A diff pattern: rows in current but not previous.</p>
+
+<h3>5. Pair with semi_join for partition</h3>
+
+<div class="webr-container" data-block-title="Split into matched and unmatched">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split into matched and unmatched</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">matched   &lt;- semi_join(customers, orders, by = &quot;id&quot;)
+unmatched &lt;- anti_join(customers, orders, by = &quot;id&quot;)
+
+nrow(matched) + nrow(unmatched) == nrow(customers)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>semi + anti partitions x into two non-overlapping groups.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>anti_join</code> is the ONLY clean way to express "in left but not in right" for multi-column keys.</strong> With single columns you could use <code>filter(x, !id %in% y$id)</code>; with two-column keys, the equivalent filter is awkward and error-prone. anti_join is unambiguous.</div></div>
+
+<h2>anti_join() vs semi_join() vs filter() vs setdiff()</h2>
+
+<p><strong>Four ways to express "exclude" in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>anti_join(x, y)</code></td>
+<td>Multi-key membership negation</td>
+</tr>
+<tr>
+<td><code>semi_join(x, y)</code></td>
+<td>Opposite (positive membership)</td>
+</tr>
+<tr>
+<td><code>filter(x, !(col %in% y$col))</code></td>
+<td>Single-column negation in a quick script</td>
+</tr>
+<tr>
+<td><code>setdiff(x, y)</code></td>
+<td>Whole-row difference (all columns must match)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>anti_join</code> for key-based exclusion.</li>
+
+<li><code>setdiff</code> for whole-row set difference.</li>
+
+<li><code>filter</code> for single-column scripts.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use anti_join in data audits to find what's expected vs what's there.</strong></p>
+
+<div class="webr-container" data-block-title="Bidirectional audit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bidirectional audit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Audit: which IDs are in actual but not expected?
+unexpected &lt;- actual |&gt; anti_join(expected, by = &quot;id&quot;)
+
+# Which IDs are expected but missing from actual?
+missing &lt;- expected |&gt; anti_join(actual, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A pair of anti_joins gives a complete diff between two sources.</p>
+
+<p>For incremental loads:</p>
+
+<div class="webr-container" data-block-title="Find new rows for incremental load">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find new rows for incremental load</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">existing  &lt;- read_csv(&quot;history.csv&quot;)
+new_batch &lt;- read_csv(&quot;today.csv&quot;)
+
+new_rows &lt;- new_batch |&gt; anti_join(existing, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only insert rows that don't already exist.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting which side has the negation.</strong> <code>anti_join(x, y)</code> returns rows from X NOT in Y. Reversing the args inverts the meaning.</p>
+
+<p><strong>Pitfall 2: NA in the join column.</strong> <code>NA == NA</code> is NA, so rows with NA in the key may NOT match (and thus appear in anti_join output). <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> NAs first if surprising.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>anti_join</code> does NOT count duplicates in y.</strong> A single match in y is enough to exclude an x row, regardless of how many duplicates y has. Same semantics as semi_join (membership only).</div></div>
+
+<h2>Why anti_join beats filter(!%in%)</h2>
+
+<p><strong>For multi-column keys, anti_join is the only clean expression of "exclude these tuples".</strong> The filter equivalent <code>filter(!(col1 %in% y$col1) &amp; !(col2 %in% y$col2))</code> is wrong: it tests each column independently, not as a tuple. The correct filter form requires building a composite key string or using <code>paste0</code> tricks, both of which are clunky. anti_join handles tuple membership natively and clearly. Single-column negation can use <code>filter(!col %in% y$col)</code>, which is fine for quick scripts; for production code, anti_join is more robust against accidental key changes.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find all <code>mtcars</code> cars whose name is NOT in a <code>featured</code> lookup. Save to <code>ex_unfeatured</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find non-featured cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find non-featured cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">featured &lt;- data.frame(car = c(&quot;Mazda RX4&quot;, &quot;Honda Civic&quot;))
+
+mtcars_named &lt;- mtcars |&gt; tibble::rownames_to_column(&quot;car&quot;)
+
+ex_unfeatured &lt;- mtcars_named |&gt;
+  # your code here
+
+nrow(ex_unfeatured)
+#&gt; Expected: 30 (32 cars - 2 featured)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_unfeatured &lt;- mtcars_named |&gt;
+  anti_join(featured, by = &quot;car&quot;)
+
+nrow(ex_unfeatured)
+#&gt; [1] 30
+
+# Equivalent (single-column):
+ex_alt &lt;- mtcars_named |&gt; filter(!(car %in% featured$car))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> anti_join keeps cars whose name is NOT in featured. 30 of 32 mtcars survive.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering anti_join, look at:</p>
+
+<ul>
+
+<li><code>semi_join()</code>: opposite filtering join</li>
+
+<li><code>inner_join()</code> / <code>left_join()</code>: mutating joins</li>
+
+<li><code>setdiff()</code>: whole-row set difference (requires same columns)</li>
+
+<li><code>filter()</code>: single-column negation</li>
+
+<li><code>match()</code>, <code>%in%</code>: base R membership tests</li>
+
+</ul>
+
+<p>For "rows that exist in both AND match value-for-value", <code>intersect()</code> works on whole-row equality.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does anti_join do in dplyr?</strong></p>
+
+<p><code>anti_join(x, y, by)</code> keeps rows of x whose <code>by</code> key does NOT appear in y. Used to find records missing from a master list or new since a previous snapshot.</p>
+
+<p><strong>What is the difference between anti_join and semi_join?</strong></p>
+
+<p>They are opposites. semi_join keeps x rows that DO match in y. anti_join keeps x rows that DO NOT match in y. Together they partition x.</p>
+
+<p><strong>How does anti_join differ from setdiff?</strong></p>
+
+<p>anti_join uses a key (subset of columns); setdiff requires whole-row equality. Use anti_join for key-based exclusion; setdiff for full-row difference.</p>
+
+<p><strong>Can anti_join handle multi-column keys?</strong></p>
+
+<p>Yes. <code>anti_join(x, y, by = c(&quot;region&quot;,&quot;product&quot;))</code> excludes x rows whose (region, product) tuple appears in y.</p>
+
+<p><strong>Why does anti_join <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a> strangely?</strong></p>
+
+<p>Because <code>NA == NA</code> is NA, not TRUE. <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> in the join key may not match, so rows with NA appear in anti_join output. Filter NAs first if needed.</p>

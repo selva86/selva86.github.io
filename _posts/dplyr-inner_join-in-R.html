@@ -1,0 +1,345 @@
+---
+title: "dplyr inner_join() in R: Keep Only Matched Rows"
+description: "Use dplyr inner_join() to keep only rows that match in both tables in R. Covers inner_join vs left_join, by, multiple keys, NA, and 5 worked examples."
+keywords: "dplyr inner_join, R inner join, inner_join vs left_join, dplyr matched rows, inner_join by, R intersect tables"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "inner_join()|dplyr inner_join|inner join|matched rows only|intersect rows"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr inner_join() in R: Keep Only Matched Rows</h1>
+
+<p class="lead">The <code>inner_join()</code> function in dplyr keeps ONLY rows that have matches in BOTH tables, returning the intersection. Unmatched rows from either side are DROPPED.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>inner_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # only matched rows</span>
+inner_join(x, y, by = c(&quot;id&quot;,&quot;date&quot;))<span class="qa-cmt">    # multi-column key</span>
+inner_join(x, y, by = c(&quot;id&quot; = &quot;uid&quot;))<span class="qa-cmt">   # mapped key</span>
+inner_join(x, y, by = join_by(id))<span class="qa-cmt">       # tidy syntax</span>
+left_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">                # different: keep all x</span>
+semi_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">                # filter only, no y columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">keep ONLY matched rows from both</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">inner_join()</text><text x="125" y="126" class="branch-label">keep ALL rows from left</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-joins-in-R.html" title="dplyr Joins in R: left_join, inner_join, full_join">left_join()</a></text><text x="125" y="182" class="branch-label">keep ALL rows from right</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">right_join()</text><text x="125" y="238" class="branch-label">keep ALL rows from BOTH</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">full_join()</text><text x="125" y="294" class="branch-label">filter without adding columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">semi_join() (cleaner)</text><text x="125" y="350" class="branch-label">filter to NON-matches</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">anti_join()</text><text x="125" y="406" class="branch-label">combine without key</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_cols()</a></text></svg></div>
+
+<h2>What inner_join() does in one sentence</h2>
+
+<p><strong><code>inner_join(x, y, by)</code> returns rows where the <code>by</code> key appears in BOTH x and y, with columns from both sides combined.</strong> Unmatched rows from either table are dropped.</p>
+
+<p>It is the strictest of the mutating joins: rows survive only if they have a partner. Useful when you only care about complete records.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>inner_join(x, y, by = NULL, suffix = c(&quot;.x&quot;, &quot;.y&quot;))</code>. Same arguments as left_join.</strong></p>
+
+<div class="webr-container" data-block-title="Only customers with orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Only customers with orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+customers &lt;- data.frame(id = 1:4, name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;))
+orders    &lt;- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
+
+inner_join(customers, orders, by = &quot;id&quot;)
+#&gt;   id name amount
+#&gt; 1  1    a     10
+#&gt; 2  1    a     20
+#&gt; 3  3    c     30
+#&gt; (customer 2, 4 dropped: no orders; order 5 dropped: no customer)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>inner_join</code> when you only want to analyze records that have data in BOTH tables.</strong> It is the cleanest way to express "I need a match" without filtering after a left_join.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard inner join</h3>
+
+<div class="webr-container" data-block-title="Match by id">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match by id</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inner_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Drops customers with no orders AND orders with no customer.</p>
+
+<h3>2. Multi-column key</h3>
+
+<div class="webr-container" data-block-title="Match by composite key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match by composite key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales   &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;,&quot;AS&quot;), product=c(&quot;X&quot;,&quot;Y&quot;,&quot;X&quot;), qty=c(100,200,50))
+catalog &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Z&quot;), price=c(10, 20))
+
+inner_join(sales, catalog, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt;   region product qty price
+#&gt; 1     NA       X 100    10
+#&gt; (EU/Y dropped: not in catalog; EU/Z and AS/X dropped: not in sales)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Different column names</h3>
+
+<div class="webr-container" data-block-title="Map keys">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map keys</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inner_join(customers, orders, by = c(&quot;id&quot; = &quot;user_id&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Self-inner-join</h3>
+
+<div class="webr-container" data-block-title="Customers who placed multiple orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers who placed multiple orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inner_join(orders, orders, by = &quot;id&quot;, suffix = c(&quot;_a&quot;,&quot;_b&quot;)) |&gt;
+  filter(amount_a &lt; amount_b) |&gt;
+  distinct(id)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Self-join with filter to find pairs.</p>
+
+<h3>5. Chained inner joins</h3>
+
+<div class="webr-container" data-block-title="Triple-table intersection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Triple-table intersection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  inner_join(products, by = &quot;product_id&quot;) |&gt;
+  inner_join(regions,  by = &quot;region_id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each step drops unmatched rows from the prior result.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>inner_join</code> is the SAFEST join for downstream analysis.</strong> No NAs introduced by missing matches. The trade-off: rows you forgot existed (without partners) silently disappear. Always check <code>nrow(result)</code> after an inner_join to make sure the drop count matches your expectation.</div></div>
+
+<h2>inner_join() vs left_join() vs semi_join() vs filter</h2>
+
+<p><strong>Four ways to combine "match against y" semantics in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Keeps</th>
+<th>Adds y columns?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inner_join(x, y)</code></td>
+<td>x rows that match y</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>left_join(x, y)</code></td>
+<td>All x rows</td>
+<td>Yes (NA where no match)</td>
+</tr>
+<tr>
+<td><code>semi_join(x, y)</code></td>
+<td>x rows that match y</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>filter(x %in% y)</code></td>
+<td>x rows where col is in y</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>inner_join</code> for "match AND augment".</li>
+
+<li><code>semi_join</code> for "match WITHOUT augmenting" (filter only).</li>
+
+<li><code>left_join</code> for "augment, keep unmatched as NA".</li>
+
+<li><code>filter(... %in% ...)</code> for simple membership tests.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "<a class="auto-link" href="tidyr-drop_na-in-R.html" title="tidyr drop_na() in R: Remove Rows With NA Values">complete cases</a> only" pattern is inner_join's signature use case.</strong></p>
+
+<div class="webr-container" data-block-title="Complete cases via chained inner_join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete cases via chained inner_join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results &lt;- experiments |&gt;
+  inner_join(metadata, by = &quot;experiment_id&quot;) |&gt;
+  inner_join(outcomes, by = &quot;experiment_id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only experiments with both metadata and outcomes survive. NAs are impossible (assuming each table has no internal NAs).</p>
+
+<p>For an outer report (showing what was DROPPED):</p>
+
+<div class="webr-container" data-block-title="Audit unmatched rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Audit unmatched rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">unmatched &lt;- experiments |&gt;
+  anti_join(metadata, by = &quot;experiment_id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reports experiments without metadata; useful for data-quality auditing.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: silent row drops.</strong> inner_join silently removes rows without a match. Always check <code>nrow(result)</code> against expectations, especially in production pipelines.</p>
+
+<p><strong>Pitfall 2: row multiplication.</strong> If both tables have duplicate keys, inner_join multiplies rows (cartesian product per key). Use <code>relationship = &quot;one-to-one&quot;</code> or <code>&quot;many-to-one&quot;</code> to error instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>inner_join</code> is NOT the same as <code>left_join + filter(!is.na(y_col))</code>.</strong> They look similar but the filter approach is slower and may drop rows that legitimately had NA in y_col before the join.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find cars in <code>mtcars</code> with cyl values present in a lookup table <code>cyl_info</code>. Save to <code>ex_match</code>.</p>
+<div class="webr-container" data-block-title="Your turn: keep only matched cyl values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: keep only matched cyl values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyl_info &lt;- data.frame(cyl = c(4, 8), label = c(&quot;eco&quot;,&quot;power&quot;))
+
+ex_match &lt;- mtcars |&gt;
+  # your code here
+
+nrow(ex_match)
+#&gt; Expected: 25 (cyl=6 dropped, only 4 and 8 in lookup)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_match &lt;- mtcars |&gt;
+  inner_join(cyl_info, by = &quot;cyl&quot;)
+
+nrow(ex_match)
+#&gt; [1] 25  (11 cyl=4 + 14 cyl=8; 7 cyl=6 dropped)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> inner_join drops cars whose cyl is not in cyl_info (cyl=6) and adds the label column.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering inner_join, look at:</p>
+
+<ul>
+
+<li><code>left_join()</code> / <code>right_join()</code> / <code>full_join()</code>: other mutating joins</li>
+
+<li><code>semi_join()</code>: same row-filtering as inner_join, no extra columns</li>
+
+<li><code>anti_join()</code>: opposite of semi_join</li>
+
+<li><code>join_by()</code>: dplyr 1.1+ key spec; supports <a class="auto-link" href="R-Comparison-Operators-in-R.html" title="R Comparison Operators: ==, !=, <, >, <=, >= Guide">inequality</a></li>
+
+<li><code>intersect()</code>: set intersection on whole rows</li>
+
+<li><code>data.table::merge()</code>: very fast for big data</li>
+
+</ul>
+
+<p>For very large data, the <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table package</a>'s joins are typically much faster.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does inner_join do in dplyr?</strong></p>
+
+<p><code>inner_join(x, y, by)</code> returns rows where the <code>by</code> key matches in both x and y, with columns from both. Unmatched rows from either side are dropped.</p>
+
+<p><strong>What is the difference between inner_join and left_join?</strong></p>
+
+<p>inner_join keeps only rows that match in BOTH tables. left_join keeps ALL rows of x, putting NA in y's columns where no match. inner may return fewer rows; left always has at least as many as x.</p>
+
+<p><strong>What is the difference between inner_join and semi_join?</strong></p>
+
+<p>inner_join adds y's columns; semi_join does not. Use semi_join when you only need to filter, not augment.</p>
+
+<p><strong>How do I do a many-to-many inner join?</strong></p>
+
+<p>Pass <code>relationship = &quot;many-to-many&quot;</code> to suppress the warning. Result is the cartesian product per key.</p>
+
+<p><strong>Why did my inner_join return fewer rows than expected?</strong></p>
+
+<p>Because some rows in one table had keys that didn't appear in the other. Use <code>anti_join(x, y)</code> to inspect which rows of x were dropped.</p>

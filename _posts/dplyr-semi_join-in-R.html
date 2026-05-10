@@ -1,0 +1,353 @@
+---
+title: "dplyr semi_join() in R: Filter to Rows With Match in Right"
+description: "Use dplyr semi_join() to keep rows of left that have a match in right WITHOUT adding columns in R. Covers semi_join vs inner_join, anti_join, 5 examples."
+keywords: "dplyr semi_join, R semi join, semi_join vs inner_join, dplyr filter by match, semi_join no columns, R join filter"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "semi_join()|dplyr semi_join|filtering join|semi_join vs inner_join|filter by match"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr semi_join() in R: Filter to Rows With Match in Right</h1>
+
+<p class="lead">The <code>semi_join()</code> function in dplyr keeps rows from the left table that have a MATCH in the right table, WITHOUT adding any of right's columns. It is the filtering join: subset by membership.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>semi_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">             # x rows that match y</span>
+semi_join(x, y, by = c(&quot;id&quot;,&quot;date&quot;))<span class="qa-cmt">   # multi-key</span>
+inner_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">            # different: ALSO adds y's columns</span>
+anti_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">             # opposite: x rows that DON'T match</span>
+filter(x, id %in% y$id)<span class="qa-cmt">                # equivalent for one-col key</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is semi_join() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">filter x to rows with match in y, no y columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">semi_join()</text><text x="125" y="126" class="branch-label">filter x to rows WITHOUT match in y</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">anti_join()</text><text x="125" y="182" class="branch-label">filter AND add y columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join()</a></text><text x="125" y="238" class="branch-label">multi-column key membership test</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">semi_join()</text><text x="125" y="294" class="branch-label">single-column membership test</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">filter(x, col %in% y$col)</text><text x="125" y="350" class="branch-label">check duplicates against another set</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">anti_join() then inspect</text></svg></div>
+
+<h2>What semi_join() does in one sentence</h2>
+
+<p><strong><code>semi_join(x, y, by)</code> returns rows of <code>x</code> whose <code>by</code> key appears at least once in <code>y</code>, with NO columns added from y.</strong> It is a filter: same column count as x, possibly fewer rows.</p>
+
+<p>semi_join is used when you want to filter without changing the data shape. inner_join also filters but adds y's columns; semi_join doesn't.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>semi_join(x, y, by = NULL)</code>. Same key arguments as inner_join. No <code>suffix</code> (no column name conflicts).</strong></p>
+
+<div class="webr-container" data-block-title="Customers who placed an order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers who placed an order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+customers &lt;- data.frame(id = 1:4, name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;))
+orders    &lt;- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
+
+semi_join(customers, orders, by = &quot;id&quot;)
+#&gt;   id name
+#&gt; 1  1    a
+#&gt; 2  3    c
+#&gt; (customers 2 and 4 dropped: no orders)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>semi_join</code> deduplicates the right table for matching purposes.</strong> Customer id 1 has 2 orders, but only one row appears in the result. semi_join is row-CARDINALITY preserving on the left.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Filter by membership</h3>
+
+<div class="webr-container" data-block-title="Customers with at least one order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers with at least one order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">semi_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cleaner than <code>filter(customers, id %in% unique(orders$id))</code>.</p>
+
+<h3>2. Multi-column key</h3>
+
+<div class="webr-container" data-block-title="Sales of products in catalog">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sales of products in catalog</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales   &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;,&quot;AS&quot;), product=c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;))
+catalog &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;))
+
+semi_join(sales, catalog, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt;   region product
+#&gt; 1     NA       X
+#&gt; 2     EU       Y
+#&gt; (AS/Z dropped: not in catalog)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Inverse membership filter</h3>
+
+<div class="webr-container" data-block-title="Customers who DID order: semi_join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Customers who DID order: semi_join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">semi_join(customers, orders, by = &quot;id&quot;)
+
+# Customers who did NOT order: anti_join
+anti_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Cardinality-preserving (no duplication)</h3>
+
+<div class="webr-container" data-block-title="semi_join doesn&#x27;t multiply rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">semi_join doesn&#x27;t multiply rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(semi_join(customers, orders, by = &quot;id&quot;))
+#&gt; [1] 2  (customers 1 and 3; not duplicated despite multiple orders)
+
+nrow(inner_join(customers, orders, by = &quot;id&quot;))
+#&gt; [1] 3  (rows multiplied by orders)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the key advantage of semi_join over inner_join for filtering tasks.</p>
+
+<h3>5. Filter with mapped keys</h3>
+
+<div class="webr-container" data-block-title="Different column names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different column names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">semi_join(customers, orders, by = c(&quot;id&quot; = &quot;user_id&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>semi_join</code> is the ONLY join that filters without ever multiplying rows.</strong> Each row of x appears at most once. inner_join can multiply (each match in y becomes a separate row). Use semi_join when you only care about membership, not the join data itself.</div></div>
+
+<h2>semi_join() vs inner_join() vs anti_join() vs filter</h2>
+
+<p><strong>Four ways to filter x by relationship to y.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Keeps</th>
+<th>Adds y cols</th>
+<th>Multiplies rows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>semi_join(x, y)</code></td>
+<td>x rows that match</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>inner_join(x, y)</code></td>
+<td>x rows that match</td>
+<td>Yes</td>
+<td>Yes (if y has duplicates)</td>
+</tr>
+<tr>
+<td><code>anti_join(x, y)</code></td>
+<td>x rows that DON'T match</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>filter(x, col %in% y$col)</code></td>
+<td>Same as semi for 1 col</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>semi_join</code> for clean filter, multi-key, no row duplication.</li>
+
+<li><code>inner_join</code> when you also want y's columns.</li>
+
+<li><code>anti_join</code> for the opposite filter.</li>
+
+<li><code>filter(... %in% ...)</code> for simple single-column tests in scripts.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "filter to known-good keys" pattern is semi_join's main use case.</strong></p>
+
+<div class="webr-container" data-block-title="Filter transactions to approved users">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter transactions to approved users</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">transactions |&gt;
+  semi_join(approved_users, by = &quot;user_id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Keeps only transactions where user_id is in approved_users. No columns added; no row multiplication. Cleaner than <code>filter(user_id %in% approved_users$user_id)</code> for multi-column keys.</p>
+
+<p>For data quality:</p>
+
+<div class="webr-container" data-block-title="Split by membership in master list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split by membership in master list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">expected_skus  &lt;- skus_master
+data_with_skus &lt;- raw_data |&gt; semi_join(expected_skus, by = &quot;sku&quot;)
+data_unknown   &lt;- raw_data |&gt; anti_join(expected_skus, by = &quot;sku&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Split data by membership in a master list.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing semi_join with inner_join.</strong> semi_join filters without adding y's columns. inner_join filters AND adds. Pick based on whether you need the y data downstream.</p>
+
+<p><strong>Pitfall 2: forgetting that semi_join deduplicates the y side automatically.</strong> If y has multiple matching rows per x key, the result is still ONE row per x. inner_join would produce multiple rows.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>semi_join</code> errors if the <code>by</code> columns don't exist in both tables.</strong> Same as other joins. Make sure the column names match (or use named <code>by</code> for differently-named columns).</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From <code>mtcars</code>, keep only cars with cyl values listed in a separate vector <code>valid_cyl</code>. Save to <code>ex_filtered</code>.</p>
+<div class="webr-container" data-block-title="Your turn: filter to allowed cyl values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: filter to allowed cyl values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">valid_cyl &lt;- data.frame(cyl = c(4, 6))
+
+ex_filtered &lt;- mtcars |&gt;
+  # your code here
+
+nrow(ex_filtered)
+#&gt; Expected: 18 (11 cyl=4 + 7 cyl=6; cyl=8 dropped)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_filtered &lt;- mtcars |&gt;
+  semi_join(valid_cyl, by = &quot;cyl&quot;)
+
+nrow(ex_filtered)
+#&gt; [1] 18
+
+# Equivalent for single-column key:
+ex_alt &lt;- mtcars |&gt; filter(cyl %in% valid_cyl$cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> semi_join keeps rows whose cyl is in valid_cyl. cyl=8 cars are dropped.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering semi_join, look at:</p>
+
+<ul>
+
+<li><code>anti_join()</code>: opposite filtering join</li>
+
+<li><code>inner_join()</code>: filter + <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">add columns</a></li>
+
+<li><code>filter()</code>: scalar membership tests</li>
+
+<li><code>intersect()</code>: set intersection on whole rows</li>
+
+<li><code>match()</code>: base R; index lookups</li>
+
+<li><code>%in%</code>: base R; one-column membership</li>
+
+</ul>
+
+<p>For one-column key membership, <code>filter(x, col %in% y$col)</code> is shorter and equally clear.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does semi_join do in dplyr?</strong></p>
+
+<p><code>semi_join(x, y, by)</code> keeps rows of x whose <code>by</code> key appears in y, WITHOUT adding any of y's columns. It is a filtering join.</p>
+
+<p><strong>What is the difference between semi_join and inner_join?</strong></p>
+
+<p>semi_join filters without adding columns. inner_join also filters but ADDS y's columns. semi_join never multiplies rows; inner_join can if y has duplicate keys.</p>
+
+<p><strong>Why use semi_join instead of filter(... %in% ...)?</strong></p>
+
+<p>For multi-column keys: <code>semi_join(x, y, by = c(&quot;region&quot;,&quot;product&quot;))</code> is clean. <code>filter(x, region %in% y$region &amp; product %in% y$product)</code> is wrong (it tests each column independently). semi_join handles tuple membership.</p>
+
+<p><strong>Does semi_join multiply rows?</strong></p>
+
+<p>No. semi_join keeps each x row at most once, regardless of how many matches exist in y. inner_join would multiply.</p>
+
+<p><strong>What is the inverse of semi_join?</strong></p>
+
+<p><code>anti_join(x, y, by)</code> keeps x rows that do NOT have a match in y. Together they partition x by membership in y.</p>
