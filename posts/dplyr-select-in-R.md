@@ -23,11 +23,13 @@ difficulty: "Beginner"
 
 ## What select() does in one sentence
 
-`select()` is a column subsetter: you pass a data frame and a list of columns (or rules for choosing columns), and you get back a data frame with just those columns. Unlike base R `[, ...]`, it gives you helpers for pattern matching (`starts_with()`, `contains()`, `where()`), supports negative selection with `-`, and combines naturally with the pipe `|>`.
+**`select()` is a column subsetter.** You pass a data frame and a list of columns (or rules for choosing columns), and you get back a data frame with just those columns. Unlike base R `[, ...]`, it gives you helpers for pattern matching (`starts_with()`, `contains()`, `where()`), supports negative selection with `-`, and combines naturally with the pipe `|>`.
 
-When you reach for `select()`, you usually have one of three goals: you want to drop the columns you do not need before further analysis, you want to bring forward the columns that matter for a plot or a join, or you want to rename and reorder columns at the same time you pick them. All three goals are first-class in `select()`, which is why almost every dplyr pipeline starts or ends with it.
+When you reach for `select()`, you usually have one of three goals: drop the columns you do not need before further analysis, bring forward the columns that matter for a plot or a join, or rename and reorder columns while you pick them. All three are first-class in `select()`, which is why almost every dplyr pipeline starts or ends with it.
 
 ## Syntax
+
+**`select()` takes a data frame plus one or more column expressions.** The expressions can be bare names, ranges, negative names, helper functions like `starts_with()`, or rename pairs like `new = old`.
 
 ```r title="Load dplyr and inspect the data"
 library(dplyr)
@@ -49,15 +51,18 @@ The full signature is:
 select(.data, ...)
 ```
 
-- `.data`: a data frame, tibble, or grouped data frame
-- `...`: one or more column expressions. These can be:
-  - Bare column names: `name, height, mass`
-  - Negative names to exclude: `-name`
-  - Ranges: `name:mass` (everything from `name` to `mass`)
-  - Helper functions: `starts_with("hair")`, `contains("color")`, `where(is.numeric)`
-  - Renames: `new_name = old_name`
+`.data` is a data frame, tibble, or grouped data frame. The `...` argument takes one or more column expressions, which can be any of:
+
+- Bare column names: `name, height, mass`
+- Negative names to exclude: `-name`
+- Ranges with the colon operator: `name:mass` (everything from `name` to `mass`)
+- Helper functions: `starts_with("hair")`, `contains("color")`, `where(is.numeric)`
+- Renames inside the call: `new_name = old_name`
 
 The return value is always a data frame (or tibble) with only the chosen columns, in the order you specified.
+
+[TIP]
+**The pipe is optional, not required.** `select()` works with or without `|>`. The pipe just makes longer pipelines readable. Inside a pipe, the data argument is implicit, so you skip `.data`.
 
 ## Six common patterns
 
@@ -103,7 +108,7 @@ starwars |>
 
 ### 4. Pattern-matching helpers
 
-The tidyselect helpers shine when you have many columns:
+**Tidyselect helpers shine when you have many columns.** Use `starts_with()`, `contains()`, and `where()` to match by prefix, substring, or column type without typing every name.
 
 ```r title="Match by prefix, substring, and type"
 # Columns starting with a string
@@ -163,6 +168,8 @@ starwars |>
 
 ## select() vs base R column subsetting
 
+**`select()` wraps tidyselect, the same helper grammar used elsewhere in dplyr.** That is the real reason to prefer it over base R bracket subsetting: the same `starts_with()`, `where()`, `any_of()` helpers also work inside `summarise(across(...))`, `pivot_longer()`, and `mutate(across(...))`. Learning them once pays off across the entire tidyverse.
+
 | Task | dplyr | Base R |
 |---|---|---|
 | Pick by name | `select(df, a, b)` | `df[, c("a", "b")]` |
@@ -172,8 +179,12 @@ starwars |>
 | Rename + select | `select(df, new = old)` | two steps |
 
 When to use which:
+
 - Use `select()` for readable pipelines and pattern matching.
 - Use base R `[, ...]` when you have no other tidyverse code in the project, or when you want zero package dependencies.
+
+[KEY INSIGHT]
+**The tidyselect helpers are not specific to `select()`.** Once you learn `starts_with()`, `contains()`, `where()`, `any_of()`, and `all_of()`, the same syntax works in `mutate(across(...))`, `summarise(across(...))`, `pivot_longer()`, and other dplyr/tidyr verbs. This is why investing in `select()` pays off everywhere.
 
 ## Common pitfalls
 
@@ -190,6 +201,9 @@ starwars |> select(starts_with("hair")) |> head(1)
 ```
 
 **Pitfall 2: confusing `select()` with `filter()`.** `select()` picks columns; `filter()` picks rows. New users sometimes try `select(starwars, height > 100)`, which errors. For row selection by condition, use `filter()`.
+
+[WARNING]
+**Mixing up `select()` and `filter()` is the most common dplyr mistake.** If a query errors with "object not found" inside `select()`, check whether you actually meant `filter()` for a row condition. Same the other way: if you get all rows back when you expected fewer, you may have used `select()` where `filter()` was needed.
 
 **Pitfall 3: `.data` quoting in functions.** Inside your own function, refer to columns with `.data[[col]]` or `{{ col }}` to avoid name lookup surprises. This is the tidy-evaluation rabbit hole; for one-off scripts, the bare-name form is fine.
 
