@@ -1,0 +1,313 @@
+---
+title: "tidyr nest() in R: Bundle Rows Into List Columns"
+description: "Use tidyr nest() to collapse rows into list-columns of nested data frames in R. Covers vs group_by, .by, unnest, many-models, and 5 worked examples."
+keywords: "tidyr nest, R nest list column, nest vs group_by, tidyr nest .by, many models nest, unnest tidyr"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidyr::nest()|tidyr nest|nest list column|many models nest|nest vs group_by"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr nest() in R: Bundle Rows Into List Columns</h1>
+
+<p class="lead">The <code>nest()</code> function in tidyr collapses rows into list-columns where each cell holds a nested tibble. It is the foundation of "many-models" workflows and tidy hierarchical data.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; nest(.by = group)<span class="qa-cmt">                  # one row per group, data column</span>
+df |&gt; group_by(g) |&gt; nest()<span class="qa-cmt">                # legacy (works but .by preferred)</span>
+df |&gt; nest(data = c(col1, col2))<span class="qa-cmt">          # specific columns nested</span>
+df |&gt; unnest(data)<span class="qa-cmt">                         # opposite: flatten back</span>
+mtcars |&gt; nest(.by = cyl) |&gt; mutate(model = map(data, ~ lm(mpg ~ wt, .x)))</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is nest() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">collapse rows into list-column per group</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nest()</text><text x="125" y="126" class="branch-label">many-models pattern</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">nest + map</text><text x="125" y="182" class="branch-label">specific columns nested only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nest(data = c(cols))</text><text x="125" y="238" class="branch-label">flatten list column back</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">unnest()</text><text x="125" y="294" class="branch-label">group + <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">group_by + summarise (different intent)</text></svg></div>
+
+<h2>What nest() does in one sentence</h2>
+
+<p><strong><code>nest(data, .by = group)</code> returns one row per group, with a list-column whose cells contain the rows for that group as nested tibbles.</strong> Foundation of <a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">list-column workflows</a>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>nest(data, ..., .by = NULL, .key = NULL, .names_sep = NULL)</code>. <code>.by</code> for grouping; <code>...</code> for column-naming.</strong></p>
+
+<div class="webr-container" data-block-title="Nest mtcars by cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Nest mtcars by cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+mtcars |&gt;
+  nest(.by = cyl)
+#&gt; # A tibble: 3 x 2
+#&gt;     cyl                 data
+#&gt;   &lt;dbl&gt;               &lt;list&gt;
+#&gt;     6  &lt;tibble [7 x 10]&gt;
+#&gt;     4  &lt;tibble [11 x 10]&gt;
+#&gt;     8  &lt;tibble [14 x 10]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine <code>nest()</code> with <code>purrr::map()</code> for the "many models" pattern.</strong> Each cell holds a tibble; map applies a function (like <code>lm</code>) to each.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard nest by group</h3>
+
+<div class="webr-container" data-block-title="One row per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One row per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; nest(.by = cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Many models pattern</h3>
+
+<div class="webr-container" data-block-title="Fit lm per cyl group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit lm per cyl group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+mtcars |&gt;
+  nest(.by = cyl) |&gt;
+  mutate(model = map(data, ~ lm(mpg ~ wt, data = .x)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Per-group statistics</h3>
+
+<div class="webr-container" data-block-title="Custom statistic per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom statistic per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  nest(.by = cyl) |&gt;
+  mutate(n = map_int(data, nrow),
+         mean_mpg = map_dbl(data, ~ mean(.x$mpg)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Nested with multiple grouping columns</h3>
+
+<div class="webr-container" data-block-title="Group by cyl AND gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group by cyl AND gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  nest(.by = c(cyl, gear))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Custom column nest</h3>
+
+<div class="webr-container" data-block-title="Nest specific columns into &#x27;measures&#x27;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Nest specific columns into &#x27;measures&#x27;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  nest(measures = c(disp, hp, qsec))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>nest()</code> enables the "many models" workflow: one row per group, model fitted per row, results extracted via map.</strong> This is the canonical tidyverse approach to per-group statistical analysis.</div></div>
+
+<h2>nest() vs group_by() vs nest_join()</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nest(.by = g)</code></td>
+<td>One row per group, list column</td>
+<td>Many-models pattern</td>
+</tr>
+<tr>
+<td><code>group_by(g)</code></td>
+<td>Marker on data frame</td>
+<td>Aggregation</td>
+</tr>
+<tr>
+<td><code>nest_join()</code></td>
+<td>Each x row + nested matches from y</td>
+<td>Hierarchical join</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>nest for splitting data into per-group tibbles for further per-<a class="auto-link" href="dplyr-group_by-in-R.html" title="dplyr group_by() in R: Grouped Operations Made Easy">group operations</a>.</li>
+
+<li>group_by for aggregation.</li>
+
+<li>nest_join for join-style hierarchical merging.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "fit, summarise, unnest" pattern for many-models analysis.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results &lt;- mtcars |&gt;
+  nest(.by = cyl) |&gt;
+  mutate(
+    model    = map(data, ~ lm(mpg ~ wt, data = .x)),
+    glanced  = map(model, broom::glance),
+    tidied   = map(model, broom::tidy)
+  ) |&gt;
+  unnest(glanced)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per cyl group: fit a model, extract glance summary, unnest into columns. Standard tidymodels workflow.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to use map.</strong> After nest, the data column is a LIST. To compute on it, use <code>map(data, fn)</code>.</p>
+
+<p><strong>Pitfall 2: mixing nest with group_by.</strong> Modern dplyr uses <code>nest(.by = g)</code> directly; older code does <code>group_by(g) |&gt; nest()</code>. Both work; .by is cleaner.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>nest()</code> returns a TIBBLE WITH A LIST COLUMN, not a list of tibbles.</strong> This is important for downstream code: it can still be filtered, mutated, joined like a normal data frame.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Nest mtcars by <code>gear</code> and compute the row count per gear group. Save to <code>ex_nested</code>.</p>
+<div class="webr-container" data-block-title="Your turn: nest by gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nest by gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nested &lt;- mtcars |&gt;
+  # your code here
+
+ex_nested
+#&gt; Expected: 3 rows (one per gear) with row count column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nested &lt;- mtcars |&gt;
+  nest(.by = gear) |&gt;
+  mutate(n = purrr::map_int(data, nrow))
+
+ex_nested
+#&gt; # A tibble: 3 x 3
+#&gt;    gear              data     n
+#&gt;      3 &lt;tibble [15 x 10]&gt;    15
+#&gt;      4 &lt;tibble [12 x 10]&gt;    12
+#&gt;      5 &lt;tibble [5 x 10]&gt;      5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> nest creates one row per gear; map_int(data, nrow) counts rows in each.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr / purrr functions</h2>
+
+<p>After mastering nest, look at:</p>
+
+<ul>
+
+<li><code>unnest()</code>: opposite (flatten list column)</li>
+
+<li><code>unnest_longer()</code> / <code>unnest_wider()</code>: targeted unnesting</li>
+
+<li><code>purrr::map()</code>: per-cell computation on list columns</li>
+
+<li><code>nest_join()</code>: nested-join (different)</li>
+
+<li><code>broom::glance()</code> / <code>broom::tidy()</code>: model output extraction</li>
+
+<li><code>tidymodels</code>: framework using nest extensively</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does nest do in tidyr?</strong></p>
+
+<p><code>nest(data, .by = g)</code> returns one row per group, with a list-column whose cells contain the rows for that group as nested tibbles.</p>
+
+<p><strong>What is the difference between nest and group_by?</strong></p>
+
+<p>group_by attaches a grouping marker; data shape is unchanged. nest CHANGES THE SHAPE: one row per group, with the original rows as nested tibbles.</p>
+
+<p><strong>How do I do many models with nest?</strong></p>
+
+<p><code>nest(.by = g) |&gt; mutate(model = map(data, ~ lm(y ~ x, data = .x)))</code>. Each row holds a fitted model.</p>
+
+<p><strong>How do I flatten a nested data frame?</strong></p>
+
+<p>Use <code>unnest(data)</code> (or <code>unnest_longer</code> / <code>unnest_wider</code>). Reverses nest.</p>
+
+<p><strong>What is the .by argument in nest?</strong></p>
+
+<p><code>.by = column</code> is the modern way to specify grouping (dplyr 1.1+). Replaces the older <code>group_by(col) |&gt; nest()</code> pattern.</p>

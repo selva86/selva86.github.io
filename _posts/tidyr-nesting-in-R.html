@@ -1,0 +1,305 @@
+---
+title: "tidyr nesting() in R: Preserve Column Pairs in Combinations"
+description: "Use tidyr nesting() to preserve existing column pairings when generating combinations in R. Covers vs cross-product, expand, complete, 5 examples."
+keywords: "tidyr nesting, R nesting tidyr, nesting vs cross product, preserve column pairs, nesting expand, hierarchical combinations"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidyr::nesting()|tidyr nesting|preserve pairs|hierarchical combinations|nesting expand"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr nesting() in R: Preserve Column Pairs in Combinations</h1>
+
+<p class="lead">The <code>nesting()</code> function in tidyr preserves existing column pairings inside <code>expand()</code> or <code>complete()</code>, instead of generating their full cross product.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; expand(nesting(year, quarter), product)
+df |&gt; complete(nesting(user, plan), month)
+df |&gt; expand(year, quarter)<span class="qa-cmt">            # without nesting: full cross product</span>
+expand(year = 2020:2024, quarter = 1:4)<span class="qa-cmt"> # all 5 * 4 = 20 combos</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 When to use <a class="auto-link" href="tidyr-expand-complete-Make-Implicit-Missing-Values-Explicit.html" title="tidyr expand() & complete() in R: Make Implicit Missing Values Explicit">nesting()</a>?</div><svg class="dt-svg" viewBox="0 0 720 237" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="202"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">preserve existing (year, quarter) pairs inside cross-product</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nesting(year, quarter)</text><text x="125" y="126" class="branch-label">full cross-product including nonexistent pairs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">don't use nesting</text><text x="125" y="182" class="branch-label">hierarchical data with parent-child</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nesting(parent, child)</text></svg></div>
+
+<h2>What nesting() does in one sentence</h2>
+
+<p><strong><code>nesting(...)</code> is a tidyselect helper used inside <code>expand()</code> or <code>complete()</code> that keeps the named columns' EXISTING pairings together (treats them as one composite column) instead of cross-producting them.</strong></p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>nesting(...)</code>. Used inside <code>expand()</code> or <code>complete()</code>. Not called standalone.</strong></p>
+
+<div class="webr-container" data-block-title="Preserve year-quarter pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Preserve year-quarter pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+sales &lt;- tibble(
+  year    = c(2024, 2024, 2025),
+  quarter = c(1, 2, 1),
+  product = c(&quot;X&quot;,&quot;Y&quot;,&quot;X&quot;)
+)
+
+# Without nesting (cross product):
+sales |&gt; expand(year, quarter, product)
+#&gt; 2 years * 2 quarters * 2 products = 8 rows
+#&gt; But (2025, q2) doesn't exist in data - it's still generated!
+
+# With nesting (preserve year-quarter pairs):
+sales |&gt; expand(nesting(year, quarter), product)
+#&gt; 3 (year, quarter) pairs * 2 products = 6 rows
+#&gt; (2025, q2) is NOT generated because it didn't exist</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>nesting()</code> when some column combinations should not be cross-producted.</strong> E.g., year-quarter where (2025, q2) might not yet exist; you want to preserve actual time periods only.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Year-quarter as a unit</h3>
+
+<div class="webr-container" data-block-title="Don&#x27;t cross years with all quarters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Don&#x27;t cross years with all quarters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt; expand(nesting(year, quarter), product)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Hierarchical: parent-child</h3>
+
+<div class="webr-container" data-block-title="Each customer has a tier; cross with month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each customer has a tier; cross with month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; expand(nesting(customer_id, tier), month)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. complete() with nesting</h3>
+
+<div class="webr-container" data-block-title="Complete missing month entries within existing pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete missing month entries within existing pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; complete(nesting(user_id, plan), month = 1:12)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Multi-level nesting</h3>
+
+<div class="webr-container" data-block-title="Country-state preserved">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Country-state preserved</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; expand(nesting(country, state), year)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Without nesting comparison</h3>
+
+<div class="webr-container" data-block-title="Cross product can produce nonsense rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross product can produce nonsense rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; expand(country, state, year)
+#&gt; Cross-products country with EVERY state, even unrelated ones (e.g., US x Bavaria)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>nesting()</code> is the cure for "I don't want a Cartesian product of columns A and B".</strong> When A and B have a natural pairing (like year-quarter, country-state), nesting keeps that intact while cross-producting them with OTHER columns.</div></div>
+
+<h2>nesting() vs cross-product (default)</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th>Without nesting</th>
+<th>With nesting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Year x Quarter</td>
+<td>All combos</td>
+<td>Only existing pairs</td>
+</tr>
+<tr>
+<td>Output rows</td>
+<td>n_year * n_quarter</td>
+<td>n_unique_pairs</td>
+</tr>
+<tr>
+<td>Generates impossible rows</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use nesting:</p>
+
+<ul>
+
+<li>Hierarchical structures (country-state, year-quarter, customer-plan).</li>
+
+<li>Time-stamped pairs that mustn't be artificially split.</li>
+
+<li>When you only want combinations that EXIST in the data.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use nesting in time-series with multiple subjects to avoid generating cross-subject combinations.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">patients_visits |&gt;
+  complete(
+    nesting(patient_id, treatment),
+    visit = 1:10,
+    fill = list(measurement = NA)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each (patient, treatment) pair gets visits 1-10; doesn't cross-product patient with all treatments.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing nesting with cross-product.</strong> Default behavior in expand/complete is FULL cross-product. nesting prevents that for the named columns.</p>
+
+<p><strong>Pitfall 2: trying to use nesting outside expand/complete.</strong> It is a tidyselect helper, not a standalone function.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>nesting()</code> only preserves pairs that EXIST in the data.</strong> It doesn't generate any new pairs, only cross-products with the OTHER expand/complete arguments.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate all (cyl, gear) x am combinations using nesting to preserve cyl-gear pairs from mtcars. Save to <code>ex_nested</code>.</p>
+<div class="webr-container" data-block-title="Your turn: nest cyl-gear, cross with am">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nest cyl-gear, cross with am</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nested &lt;- mtcars |&gt;
+  # your code here
+
+# With nesting: only existing (cyl, gear) pairs * 2 am values
+nrow(ex_nested)
+#&gt; Expected: rows = unique(cyl, gear) pairs * 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nested &lt;- mtcars |&gt;
+  expand(nesting(cyl, gear), am)
+
+# 8 unique (cyl, gear) pairs * 2 am = 16 rows
+nrow(ex_nested)
+#&gt; [1] 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Without nesting, you'd get 3<em>3</em>2 = 18 rows (including nonexistent (4, 5) etc). With nesting, only the actual cyl-gear pairs.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering nesting, look at:</p>
+
+<ul>
+
+<li><code>expand()</code>: combinations from existing data</li>
+
+<li><code>complete()</code>: expand + merge with original</li>
+
+<li><code>expand_grid()</code> / <code>crossing()</code>: from vectors</li>
+
+<li><code>tidyr::nest()</code> / <code>unnest()</code>: <a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">list-column workflows</a></li>
+
+<li><code>dplyr::group_by()</code>: alternative for some uses</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does nesting do in tidyr?</strong></p>
+
+<p><code>nesting(...)</code> is a helper used inside expand/complete that preserves existing column pairings. Instead of cross-producting the named columns, it keeps them as observed pairs.</p>
+
+<p><strong>When should I use nesting?</strong></p>
+
+<p>When two or more columns have a natural pairing (year-quarter, country-state) and cross-producting them would create impossible rows.</p>
+
+<p><strong>Does nesting work outside expand/complete?</strong></p>
+
+<p>No. It is a tidyselect helper specifically for those functions.</p>
+
+<p><strong>What is the difference between nesting and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a>?</strong></p>
+
+<p>group_by changes how subsequent verbs operate (per-group). nesting controls combination generation in expand/complete only. Different scopes.</p>
+
+<p><strong>Can I use nesting with three or more columns?</strong></p>
+
+<p>Yes. <code>nesting(country, state, city)</code> preserves all three together. Use any number of columns.</p>
