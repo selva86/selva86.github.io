@@ -1,0 +1,350 @@
+---
+title: "dplyr across() in R: Apply Functions to Many Columns"
+description: "Use dplyr across() inside mutate() and summarise() to apply a function to many columns. Covers where(), tidyselect, naming patterns, and 6 worked examples."
+keywords: "dplyr across, dplyr across examples, mutate across, summarise across, dplyr where, apply function to multiple columns, replace mutate_at"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "across()|dplyr across|dplyr::across()|apply to multiple columns|across columns"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr across() in R: Apply Functions to Many Columns</h1>
+
+<p class="lead">The <code>across()</code> function inside <code>mutate()</code> or <code>summarise()</code> applies a function to many columns at once, replacing the older <code>_at</code>, <code>_if</code>, and <code>_all</code> variants. Pair it with <code>where()</code>, <code>starts_with()</code>, or any tidyselect helper.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mutate(df, across(where(is.numeric), scale))<span class="qa-cmt">           # all numeric cols</span>
+summarise(df, across(c(mpg, hp), mean))<span class="qa-cmt">                # specific cols</span>
+summarise(df, across(where(is.numeric), mean, .names = &quot;avg_{.col}&quot;))<span class="qa-cmt">  # rename</span>
+mutate(df, across(starts_with(&quot;x&quot;), ~ . * 100))<span class="qa-cmt">        # by prefix</span>
+summarise(df, across(where(is.numeric), list(mean = mean, sd = sd)))<span class="qa-cmt">   # multi fn</span>
+mutate(df, across(everything(), as.character))<span class="qa-cmt">         # all cols</span>
+mutate(df, across(c(a, b), ~ replace_na(., 0)))<span class="qa-cmt">        # custom lambda</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is across() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">apply one function to many cols</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mutate(df, across(where(is.numeric), scale))</text><text x="125" y="126" class="branch-label">single column transform</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mutate(df, x = scale(x))</text><text x="125" y="182" class="branch-label">different function per column</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mutate(df, x = scale(x), y = log(y))</text><text x="125" y="238" class="branch-label">rename, do not transform</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rename_with(df, ~ paste0(&quot;v_&quot;, .))</text><text x="125" y="294" class="branch-label">pivot many cols to long format</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pivot_longer(df, cols = everything())</text><text x="125" y="350" class="branch-label">count distinct values per col</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>(df, across(everything(), n_distinct))</text><text x="125" y="406" class="branch-label">conditional replace per col</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">mutate(df, across(where(is.numeric), ~ replace_na(., 0)))</text></svg></div>
+
+<h2>What across() does in one sentence</h2>
+
+<p><strong><code>across()</code> is the bulk-column verb.</strong> Inside <code>mutate()</code> or <code>summarise()</code>, you give it a column selector (tidyselect helper) and one function (or list of functions). dplyr applies the function to every selected column and either replaces the columns (in mutate) or produces summary columns (in summarise).</p>
+
+<p>Unlike the deprecated <code>mutate_at()</code>, <code>mutate_if()</code>, <code>mutate_all()</code> family, <code>across()</code> uses the same tidyselect grammar as <code>select()</code>, so the same <code>where()</code>, <code>starts_with()</code>, <code>c(a, b)</code> syntax works everywhere.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>across()</code> takes a column selector plus a function (or list of functions).</strong> The selector can be tidyselect helpers, bare names, or a vector. The function can be a name, a lambda (<code>~ . * 2</code>), or a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of functions for multi-output.</p>
+
+<div class="webr-container" data-block-title="Load dplyr and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load dplyr and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt; select(mpg, hp, wt) |&gt; head(3)
+#&gt;                    mpg  hp    wt
+#&gt; Mazda RX4         21.0 110 2.620
+#&gt; Mazda RX4 Wag     21.0 110 2.875
+#&gt; Datsun 710        22.8  93 2.320</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>across(.cols = everything(), .fns = NULL, ..., .names = NULL, .unpack = FALSE)</code></pre>
+
+<p><code>.cols</code> selects columns via tidyselect. <code>.fns</code> is the function or list of functions. <code>.names</code> is a glue template for output column names (default keeps original names for one-fn, appends fn name for multi-fn).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>across()</code> only works INSIDE another dplyr verb.</strong> You cannot call <code>across(df, ...)</code> directly. It must be wrapped: <code>mutate(df, across(...))</code>, <code>summarise(df, across(...))</code>, or <code>filter(df, if_any(across(...)))</code>.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Apply one function to all numeric columns</h3>
+
+<div class="webr-container" data-block-title="Standardize all numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize all numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(across(where(is.numeric), scale)) |&gt;
+  select(mpg, hp) |&gt;
+  head(3)
+#&gt;                          mpg          hp
+#&gt; Mazda RX4         0.15088482 -0.53509284
+#&gt; Mazda RX4 Wag     0.15088482 -0.53509284
+#&gt; Datsun 710        0.44954345 -0.78304046</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>where(is.numeric)</code> selects columns where the predicate returns TRUE. <code>scale()</code> is applied to each.</p>
+
+<h3>2. Specific columns by name</h3>
+
+<div class="webr-container" data-block-title="Mean of mpg, hp, wt only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of mpg, hp, wt only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  summarise(across(c(mpg, hp, wt), mean))
+#&gt;        mpg       hp       wt
+#&gt; 1 20.09062 146.6875 3.21725</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass a vector of bare names to <code>c(...)</code> to target specific columns.</p>
+
+<h3>3. Multiple functions producing multiple outputs</h3>
+
+<div class="webr-container" data-block-title="Mean and SD for every numeric column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean and SD for every numeric column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  summarise(across(c(mpg, hp), list(mean = mean, sd = sd)))
+#&gt;   mpg_mean   mpg_sd  hp_mean    hp_sd
+#&gt; 1 20.09062 6.026948 146.6875 68.56287</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A named list of functions creates one output column per (input column, function) pair. Default naming is <code>{.col}_{.fn}</code>.</p>
+
+<h3>4. Custom lambda with anonymous function</h3>
+
+<div class="webr-container" data-block-title="Multiply numeric columns by 100">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiply numeric columns by 100</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(across(c(mpg, hp), ~ . * 100)) |&gt;
+  select(mpg, hp) |&gt;
+  head(3)
+#&gt;                  mpg    hp
+#&gt; Mazda RX4       2100 11000
+#&gt; Mazda RX4 Wag   2100 11000
+#&gt; Datsun 710      2280  9300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>~ . * 100</code> is shorthand for <code>function(x) x * 100</code>. The <code>.</code> placeholder refers to each column's values.</p>
+
+<h3>5. Custom output names with .names</h3>
+
+<div class="webr-container" data-block-title="Prefix each summary with avg_">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prefix each summary with avg_</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  summarise(across(where(is.numeric), mean, .names = &quot;avg_{.col}&quot;)) |&gt;
+  select(avg_mpg, avg_hp)
+#&gt;    avg_mpg  avg_hp
+#&gt; 1 20.09062 146.6875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.names</code> is a glue template. <code>{.col}</code> is the input column name; <code>{.fn}</code> is the function name (when using a named list).</p>
+
+<h3>6. Conditional replacement across columns</h3>
+
+<div class="webr-container" data-block-title="Replace NA with 0 in numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Replace NA with 0 in numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(a = c(1, NA, 3), b = c(NA, 5, 6), name = c(&quot;x&quot;,&quot;y&quot;,&quot;z&quot;))
+df |&gt;
+  mutate(across(where(is.numeric), ~ replace_na(., 0)))
+#&gt; # A tibble: 3 x 3
+#&gt;       a     b name
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     1     0 x
+#&gt; 2     0     5 y
+#&gt; 3     3     6 z</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lambda receives each numeric column; non-numeric columns (<code>name</code>) are untouched.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>across()</code> made <code>mutate_at()</code>, <code>mutate_if()</code>, and <code>mutate_all()</code> obsolete in dplyr 1.0+.</strong> The old code <code>mutate_if(df, is.numeric, scale)</code> becomes <code>mutate(df, across(where(is.numeric), scale))</code>. Same result, more composable, fewer functions to remember. If you see _at/_if/_all in tutorials from 2019 or earlier, they still work but are superseded.</div></div>
+
+<h2>across() vs the legacy _at/_if/_all family</h2>
+
+<p><strong><code>across()</code> is the modern unified replacement.</strong> The legacy functions still work but are not recommended for new code.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>Modern (across)</th>
+<th>Legacy (_at / _if / _all)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apply to numeric</td>
+<td><code>mutate(across(where(is.numeric), scale))</code></td>
+<td><code>mutate_if(is.numeric, scale)</code></td>
+</tr>
+<tr>
+<td>Apply to specific</td>
+<td><code>mutate(across(c(a,b), log))</code></td>
+<td><code>mutate_at(vars(a,b), log)</code></td>
+</tr>
+<tr>
+<td>Apply to all</td>
+<td><code>mutate(across(everything(), as.character))</code></td>
+<td><code>mutate_all(as.character)</code></td>
+</tr>
+<tr>
+<td>Multi-function</td>
+<td><code>summarise(across(., list(m=mean, s=sd)))</code></td>
+<td><code>summarise_at(vars(...), funs(mean, sd))</code></td>
+</tr>
+<tr>
+<td>Rename outputs</td>
+<td><code>summarise(across(., mean, .names=&quot;avg_{.col}&quot;))</code></td>
+<td>(awkward)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Always use <code>across()</code> in new code.</li>
+
+<li>The legacy functions still exist in dplyr for backward compatibility but produce deprecation warnings.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting that <code>across()</code> returns columns, not a single value.</strong> Inside <code>summarise()</code>, <code>across(c(mpg, hp), mean)</code> returns TWO columns (<code>mpg</code>, <code>hp</code>), not a vector. The result is a row of summaries, not a single number.</p>
+
+<p><strong>Pitfall 2: trying to use <code>across()</code> outside a verb.</strong> <code>across(df, ...)</code> errors. It is a helper that only works inside <code>mutate()</code>, <code>summarise()</code>, <code>filter(if_any(...))</code>, etc.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The lambda <code>~ . * 2</code> uses <code>.</code> as the column placeholder.</strong> If you want to write a multi-step transform, you must wrap in braces: <code>~ { .x &lt;- as.numeric(.); .x * 2 }</code>. The default <code>.</code> is fine for one-step expressions; for multi-step, use a named function or <code>function(x) {...}</code> syntax.</div></div>
+
+<p><strong>Pitfall 3: <code>where()</code> predicate is column-level, not value-level.</strong> <code>where(is.na)</code> selects columns that are ENTIRELY NA, not columns containing any NA. To check for any NA in a column, use <code>where(~ any(is.na(.)))</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>across()</code> to compute the mean of every numeric column in <code>mtcars</code>. Save the result to <code>ex_means</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bulk numeric mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bulk numeric mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: mean of all numeric columns
+ex_means &lt;- # your code here
+
+ex_means
+#&gt; Expected: a 1-row tibble with one column per numeric variable</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_means &lt;- mtcars |&gt; summarise(across(where(is.numeric), mean))
+ex_means
+#&gt;        mpg     cyl     disp       hp     drat       wt    qsec      vs      am    gear   carb
+#&gt; 1 20.09062 6.1875 230.7219 146.6875 3.596563 3.21725 17.84875 0.4375 0.40625 3.6875 2.8125</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>across(where(is.numeric), mean)</code> selects every column where <code>is.numeric()</code> returns TRUE, then applies <code>mean()</code> to each. The output is one summary column per input column.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering <code>across()</code>, look at:</p>
+
+<ul>
+
+<li><code>where()</code>: column-level predicate selector inside tidyselect</li>
+
+<li><code>if_any()</code>, <code>if_all()</code>: row-level predicate combiners (use inside <code>filter()</code>)</li>
+
+<li><code>pick()</code>: tidyselect inside <code>arrange()</code> and <code>summarise()</code> to select column subsets</li>
+
+<li><code>rename_with()</code>: <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a> by applying a function to names</li>
+
+<li>Legacy <code>_at</code>/<code>_if</code>/<code>_all</code>: avoid in new code, but readable in old codebases</li>
+
+</ul>
+
+<p>For multi-column transformations that need different functions per column, just write multiple <code>name = expression</code> pairs inside <code>mutate()</code> directly.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between mutate_if and across in dplyr?</strong></p>
+
+<p><code>mutate_if(df, is.numeric, scale)</code> is the legacy syntax (dplyr 0.x). <code>mutate(df, across(where(is.numeric), scale))</code> is the modern equivalent (dplyr 1.0+). Same result, but <code>across()</code> is more composable and uses the unified tidyselect grammar.</p>
+
+<p><strong>How do I use across with multiple functions in dplyr?</strong></p>
+
+<p>Pass a named list: <code>summarise(df, across(where(is.numeric), list(mean = mean, sd = sd, n = ~ sum(!is.na(.)))))</code>. The result has one column per (input column, function) pair, named <code>{.col}_{.fn}</code> by default.</p>
+
+<p><strong>Can I use across inside filter?</strong></p>
+
+<p>Not directly. Use <code>if_any()</code> or <code>if_all()</code>: <code>filter(df, if_any(c(a, b), ~ . &gt; 0))</code> keeps rows where at least one of <code>a</code> or <code>b</code> is positive. <code>if_all()</code> requires all selected columns to satisfy the predicate.</p>
+
+<p><strong>Why does my across call return weird column names?</strong></p>
+
+<p>If you pass a named list of functions, output is <code>{.col}_{.fn}</code>. If you pass a single function, output keeps the original column name (overwriting them). If you want custom names, use the <code>.names</code> argument with a glue template: <code>.names = &quot;z_{.col}&quot;</code>.</p>
+
+<p><strong>Does across work with character columns?</strong></p>
+
+<p>Yes, but you need to select them explicitly: <code>across(where(is.character), toupper)</code>. By default <code>where(is.numeric)</code> skips character columns. Use <code>where(is.character)</code> or <code>c(name1, name2)</code> to target specifics.</p>

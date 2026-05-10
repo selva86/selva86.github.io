@@ -1,0 +1,349 @@
+---
+title: "dplyr relocate() in R: Reorder Columns Easily"
+description: "Use dplyr relocate() to move columns to specific positions in R. Covers .before, .after anchors, tidyselect helpers, last_col(), and 6 worked examples."
+keywords: "dplyr relocate, reorder columns R, move columns dplyr, dplyr column position, .before .after dplyr, R rearrange columns"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "relocate()|dplyr relocate|dplyr::relocate()|reorder columns|move columns"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr relocate() in R: Reorder Columns Easily</h1>
+
+<p class="lead">The <code>relocate()</code> function in dplyr moves columns to a specific position without renaming or dropping them. Use <code>.before</code> or <code>.after</code> to anchor the move; tidyselect helpers like <code>where()</code> and <code>starts_with()</code> let you move groups of columns at once.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>relocate(df, hp)<span class="qa-cmt">                           # move hp to front</span>
+relocate(df, hp, .before = mpg)<span class="qa-cmt">            # move hp before mpg</span>
+relocate(df, hp, .after = cyl)<span class="qa-cmt">             # move hp after cyl</span>
+relocate(df, hp, .after = last_col())<span class="qa-cmt">      # move hp to end</span>
+relocate(df, where(is.character))<span class="qa-cmt">          # move all chr cols to front</span>
+relocate(df, starts_with(&quot;m&quot;))<span class="qa-cmt">             # move m-cols to front</span>
+relocate(df, name, .before = everything())<span class="qa-cmt"> # name column first</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is relocate() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">move columns to a position</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">relocate(df, hp, .before = mpg)</text><text x="125" y="126" class="branch-label">rename without moving</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rename(df, new = old)</text><text x="125" y="182" class="branch-label">pick subset and reorder</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">select(df, name, mass, everything())</text><text x="125" y="238" class="branch-label">sort rows (not columns)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">arrange(df, x)</text><text x="125" y="294" class="branch-label">transpose data</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">t(df) (base R, returns matrix)</text><text x="125" y="350" class="branch-label">pivot <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">wide to long</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pivot_longer(df, cols = ...)</text><text x="125" y="406" class="branch-label">alphabetize column names</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">select(df, sort(tidyselect::peek_vars()))</text></svg></div>
+
+<h2>What relocate() does in one sentence</h2>
+
+<p><strong><code>relocate()</code> moves columns to a specific position without renaming, dropping, or transforming them.</strong> You <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> with bare names or tidyselect helpers, then anchor the move with <code>.before</code> or <code>.after</code>. Without an anchor, the selected columns move to the front.</p>
+
+<p>Unlike <code>select(df, hp, mpg, everything())</code> (which renames implicitly via order), <code>relocate()</code> is a pure positioning operation. The data and names are unchanged; only the column order shifts.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>relocate()</code> takes columns to move plus an optional <code>.before</code> or <code>.after</code> anchor.</strong> Without an anchor, columns move to the front (position 1).</p>
+
+<div class="webr-container" data-block-title="Load dplyr and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load dplyr and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+names(mtcars)
+#&gt; [1] &quot;mpg&quot;  &quot;cyl&quot;  &quot;disp&quot; &quot;hp&quot;   &quot;drat&quot; &quot;wt&quot;   &quot;qsec&quot; &quot;vs&quot;   &quot;am&quot;   &quot;gear&quot; &quot;carb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature:</p>
+
+<pre><code>relocate(.data, ..., .before = NULL, .after = NULL)</code></pre>
+
+<p><code>.before</code> and <code>.after</code> are mutually exclusive. Both accept a single column name or a tidyselect expression.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>last_col()</code> to refer to the rightmost column.</strong> <code>relocate(df, hp, .after = last_col())</code> moves <code>hp</code> to the end. <code>relocate(df, hp, .before = last_col())</code> puts <code>hp</code> second-to-last. Useful when you do not know the exact column count.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Move column to the front</h3>
+
+<div class="webr-container" data-block-title="Move hp to position 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move hp to position 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  relocate(hp) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;hp&quot;   &quot;mpg&quot;  &quot;cyl&quot;  &quot;disp&quot; &quot;drat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without an anchor, the named columns move to position 1, in the order specified.</p>
+
+<h3>2. Move with .before</h3>
+
+<div class="webr-container" data-block-title="Move hp before mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move hp before mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  relocate(hp, .before = mpg) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;hp&quot;   &quot;mpg&quot;  &quot;cyl&quot;  &quot;disp&quot; &quot;drat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In this case <code>.before = mpg</code> produces the same result as no anchor (because mpg is currently first), but the intent is clearer.</p>
+
+<h3>3. Move with .after</h3>
+
+<div class="webr-container" data-block-title="Move hp after cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move hp after cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  relocate(hp, .after = cyl) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;mpg&quot;  &quot;cyl&quot;  &quot;hp&quot;   &quot;disp&quot; &quot;drat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.after = cyl</code> places hp directly after cyl. Other columns shift right.</p>
+
+<h3>4. Move to the end</h3>
+
+<div class="webr-container" data-block-title="Move mpg to the last position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move mpg to the last position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  relocate(mpg, .after = last_col()) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;cyl&quot;  &quot;disp&quot; &quot;hp&quot;   &quot;drat&quot; &quot;wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>last_col()</code> references whichever column is last after the move. Combined with <code>.after</code>, this puts the named column at the very end.</p>
+
+<h3>5. Move a group of columns by predicate</h3>
+
+<div class="webr-container" data-block-title="Move all character columns to the front">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move all character columns to the front</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">starwars |&gt;
+  relocate(where(is.character)) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;name&quot;       &quot;hair_color&quot; &quot;skin_color&quot; &quot;eye_color&quot;  &quot;sex&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tidyselect helpers like <code>where()</code>, <code>starts_with()</code>, <code>contains()</code> work inside relocate. Multiple columns move as a group.</p>
+
+<h3>6. Identifier columns first idiom</h3>
+
+<div class="webr-container" data-block-title="Put name column first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Put name column first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">starwars |&gt;
+  relocate(name, .before = everything()) |&gt;
+  names() |&gt;
+  head(5)
+#&gt; [1] &quot;name&quot;   &quot;height&quot; &quot;mass&quot;   &quot;hair_color&quot; &quot;skin_color&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.before = everything()</code> puts the column at the start. This is a common idiom for "make this the identifier column".</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>relocate()</code> and <code>select()</code> can both reorder, but they differ in dropping behavior.</strong> <code>relocate()</code> keeps every column, only moving the named ones. <code>select(df, mpg, cyl, everything())</code> keeps mpg first, cyl second, then everything else, but if you forget <code>everything()</code> it DROPS the unlisted columns. Use <code>relocate()</code> when you only want to move; use <code>select()</code> when you also want to drop.</div></div>
+
+<h2>relocate() vs select() vs base R</h2>
+
+<p><strong>Both verbs can reorder; only <code>select()</code> drops columns. Base R requires manual index manipulation.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>relocate</th>
+<th>select</th>
+<th>Base R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Move to front</td>
+<td><code>relocate(df, hp)</code></td>
+<td><code>select(df, hp, everything())</code></td>
+<td><code>df[, c(&quot;hp&quot;, setdiff(names(df), &quot;hp&quot;))]</code></td>
+</tr>
+<tr>
+<td>Move after specific col</td>
+<td><code>relocate(df, hp, .after = cyl)</code></td>
+<td>(manual: list all in order)</td>
+<td>(manual indexing)</td>
+</tr>
+<tr>
+<td>Move all numeric</td>
+<td><code>relocate(df, where(is.numeric))</code></td>
+<td><code>select(df, where(is.numeric), everything())</code></td>
+<td>(loop and reconstruct)</td>
+</tr>
+<tr>
+<td>Move + drop</td>
+<td>(does not drop)</td>
+<td><code>select(df, hp, mpg)</code></td>
+<td><code>df[, c(&quot;hp&quot;,&quot;mpg&quot;)]</code></td>
+</tr>
+<tr>
+<td>Reverse order</td>
+<td><code>relocate(df, last_col():1)</code></td>
+<td><code>select(df, last_col():1)</code></td>
+<td><code>df[, ncol(df):1]</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>relocate()</code> when you ONLY want to move columns.</li>
+
+<li>Use <code>select()</code> when you want to move AND drop.</li>
+
+<li>Use base R when zero dependencies matter.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>everything()</code> in select-based reorders.</strong> <code>select(df, hp, mpg)</code> returns ONLY hp and mpg, dropping the rest. To reorder without dropping, use <code>relocate(df, hp, mpg)</code> or <code>select(df, hp, mpg, everything())</code>.</p>
+
+<p><strong>Pitfall 2: <code>.before</code> and <code>.after</code> are mutually exclusive.</strong> Passing both errors. Choose one; if you need to position relative to two anchors (e.g., "between A and B"), use <code>.before = B</code> and rely on the columns to settle correctly.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>relocate()</code> does not change column COUNT, only order.</strong> This sounds obvious but bites users who confuse it with <code>select()</code>. If your row of names is shorter after relocate, you used the wrong verb.</div></div>
+
+<p><strong>Pitfall 3: relocating into the middle of a tidyselect group.</strong> <code>relocate(df, x, .after = where(is.numeric))</code> is ambiguous if there are multiple numeric columns. dplyr places after the LAST matching column. To be specific, name the anchor column directly.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> In <code>mtcars</code>, move <code>hp</code> and <code>wt</code> columns immediately after <code>mpg</code>. Save the result to <code>ex_mt</code> and print the column names.</p>
+<div class="webr-container" data-block-title="Your turn: reorder columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: reorder columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: hp and wt should follow mpg
+ex_mt &lt;- mtcars |&gt;
+  # your code here
+
+names(ex_mt) |&gt; head(6)
+#&gt; Expected: c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;, &quot;disp&quot;, &quot;drat&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mt &lt;- mtcars |&gt;
+  relocate(hp, wt, .after = mpg)
+
+names(ex_mt) |&gt; head(6)
+#&gt; [1] &quot;mpg&quot;  &quot;hp&quot;   &quot;wt&quot;   &quot;cyl&quot;  &quot;disp&quot; &quot;drat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>relocate(hp, wt, .after = mpg)</code> moves both <code>hp</code> and <code>wt</code> to the position right after <code>mpg</code>, in the order specified. Other columns (cyl, disp, etc.) keep their relative order.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering <code>relocate()</code>, look at:</p>
+
+<ul>
+
+<li><code>select()</code> with <code>everything()</code>: alternative reorder that can also drop</li>
+
+<li><code>rename()</code>: change column names without moving them</li>
+
+<li><code>last_col()</code>: tidyselect helper for the rightmost column</li>
+
+<li><code>everything()</code>: tidyselect helper that matches all remaining columns</li>
+
+<li>Base R <code>df[, order]</code>: manual reorder using a name vector</li>
+
+</ul>
+
+<p>For sorting column names alphabetically, the idiom is <code>select(df, sort(tidyselect::peek_vars()))</code> or simpler: <code>select(df, sort(names(df)))</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I move a column to the front in dplyr?</strong></p>
+
+<p><code>relocate(df, col_name)</code> moves it to position 1. Or <code>relocate(df, col_name, .before = everything())</code> if you want to be explicit. Both produce the same result.</p>
+
+<p><strong>How do I reorder columns without dropping any in R?</strong></p>
+
+<p>Use <code>relocate()</code> from dplyr. It only changes positions; never drops columns. <code>select(df, ...)</code> reorders too but drops any columns you do not name unless you add <code>, everything()</code>.</p>
+
+<p><strong>What is the difference between relocate and select in dplyr?</strong></p>
+
+<p><code>relocate()</code> is positioning only: it never drops columns. <code>select()</code> can rename, drop, AND reorder, but you must explicitly include <code>everything()</code> if you want to keep unmentioned columns. For a pure reorder, prefer <code>relocate()</code>.</p>
+
+<p><strong>How do I move multiple columns at once with relocate?</strong></p>
+
+<p>List them comma-separated: <code>relocate(df, hp, wt, .after = mpg)</code>. Both move together as a block, in the order you specified, to the position after <code>mpg</code>.</p>
+
+<p><strong>How do I move columns to the end of a data frame?</strong></p>
+
+<p>Use <code>.after = last_col()</code>: <code>relocate(df, mpg, .after = last_col())</code> moves <code>mpg</code> to the rightmost position. <code>last_col()</code> refers to whichever column is currently at the end.</p>
