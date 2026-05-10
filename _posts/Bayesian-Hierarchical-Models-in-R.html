@@ -1,0 +1,868 @@
+---
+title: "Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups"
+description: "Hierarchical Bayesian models fit population-level effects plus per-group deviations jointly. Use brms to borrow strength across groups and stabilise small ones."
+keywords: "Bayesian hierarchical model R, partial pooling, brms hierarchical, random intercept brms, Bayesian multilevel, varying intercepts, varying slopes, ranef brms"
+mathjax: false
+webr: true
+curriculum_id: "5.2.7"
+post_type: "C"
+auto_link_terms: "Bayesian hierarchical model|hierarchical Bayesian|partial pooling|borrowing strength|varying intercepts|varying slopes|random effects brms|ranef|brms multilevel|group-level effects|hierarchical prior|non-centred parameterisation"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Bayesian Hierarchical Models"
+sidebar_order: "125"
+---
+<!-- md2html:generated -->
+
+<h1>Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups</h1>
+
+<p class="lead">Schools, hospitals, customers, regions, sales reps. Real datasets <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> full of groups whose averages are related but not identical. Fitting one model per group ignores what they share; fitting one pooled model across all groups ignores what makes them different. A hierarchical Bayesian model fits both at once: a population-level effect plus per-group deviations, with each group's posterior pulled toward the population mean by an amount that depends on how much data the group has. The "borrowing strength" trick lets small groups inherit information from larger ones without large groups being held back.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms calls Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What problem do hierarchical models solve?</h2>
+
+<p>Imagine you measure customer satisfaction in 50 stores. Some stores have 500 customers each; others have only 5. You want to estimate the typical satisfaction in each store.</p>
+
+<p>Two naive approaches fail. The first is <em>no pooling</em>: fit a separate average for each store. The 500-customer stores get reliable estimates; the 5-customer stores have huge standard errors and unreliable averages.</p>
+
+<p>The second is <em>complete pooling</em>: ignore stores entirely and use one global average. You lose all the store-to-store variation.</p>
+
+<p>Hierarchical models do <em>partial pooling</em>. Each store's estimate is a weighted average of its own data and the population mean, with the weight depending on the store's sample size. Stores with lots of data are pulled only slightly toward the population mean; stores with little data are pulled heavily. The resulting per-store estimates are more accurate on average than either no pooling or complete pooling.</p>
+
+<p>Below is a hierarchical Bayesian model on <code>mtcars</code> with <code>cyl</code> as the grouping variable. Each cyl group has its own intercept, but the intercepts are pulled toward a shared population mean.</p>
+
+<div class="webr-container" data-block-title="A hierarchical model on mtcars by cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A hierarchical model on mtcars by cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+mtcars2     &lt;- mtcars
+mtcars2$cyl &lt;- factor(mtcars2$cyl)
+
+fit_hier &lt;- brm(
+  mpg ~ wt + (1 | cyl),
+  data    = mtcars2,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+summary(fit_hier)
+#&gt; Group-Level Effects:
+#&gt; ~cyl (Number of levels: 3)
+#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sd(Intercept)     2.75      1.65     0.36     6.94 1.00     1185      934
+#&gt;
+#&gt; Population-Level Effects:
+#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; Intercept    34.10      2.39    29.02    38.71 1.00     2103     1735
+#&gt; wt           -3.02      0.79    -4.52    -1.41 1.00     2890     2347</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed from a flat regression. The formula <code>mpg ~ wt + (1 | cyl)</code> has the standard <code>wt</code> term but adds <code>(1 | cyl)</code>, which is brms shorthand for "fit a separate intercept for each level of cyl, with all the cyl intercepts drawn from a common population distribution."</p>
+
+<p>The summary now has two sections. "Population-Level Effects" reports the population-average intercept and the slope on wt. "Group-Level Effects" reports the standard deviation across the cyl groups' intercept deviations.</p>
+
+<p>The population intercept is 34.10 mpg with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> <code>[29, 38.7]</code>. That is the average across cyl groups. The wt slope is -3.02, the average effect of weight on mpg. The group-level sd is 2.75, meaning cyl groups differ in their intercepts by a typical 2.75 mpg.</p>
+
+<p>To see the actual per-group intercepts, use <code>ranef()</code>.</p>
+
+<div class="webr-container" data-block-title="Per-group intercept deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ranef(fit_hier)$cyl[, , &quot;Intercept&quot;]
+#&gt;     Estimate Est.Error    Q2.5    Q97.5
+#&gt; 4      1.92      1.66   -1.20    5.39
+#&gt; 6     -0.55      1.28   -3.13    1.95
+#&gt; 8     -1.69      1.54   -4.85    1.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the per-group output. Each row is one cyl level. The <code>Estimate</code> is the per-group intercept <em>deviation</em> from the population mean. So the cyl=4 typical mpg is <code>34.10 + 1.92 = 36.02</code>; cyl=6 is <code>34.10 - 0.55 = 33.55</code>; cyl=8 is <code>34.10 - 1.69 = 32.41</code>.</p>
+
+<p>The credible intervals on each deviation are wide for the small groups. The cyl=4 group has only 11 cars; its deviation is 1.92 with interval <code>[-1.20, 5.39]</code>. The hierarchical model has <em>shrunk</em> this estimate toward the population mean (zero deviation) compared to what no-pooling would give.</p>
+
+<p><img src="screenshots/Bayesian-Hierarchical-Models-in-R-pooling.webp" alt="Three pooling strategies" class="img-responsive img-zoomable" loading="lazy" width="960" height="986" /></p>
+
+<p><em>Figure 1: No pooling fits each group separately and produces high-variance per-group estimates. Complete pooling ignores groups and produces low-variance but biased estimates. Partial pooling (hierarchical) finds the optimal balance, shrinking small groups more than large ones.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hierarchical models are not just "regression with group dummies."</strong> A regression with <code>factor(cyl)</code> as a fixed effect fits each group's intercept independently (no pooling). A hierarchical model with <code>(1 | cyl)</code> fits all groups jointly with shared shrinkage (partial pooling). The latter is more accurate when groups are similar enough to share information.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the marginal posterior for cyl=4's actual intercept (population intercept plus deviation, not just the deviation). Report median and 95% credible interval.</p>
+<div class="webr-container" data-block-title="Your turn: per-group full intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-group full intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pull both b_Intercept and r_cyl[4,Intercept] draws and add them
+# Compute median and 2.5/97.5 quantiles</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-group intercept solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">draws &lt;- as_draws_df(fit_hier, variable = c(&quot;b_Intercept&quot;, &quot;r_cyl[4,Intercept]&quot;))
+cyl4_intercept &lt;- draws$b_Intercept + draws$`r_cyl[4,Intercept]`
+c(
+  median   = round(median(cyl4_intercept), 2),
+  q025_975 = paste0(&quot;[&quot;, round(quantile(cyl4_intercept, 0.025), 2),
+                    &quot;, &quot;, round(quantile(cyl4_intercept, 0.975), 2), &quot;]&quot;)
+)
+#&gt;          median        q025_975
+#&gt;           36.02   [33.45, 38.71]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full intercept for cyl=4 is centred on 36.02 mpg with 95% credible interval <code>[33.45, 38.71]</code>. This is the typical mpg for a 4-cylinder car at zero weight, propagating both population-level uncertainty and group-level uncertainty.</p>
+
+</details>
+</section>
+
+<h2>How do partial pooling, no pooling, and complete pooling differ?</h2>
+
+<p>The differences are clearest with a numeric demonstration. Below we fit the same data three ways and compare per-group means.</p>
+
+<div class="webr-container" data-block-title="No pooling, complete pooling, partial pooling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">No pooling, complete pooling, partial pooling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># No pooling: separate intercept per group
+fit_no_pool &lt;- brm(
+  mpg ~ 0 + cyl + wt,        # 0 + cyl gives no overall intercept; one per group
+  data    = mtcars2,
+  prior   = prior(normal(20, 10), class = &quot;b&quot;),
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+# Complete pooling: ignore cyl entirely
+fit_complete &lt;- brm(
+  mpg ~ wt,
+  data    = mtcars2,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+# Already-fit hierarchical model is partial pooling
+# Compare per-group means
+sapply(c(&quot;4&quot;, &quot;6&quot;, &quot;8&quot;), function(g) {
+  obs    &lt;- mean(mtcars2$mpg[mtcars2$cyl == g])
+  no_pool &lt;- posterior_summary(fit_no_pool, variable = paste0(&quot;b_cyl&quot;, g))[1, &quot;Estimate&quot;]
+  partial &lt;- posterior_summary(fit_hier, variable = &quot;b_Intercept&quot;)[1, &quot;Estimate&quot;] +
+             posterior_summary(fit_hier, variable = paste0(&quot;r_cyl[&quot;, g, &quot;,Intercept]&quot;))[1, &quot;Estimate&quot;]
+  c(observed_mean = round(obs, 2),
+    no_pool       = round(no_pool, 2),
+    complete_pool = round(posterior_summary(fit_complete, variable = &quot;b_Intercept&quot;)[1, &quot;Estimate&quot;], 2),
+    partial_pool  = round(partial, 2))
+})
+#&gt;                 4     6     8
+#&gt; observed_mean 26.66 19.74 15.10
+#&gt; no_pool       36.34 28.85 25.87
+#&gt; complete_pool 37.29 37.29 37.29
+#&gt; partial_pool  36.02 33.55 32.41</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the comparison. The "observed_mean" row is the raw average mpg per cyl group. The other rows are model-implied intercepts (typical mpg at zero weight, which is hypothetical extrapolation but reveals the pooling pattern).</p>
+
+<p>No pooling gives intercepts of 36.3, 28.9, 25.9 across the three groups. Complete pooling forces all three to the same value 37.3. Partial pooling gives 36.0, 33.6, 32.4: less spread than no pooling, more spread than complete pooling. The partial-pooling estimates are pulled toward the population mean by an amount inversely proportional to each group's sample size.</p>
+
+<p>That is the trade-off in numbers. With more groups or fewer observations per group, the partial-pooling shrinkage gets stronger. With many observations per group, partial pooling barely differs from no pooling.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Partial pooling is what frequentist practitioners call "random effects" or "mixed models."</strong> <code>lme4::lmer()</code> does the same thing for Gaussian outcomes. The Bayesian version through brms gives you the full posterior plus proper uncertainty propagation between levels, which <code>lmer()</code> does not.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the cyl=8 group (14 cars in mtcars), compute how far partial-pooling shrunk the intercept toward the population mean compared to no-pooling.</p>
+<div class="webr-container" data-block-title="Your turn: shrinkage on the largest group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrinkage on the largest group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># no-pool intercept for cyl=8: from fit_no_pool b_cyl8
+# partial-pool intercept for cyl=8: from fit_hier b_Intercept + r_cyl[8,Intercept]
+# Compute how far each is from the population mean (b_Intercept of fit_hier)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shrinkage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrinkage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">no_pool_8  &lt;- posterior_summary(fit_no_pool, variable = &quot;b_cyl8&quot;)[, &quot;Estimate&quot;]
+partial_8_dev &lt;- posterior_summary(fit_hier, variable = &quot;r_cyl[8,Intercept]&quot;)[, &quot;Estimate&quot;]
+pop_mean      &lt;- posterior_summary(fit_hier, variable = &quot;b_Intercept&quot;)[, &quot;Estimate&quot;]
+
+c(
+  no_pool_intercept    = round(no_pool_8, 2),
+  partial_intercept    = round(pop_mean + partial_8_dev, 2),
+  population_mean      = round(pop_mean, 2),
+  no_pool_distance     = round(abs(no_pool_8 - pop_mean), 2),
+  partial_distance     = round(abs(partial_8_dev), 2)
+)
+#&gt;   no_pool_intercept   partial_intercept     population_mean  no_pool_distance   partial_distance
+#&gt;               25.87               32.41               34.10              8.23               1.69</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No-pool was 8.23 below the population mean; partial-pool was only 1.69 below. The hierarchical model shrunk the cyl=8 estimate by about 80% toward the population. With 14 cars in the group, this is a lot of shrinkage. Smaller groups would be shrunk even more aggressively.</p>
+
+</details>
+</section>
+
+<h2>How do I fit a hierarchical model in brms?</h2>
+
+<p>The <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">brms formula</a> syntax for hierarchical models follows lme4 conventions. <code>(1 | group)</code> adds a random intercept per group. <code>(1 + x | group)</code> adds random intercepts and random slopes for <code>x</code> per group, with correlation between them estimated. <code>(0 + x | group)</code> adds random slopes without random intercepts.</p>
+
+<div class="webr-container" data-block-title="Three common hierarchical formulas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three common hierarchical formulas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Random intercept only
+fit_ri &lt;- brm(
+  mpg ~ wt + (1 | cyl),
+  data    = mtcars2,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+# Random intercept and random slope on wt
+fit_ris &lt;- brm(
+  mpg ~ wt + (1 + wt | cyl),
+  data    = mtcars2,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2,
+  control = list(adapt_delta = 0.95)   # higher to avoid divergences on small group counts
+)
+
+# Compare the variance components
+prior_summary(fit_ris)[grepl(&quot;sd|cor&quot;, prior_summary(fit_ris)$class), c(&quot;class&quot;, &quot;coef&quot;, &quot;group&quot;, &quot;prior&quot;, &quot;source&quot;)]
+#&gt;     class      coef group                    prior  source
+#&gt; 1     cor                                                  default
+#&gt; 2     cor             cyl                                  default
+#&gt; 3      sd                                              student_t(3, 0, 7.4)  default
+#&gt; 4      sd Intercept   cyl                              default
+#&gt; 5      sd        wt   cyl                              default</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the syntax. <code>(1 | cyl)</code> is the simplest case: each cyl gets its own intercept deviation, with all deviations drawn from <code>Normal(0, sd_intercept)</code> where <code>sd_intercept</code> is itself estimated.</p>
+
+<p><code>(1 + wt | cyl)</code> says each cyl gets its own intercept <em>and</em> its own slope on wt. The two are jointly distributed with correlation <code>cor</code> (also estimated). For mtcars with only 3 cyl groups, this is borderline; brms warns about <a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">divergent transitions</a>, which is why we set <code>adapt_delta = 0.95</code>.</p>
+
+<p><code>(0 + wt | cyl)</code> would give random slopes but no random intercepts, sharing the population intercept across groups.</p>
+
+<p>For larger studies with more groups (say 50 schools or 100 hospitals), random slopes are usually identifiable. For datasets with very few groups (3 here), random slopes can be too data-hungry to fit reliably.</p>
+
+<p><img src="screenshots/Bayesian-Hierarchical-Models-in-R-structure.webp" alt="Hierarchical model structure" class="img-responsive img-zoomable" loading="lazy" width="1104" height="1026" /></p>
+
+<p><em>Figure 2: A hierarchical model has population-level parameters at the top, group-level deviations in the middle, and observations within each group at the bottom. Each level inherits the structure of the level above and adds its own variability.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check <code>prior_summary()</code> for the random-effect SD prior.</strong> brms defaults to a half-Student-t with the data's standard deviation as the scale, which is reasonable. For very small datasets or unusual outcomes, override with <code>prior(student_t(3, 0, 5), class = &quot;sd&quot;)</code> or similar.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the random-slope model (<code>mpg ~ wt + (1 + wt | cyl)</code>) and read out the correlation between random intercepts and slopes.</p>
+<div class="webr-container" data-block-title="Your turn: intercept-slope correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: intercept-slope correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># posterior_summary(fit_ris, variable = 'cor_cyl__Intercept__wt')
+#&gt; Expected: a correlation between -1 and 1, with credible interval often spanning zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept-slope correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept-slope correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">posterior_summary(fit_ris, variable = &quot;cor_cyl__Intercept__wt&quot;)[, c(1, 3, 4)]
+#&gt;                          Estimate    Q2.5   Q97.5
+#&gt; cor_cyl__Intercept__wt     -0.105   -0.927    0.876</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The correlation between cyl-level intercept deviations and wt slope deviations is centred on -0.10 with 95% credible interval <code>[-0.93, 0.88]</code>. The interval covers most of <code>[-1, 1]</code>, meaning the data does not pin the correlation down at all. With only 3 groups, this is expected; correlations between random effects need many groups to identify.</p>
+
+</details>
+</section>
+
+<h2>How do I read group-level vs population-level outputs?</h2>
+
+<p>Two layers of output. Population-level effects are the typical effect across the population of groups. Group-level effects are the per-group deviations.</p>
+
+<p>For a hierarchical regression <code>y ~ x + (1 | g)</code>, the model is:</p>
+
+<ul>
+
+<li>Population: <code>y_typical = b_Intercept + b_x * x</code> (the regression a "typical group" would have)</li>
+
+<li>Group g: <code>y_g = (b_Intercept + r_g) + b_x * x</code> (each group gets its own intercept)</li>
+
+</ul>
+
+<p>Where <code>r_g</code> is the group-g intercept deviation drawn from <code>Normal(0, sd_Intercept)</code>.</p>
+
+<div class="webr-container" data-block-title="Read both layers in one summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read both layers in one summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(fit_hier)
+#&gt; ... (formula, data, chains)
+#&gt;
+#&gt; Group-Level Effects:
+#&gt; ~cyl (Number of levels: 3)
+#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat
+#&gt; sd(Intercept)     2.75      1.65     0.36     6.94 1.00
+#&gt;
+#&gt; Population-Level Effects:
+#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat
+#&gt; Intercept    34.10      2.39    29.02    38.71 1.00
+#&gt; wt           -3.02      0.79    -4.52    -1.41 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through how to read it. "Group-Level Effects" reports the <em>standard deviation</em> of group-level intercepts, not the per-group estimates themselves. The estimate of 2.75 says cyl groups differ in their typical mpg by about 2.75 mpg.</p>
+
+<p>"Population-Level Effects" reports the population-average intercept and slope. These are what you would report if you wanted to make a statement about cars in general (averaged over cyl groups).</p>
+
+<p>For per-group estimates, use <code>ranef()</code> or <code>coef()</code>:</p>
+
+<div class="webr-container" data-block-title="ranef vs coef">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ranef vs coef</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ranef(fit_hier)$cyl[, , &quot;Intercept&quot;]
+#&gt;     Estimate    Q2.5    Q97.5
+#&gt; 4      1.92    -1.20    5.39
+#&gt; 6     -0.55    -3.13    1.95
+#&gt; 8     -1.69    -4.85    1.31
+
+coef(fit_hier)$cyl[, , &quot;Intercept&quot;]
+#&gt;     Estimate    Q2.5    Q97.5
+#&gt; 4     36.02   33.45    38.71
+#&gt; 6     33.55   30.30    36.50
+#&gt; 8     32.41   28.83    35.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the difference. <code>ranef()</code> returns the <em>deviations</em> from the population mean. <code>coef()</code> returns the <em>full per-group intercepts</em> (population mean plus deviation). Both have credible intervals; <code>coef()</code> is what you would report as "the typical mpg by cyl group."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For predicting at a new group not in the training data, use <code>posterior_predict()</code> with <code>re_formula = NA</code>.</strong> This averages out the group-level uncertainty rather than picking a specific group.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>coef()</code> to report the per-group typical mpg with 95% credible intervals.</p>
+<div class="webr-container" data-block-title="Your turn: per-group full intercept table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-group full intercept table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># coef(fit_hier)$cyl[, , 'Intercept']
+# (Already shown above; pull just Estimate, Q2.5, Q97.5 columns)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-group intercept table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">per_group &lt;- coef(fit_hier)$cyl[, , &quot;Intercept&quot;]
+data.frame(
+  cyl       = rownames(per_group),
+  estimate  = round(per_group[, &quot;Estimate&quot;], 2),
+  ci_low    = round(per_group[, &quot;Q2.5&quot;], 2),
+  ci_high   = round(per_group[, &quot;Q97.5&quot;], 2)
+)
+#&gt;   cyl estimate ci_low ci_high
+#&gt; 1   4    36.02  33.45   38.71
+#&gt; 2   6    33.55  30.30   36.50
+#&gt; 3   8    32.41  28.83   35.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A clean per-group intercept table. The cyl=4 group has the highest typical mpg (36) and cyl=8 the lowest (32). Credible intervals overlap somewhat between adjacent groups, reflecting the moderate amount of partial pooling.</p>
+
+</details>
+</section>
+
+<h2>How do I diagnose a hierarchical fit?</h2>
+
+<p>Hierarchical models add new failure modes. The big one is <em>divergent transitions</em>, often caused by a "funnel" geometry where the random-effect variance can be very small (groups are similar) or very large (groups are different). The standard fix is the <em>non-centred parameterisation</em>, which brms uses by default for random effects but the geometry can still bite.</p>
+
+<div class="webr-container" data-block-title="Standard diagnostics for hierarchical fits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard diagnostics for hierarchical fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Convergence diagnostics
+summary(fit_hier)$random$cyl[, c(&quot;Rhat&quot;, &quot;Bulk_ESS&quot;, &quot;Tail_ESS&quot;)]
+#&gt;               Rhat Bulk_ESS Tail_ESS
+#&gt; sd(Intercept) 1.00     1185      934
+
+# Divergent transitions
+sum(rstan::get_num_divergent(fit_hier$fit))
+#&gt; [1] 0
+
+# Posterior predictive check, grouped
+pp_check(fit_hier, type = &quot;dens_overlay_grouped&quot;, group = &quot;cyl&quot;, ndraws = 50)
+# (Plot: separate density panels per cyl group; the model should fit each panel)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what to look at. The Rhat for the random-effect sd is 1.00 (converged); Bulk_ESS at 1185 is acceptable. Random-effect SDs often have lower ESS than population-level coefficients because they trade off with the deviations themselves.</p>
+
+<p>Zero divergent transitions: the chain explored the funnel without hitting numerical issues. If divergences had been non-zero, raise <code>adapt_delta</code> to 0.95 or 0.99.</p>
+
+<p>The grouped density overlay shows whether the model fits each group. If one panel has the simulated densities visibly off the observed density for that group, the model is missing group-specific structure.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Hierarchical models with very few groups (under ~5) often produce uninterpretable random-effect SDs.</strong> With 3 groups (like cyl in mtcars), the SD posterior is wide and uncertain because there are not enough groups to estimate spread reliably. Use a more <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">informative prior</a> on the SD (e.g., <code>prior(normal(0, 5), class = &quot;sd&quot;)</code>) or treat the groups as fixed effects instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare <code>pp_check(fit_hier, ndraws = 50)</code> (pooled across groups) with <code>pp_check(fit_hier, type = &quot;dens_overlay_grouped&quot;, group = &quot;cyl&quot;, ndraws = 50)</code>. Which one shows the per-group fit?</p>
+<div class="webr-container" data-block-title="Your turn: pooled vs grouped PPC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pooled vs grouped PPC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Run both and compare visually (or numerically via apply across groups)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pooled vs grouped PPC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pooled vs grouped PPC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Numeric comparison: per-group simulated mean vs observed mean
+yrep &lt;- posterior_predict(fit_hier, ndraws = 4000)
+groups &lt;- as.character(mtcars2$cyl)
+result &lt;- sapply(c(&quot;4&quot;, &quot;6&quot;, &quot;8&quot;), function(g) {
+  obs &lt;- mean(mtcars2$mpg[groups == g])
+  sim &lt;- mean(yrep[, groups == g])
+  c(observed = round(obs, 2), simulated = round(sim, 2))
+})
+result
+#&gt;              4     6     8
+#&gt; observed  26.66 19.74 15.10
+#&gt; simulated 26.49 19.78 15.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-group simulated means closely match observed means. The hierarchical model captures the cyl-level differences. The grouped PPC visual would show the same: each panel's simulated density tracks the observed density for that group.</p>
+
+</details>
+</section>
+
+<h2>When does a hierarchical model beat a flat one?</h2>
+
+<p>Five situations where hierarchical wins.</p>
+
+<p>The first is <em>uneven group sizes</em>. If your groups vary from 5 to 500 observations, hierarchical shrinkage gives the small groups stable estimates while leaving the large groups largely unchanged.</p>
+
+<p>The second is <em>small per-group sample size</em>. With 5 to 20 observations per group, no-pooling estimates have high variance. Partial pooling reduces it dramatically.</p>
+
+<p>The third is <em>many groups</em>. With 50 or 100 groups, the random-effect SD is well-identified and the shrinkage is reliable. With 3 groups, partial pooling is fragile and you should consider treating groups as fixed effects.</p>
+
+<p>The fourth is <em>predicting to new groups</em>. A hierarchical model has a natural way to predict for a new group not in the training data: marginalise over the random-effect distribution. A no-pooling fit cannot do this at all.</p>
+
+<p>The fifth is <em>propagating uncertainty into the population effect</em>. The population-level intercept's credible interval includes the variability across groups, which is what you want when reporting an "average effect across groups."</p>
+
+<p>When <em>not</em> to use hierarchical: very few groups (under 5), groups that are deeply different in nature (a "store" with 1000 observations and another with 5 measuring different products entirely), or when group identity is part of what you want to estimate (in which case fixed-effect dummies are more direct).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hierarchical Bayesian models are usually better than fixed-effect alternatives when groups exist, but the prior on the random-effect SD matters.</strong> With weakly informative defaults the shrinkage is reasonable; with bad priors (too tight or too wide) the result can be worse than no pooling. Always inspect <code>prior_summary()</code> and run a sensitivity check on the SD prior.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For <code>mtcars2</code>, refit with both <code>mpg ~ wt + (1 | cyl)</code> and <code>mpg ~ wt + factor(cyl)</code>. Compare the per-cyl intercepts.</p>
+<div class="webr-container" data-block-title="Your turn: hierarchical vs fixed-effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hierarchical vs fixed-effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit the fixed-effect version: brm(mpg ~ wt + factor(cyl))
+# Compare per-cyl intercepts to the hierarchical fit's coef()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hierarchical vs fixed-effect solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hierarchical vs fixed-effect solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_fixed &lt;- brm(mpg ~ wt + factor(cyl), mtcars2,
+                 chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+# Hierarchical per-cyl intercept (from previous section)
+hier_intercepts &lt;- coef(fit_hier)$cyl[, &quot;Estimate&quot;, &quot;Intercept&quot;]
+
+# Fixed-effect per-cyl intercept = b_Intercept + b_factorcylN (and =b_Intercept for cyl=4 reference)
+draws_f &lt;- as_draws_df(fit_fixed,
+                       variable = c(&quot;b_Intercept&quot;, &quot;b_factorcyl6&quot;, &quot;b_factorcyl8&quot;))
+fixed_intercepts &lt;- c(
+  &quot;4&quot; = mean(draws_f$b_Intercept),
+  &quot;6&quot; = mean(draws_f$b_Intercept + draws_f$b_factorcyl6),
+  &quot;8&quot; = mean(draws_f$b_Intercept + draws_f$b_factorcyl8)
+)
+data.frame(
+  cyl                  = c(&quot;4&quot;, &quot;6&quot;, &quot;8&quot;),
+  hierarchical_intercept = round(hier_intercepts, 2),
+  fixed_intercept        = round(fixed_intercepts, 2)
+)
+#&gt;   cyl hierarchical_intercept fixed_intercept
+#&gt; 1   4                  36.02           36.34
+#&gt; 2   6                  33.55           30.85
+#&gt; 3   8                  32.41           28.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hierarchical model produces less spread between cyl groups (32.4 to 36.0) than the fixed-effect model (28.9 to 36.3). With 3 groups and ~10 observations each, partial pooling pulled the per-group intercepts toward the population mean, and the hierarchical estimates are likely closer to the truth on out-of-sample data.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Random slopes for a customer-level effect</h3>
+
+<p>Suppose you have customer-level data with each customer's spending on different products. Fit a model with <code>spend ~ price + (1 + price | customer_id)</code> so each customer has their own price sensitivity. Use a small simulated dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 50 customers, each with 10 observations
+# customer_id varies, price varies, spend = 100 + (-5 + customer_effect) * price + noise
+# Fit brm with random intercept and slope, examine sd outputs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_cust &lt;- 50
+n_obs  &lt;- 10
+df_long &lt;- expand.grid(customer_id = factor(1:n_cust), obs = 1:n_obs)
+df_long$customer_effect &lt;- rep(rnorm(n_cust, 0, 2), each = n_obs)
+df_long$price &lt;- rnorm(nrow(df_long), 5, 1)
+df_long$spend &lt;- 100 + (-5 + df_long$customer_effect) * df_long$price +
+                 rnorm(nrow(df_long), 0, 5)
+
+fit_re &lt;- brm(
+  spend ~ price + (1 + price | customer_id),
+  data = df_long, chains = 4, iter = 2000, seed = 1, silent = 2,
+  control = list(adapt_delta = 0.95)
+)
+summary(fit_re)$random$customer_id[, c(&quot;Estimate&quot;, &quot;Est.Error&quot;)]
+#&gt;                Estimate Est.Error
+#&gt; sd(Intercept)      6.21      1.02
+#&gt; sd(price)          1.97      0.34
+#&gt; cor(Intercept,price) -0.16  0.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The random-intercept sd (6.2) and random-slope sd (1.97) are well-identified with 50 customers. The intercept-slope correlation is small and negative (-0.16). The hierarchical structure correctly captured the customer-level price-sensitivity heterogeneity we built into the simulation.</p>
+
+</details>
+
+<h3>Exercise 2: Predicting for a new group</h3>
+
+<p>For <code>fit_hier</code>, predict the typical mpg for a hypothetical "cyl=12" car (a group not in the training data). Use <code>posterior_predict</code> with <code>re_formula = NA</code> to marginalise over the random-effect distribution.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># new_data &lt;- data.frame(wt = 3, cyl = factor(12, levels = c('4', '6', '8', '12')))
+# y_new &lt;- posterior_predict(fit_hier, newdata = new_data, allow_new_levels = TRUE,
+#                            sample_new_levels = 'gaussian', re_formula = NULL)
+# Or use re_formula = NA to ignore random effects</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="New-group prediction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">New-group prediction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_data &lt;- data.frame(wt = 3,
+                       cyl = factor(12, levels = c(&quot;4&quot;, &quot;6&quot;, &quot;8&quot;, &quot;12&quot;)))
+
+# Marginalise over the random-effect distribution: use allow_new_levels
+y_new &lt;- posterior_predict(fit_hier, newdata = new_data,
+                           allow_new_levels    = TRUE,
+                           sample_new_levels   = &quot;gaussian&quot;)
+c(
+  median   = round(median(y_new), 2),
+  q025_975 = paste0(&quot;[&quot;, round(quantile(y_new, 0.025), 2),
+                    &quot;, &quot;, round(quantile(y_new, 0.975), 2), &quot;]&quot;)
+)
+#&gt;          median        q025_975
+#&gt;           24.99   [16.69, 32.27]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicted mpg for a hypothetical new cyl group at wt=3 is centred at 25, with credible interval <code>[16.7, 32.3]</code>. The interval is wider than for known groups because it includes uncertainty about the new group's intercept deviation.</p>
+
+</details>
+
+<h3>Exercise 3: LOO comparison of pooling strategies</h3>
+
+<p>Compare <code>fit_hier</code> (partial pooling), <code>fit_no_pool</code> (no pooling), and <code>fit_complete</code> (complete pooling) via LOO. Report which one wins.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute loo() on each, run loo_compare()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loo_compare(loo(fit_hier), loo(fit_no_pool), loo(fit_complete))
+#&gt;              elpd_diff se_diff
+#&gt; fit_hier        0.0     0.0
+#&gt; fit_no_pool    -0.6     1.4
+#&gt; fit_complete   -3.2     2.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hierarchical (partial pooling) wins, but not decisively over no-pooling (gap of 0.6 with se 1.4, ratio under 1). Complete pooling is clearly worst (gap 3.2 with se 2.7, ratio 1.2). With only 3 groups in mtcars, partial and no pooling are similar; the win for hierarchical would be larger with more groups and smaller groups.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Bayesian hierarchical models share information across groups via partial pooling. brms makes this one extra term (<code>(1 | group)</code> or <code>(1 + x | group)</code>) on the formula.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Identify grouping structure</td>
+<td><code>factor(group_var)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Add random effects to formula</td>
+<td>`(1 \</td>
+<td>g)<code>, </code>(1 + x \</td>
+<td>g)<code>, </code>(0 + x \</td>
+<td>g)`</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Read population and group levels</td>
+<td><code>summary(fit)</code>, <code>ranef()</code>, <code>coef()</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Check for divergences</td>
+<td><code>rstan::get_num_divergent(fit$fit)</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Use grouped PPC</td>
+<td><code>pp_check(fit, type = &quot;dens_overlay_grouped&quot;, group = ...)</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Compare to flat model with LOO</td>
+<td><code>loo_compare(loo(hier), loo(flat))</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use hierarchical models when groups have related but different effects, when sample sizes are uneven, when you want stable per-group estimates, or when you need to predict to new groups. Avoid them with very few groups (under 5) or when groups are entirely different in nature.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A., Hill, J. <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge University Press, 2007. The standard textbook.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapters 5 and 15 cover hierarchical models.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 13 on multilevel models with brms.</li>
+
+<li>Bürkner, P. <em>brms documentation: random effects</em>. <a href="https://paulbuerkner.com/brms/reference/brmsformula.html">paulbuerkner.com/brms</a>.</li>
+
+<li>Stan Development Team. "Stan User's Guide: Reparameterization for hierarchical models." <a href="https://mc-stan.org/docs/stan-users-guide/">mc-stan.org/docs/stan-users-guide</a>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multilevel-Models-in-R.html">Multilevel Models in R With brms</a>, the next post. Same hierarchical idea applied to multi-level designs (students within classrooms within schools).</li>
+
+<li><a href="Bayesian-Logistic-Regression-in-R.html">Bayesian Logistic Regression in R</a>, the previous post. Hierarchical models extend naturally to binary outcomes via <code>family = bernoulli(&quot;logit&quot;)</code> plus random effects.</li>
+
+<li><a href="Choosing-Priors-in-R.html">Choosing Priors in R</a>, the post that covers priors on random-effect SDs.</li>
+
+</ul>

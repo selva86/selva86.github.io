@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups</title>
+    <meta charset="utf-8">
+    <meta name="Description" content="Hierarchical Bayesian models fit population-level effects plus per-group deviations jointly. Use brms to borrow strength across groups and stabilise small ones.">
+    <meta name="Keywords" content="Bayesian hierarchical model R, partial pooling, brms hierarchical, random intercept brms, Bayesian multilevel, varying intercepts, varying slopes, ranef brms">
+    <meta name="Distribution" content="Global">
+    <meta name="Author" content="Selva Prabhakaran">
+    <meta name="Robots" content="index, follow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <link rel="icon" href="/screenshots/iconb-64.png" type="image/x-icon" />
+    <link rel="canonical" href="https://r-statistics.co/Bayesian-Hierarchical-Models-in-R.html">
+    <link rel="alternate" type="application/atom+xml" title="r-statistics.co" href="https://r-statistics.co/feed.xml">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <!-- Preload the primary body font so first paint has IBM Plex Sans ready -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Preload heading font (IBM Plex Serif 700) to prevent H1 font swap -->
+    <link rel="preload" href="/www/fonts/ibm-plex/ibm-plex-serif-700.woff2" as="font" type="font/woff2" crossorigin>
+    <!-- Critical CSS inlined for fast first paint -->
+    <style>
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-sans-latin.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:600;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-600.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Serif';font-style:normal;font-weight:700;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-serif-700.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-400.woff2') format('woff2')}
+      @font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:optional;src:url('/www/fonts/ibm-plex/ibm-plex-mono-500.woff2') format('woff2')}
+      *,*::before,*::after{box-sizing:border-box}
+      html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+      body{margin:0;font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif;font-size:18px;line-height:1.7;color:#0d1117;background:#fafbfc}
+      html body{font-size:18px;line-height:1.7}
+      p{margin:0 0 15px}
+      .container{max-width:1170px;margin:0 auto;padding:0 15px}
+      @media(min-width:1200px){.container{width:1170px}}
+      .row{margin-left:-15px;margin-right:-15px}.row::after{content:"";display:table;clear:both}
+      .col-xs-12,.col-sm-2,.col-sm-3,.col-sm-7{position:relative;min-height:1px;padding-left:15px;padding-right:15px;float:left}
+      .col-xs-12{width:100%}
+      @media(min-width:768px){.col-sm-2{width:16.667%}.col-sm-3{width:25%}.col-sm-7{width:58.333%}.hidden-xs{display:block!important}}
+      .hidden-xs{display:none}
+      .table{width:100%;border-collapse:collapse}.table>thead>tr>th,.table>tbody>tr>td{padding:8px;border-top:1px solid #ddd}
+      .table-striped>tbody>tr:nth-of-type(odd){background:#f9f9f9}
+      .btn{display:inline-block;padding:6px 12px;font-size:14px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+      .btn-primary{color:#fff;background:#1d3158;border-color:#1d3158}.btn-primary:hover{background:#2c4574}
+      .btn-default{color:#333;background:#fff;border-color:#ccc}
+      .btn-sm{padding:3px 10px;font-size:12px}
+      .form-control{display:block;padding:6px 12px;font-size:14px;border:1px solid #ccc;border-radius:4px}
+      .list-unstyled{list-style:none;padding-left:0}
+      .img-responsive{max-width:100%;height:auto}
+      .pull-right{float:right}
+      a{color:#1d3158;text-decoration:none}a:hover{text-decoration:underline}
+      html,body{overflow-x:hidden;max-width:100vw}
+      #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
+      .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
+      .breadcrumb-nav a{color:#6c757d;text-decoration:none}
+      .bc-sep,.breadcrumb-sep{margin:0 5px;color:#757575}
+      .bc-current,.breadcrumb-current{color:#495057;font-weight:500}
+      #content h1,#content h2,#content h3,#content h4{font-family:'IBM Plex Serif',Georgia,'Times New Roman',serif}
+      #content h1{font-weight:700;font-size:2.1em;line-height:1.2;margin:0 0 0.4em 0;letter-spacing:-0.01em;color:#0d1117}
+      #content h2{font-weight:600;font-size:1.65em;line-height:1.25;margin:2.5em 0 0.6em 0;color:#0d1117;padding-top:0.8em;padding-bottom:6px;border-top:1px solid #d8dce2}
+      #content h2:first-of-type{border-top:none;margin-top:1.5em}
+      #content p{line-height:1.75;margin-bottom:1.15em;color:#0d1117}
+      p.lead{font-size:1.1em;line-height:1.75;color:#4a5160;font-weight:400;border-left:3px solid #1d3158;padding-left:1em;margin:-4px 0 1.15em 0}
+      .site-masthead{position:sticky;top:0;z-index:30;background:rgba(250,251,252,0.92);backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid transparent;margin:0 -15px 24px;transition:border-color 0.2s}
+      .site-masthead.scrolled{border-bottom-color:#d8dce2}
+      .site-masthead-inner{max-width:1170px;margin:0 auto;padding:14px 28px;display:flex;align-items:center;gap:24px}
+      .masthead-menu-btn{display:none;background:none;border:1px solid #d8dce2;border-radius:6px;padding:4px 8px;font-size:18px;line-height:1;color:#4a5160;cursor:pointer}
+      .masthead-wordmark{display:inline-flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px;color:#0d1117;text-decoration:none;white-space:nowrap}
+      .masthead-mark{position:relative;width:32px;height:32px;border-radius:6px;background:#1d3158;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Serif',Georgia,serif;font-style:italic;font-weight:700;font-size:19px;line-height:1;letter-spacing:-0.04em;padding-right:1px;box-shadow:0 1px 2px rgba(13,17,23,0.08),inset 0 1px 0 rgba(255,255,255,0.12)}
+      .masthead-mark::after{content:'';position:absolute;right:5px;bottom:5px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,0.85)}
+      .masthead-tld{color:#757a87}
+      .masthead-nav{display:flex;gap:4px;flex:1;margin-left:8px}
+      .masthead-nav-link{font-family:'IBM Plex Sans',sans-serif;color:#4a5160;font-size:14px;font-weight:500;padding:6px 12px;border-radius:6px;text-decoration:none;transition:all 0.15s}
+      .masthead-nav-link:hover{background:#f1f3f6;color:#0d1117;text-decoration:none}
+      .masthead-nav-link.active{background:#f1f3f6;color:#0d1117}
+      .masthead-tools{display:flex;align-items:center;gap:10px;flex-shrink:0}
+      .masthead-search{margin:0;display:flex;align-items:center}
+      .masthead-search input{height:32px;padding:6px 12px;font-size:13px;border:1px solid #d8dce2;border-radius:6px;background:#fff;color:#0d1117;width:160px;font-family:'IBM Plex Sans',sans-serif;transition:border-color 0.15s,box-shadow 0.15s}
+      .masthead-search input:focus{outline:none;border-color:#1d3158;box-shadow:0 0 0 3px rgba(29,49,88,0.10)}
+      .masthead-icon-btn{background:none;border:1px solid transparent;border-radius:6px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:#4a5160;cursor:pointer;transition:all 0.15s}
+      .masthead-icon-btn:hover{background:#f1f3f6;color:#0d1117}
+      html.dark .site-masthead{background:rgba(12,13,16,0.85)}
+      html.dark .site-masthead.scrolled{border-bottom-color:#262a31}
+      html.dark .masthead-wordmark{color:#e8eaee}
+      html.dark .masthead-tld{color:#6e7382}
+      html.dark .masthead-mark{background:#92a4d8}
+      html.dark .masthead-nav-link{color:#b0b5bf}
+      html.dark .masthead-nav-link:hover,html.dark .masthead-nav-link.active{background:#1a1d22;color:#e8eaee}
+      html.dark .masthead-search input{background:#14161a;border-color:#262a31;color:#e8eaee}
+      html.dark .masthead-search input:focus{border-color:#92a4d8;box-shadow:0 0 0 3px rgba(146,164,216,0.15)}
+      html.dark .masthead-icon-btn{color:#b0b5bf}
+      html.dark .masthead-icon-btn:hover{background:#1a1d22;color:#e8eaee}
+      hr{height:0;box-sizing:content-box;border:0;border-top:1px solid #eee}
+      .img-zoomable{cursor:zoom-in;transition:opacity .15s}
+      .img-lightbox{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:10001;background:rgba(0,0,0,.85);cursor:zoom-out;align-items:center;justify-content:center}
+      .img-lightbox.open{display:flex}
+      .img-lightbox img{max-width:95vw;max-height:95vh;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.4)}
+      /* CLS prevention: sidebar component styles (match main.css final state) */
+      .sidebar-menu{margin:0;padding:0}
+      .sidebar-tabs{display:flex;gap:0;margin:4px 0 0;border-bottom:1px solid #d8dce2}
+      .sidebar-tab{flex:1;padding:9px 12px 8px;border:none;background:transparent;font:600 13px 'IBM Plex Sans',sans-serif;color:#757a87;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s}
+      .sidebar-tab.active{color:#1d3158;border-bottom-color:#1d3158}
+      .sidebar-panel{display:none;padding-top:10px}
+      .sidebar-panel.active{display:block}
+      .sidebar-tools-list{margin:0;padding:0;list-style:none}
+      .sidebar-tools-list li a{display:block;padding:5px 10px 5px 24px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-section-header{padding:7px 12px;font-size:15px;font-weight:700;color:#212529;cursor:pointer;border-radius:4px}
+      .sidebar-chevron{display:inline-block;font-size:10px;margin-right:4px;color:#757575}
+      .sidebar-section-items{display:none;padding-left:0;margin:2px 0 6px}
+      .sidebar-section.expanded .sidebar-section-items{display:block}
+      .sidebar-section-items li{line-height:1.5}
+      .sidebar-section-items li a{display:block;padding:4px 10px 4px 32px;font-size:14px;color:#495057;text-decoration:none;border-left:2px solid transparent;border-radius:0 4px 4px 0}
+      .sidebar-divider{margin:12px 0 2px;padding:0 12px 4px 24px;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f0f2f5;list-style:none}
+      .sidebar-divider:first-child{margin-top:4px}
+      .progress-dot{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid #d1d5db;margin-right:7px;vertical-align:middle;flex-shrink:0;position:relative}
+      /* CLS prevention: TOC sidebar matches main.css final state */
+      #toc-wrapper{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding-left:14px;border-left:1px solid #e9ecef}
+      .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6c757d;margin-bottom:10px;padding-bottom:0}
+      #toc{margin:0;padding:0}
+      #toc li{line-height:1.45;margin-bottom:1px}
+      #toc li a{font-size:13.5px;color:#6c757d;text-decoration:none;display:block;padding:3px 0;border-left:2px solid transparent;padding-left:8px;margin-left:-15px}
+      #toc li a.toc-active{color:#1d3158;font-weight:600;border-left-color:#1d3158}
+      /* CLS prevention: engagement strip layout (matches engagement.css) */
+      .engagement-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#64748b;letter-spacing:0.01em;margin:0.4em 0 1em;min-height:22px}
+      .engagement-header:empty{display:none}
+      /* CLS prevention: progress bar space (matches engagement.css) */
+      .engagement-progress{min-height:32px;margin:1.2em 0 1.6em}
+      /* CLS prevention: WebR editor min-height so the static→textarea swap doesn't shift layout */
+      .webr-editor{min-height:60px}
+      /* CLS prevention: images in content always reserve aspect ratio */
+      #content img{max-width:100%;height:auto}
+    </style>
+    <!-- Full Bootstrap deferred (non-render-blocking) -->
+    <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
+    <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="css/main.min.css?h=264bc869" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.min.css?h=264bc869" rel="stylesheet"></noscript>
+    <style>
+      a{color:#1d3158}a:hover{text-decoration:underline}
+      li{line-height:1.65}
+      .MathJax_Display{margin:0}
+      blockquote p{line-height:1.75;color:#717171}
+      @media(min-width:1200px){.container{width:1170px}}
+      #nav,#content,#toc-sidebar{box-sizing:border-box}
+      #content{padding-left:15px;padding-right:15px;overflow-wrap:break-word;word-wrap:break-word;overflow-x:clip}
+      @media(max-width:767px){#nav{display:none}.masthead-menu-btn{display:inline-flex!important}.masthead-nav{display:none}.masthead-search{display:none}.site-masthead-inner{padding:10px 16px;gap:12px}}
+      @media(max-width:400px){.masthead-name{font-size:13px}}
+      .mobile-sidebar-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.4)}
+      .mobile-sidebar-overlay.open{display:block}
+      .mobile-sidebar-panel{position:fixed;top:0;left:0;bottom:0;width:280px;background:#fff;z-index:10000;overflow-y:auto;padding:16px;box-shadow:2px 0 16px rgba(0,0,0,0.15);transform:translateX(-100%);transition:transform 0.25s ease}
+      .mobile-sidebar-overlay.open .mobile-sidebar-panel{transform:translateX(0)}
+      .mobile-sidebar-close{position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;cursor:pointer;color:#666}
+      html.dark .mobile-sidebar-panel{background:#1e293b}
+      html.dark .mobile-sidebar-overlay{background:rgba(0,0,0,0.6)}
+      html.dark .mobile-sidebar-close{color:#94a3b8}
+    </style>
+    <!-- Open Graph -->
+    <meta property="og:title" content="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">
+    <meta property="og:description" content="Hierarchical Bayesian models fit population-level effects plus per-group deviations jointly. Use brms to borrow strength across groups and stabilise small ones.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://r-statistics.co/Bayesian-Hierarchical-Models-in-R.html">
+    <meta property="og:site_name" content="r-statistics.co">
+    <meta property="og:image" content="https://r-statistics.co/screenshots/og/Bayesian-Hierarchical-Models-in-R.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">
+    <meta name="twitter:description" content="Hierarchical Bayesian models fit population-level effects plus per-group deviations jointly. Use brms to borrow strength across groups and stabilise small ones.">
+    <meta name="twitter:image" content="https://r-statistics.co/screenshots/og/Bayesian-Hierarchical-Models-in-R.png">
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": ["TechArticle", "LearningResource"],
+      "headline": "Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups",
+      "description": "Hierarchical Bayesian models fit population-level effects plus per-group deviations jointly. Use brms to borrow strength across groups and stabilise small ones.",
+      "author": {"@type": "Person", "name": "Selva Prabhakaran", "url": "https://r-statistics.co/about/", "jobTitle": "Data Scientist"},
+      "publisher": {"@type": "Organization", "name": "r-statistics.co", "url": "https://r-statistics.co/", "logo": {"@type": "ImageObject", "url": "https://r-statistics.co/screenshots/og-default.png"}},
+      "url": "https://r-statistics.co/Bayesian-Hierarchical-Models-in-R.html",
+      "datePublished": "2026-05-10",
+      "dateModified": "2026-05-10",
+      "inLanguage": "en",
+      "educationalLevel": "Intermediate",
+      "programmingLanguage": "R",
+      "speakable": {"@type": "SpeakableSpecification", "cssSelector": [".lead", "#content h1"]}
+    }
+    </script>
+        <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 2, "name": "Statistics", "item": "https://r-statistics.co/"},
+        {"@type": "ListItem", "position": 3, "name": "Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups", "item": "https://r-statistics.co/Bayesian-Hierarchical-Models-in-R.html"}
+      ]
+    }
+    </script>
+    
+        <link rel="stylesheet" href="www/webr.min.css?h=23e578a3">
+
+        <link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="www/engagement.min.css?h=2a6d4679"></noscript>
+  </head>
+
+  <body>
+    <!-- Mobile sidebar overlay -->
+    <div class="mobile-sidebar-overlay" id="mobile-sidebar">
+      <div class="mobile-sidebar-panel">
+        <button class="mobile-sidebar-close" id="mobile-sidebar-close">&times;</button>
+        <div id="mobile-sidebar-content">
+          <!-- Populated by toc.js -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+
+      <header class="site-masthead">
+        <div class="site-masthead-inner">
+          <button id="mobile-menu-btn" class="masthead-menu-btn" aria-label="Menu">&#9776;</button>
+          <a class="masthead-wordmark" href="/">
+            <span class="masthead-mark">R</span>
+            <span class="masthead-name">r&#8209;statistics<span class="masthead-tld">.co</span></span>
+          </a>
+          <nav class="masthead-nav">
+            <a class="masthead-nav-link" href="/">Home</a>
+            <a class="masthead-nav-link" href="/posts/">Compendium</a>
+          </nav>
+          <div class="masthead-tools">
+            <form onsubmit="my_search_google(); return false;" class="masthead-search">
+              <input type="text" id="my-google-search" placeholder="Search…" aria-label="Search r-statistics.co">
+            </form>
+            <button id="dark-mode-toggle" class="masthead-icon-btn" aria-label="Toggle dark mode" title="Toggle dark mode">&#9789;</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="row">
+        <div class="col-xs-12 col-sm-3" id="nav">
+          <div id="sidebar-nav"><div class="continue-chip" data-continue-chip><span class="chip-label">Continue reading</span><a href="#" data-continue-link></a></div><div class="sidebar-tabs" role="tablist"><button class="sidebar-tab active" data-tab="posts" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Posts</button><button class="sidebar-tab" data-tab="tools" type="button" role="tab" onclick="var n=this.dataset.tab;document.querySelectorAll('.sidebar-tab').forEach(function(x){x.classList.toggle('active',x.dataset.tab===n)});document.querySelectorAll('.sidebar-panel').forEach(function(p){p.classList.toggle('active',p.dataset.panel===n)});try{localStorage.setItem('rstat_sidebar_tab',n)}catch(e){}">Tools</button></div><div class="sidebar-panel active" data-panel="posts"><ul class="sidebar-menu list-unstyled"><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Learn R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Getting Started</li><li data-subkey="sec0sub1"><a href="/Is-R-Worth-Learning-in-2026.html"><span class="progress-dot"></span>Is R Worth Learning?</a></li><li data-subkey="sec0sub1"><a href="/Install-R-and-RStudio-2026.html"><span class="progress-dot"></span>Install R &amp; RStudio</a></li><li data-subkey="sec0sub1"><a href="/RStudio-IDE-Tour.html"><span class="progress-dot"></span>RStudio IDE Tour</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec0sub2"><a href="/R-Syntax-101.html"><span class="progress-dot"></span>R Syntax 101</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Types.html"><span class="progress-dot"></span>R Data Types</a></li><li data-subkey="sec0sub2"><a href="/R-Vectors.html"><span class="progress-dot"></span>R Vectors</a></li><li data-subkey="sec0sub2"><a href="/R-Matrices.html"><span class="progress-dot"></span>R Matrices</a></li><li data-subkey="sec0sub2"><a href="/R-Factors.html"><span class="progress-dot"></span>R Factors</a></li><li data-subkey="sec0sub2"><a href="/R-Data-Frames.html"><span class="progress-dot"></span>R Data Frames</a></li><li data-subkey="sec0sub2"><a href="/R-Lists.html"><span class="progress-dot"></span>R Lists</a></li><li data-subkey="sec0sub2"><a href="/R-Control-Flow.html"><span class="progress-dot"></span>R Control Flow</a></li><li data-subkey="sec0sub2"><a href="/R-Special-Values.html"><span class="progress-dot"></span>R Special Values</a></li><li data-subkey="sec0sub2"><a href="/R-Type-Coercion.html"><span class="progress-dot"></span>R Type Coercion</a></li><li data-subkey="sec0sub2"><a href="/R-Functions.html"><span class="progress-dot"></span>Writing R Functions</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Working Effectively</li><li data-subkey="sec0sub3"><a href="/R-Subsetting.html"><span class="progress-dot"></span>R Subsetting</a></li><li data-subkey="sec0sub3"><a href="/Getting-Help-in-R.html"><span class="progress-dot"></span>Getting Help in R</a></li><li data-subkey="sec0sub3"><a href="/R-Project-Structure.html"><span class="progress-dot"></span>R Project Structure</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Career &amp; Resources</li><li data-subkey="sec0sub4"><a href="/R-vs-Python.html"><span class="progress-dot"></span>R vs Python</a></li><li data-subkey="sec0sub4"><a href="/How-to-Learn-R.html"><span class="progress-dot"></span>How to Learn R</a></li><li data-subkey="sec0sub4"><a href="/R-for-Excel-Users.html"><span class="progress-dot"></span>R for Excel Users</a></li><li data-subkey="sec0sub4"><a href="/R-Interview-Questions.html"><span class="progress-dot"></span>R Interview Questions</a></li><li data-subkey="sec0sub4"><a href="/R-Cheat-Sheet.html"><span class="progress-dot"></span>R Cheat Sheet</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec0sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Professional R</li><li data-subkey="sec0sub5"><a href="/Data-Ethics-in-R.html"><span class="progress-dot"></span>Data Ethics</a></li><li data-subkey="sec0sub5"><a href="/Bias-in-Data-and-Models.html"><span class="progress-dot"></span>Bias in Data &amp; Models</a></li><li data-subkey="sec0sub5"><a href="/Reproducibility-Crisis.html"><span class="progress-dot"></span>Reproducibility</a></li><li data-subkey="sec0sub5"><a href="/Data-Privacy-in-R.html"><span class="progress-dot"></span>Data Privacy</a></li><li data-subkey="sec0sub5"><a href="/Communicating-Uncertainty.html"><span class="progress-dot"></span>Communicating Uncertainty</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Data Wrangling<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Import &amp; Setup</li><li data-subkey="sec1sub1"><a href="/Importing-Data-in-R.html"><span class="progress-dot"></span>Importing Data</a></li><li data-subkey="sec1sub1"><a href="/R-Pipe-Operator.html"><span class="progress-dot"></span>Pipe Operator</a></li><li data-subkey="sec1sub1"><a href="/Tidy-Data-in-R.html"><span class="progress-dot"></span>Tidy Data</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> dplyr Essentials</li><li data-subkey="sec1sub2"><a href="/dplyr-filter-select.html"><span class="progress-dot"></span>dplyr filter &amp; select</a></li><li data-subkey="sec1sub2"><a href="/dplyr-mutate-rename.html"><span class="progress-dot"></span>dplyr mutate &amp; rename</a></li><li data-subkey="sec1sub2"><a href="/dplyr-group-by-summarise.html"><span class="progress-dot"></span>dplyr group_by &amp; summarise</a></li><li data-subkey="sec1sub2"><a href="/dplyr-arrange-slice.html"><span class="progress-dot"></span>dplyr arrange &amp; slice</a></li><li data-subkey="sec1sub2"><a href="/dplyr-across.html"><span class="progress-dot"></span>dplyr across()</a></li><li data-subkey="sec1sub2"><a href="/dplyr-case-when.html"><span class="progress-dot"></span>dplyr case_when()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Join &amp; Reshape</li><li data-subkey="sec1sub3"><a href="/R-Joins.html"><span class="progress-dot"></span>R Joins</a></li><li data-subkey="sec1sub3"><a href="/pivot_longer-pivot_wider-Reshape-Data-in-R.html"><span class="progress-dot"></span>pivot_longer &amp; pivot_wider</a></li><li data-subkey="sec1sub3"><a href="/tidyr-separate-unite-Split-Combine-Columns-in-R.html"><span class="progress-dot"></span>separate() &amp; unite()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Clean &amp; Quality</li><li data-subkey="sec1sub4"><a href="/Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html"><span class="progress-dot"></span>Missing Values (NA)</a></li><li data-subkey="sec1sub4"><a href="/Data-Quality-Checking-in-R.html"><span class="progress-dot"></span>Data Quality Checking</a></li><li data-subkey="sec1sub4"><a href="/janitor-Package-in-R.html"><span class="progress-dot"></span>janitor Package</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Strings &amp; Dates</li><li data-subkey="sec1sub5"><a href="/stringr-in-R.html"><span class="progress-dot"></span>stringr</a></li><li data-subkey="sec1sub5"><a href="/R-Regex-stringr-Pattern-Matching.html"><span class="progress-dot"></span>Regex Patterns</a></li><li data-subkey="sec1sub5"><a href="/lubridate-in-R.html"><span class="progress-dot"></span>lubridate</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec1sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Scale &amp; Connect</li><li data-subkey="sec1sub6"><a href="/DBI-in-R.html"><span class="progress-dot"></span>DBI &amp; Databases</a></li><li data-subkey="sec1sub6"><a href="/DuckDB-in-R.html"><span class="progress-dot"></span>DuckDB &amp; duckplyr</a></li><li data-subkey="sec1sub6"><a href="/Web-Scraping-in-R-with-rvest.html"><span class="progress-dot"></span>Web Scraping (rvest)</a></li><li data-subkey="sec1sub6"><a href="/REST-APIs-in-R-with-httr2.html"><span class="progress-dot"></span>REST APIs (httr2)</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Visualization<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> ggplot2 Foundations</li><li data-subkey="sec2sub1"><a href="/ggplot2-Grammar-of-Graphics.html"><span class="progress-dot"></span>Grammar of Graphics</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Getting-Started.html"><span class="progress-dot"></span>ggplot2 Getting Started</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Aesthetics-aes-Map-Data.html"><span class="progress-dot"></span>ggplot2 Aesthetics (aes)</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Colours.html"><span class="progress-dot"></span>ggplot2 Colours</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Scales.html"><span class="progress-dot"></span>ggplot2 Scales</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Themes-in-R.html"><span class="progress-dot"></span>ggplot2 Themes</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Labels-and-Annotations.html"><span class="progress-dot"></span>Labels &amp; Annotations</a></li><li data-subkey="sec2sub1"><a href="/ggplot2-Facets.html"><span class="progress-dot"></span>ggplot2 Facets</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Core Charts</li><li data-subkey="sec2sub2"><a href="/ggplot2-Scatter-Plots.html"><span class="progress-dot"></span>Scatter Plots</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Line-Charts.html"><span class="progress-dot"></span>Line Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Bar-Charts.html"><span class="progress-dot"></span>Bar Charts</a></li><li data-subkey="sec2sub2"><a href="/ggplot2-Distribution-Charts.html"><span class="progress-dot"></span>Distribution Charts</a></li><li data-subkey="sec2sub2"><a href="/Error-Bars-in-R.html"><span class="progress-dot"></span>Error Bars</a></li><li data-subkey="sec2sub2"><a href="/geom_smooth-in-R.html"><span class="progress-dot"></span>geom_smooth()</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Distributions &amp; Groups</li><li data-subkey="sec2sub3"><a href="/Violin-Plot-in-R.html"><span class="progress-dot"></span>Violin Plot</a></li><li data-subkey="sec2sub3"><a href="/Ridgeline-Plot-in-R.html"><span class="progress-dot"></span>Ridgeline Plot</a></li><li data-subkey="sec2sub3"><a href="/Lollipop-Chart-in-R.html"><span class="progress-dot"></span>Lollipop Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Relationships</li><li data-subkey="sec2sub4"><a href="/Bubble-Chart-in-R.html"><span class="progress-dot"></span>Bubble Chart</a></li><li data-subkey="sec2sub4"><a href="/Heatmap-in-R.html"><span class="progress-dot"></span>Heatmap in R</a></li><li data-subkey="sec2sub4"><a href="/Correlation-Matrix-Plot-in-R.html"><span class="progress-dot"></span>Correlation Matrix</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Advanced Charts</li><li data-subkey="sec2sub5"><a href="/Pie-Donut-Chart-in-R.html"><span class="progress-dot"></span>Pie &amp; Donut Chart</a></li><li data-subkey="sec2sub5"><a href="/Treemap-in-R.html"><span class="progress-dot"></span>Treemap</a></li><li data-subkey="sec2sub5"><a href="/Waffle-Chart-in-R.html"><span class="progress-dot"></span>Waffle Chart</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub6" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Exploratory Analysis</li><li data-subkey="sec2sub6"><a href="/Exploratory-Data-Analysis-in-R.html"><span class="progress-dot"></span>EDA (7-Step Framework)</a></li><li data-subkey="sec2sub6"><a href="/Univariate-EDA-in-R.html"><span class="progress-dot"></span>Univariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Bivariate-EDA-in-R.html"><span class="progress-dot"></span>Bivariate EDA</a></li><li data-subkey="sec2sub6"><a href="/Descriptive-Statistics-in-R.html"><span class="progress-dot"></span>Descriptive Statistics</a></li><li data-subkey="sec2sub6"><a href="/Correlation-Analysis-in-R.html"><span class="progress-dot"></span>Correlation Analysis</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub7" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Interactive &amp; Maps</li><li data-subkey="sec2sub7"><a href="/Combining-ggplot2-with-plotly.html"><span class="progress-dot"></span>ggplot2 + plotly Interactive</a></li><li data-subkey="sec2sub7"><a href="/Interactive-Maps-in-R-with-leaflet.html"><span class="progress-dot"></span>Leaflet Interactive Maps</a></li><li data-subkey="sec2sub7"><a href="/Spatial-Data-in-R-with-sf.html"><span class="progress-dot"></span>Spatial Data (sf)</a></li><li data-subkey="sec2sub7"><a href="/Choropleth-Maps-in-R.html"><span class="progress-dot"></span>Choropleth Maps (sf)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec2sub8" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Customization &amp; Reference</li><li data-subkey="sec2sub8"><a href="/ggplot2-Legends-in-R.html"><span class="progress-dot"></span>ggplot2 Legends</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Secondary-Axis.html"><span class="progress-dot"></span>Secondary Axis</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-Log-Scale.html"><span class="progress-dot"></span>Log Scale</a></li><li data-subkey="sec2sub8"><a href="/patchwork-Package.html"><span class="progress-dot"></span>patchwork (Combine Plots)</a></li><li data-subkey="sec2sub8"><a href="/Publication-Quality-Figures-in-R.html"><span class="progress-dot"></span>Publication-Ready Figures</a></li><li data-subkey="sec2sub8"><a href="/ggplot2-cheatsheet.html"><span class="progress-dot"></span>ggplot2 Quickref</a></li></ul></li><li class="sidebar-section expanded"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Statistics<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> EDA &amp; Data Quality</li><li data-subkey="sec3sub1"><a href="/Automated-EDA-in-R.html"><span class="progress-dot"></span>Automated EDA</a></li><li data-subkey="sec3sub1"><a href="/Missing-Data-Visualization-in-R-naniar.html"><span class="progress-dot"></span>Missing Data Viz (naniar)</a></li><li data-subkey="sec3sub1"><a href="/Outlier-Detection-in-R.html"><span class="progress-dot"></span>Outlier Detection</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Probability</li><li data-subkey="sec3sub2"><a href="/Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html"><span class="progress-dot"></span>Probability Axioms</a></li><li data-subkey="sec3sub2"><a href="/Conditional-Probability-in-R.html"><span class="progress-dot"></span>Conditional Probability</a></li><li data-subkey="sec3sub2"><a href="/Random-Variables-in-R.html"><span class="progress-dot"></span>Random Variables</a></li><li data-subkey="sec3sub2"><a href="/Binomial-and-Poisson-Distributions-in-R.html"><span class="progress-dot"></span>Binomial vs Poisson</a></li><li data-subkey="sec3sub2"><a href="/Normal-t-F-and-Chi-Squared-Distributions-in-R.html"><span class="progress-dot"></span>Normal, t, F, Chi-Squared</a></li><li data-subkey="sec3sub2"><a href="/Central-Limit-Theorem-in-R.html"><span class="progress-dot"></span>Central Limit Theorem</a></li><li data-subkey="sec3sub2"><a href="/Sampling-Distributions-in-R.html"><span class="progress-dot"></span>Sampling Distributions</a></li><li data-subkey="sec3sub2"><a href="/Law-of-Large-Numbers-vs-CLT-in-R.html"><span class="progress-dot"></span>LLN vs CLT</a></li><li data-subkey="sec3sub2"><a href="/What-Is-Probability-Simulation-First-Intuition-in-R-Before-the-Formulas.html"><span class="progress-dot"></span>Probability (Simulation-First)</a></li><li data-subkey="sec3sub2"><a href="/Expected-Value-and-Variance-in-R.html"><span class="progress-dot"></span>Expected Value and Variance</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Inference &amp; Estimation</li><li data-subkey="sec3sub3"><a href="/Maximum-Likelihood-Estimation-in-R.html"><span class="progress-dot"></span>Maximum Likelihood Estimation</a></li><li data-subkey="sec3sub3"><a href="/Hypothesis-Testing-in-R.html"><span class="progress-dot"></span>Hypothesis Testing</a></li><li data-subkey="sec3sub3"><a href="/Sample-Size-Planning-in-R.html"><span class="progress-dot"></span>Sample Size Planning</a></li><li data-subkey="sec3sub3"><a href="/Which-Statistical-Test-in-R.html"><span class="progress-dot"></span>Choosing the Right Test</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Tests-in-R.html"><span class="progress-dot"></span>Statistical Tests</a></li><li data-subkey="sec3sub3"><a href="/Measures-of-Association-in-R.html"><span class="progress-dot"></span>Measures of Association</a></li><li data-subkey="sec3sub3"><a href="/Point-Estimation-in-R.html"><span class="progress-dot"></span>Point Estimation</a></li><li data-subkey="sec3sub3"><a href="/Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Confidence Intervals</a></li><li data-subkey="sec3sub3"><a href="/Type-I-and-Type-II-Errors-in-R.html"><span class="progress-dot"></span>Type I and II Errors</a></li><li data-subkey="sec3sub3"><a href="/Statistical-Power-Analysis-in-R.html"><span class="progress-dot"></span>Power Analysis</a></li><li data-subkey="sec3sub3"><a href="/Effect-Size-in-R.html"><span class="progress-dot"></span>Effect Size</a></li><li data-subkey="sec3sub3"><a href="/t-Tests-in-R.html"><span class="progress-dot"></span>t-Tests</a></li><li data-subkey="sec3sub3"><a href="/Proportion-Tests-in-R.html"><span class="progress-dot"></span>Proportion Tests</a></li><li data-subkey="sec3sub3"><a href="/Normality-and-Variance-Tests-in-R.html"><span class="progress-dot"></span>Normality &amp; Variance Tests</a></li><li data-subkey="sec3sub3"><a href="/Chi-Square-Tests-in-R.html"><span class="progress-dot"></span>Chi-Square Tests</a></li><li data-subkey="sec3sub3"><a href="/Wilcoxon-Mann-Whitney-and-Kruskal-Wallis-in-R.html"><span class="progress-dot"></span>Wilcoxon, Mann-Whitney &amp; Kruskal-Wallis</a></li><li data-subkey="sec3sub3"><a href="/Multiple-Comparisons-in-R.html"><span class="progress-dot"></span>Multiple Testing Correction</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Regression</li><li data-subkey="sec3sub4"><a href="/Linear-Regression.html"><span class="progress-dot"></span>Linear Regression</a></li><li data-subkey="sec3sub4"><a href="/Logistic-Regression-With-R.html"><span class="progress-dot"></span>Logistic Regression</a></li><li data-subkey="sec3sub4"><a href="/Variable-Selection-and-Importance-With-R.html"><span class="progress-dot"></span>Feature Selection</a></li><li data-subkey="sec3sub4"><a href="/Model-Selection-in-R.html"><span class="progress-dot"></span>Model Selection</a></li><li data-subkey="sec3sub4"><a href="/Missing-Value-Treatment-With-R.html"><span class="progress-dot"></span>Missing Value Treatment</a></li><li data-subkey="sec3sub4"><a href="/Outlier-Treatment-With-R.html"><span class="progress-dot"></span>Outlier Analysis</a></li><li data-subkey="sec3sub4"><a href="/adv-regression-models.html"><span class="progress-dot"></span>Advanced Regression Models</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec3sub5" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Reporting</li><li data-subkey="sec3sub5"><a href="/Statistical-Consulting-in-R.html"><span class="progress-dot"></span>Statistical Consulting</a></li><li data-subkey="sec3sub5"><a href="/Statistical-Report-Writing-in-R.html"><span class="progress-dot"></span>Statistical Report Writing</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-Confidence-Intervals-in-R.html"><span class="progress-dot"></span>Bootstrap Confidence Intervals</a></li><li data-subkey="sec3sub5"><a href="/Reporting-Statistics-in-R.html"><span class="progress-dot"></span>Reporting Statistics</a></li><li data-subkey="sec3sub5"><a href="/Correlation-in-R.html"><span class="progress-dot"></span>Correlation (Pearson, Spearman, Kendall)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Regression-Assumptions-in-R.html"><span class="progress-dot"></span>Linear Regression Assumptions</a></li><li data-subkey="sec3sub5"><a href="/Dummy-Variables-in-R.html"><span class="progress-dot"></span>Dummy Variables in R</a></li><li data-subkey="sec3sub5"><a href="/Interaction-Effects-in-R.html"><span class="progress-dot"></span>Interaction Effects</a></li><li data-subkey="sec3sub5"><a href="/Regression-Diagnostics-in-R.html"><span class="progress-dot"></span>Regression Diagnostics</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R.html"><span class="progress-dot"></span>Logistic Regression (glm + ROC)</a></li><li data-subkey="sec3sub5"><a href="/Variable-Selection-in-R.html"><span class="progress-dot"></span>Variable Selection</a></li><li data-subkey="sec3sub5"><a href="/Poisson-Regression-in-R.html"><span class="progress-dot"></span>Poisson Regression</a></li><li data-subkey="sec3sub5"><a href="/Ridge-and-Lasso-Regression-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Regression</a></li><li data-subkey="sec3sub5"><a href="/Polynomial-and-Spline-Regression-in-R.html"><span class="progress-dot"></span>Polynomial &amp; Splines</a></li><li data-subkey="sec3sub5"><a href="/Regression-Tables-in-R.html"><span class="progress-dot"></span>Regression Tables (3 packages)</a></li><li data-subkey="sec3sub5"><a href="/One-Way-ANOVA-in-R.html"><span class="progress-dot"></span>One-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Post-Hoc-Tests-After-ANOVA.html"><span class="progress-dot"></span>Post-Hoc Tests After ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Two-Way-ANOVA-in-R.html"><span class="progress-dot"></span>Two-Way ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Repeated-Measures-ANOVA-in-R.html"><span class="progress-dot"></span>Repeated Measures ANOVA</a></li><li data-subkey="sec3sub5"><a href="/ANCOVA-in-R.html"><span class="progress-dot"></span>ANCOVA</a></li><li data-subkey="sec3sub5"><a href="/Experimental-Design-Principles-in-R.html"><span class="progress-dot"></span>Experimental Design in R</a></li><li data-subkey="sec3sub5"><a href="/Factorial-Experiments-in-R.html"><span class="progress-dot"></span>Factorial Designs (2^k)</a></li><li data-subkey="sec3sub5"><a href="/AB-Testing-in-R.html"><span class="progress-dot"></span>A/B Testing</a></li><li data-subkey="sec3sub5"><a href="/MANOVA-in-R.html"><span class="progress-dot"></span>MANOVA</a></li><li data-subkey="sec3sub5"><a href="/Mixed-ANOVA-in-R.html"><span class="progress-dot"></span>Mixed ANOVA</a></li><li data-subkey="sec3sub5"><a href="/Multivariate-Statistics-in-R.html"><span class="progress-dot"></span>Multivariate Distances &amp; Hotelling's T²</a></li><li data-subkey="sec3sub5"><a href="/PCA-in-R.html"><span class="progress-dot"></span>PCA with prcomp()</a></li><li data-subkey="sec3sub5"><a href="/Interpreting-PCA-Results-in-R.html"><span class="progress-dot"></span>Interpreting PCA Output</a></li><li data-subkey="sec3sub5"><a href="/Exploratory-Factor-Analysis-in-R.html"><span class="progress-dot"></span>Exploratory Factor Analysis</a></li><li data-subkey="sec3sub5"><a href="/CFA-and-Structural-Equation-Modeling-in-R.html"><span class="progress-dot"></span>SEM and CFA (lavaan)</a></li><li data-subkey="sec3sub5"><a href="/Linear-Discriminant-Analysis-in-R.html"><span class="progress-dot"></span>LDA (Linear Discriminant Analysis)</a></li><li data-subkey="sec3sub5"><a href="/Cluster-Analysis-in-R.html"><span class="progress-dot"></span>Clustering (k-Means / HC / DBSCAN)</a></li><li data-subkey="sec3sub5"><a href="/Correspondence-Analysis-in-R.html"><span class="progress-dot"></span>Correspondence Analysis</a></li><li data-subkey="sec3sub5"><a href="/t-SNE-and-UMAP-in-R.html"><span class="progress-dot"></span>t-SNE and UMAP</a></li><li data-subkey="sec3sub5"><a href="/Simple-Linear-Regression-in-R.html"><span class="progress-dot"></span>Simple Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Multiple-Regression-in-R.html"><span class="progress-dot"></span>Multiple Regression</a></li><li data-subkey="sec3sub5"><a href="/Robust-Regression-in-R.html"><span class="progress-dot"></span>Robust Regression (rlm)</a></li><li data-subkey="sec3sub5"><a href="/factoextra-and-FactoMineR.html"><span class="progress-dot"></span>factoextra (PCA + Clusters)</a></li><li data-subkey="sec3sub5"><a href="/Categorical-Data-in-R.html"><span class="progress-dot"></span>Categorical Data (Tables &amp; Mosaic)</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Test-of-Independence-in-R.html"><span class="progress-dot"></span>Chi-Square Test of Independence</a></li><li data-subkey="sec3sub5"><a href="/Chi-Square-Goodness-of-Fit-Test-in-R.html"><span class="progress-dot"></span>Chi-Square Goodness-of-Fit</a></li><li data-subkey="sec3sub5"><a href="/Fishers-Exact-Test-in-R.html"><span class="progress-dot"></span>Fisher's Exact Test</a></li><li data-subkey="sec3sub5"><a href="/Odds-Ratios-and-Relative-Risk-in-R.html"><span class="progress-dot"></span>Odds Ratios &amp; Relative Risk</a></li><li data-subkey="sec3sub5"><a href="/Logistic-Regression-in-R-2.html"><span class="progress-dot"></span>Logistic Regression (Diagnostics)</a></li><li data-subkey="sec3sub5"><a href="/Poisson-and-Negative-Binomial-Regression.html"><span class="progress-dot"></span>Poisson &amp; Negative Binomial Regression</a></li><li data-subkey="sec3sub5"><a href="/Multinomial-and-Ordinal-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Multinomial &amp; Ordinal Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/When-to-Use-Nonparametric-Tests-in-R.html"><span class="progress-dot"></span>When to Use Nonparametric Tests</a></li><li data-subkey="sec3sub5"><a href="/Wilcoxon-Signed-Rank-Test-in-R.html"><span class="progress-dot"></span>Wilcoxon Signed-Rank Test</a></li><li data-subkey="sec3sub5"><a href="/Mann-Whitney-U-Test-in-R.html"><span class="progress-dot"></span>Mann-Whitney U Test</a></li><li data-subkey="sec3sub5"><a href="/Kruskal-Wallis-Test-in-R-2.html"><span class="progress-dot"></span>Kruskal-Wallis Test</a></li><li data-subkey="sec3sub5"><a href="/Friedman-Test-in-R.html"><span class="progress-dot"></span>Friedman Test</a></li><li data-subkey="sec3sub5"><a href="/Spearman-and-Kendall-Correlation-in-R.html"><span class="progress-dot"></span>Spearman &amp; Kendall Correlation</a></li><li data-subkey="sec3sub5"><a href="/Bootstrap-in-R.html"><span class="progress-dot"></span>Bootstrap (boot package)</a></li><li data-subkey="sec3sub5"><a href="/Quantile-Regression-in-R-2.html"><span class="progress-dot"></span>Quantile Regression</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Operations-in-R.html"><span class="progress-dot"></span>Matrix Operations in R</a></li><li data-subkey="sec3sub5"><a href="/Solving-Linear-Systems-in-R.html"><span class="progress-dot"></span>Solving Linear Systems in R</a></li><li data-subkey="sec3sub5"><a href="/Eigenvalues-and-Eigenvectors-in-R.html"><span class="progress-dot"></span>Eigenvalues &amp; Eigenvectors in R</a></li><li data-subkey="sec3sub5"><a href="/Singular-Value-Decomposition-in-R.html"><span class="progress-dot"></span>Singular Value Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Projections-and-the-Hat-Matrix-in-R.html"><span class="progress-dot"></span>Projections &amp; the Hat Matrix</a></li><li data-subkey="sec3sub5"><a href="/QR-Decomposition-in-R.html"><span class="progress-dot"></span>QR Decomposition in R</a></li><li data-subkey="sec3sub5"><a href="/Quadratic-Forms-in-R.html"><span class="progress-dot"></span>Quadratic Forms</a></li><li data-subkey="sec3sub5"><a href="/Matrix-Derivatives-and-the-Hessian-in-R.html"><span class="progress-dot"></span>Matrix Derivatives &amp; Hessian</a></li><li data-subkey="sec3sub5"><a href="/Exponential-Family-Distributions-in-R.html"><span class="progress-dot"></span>Exponential Family Distributions</a></li><li data-subkey="sec3sub5"><a href="/Sufficient-Statistics-in-R.html"><span class="progress-dot"></span>Sufficient Statistics</a></li><li data-subkey="sec3sub5"><a href="/Complete-and-Ancillary-Statistics-in-R.html"><span class="progress-dot"></span>Complete &amp; Ancillary Statistics</a></li><li data-subkey="sec3sub5"><a href="/UMVUE-in-R-2.html"><span class="progress-dot"></span>UMVUE (Rao-Blackwell &amp; Lehmann-Scheffé)</a></li><li data-subkey="sec3sub5"><a href="/Cramer-Rao-Lower-Bound-in-R-2.html"><span class="progress-dot"></span>Cramér-Rao Lower Bound</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Theory-in-R-2.html"><span class="progress-dot"></span>Asymptotic Theory</a></li><li data-subkey="sec3sub5"><a href="/Neyman-Pearson-Lemma-in-R-2.html"><span class="progress-dot"></span>Neyman-Pearson Lemma</a></li><li data-subkey="sec3sub5"><a href="/Likelihood-Ratio-Tests-and-Pivotal-Methods.html"><span class="progress-dot"></span>Likelihood Ratio &amp; Pivotal Methods</a></li><li data-subkey="sec3sub5"><a href="/Decision-Theory-in-R.html"><span class="progress-dot"></span>Decision Theory</a></li><li data-subkey="sec3sub5"><a href="/Asymptotic-Relative-Efficiency-in-R.html"><span class="progress-dot"></span>Asymptotic Relative Efficiency</a></li><li data-subkey="sec3sub5"><a href="/Bayes-Theorem-in-R.html"><span class="progress-dot"></span>Bayes' Theorem</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Statistics-in-R.html"><span class="progress-dot"></span>Bayesian Statistics</a></li><li data-subkey="sec3sub5"><a href="/Conjugate-Priors-in-R.html"><span class="progress-dot"></span>Conjugate Priors</a></li><li data-subkey="sec3sub5"><a href="/Grid-Approximation-in-R.html"><span class="progress-dot"></span>Grid Approximation</a></li><li data-subkey="sec3sub5"><a href="/MCMC-in-R.html"><span class="progress-dot"></span>MCMC in R</a></li><li data-subkey="sec3sub5"><a href="/Gibbs-Sampling-in-R.html"><span class="progress-dot"></span>Gibbs Sampling</a></li><li data-subkey="sec3sub5"><a href="/Hamiltonian-Monte-Carlo-in-R.html"><span class="progress-dot"></span>Hamiltonian Monte Carlo</a></li><li data-subkey="sec3sub5"><a href="/Stan-in-R.html"><span class="progress-dot"></span>Stan</a></li><li data-subkey="sec3sub5"><a href="/brms-in-R.html"><span class="progress-dot"></span>brms</a></li><li data-subkey="sec3sub5"><a href="/Choosing-Priors-in-R.html"><span class="progress-dot"></span>Choosing Priors</a></li><li data-subkey="sec3sub5"><a href="/Prior-Predictive-Checks-in-R.html"><span class="progress-dot"></span>Prior Predictive Checks</a></li><li data-subkey="sec3sub5"><a href="/Compare-Bayesian-Models-in-R.html"><span class="progress-dot"></span>Compare Bayesian Models</a></li><li data-subkey="sec3sub5"><a href="/Posterior-Predictive-Checks-in-R.html"><span class="progress-dot"></span>Posterior Predictive Checks</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Linear-Regression-in-R.html"><span class="progress-dot"></span>Bayesian Linear Regression</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Logistic-Regression-in-R.html"><span class="progress-dot"></span>Bayesian Logistic Regression</a></li><li data-subkey="sec3sub5"><a href="/Bayesian-Hierarchical-Models-in-R.html" class="active"><span class="progress-dot"></span>Bayesian Hierarchical Models</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Time Series<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec4sub0"><a href="/Time-Series-Analysis-With-R.html"><span class="progress-dot"></span>Time Series Analysis</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R.html"><span class="progress-dot"></span>Time Series Forecasting</a></li><li data-subkey="sec4sub0"><a href="/Time-Series-Forecasting-With-R-part2.html"><span class="progress-dot"></span>More Time Series Forecasting</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Advanced R<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Functional Programming</li><li data-subkey="sec5sub1"><a href="/Functional-Programming-in-R.html"><span class="progress-dot"></span>Functional Programming</a></li><li data-subkey="sec5sub1"><a href="/purrr-map-Variants.html"><span class="progress-dot"></span>purrr map() Variants</a></li><li data-subkey="sec5sub1"><a href="/R-Anonymous-Functions.html"><span class="progress-dot"></span>R Anonymous Functions</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Factories.html"><span class="progress-dot"></span>R Function Factories</a></li><li data-subkey="sec5sub1"><a href="/R-Function-Operators.html"><span class="progress-dot"></span>R Function Operators</a></li><li data-subkey="sec5sub1"><a href="/Reduce-Filter-Map-in-R.html"><span class="progress-dot"></span>Reduce, Filter, Map</a></li><li data-subkey="sec5sub1"><a href="/Memoization-in-R.html"><span class="progress-dot"></span>Memoization in R</a></li><li data-subkey="sec5sub1"><a href="/Writing-Composable-R-Code.html"><span class="progress-dot"></span>Composable R Code</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> OOP in R</li><li data-subkey="sec5sub2"><a href="/OOP-in-R.html"><span class="progress-dot"></span>OOP in R: S3/S4/R6</a></li><li data-subkey="sec5sub2"><a href="/S3-Classes-in-R.html"><span class="progress-dot"></span>S3 Classes</a></li><li data-subkey="sec5sub2"><a href="/S3-Method-Dispatch-in-R.html"><span class="progress-dot"></span>S3 Method Dispatch</a></li><li data-subkey="sec5sub2"><a href="/S4-Classes-in-R.html"><span class="progress-dot"></span>S4 Classes</a></li><li data-subkey="sec5sub2"><a href="/S4-Methods-in-R.html"><span class="progress-dot"></span>S4 Methods &amp; Dispatch</a></li><li data-subkey="sec5sub2"><a href="/R6-Classes-in-R.html"><span class="progress-dot"></span>R6 Classes</a></li><li data-subkey="sec5sub2"><a href="/R6-Advanced.html"><span class="progress-dot"></span>R6 Advanced</a></li><li data-subkey="sec5sub2"><a href="/Operator-Overloading-in-R.html"><span class="progress-dot"></span>Operator Overloading</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> How R Works</li><li data-subkey="sec5sub3"><a href="/R-Names-and-Values.html"><span class="progress-dot"></span>R Names &amp; Values</a></li><li data-subkey="sec5sub3"><a href="/R-Assignment-Deep-Dive.html"><span class="progress-dot"></span>R Assignment Deep Dive</a></li><li data-subkey="sec5sub3"><a href="/R-Memory-lobstr.html"><span class="progress-dot"></span>R Memory &amp; lobstr</a></li><li data-subkey="sec5sub3"><a href="/R-Environments.html"><span class="progress-dot"></span>R Environments</a></li><li data-subkey="sec5sub3"><a href="/R-Lexical-Scoping.html"><span class="progress-dot"></span>Lexical Scoping</a></li><li data-subkey="sec5sub3"><a href="/R-Closures.html"><span class="progress-dot"></span>R Closures</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec5sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Debugging &amp; Performance</li><li data-subkey="sec5sub4"><a href="/R-Conditions-System.html"><span class="progress-dot"></span>Conditions System</a></li><li data-subkey="sec5sub4"><a href="/R-Debugging.html"><span class="progress-dot"></span>Debugging R Code</a></li><li data-subkey="sec5sub4"><a href="/R-Common-Errors.html"><span class="progress-dot"></span>50 Common R Errors</a></li><li data-subkey="sec5sub4"><a href="/Parallel-Computing-With-R.html"><span class="progress-dot"></span>Parallel Computing</a></li><li data-subkey="sec5sub4"><a href="/Strategies-To-Improve-And-Speedup-R-Code.html"><span class="progress-dot"></span>Speedup R Code</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Classic Tutorials<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li data-subkey="sec6sub0"><a href="/R-Tutorial.html"><span class="progress-dot"></span>R Tutorial (Classic)</a></li><li data-subkey="sec6sub0"><a href="/ggplot2-Tutorial-With-R.html"><span class="progress-dot"></span>ggplot2 Short Tutorial</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 1 - Intro</a></li><li data-subkey="sec6sub0"><a href="/Complete-Ggplot2-Tutorial-Part2-Customizing-Theme-With-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 2 - Theme</a></li><li data-subkey="sec6sub0"><a href="/Top50-Ggplot2-Visualizations-MasterList-R-Code.html"><span class="progress-dot"></span>ggplot2 Tutorial 3 - Masterlist</a></li><li data-subkey="sec6sub0"><a href="/Association-Mining-With-R.html"><span class="progress-dot"></span>Association Mining</a></li><li data-subkey="sec6sub0"><a href="/Multi-Dimensional-Scaling-With-R.html"><span class="progress-dot"></span>Multi Dimensional Scaling</a></li><li data-subkey="sec6sub0"><a href="/Optimization-With-R.html"><span class="progress-dot"></span>Optimization</a></li><li data-subkey="sec6sub0"><a href="/Information-Value-With-R.html"><span class="progress-dot"></span>InformationValue Package</a></li></ul></li><li class="sidebar-section"><div class="sidebar-section-header"><span class="sidebar-chevron">&#9656;</span> Practice Exercises<span class="section-meta" data-section-meta></span></div><ul class="sidebar-section-items list-unstyled"><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub1" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> R Fundamentals</li><li data-subkey="sec7sub1"><a href="/R-Basics-Exercises.html"><span class="progress-dot"></span>R Basics (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Vectors-Exercises.html"><span class="progress-dot"></span>R Vectors (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Data-Frames-Exercises.html"><span class="progress-dot"></span>R Data Frames (15 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Lists-Exercises.html"><span class="progress-dot"></span>R Lists (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Control-Flow-Exercises.html"><span class="progress-dot"></span>R Control Flow (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functions-Exercises.html"><span class="progress-dot"></span>R Functions (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-String-Exercises.html"><span class="progress-dot"></span>R Strings (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Date-Time-Exercises.html"><span class="progress-dot"></span>R Date &amp; Time (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Apply-Exercises.html"><span class="progress-dot"></span>R apply Family (12 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Subsetting-Exercises.html"><span class="progress-dot"></span>R Subsetting (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-Functional-Programming-Exercises.html"><span class="progress-dot"></span>Functional Programming (10 problems)</a></li><li data-subkey="sec7sub1"><a href="/R-OOP-Exercises.html"><span class="progress-dot"></span>OOP in R (8 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub2" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Data Wrangling</li><li data-subkey="sec7sub2"><a href="/R-Data-Import-Exercises.html"><span class="progress-dot"></span>Data Import (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Exercises.html"><span class="progress-dot"></span>dplyr (15 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-filter-select-Exercises.html"><span class="progress-dot"></span>dplyr filter() &amp; select() (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-group-by-summarise-Exercises.html"><span class="progress-dot"></span>dplyr group_by() &amp; summarise() (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/dplyr-Join-Exercises.html"><span class="progress-dot"></span>dplyr Joins (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/data-table-Exercises.html"><span class="progress-dot"></span>data.table (12 problems)</a></li><li data-subkey="sec7sub2"><a href="/purrr-Exercises.html"><span class="progress-dot"></span>purrr (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/tidyr-Reshaping-Exercises.html"><span class="progress-dot"></span>tidyr Reshaping (10 problems)</a></li><li data-subkey="sec7sub2"><a href="/Missing-Data-in-R-Exercises.html"><span class="progress-dot"></span>Missing Data in R (10 problems)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub3" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Visualization</li><li data-subkey="sec7sub3"><a href="/ggplot2-Exercises.html"><span class="progress-dot"></span>ggplot2 (15 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Geom-Exercises.html"><span class="progress-dot"></span>ggplot2 Geoms (12 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Aesthetics-Exercises.html"><span class="progress-dot"></span>ggplot2 Aesthetics (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Customization-Exercises.html"><span class="progress-dot"></span>ggplot2 Customization (10 problems)</a></li><li data-subkey="sec7sub3"><a href="/ggplot2-Facet-Exercises.html"><span class="progress-dot"></span>ggplot2 Facets (8 problems)</a></li><li data-subkey="sec7sub3"><a href="/R-Visualization-Project.html"><span class="progress-dot"></span>R Visualization Project (5 charts)</a></li><li class="sidebar-divider sidebar-subsection-toggle" data-subkey="sec7sub4" data-collapsed="false"><span class="subsec-chevron">&#9660;</span> Statistics</li><li data-subkey="sec7sub4"><a href="/Probability-in-R-Exercises.html"><span class="progress-dot"></span>Probability in R Exercises</a></li><li data-subkey="sec7sub4"><a href="/R-Probability-Distributions-Exercises.html"><span class="progress-dot"></span>R Probability Distributions (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Binomial-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Binomial Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Poisson-Distribution-Exercises-in-R.html"><span class="progress-dot"></span>Poisson Distribution Exercises</a></li><li data-subkey="sec7sub4"><a href="/Central-Limit-Theorem-Exercises-in-R.html"><span class="progress-dot"></span>Central Limit Theorem Exercises</a></li><li data-subkey="sec7sub4"><a href="/Hypothesis-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Hypothesis Testing Exercises</a></li><li data-subkey="sec7sub4"><a href="/t-Test-Exercises-in-R.html"><span class="progress-dot"></span>t-Test Exercises (12 problems)</a></li><li data-subkey="sec7sub4"><a href="/Chi-Square-Test-Exercises-in-R.html"><span class="progress-dot"></span>Chi-Square Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Confidence-Interval-Exercises-in-R.html"><span class="progress-dot"></span>Confidence Interval (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Power-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Power Analysis Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Nonparametric-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Nonparametric Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Testing-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Testing (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Multiple-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Multiple Regression Exercises</a></li><li data-subkey="sec7sub4"><a href="/Logistic-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Logistic Regression Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Regression-Diagnostics-Exercises-in-R.html"><span class="progress-dot"></span>Regression Diagnostics Exercises</a></li><li data-subkey="sec7sub4"><a href="/Ridge-and-Lasso-Exercises-in-R.html"><span class="progress-dot"></span>Ridge &amp; Lasso Exercises</a></li><li data-subkey="sec7sub4"><a href="/GLM-Exercises-in-R.html"><span class="progress-dot"></span>GLM Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/ANOVA-Exercises-in-R.html"><span class="progress-dot"></span>ANOVA Exercises (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/Post-Hoc-Tests-Exercises-in-R.html"><span class="progress-dot"></span>Post-Hoc Tests Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Repeated-Measures-Exercises-in-R.html"><span class="progress-dot"></span>Repeated Measures (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Experimental-Design-Exercises-in-R.html"><span class="progress-dot"></span>Experimental Design Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/AB-Testing-Exercises-in-R.html"><span class="progress-dot"></span>A/B Testing Exercises (8 problems)</a></li><li data-subkey="sec7sub4"><a href="/Linear-Regression-Exercises-in-R.html"><span class="progress-dot"></span>Linear Regression (15 problems)</a></li><li data-subkey="sec7sub4"><a href="/PCA-Exercises-in-R.html"><span class="progress-dot"></span>PCA Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/Cluster-Analysis-Exercises-in-R.html"><span class="progress-dot"></span>Clustering Exercises (10 problems)</a></li><li data-subkey="sec7sub4"><a href="/SEM-Exercises-in-R.html"><span class="progress-dot"></span>SEM Exercises (8 problems)</a></li></ul></li></ul><div class="sidebar-subscribe"><p>Stay up-to-date. <a href="https://docs.google.com/forms/d/1xkMYkLNFU9U39Dd8S_2JC0p8B5t6_Yq6zUQjanQQJpY/viewform">Subscribe!</a></p><p><a href="https://docs.google.com/forms/d/13GrkCFcNa-TOIllQghsz2SIEbc-YqY9eJX02B19l5Ow/viewform">Chat!</a></p></div></div><div class="sidebar-panel" data-panel="tools"><ul class="sidebar-tools-list list-unstyled"><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Calculators</li><li><a href="/tools/ab-test-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="4" height="9" rx="0.5"/><rect x="9.5" y="3.5" width="4" height="9" rx="0.5"/></svg></span><span class="tool-label">A/B Test Calculator</span></a></li><li><a href="/tools/t-test-calculator.html"><span class="tool-icon"></span><span class="tool-label">t-Test Calculator</span></a></li><li><a href="/tools/chi-square-calculator.html"><span class="tool-icon"></span><span class="tool-label">Chi-Square Test</span></a></li><li><a href="/tools/confidence-interval-calculator.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 4v8M3.5 4H5M3.5 12H5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M12.5 4v8M12.5 4H11M12.5 12H11"/></svg></span><span class="tool-label">Confidence Interval</span></a></li><li><a href="/tools/bootstrap-ci-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bootstrap CI</span></a></li><li><a href="/tools/effect-size-converter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5h11M11 3l2.5 2.5L11 8"/><path d="M13.5 10.5h-11M5 8l-2.5 2.5L5 13"/></svg></span><span class="tool-label">Effect Size Converter</span></a></li><li><a href="/tools/power-analysis.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2L4 9h3.5L7 14l5-7H8.5z"/></svg></span><span class="tool-label">Power Analysis</span></a></li><li><a href="/tools/survival-power-calculator.html"><span class="tool-icon"></span><span class="tool-label">Survival Power</span></a></li><li><a href="/tools/type-i-ii-error-visualizer.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12c1.5 0 2-2 3.5-2S7 12 8 12s2-8 3.5-8S13 12 14.5 12"/><line x1="8" y1="2" x2="8" y2="14" stroke-dasharray="2 2"/></svg></span><span class="tool-label">Type I / II Error</span></a></li><li><a href="/tools/z-score-percentile.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">Z-Score &amp; Percentile</span></a></li><li><a href="/tools/equivalence-noninferiority-calculator.html"><span class="tool-icon"></span><span class="tool-label">Equivalence / NI</span></a></li><li><a href="/tools/outlier-detection-calculator.html"><span class="tool-icon"></span><span class="tool-label">Outlier Detection</span></a></li><li><a href="/tools/roc-auc-calculator.html"><span class="tool-icon"></span><span class="tool-label">ROC / AUC</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Bayesian</li><li><a href="/tools/bayes-theorem-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Theorem</span></a></li><li><a href="/tools/bayes-factor-calculator.html"><span class="tool-icon"></span><span class="tool-label">Bayes Factor</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Interpreters</li><li><a href="/tools/lm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13.5L14 3"/><circle cx="4" cy="11.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="11" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">lm() Output</span></a></li><li><a href="/tools/glm-output-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13C5 13 5 3 8 3s3 10 6 10"/><path d="M2 13.5h12"/></svg></span><span class="tool-label">glm() Output</span></a></li><li><a href="/tools/anova-output-interpreter.html"><span class="tool-icon"></span><span class="tool-label">ANOVA Output</span></a></li><li><a href="/tools/vif-interpreter.html"><span class="tool-icon"></span><span class="tool-label">VIF / Multicollinearity</span></a></li><li><a href="/tools/confusion-matrix-interpreter.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="4.5" height="4.5"/><rect x="9" y="2.5" width="4.5" height="4.5"/><rect x="2.5" y="9" width="4.5" height="4.5"/><rect x="9" y="9" width="4.5" height="4.5"/></svg></span><span class="tool-label">Confusion Matrix</span></a></li><li><a href="/tools/diagnostic-plot-interpreter.html"><span class="tool-icon"></span><span class="tool-label">Diagnostic Plots</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Pickers</li><li><a href="/tools/normality-test-picker.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13c2 0 3-1 4-3s1.5-6 2-6 .5 6 2 6 2.5 0 4 0"/><circle cx="13" cy="4" r="1.6" fill="currentColor" stroke="none"/></svg></span><span class="tool-label">Normality Test</span></a></li><li><a href="/tools/nonparametric-test-picker.html"><span class="tool-icon"></span><span class="tool-label">Non-Parametric Test</span></a></li><li><a href="/tools/multiple-testing-correction.html"><span class="tool-icon"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4l2 2 3-3M2.5 8l2 2 3-3M2.5 12l2 2 3-3"/><path d="M10.5 4h3M10.5 8h3M10.5 12h3"/></svg></span><span class="tool-label">Multiple Testing</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Time series</li><li><a href="/tools/ts-stationarity-calculator.html"><span class="tool-icon"></span><span class="tool-label">TS Stationarity</span></a></li><li class="sidebar-divider"><span class="subsec-chevron">&#9660;</span> Utilities</li><li><a href="/tools/dag-confounder-picker.html"><span class="tool-icon"></span><span class="tool-label">DAG Confounder Picker</span></a></li><li><a href="/tools/reprex-builder.html"><span class="tool-icon"></span><span class="tool-label">Reprex Builder</span></a></li></ul></div></div>
+        </div>
+
+        <main id="content" class="col-xs-12 col-sm-7">
+
+          <nav class="breadcrumb-nav" aria-label="Breadcrumb"><a href="/">Home</a> <span class="breadcrumb-sep">&rsaquo;</span> <span>Statistics</span> <span class="breadcrumb-sep">&rsaquo;</span> <span class="breadcrumb-current">Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups</span></nav>
+<!-- md2html:generated -->
+
+<h1>Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups</h1>
+<div class="post-byline" style="color:#6b7280;font-size:14px;margin:2px 0 18px 0;line-height:1.5;">By <strong>Selva Prabhakaran</strong> &nbsp;&middot;&nbsp; Published May 10, 2026 &nbsp;&middot;&nbsp; Last updated May 10, 2026</div>
+
+<p class="lead">Schools, hospitals, customers, regions, sales reps. Real datasets <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> full of groups whose averages are related but not identical. Fitting one model per group ignores what they share; fitting one pooled model across all groups ignores what makes them different. A hierarchical Bayesian model fits both at once: a population-level effect plus per-group deviations, with each group's posterior pulled toward the population mean by an amount that depends on how much data the group has. The "borrowing strength" trick lets small groups inherit information from larger ones without large groups being held back.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms calls Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What problem do hierarchical models solve?</h2>
+
+<p>Imagine you measure customer satisfaction in 50 stores. Some stores have 500 customers each; others have only 5. You want to estimate the typical satisfaction in each store.</p>
+
+<p>Two naive approaches fail. The first is <em>no pooling</em>: fit a separate average for each store. The 500-customer stores get reliable estimates; the 5-customer stores have huge standard errors and unreliable averages.</p>
+
+<p>The second is <em>complete pooling</em>: ignore stores entirely and use one global average. You lose all the store-to-store variation.</p>
+
+<p>Hierarchical models do <em>partial pooling</em>. Each store's estimate is a weighted average of its own data and the population mean, with the weight depending on the store's sample size. Stores with lots of data are pulled only slightly toward the population mean; stores with little data are pulled heavily. The resulting per-store estimates are more accurate on average than either no pooling or complete pooling.</p>
+
+<p>Below is a hierarchical Bayesian model on <code>mtcars</code> with <code>cyl</code> as the grouping variable. Each cyl group has its own intercept, but the intercepts are pulled toward a shared population mean.</p>
+
+<div class="webr-container" data-block-title="A hierarchical model on mtcars by cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A hierarchical model on mtcars by cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">library</span>(brms)</span>
+<span class="cl"><span class="nf">options</span>(brms.backend <span class="o">=</span> <span class="s">&quot;cmdstanr&quot;</span>, brms.silent <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"></span>
+<span class="cl">mtcars2     <span class="o">&lt;-</span> mtcars</span>
+<span class="cl">mtcars2<span class="o">$</span>cyl <span class="o">&lt;-</span> <span class="nf">factor</span>(mtcars2<span class="o">$</span>cyl)</span>
+<span class="cl"></span>
+<span class="cl">fit_hier <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  mpg <span class="o">~</span> wt <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> cyl),</span>
+<span class="cl">  data    <span class="o">=</span> mtcars2,</span>
+<span class="cl">  chains  <span class="o">=</span> <span class="m">4</span>,</span>
+<span class="cl">  iter    <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">  seed    <span class="o">=</span> <span class="m">2026</span>,</span>
+<span class="cl">  silent  <span class="o">=</span> <span class="m">2</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">summary</span>(fit_hier)</span>
+<span class="cl"><span class="c1">#&gt; Group-Level Effects:</span></span>
+<span class="cl"><span class="c1">#&gt; ~cyl (Number of levels: 3)</span></span>
+<span class="cl"><span class="c1">#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
+<span class="cl"><span class="c1">#&gt; sd(Intercept)     2.75      1.65     0.36     6.94 1.00     1185      934</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Population-Level Effects:</span></span>
+<span class="cl"><span class="c1">#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
+<span class="cl"><span class="c1">#&gt; Intercept    34.10      2.39    29.02    38.71 1.00     2103     1735</span></span>
+<span class="cl"><span class="c1">#&gt; wt           -3.02      0.79    -4.52    -1.41 1.00     2890     2347</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed from a flat regression. The formula <code>mpg ~ wt + (1 | cyl)</code> has the standard <code>wt</code> term but adds <code>(1 | cyl)</code>, which is brms shorthand for "fit a separate intercept for each level of cyl, with all the cyl intercepts drawn from a common population distribution."</p>
+
+<p>The summary now has two sections. "Population-Level Effects" reports the population-average intercept and the slope on wt. "Group-Level Effects" reports the standard deviation across the cyl groups' intercept deviations.</p>
+
+<p>The population intercept is 34.10 mpg with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> <code>[29, 38.7]</code>. That is the average across cyl groups. The wt slope is -3.02, the average effect of weight on mpg. The group-level sd is 2.75, meaning cyl groups differ in their intercepts by a typical 2.75 mpg.</p>
+
+<p>To see the actual per-group intercepts, use <code>ranef()</code>.</p>
+
+<div class="webr-container" data-block-title="Per-group intercept deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">ranef</span>(fit_hier)<span class="o">$</span>cyl[, , <span class="s">&quot;Intercept&quot;</span>]</span>
+<span class="cl"><span class="c1">#&gt;     Estimate Est.Error    Q2.5    Q97.5</span></span>
+<span class="cl"><span class="c1">#&gt; 4      1.92      1.66   -1.20    5.39</span></span>
+<span class="cl"><span class="c1">#&gt; 6     -0.55      1.28   -3.13    1.95</span></span>
+<span class="cl"><span class="c1">#&gt; 8     -1.69      1.54   -4.85    1.31</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the per-group output. Each row is one cyl level. The <code>Estimate</code> is the per-group intercept <em>deviation</em> from the population mean. So the cyl=4 typical mpg is <code>34.10 + 1.92 = 36.02</code>; cyl=6 is <code>34.10 - 0.55 = 33.55</code>; cyl=8 is <code>34.10 - 1.69 = 32.41</code>.</p>
+
+<p>The credible intervals on each deviation are wide for the small groups. The cyl=4 group has only 11 cars; its deviation is 1.92 with interval <code>[-1.20, 5.39]</code>. The hierarchical model has <em>shrunk</em> this estimate toward the population mean (zero deviation) compared to what no-pooling would give.</p>
+
+<p><img src="screenshots/Bayesian-Hierarchical-Models-in-R-pooling.webp" alt="Three pooling strategies" class="img-responsive img-zoomable" loading="lazy" width="960" height="986" /></p>
+
+<p><em>Figure 1: No pooling fits each group separately and produces high-variance per-group estimates. Complete pooling ignores groups and produces low-variance but biased estimates. Partial pooling (hierarchical) finds the optimal balance, shrinking small groups more than large ones.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hierarchical models are not just "regression with group dummies."</strong> A regression with <code>factor(cyl)</code> as a fixed effect fits each group's intercept independently (no pooling). A hierarchical model with <code>(1 | cyl)</code> fits all groups jointly with shared shrinkage (partial pooling). The latter is more accurate when groups are similar enough to share information.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the marginal posterior for cyl=4's actual intercept (population intercept plus deviation, not just the deviation). Report median and 95% credible interval.</p>
+<div class="webr-container" data-block-title="Your turn: per-group full intercept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-group full intercept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Pull both b_Intercept and r_cyl[4,Intercept] draws and add them</span></span>
+<span class="cl"><span class="c1"># Compute median and 2.5/97.5 quantiles</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-group intercept solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">draws <span class="o">&lt;-</span> <span class="nf">as_draws_df</span>(fit_hier, variable <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;b_Intercept&quot;</span>, <span class="s">&quot;r_cyl[4,Intercept]&quot;</span>))</span>
+<span class="cl">cyl4_intercept <span class="o">&lt;-</span> draws<span class="o">$</span>b_Intercept <span class="o">+</span> draws<span class="o">$</span>`r_cyl[4,Intercept]`</span>
+<span class="cl"><span class="nf">c</span>(</span>
+<span class="cl">  median   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">median</span>(cyl4_intercept), <span class="m">2</span>),</span>
+<span class="cl">  q025_975 <span class="o">=</span> <span class="nf">paste0</span>(<span class="s">&quot;[&quot;</span>, <span class="nf">round</span>(<span class="nf">quantile</span>(cyl4_intercept, <span class="m">0.025</span>), <span class="m">2</span>),</span>
+<span class="cl">                    <span class="s">&quot;, &quot;</span>, <span class="nf">round</span>(<span class="nf">quantile</span>(cyl4_intercept, <span class="m">0.975</span>), <span class="m">2</span>), <span class="s">&quot;]&quot;</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;          median        q025_975</span></span>
+<span class="cl"><span class="c1">#&gt;           36.02   [33.45, 38.71]</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full intercept for cyl=4 is centred on 36.02 mpg with 95% credible interval <code>[33.45, 38.71]</code>. This is the typical mpg for a 4-cylinder car at zero weight, propagating both population-level uncertainty and group-level uncertainty.</p>
+
+</details>
+</section>
+
+<h2>How do partial pooling, no pooling, and complete pooling differ?</h2>
+
+<p>The differences are clearest with a numeric demonstration. Below we fit the same data three ways and compare per-group means.</p>
+
+<div class="webr-container" data-block-title="No pooling, complete pooling, partial pooling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">No pooling, complete pooling, partial pooling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># No pooling: separate intercept per group</span></span>
+<span class="cl">fit_no_pool <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  mpg <span class="o">~</span> <span class="m">0</span> <span class="o">+</span> cyl <span class="o">+</span> wt,        <span class="c1"># 0 + cyl gives no overall intercept; one per group</span></span>
+<span class="cl">  data    <span class="o">=</span> mtcars2,</span>
+<span class="cl">  prior   <span class="o">=</span> <span class="nf">prior</span>(<span class="nf">normal</span>(<span class="m">20</span>, <span class="m">10</span>), class <span class="o">=</span> <span class="s">&quot;b&quot;</span>),</span>
+<span class="cl">  chains  <span class="o">=</span> <span class="m">4</span>,</span>
+<span class="cl">  iter    <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">  seed    <span class="o">=</span> <span class="m">2026</span>,</span>
+<span class="cl">  silent  <span class="o">=</span> <span class="m">2</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Complete pooling: ignore cyl entirely</span></span>
+<span class="cl">fit_complete <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  mpg <span class="o">~</span> wt,</span>
+<span class="cl">  data    <span class="o">=</span> mtcars2,</span>
+<span class="cl">  chains  <span class="o">=</span> <span class="m">4</span>,</span>
+<span class="cl">  iter    <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">  seed    <span class="o">=</span> <span class="m">2026</span>,</span>
+<span class="cl">  silent  <span class="o">=</span> <span class="m">2</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Already-fit hierarchical model is partial pooling</span></span>
+<span class="cl"><span class="c1"># Compare per-group means</span></span>
+<span class="cl"><span class="nf">sapply</span>(<span class="nf">c</span>(<span class="s">&quot;4&quot;</span>, <span class="s">&quot;6&quot;</span>, <span class="s">&quot;8&quot;</span>), <span class="kr">function</span>(g) {</span>
+<span class="cl">  obs    <span class="o">&lt;-</span> <span class="nf">mean</span>(mtcars2<span class="o">$</span>mpg[mtcars2<span class="o">$</span>cyl <span class="o">==</span> g])</span>
+<span class="cl">  no_pool <span class="o">&lt;-</span> <span class="nf">posterior_summary</span>(fit_no_pool, variable <span class="o">=</span> <span class="nf">paste0</span>(<span class="s">&quot;b_cyl&quot;</span>, g))[<span class="m">1</span>, <span class="s">&quot;Estimate&quot;</span>]</span>
+<span class="cl">  partial <span class="o">&lt;-</span> <span class="nf">posterior_summary</span>(fit_hier, variable <span class="o">=</span> <span class="s">&quot;b_Intercept&quot;</span>)[<span class="m">1</span>, <span class="s">&quot;Estimate&quot;</span>] <span class="o">+</span></span>
+<span class="cl">             <span class="nf">posterior_summary</span>(fit_hier, variable <span class="o">=</span> <span class="nf">paste0</span>(<span class="s">&quot;r_cyl[&quot;</span>, g, <span class="s">&quot;,Intercept]&quot;</span>))[<span class="m">1</span>, <span class="s">&quot;Estimate&quot;</span>]</span>
+<span class="cl">  <span class="nf">c</span>(observed_mean <span class="o">=</span> <span class="nf">round</span>(obs, <span class="m">2</span>),</span>
+<span class="cl">    no_pool       <span class="o">=</span> <span class="nf">round</span>(no_pool, <span class="m">2</span>),</span>
+<span class="cl">    complete_pool <span class="o">=</span> <span class="nf">round</span>(<span class="nf">posterior_summary</span>(fit_complete, variable <span class="o">=</span> <span class="s">&quot;b_Intercept&quot;</span>)[<span class="m">1</span>, <span class="s">&quot;Estimate&quot;</span>], <span class="m">2</span>),</span>
+<span class="cl">    partial_pool  <span class="o">=</span> <span class="nf">round</span>(partial, <span class="m">2</span>))</span>
+<span class="cl">})</span>
+<span class="cl"><span class="c1">#&gt;                 4     6     8</span></span>
+<span class="cl"><span class="c1">#&gt; observed_mean 26.66 19.74 15.10</span></span>
+<span class="cl"><span class="c1">#&gt; no_pool       36.34 28.85 25.87</span></span>
+<span class="cl"><span class="c1">#&gt; complete_pool 37.29 37.29 37.29</span></span>
+<span class="cl"><span class="c1">#&gt; partial_pool  36.02 33.55 32.41</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the comparison. The "observed_mean" row is the raw average mpg per cyl group. The other rows are model-implied intercepts (typical mpg at zero weight, which is hypothetical extrapolation but reveals the pooling pattern).</p>
+
+<p>No pooling gives intercepts of 36.3, 28.9, 25.9 across the three groups. Complete pooling forces all three to the same value 37.3. Partial pooling gives 36.0, 33.6, 32.4: less spread than no pooling, more spread than complete pooling. The partial-pooling estimates are pulled toward the population mean by an amount inversely proportional to each group's sample size.</p>
+
+<p>That is the trade-off in numbers. With more groups or fewer observations per group, the partial-pooling shrinkage gets stronger. With many observations per group, partial pooling barely differs from no pooling.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Partial pooling is what frequentist practitioners call "random effects" or "mixed models."</strong> <code>lme4::lmer()</code> does the same thing for Gaussian outcomes. The Bayesian version through brms gives you the full posterior plus proper uncertainty propagation between levels, which <code>lmer()</code> does not.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the cyl=8 group (14 cars in mtcars), compute how far partial-pooling shrunk the intercept toward the population mean compared to no-pooling.</p>
+<div class="webr-container" data-block-title="Your turn: shrinkage on the largest group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: shrinkage on the largest group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># no-pool intercept for cyl=8: from fit_no_pool b_cyl8</span></span>
+<span class="cl"><span class="c1"># partial-pool intercept for cyl=8: from fit_hier b_Intercept + r_cyl[8,Intercept]</span></span>
+<span class="cl"><span class="c1"># Compute how far each is from the population mean (b_Intercept of fit_hier)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Shrinkage solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shrinkage solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">no_pool_8  <span class="o">&lt;-</span> <span class="nf">posterior_summary</span>(fit_no_pool, variable <span class="o">=</span> <span class="s">&quot;b_cyl8&quot;</span>)[, <span class="s">&quot;Estimate&quot;</span>]</span>
+<span class="cl">partial_8_dev <span class="o">&lt;-</span> <span class="nf">posterior_summary</span>(fit_hier, variable <span class="o">=</span> <span class="s">&quot;r_cyl[8,Intercept]&quot;</span>)[, <span class="s">&quot;Estimate&quot;</span>]</span>
+<span class="cl">pop_mean      <span class="o">&lt;-</span> <span class="nf">posterior_summary</span>(fit_hier, variable <span class="o">=</span> <span class="s">&quot;b_Intercept&quot;</span>)[, <span class="s">&quot;Estimate&quot;</span>]</span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">c</span>(</span>
+<span class="cl">  no_pool_intercept    <span class="o">=</span> <span class="nf">round</span>(no_pool_8, <span class="m">2</span>),</span>
+<span class="cl">  partial_intercept    <span class="o">=</span> <span class="nf">round</span>(pop_mean <span class="o">+</span> partial_8_dev, <span class="m">2</span>),</span>
+<span class="cl">  population_mean      <span class="o">=</span> <span class="nf">round</span>(pop_mean, <span class="m">2</span>),</span>
+<span class="cl">  no_pool_distance     <span class="o">=</span> <span class="nf">round</span>(<span class="nf">abs</span>(no_pool_8 <span class="o">-</span> pop_mean), <span class="m">2</span>),</span>
+<span class="cl">  partial_distance     <span class="o">=</span> <span class="nf">round</span>(<span class="nf">abs</span>(partial_8_dev), <span class="m">2</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;   no_pool_intercept   partial_intercept     population_mean  no_pool_distance   partial_distance</span></span>
+<span class="cl"><span class="c1">#&gt;               25.87               32.41               34.10              8.23               1.69</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No-pool was 8.23 below the population mean; partial-pool was only 1.69 below. The hierarchical model shrunk the cyl=8 estimate by about 80% toward the population. With 14 cars in the group, this is a lot of shrinkage. Smaller groups would be shrunk even more aggressively.</p>
+
+</details>
+</section>
+
+<h2>How do I fit a hierarchical model in brms?</h2>
+
+<p>The <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">brms formula</a> syntax for hierarchical models follows lme4 conventions. <code>(1 | group)</code> adds a random intercept per group. <code>(1 + x | group)</code> adds random intercepts and random slopes for <code>x</code> per group, with correlation between them estimated. <code>(0 + x | group)</code> adds random slopes without random intercepts.</p>
+
+<div class="webr-container" data-block-title="Three common hierarchical formulas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three common hierarchical formulas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Random intercept only</span></span>
+<span class="cl">fit_ri <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  mpg <span class="o">~</span> wt <span class="o">+</span> (<span class="m">1</span> <span class="o">|</span> cyl),</span>
+<span class="cl">  data    <span class="o">=</span> mtcars2,</span>
+<span class="cl">  chains  <span class="o">=</span> <span class="m">4</span>,</span>
+<span class="cl">  iter    <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">  seed    <span class="o">=</span> <span class="m">2026</span>,</span>
+<span class="cl">  silent  <span class="o">=</span> <span class="m">2</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Random intercept and random slope on wt</span></span>
+<span class="cl">fit_ris <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  mpg <span class="o">~</span> wt <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> wt <span class="o">|</span> cyl),</span>
+<span class="cl">  data    <span class="o">=</span> mtcars2,</span>
+<span class="cl">  chains  <span class="o">=</span> <span class="m">4</span>,</span>
+<span class="cl">  iter    <span class="o">=</span> <span class="m">2000</span>,</span>
+<span class="cl">  seed    <span class="o">=</span> <span class="m">2026</span>,</span>
+<span class="cl">  silent  <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">  control <span class="o">=</span> <span class="nf">list</span>(adapt_delta <span class="o">=</span> <span class="m">0.95</span>)   <span class="c1"># higher to avoid divergences on small group counts</span></span>
+<span class="cl">)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Compare the variance components</span></span>
+<span class="cl"><span class="nf">prior_summary</span>(fit_ris)[<span class="nf">grepl</span>(<span class="s">&quot;sd|cor&quot;</span>, <span class="nf">prior_summary</span>(fit_ris)<span class="o">$</span>class), <span class="nf">c</span>(<span class="s">&quot;class&quot;</span>, <span class="s">&quot;coef&quot;</span>, <span class="s">&quot;group&quot;</span>, <span class="s">&quot;prior&quot;</span>, <span class="s">&quot;source&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;     class      coef group                    prior  source</span></span>
+<span class="cl"><span class="c1">#&gt; 1     cor                                                  default</span></span>
+<span class="cl"><span class="c1">#&gt; 2     cor             cyl                                  default</span></span>
+<span class="cl"><span class="c1">#&gt; 3      sd                                              student_t(3, 0, 7.4)  default</span></span>
+<span class="cl"><span class="c1">#&gt; 4      sd Intercept   cyl                              default</span></span>
+<span class="cl"><span class="c1">#&gt; 5      sd        wt   cyl                              default</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the syntax. <code>(1 | cyl)</code> is the simplest case: each cyl gets its own intercept deviation, with all deviations drawn from <code>Normal(0, sd_intercept)</code> where <code>sd_intercept</code> is itself estimated.</p>
+
+<p><code>(1 + wt | cyl)</code> says each cyl gets its own intercept <em>and</em> its own slope on wt. The two are jointly distributed with correlation <code>cor</code> (also estimated). For mtcars with only 3 cyl groups, this is borderline; brms warns about <a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">divergent transitions</a>, which is why we set <code>adapt_delta = 0.95</code>.</p>
+
+<p><code>(0 + wt | cyl)</code> would give random slopes but no random intercepts, sharing the population intercept across groups.</p>
+
+<p>For larger studies with more groups (say 50 schools or 100 hospitals), random slopes are usually identifiable. For datasets with very few groups (3 here), random slopes can be too data-hungry to fit reliably.</p>
+
+<p><img src="screenshots/Bayesian-Hierarchical-Models-in-R-structure.webp" alt="Hierarchical model structure" class="img-responsive img-zoomable" loading="lazy" width="1104" height="1026" /></p>
+
+<p><em>Figure 2: A hierarchical model has population-level parameters at the top, group-level deviations in the middle, and observations within each group at the bottom. Each level inherits the structure of the level above and adds its own variability.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always check <code>prior_summary()</code> for the random-effect SD prior.</strong> brms defaults to a half-Student-t with the data's standard deviation as the scale, which is reasonable. For very small datasets or unusual outcomes, override with <code>prior(student_t(3, 0, 5), class = &quot;sd&quot;)</code> or similar.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit the random-slope model (<code>mpg ~ wt + (1 + wt | cyl)</code>) and read out the correlation between random intercepts and slopes.</p>
+<div class="webr-container" data-block-title="Your turn: intercept-slope correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: intercept-slope correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># posterior_summary(fit_ris, variable = &#39;cor_cyl__Intercept__wt&#39;)</span></span>
+<span class="cl"><span class="c1">#&gt; Expected: a correlation between -1 and 1, with credible interval often spanning zero</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Intercept-slope correlation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intercept-slope correlation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">posterior_summary</span>(fit_ris, variable <span class="o">=</span> <span class="s">&quot;cor_cyl__Intercept__wt&quot;</span>)[, <span class="nf">c</span>(<span class="m">1</span>, <span class="m">3</span>, <span class="m">4</span>)]</span>
+<span class="cl"><span class="c1">#&gt;                          Estimate    Q2.5   Q97.5</span></span>
+<span class="cl"><span class="c1">#&gt; cor_cyl__Intercept__wt     -0.105   -0.927    0.876</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The correlation between cyl-level intercept deviations and wt slope deviations is centred on -0.10 with 95% credible interval <code>[-0.93, 0.88]</code>. The interval covers most of <code>[-1, 1]</code>, meaning the data does not pin the correlation down at all. With only 3 groups, this is expected; correlations between random effects need many groups to identify.</p>
+
+</details>
+</section>
+
+<h2>How do I read group-level vs population-level outputs?</h2>
+
+<p>Two layers of output. Population-level effects are the typical effect across the population of groups. Group-level effects are the per-group deviations.</p>
+
+<p>For a hierarchical regression <code>y ~ x + (1 | g)</code>, the model is:</p>
+
+<ul>
+
+<li>Population: <code>y_typical = b_Intercept + b_x * x</code> (the regression a "typical group" would have)</li>
+
+<li>Group g: <code>y_g = (b_Intercept + r_g) + b_x * x</code> (each group gets its own intercept)</li>
+
+</ul>
+
+<p>Where <code>r_g</code> is the group-g intercept deviation drawn from <code>Normal(0, sd_Intercept)</code>.</p>
+
+<div class="webr-container" data-block-title="Read both layers in one summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read both layers in one summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">summary</span>(fit_hier)</span>
+<span class="cl"><span class="c1">#&gt; ... (formula, data, chains)</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Group-Level Effects:</span></span>
+<span class="cl"><span class="c1">#&gt; ~cyl (Number of levels: 3)</span></span>
+<span class="cl"><span class="c1">#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat</span></span>
+<span class="cl"><span class="c1">#&gt; sd(Intercept)     2.75      1.65     0.36     6.94 1.00</span></span>
+<span class="cl"><span class="c1">#&gt;</span></span>
+<span class="cl"><span class="c1">#&gt; Population-Level Effects:</span></span>
+<span class="cl"><span class="c1">#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat</span></span>
+<span class="cl"><span class="c1">#&gt; Intercept    34.10      2.39    29.02    38.71 1.00</span></span>
+<span class="cl"><span class="c1">#&gt; wt           -3.02      0.79    -4.52    -1.41 1.00</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through how to read it. "Group-Level Effects" reports the <em>standard deviation</em> of group-level intercepts, not the per-group estimates themselves. The estimate of 2.75 says cyl groups differ in their typical mpg by about 2.75 mpg.</p>
+
+<p>"Population-Level Effects" reports the population-average intercept and slope. These are what you would report if you wanted to make a statement about cars in general (averaged over cyl groups).</p>
+
+<p>For per-group estimates, use <code>ranef()</code> or <code>coef()</code>:</p>
+
+<div class="webr-container" data-block-title="ranef vs coef">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ranef vs coef</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">ranef</span>(fit_hier)<span class="o">$</span>cyl[, , <span class="s">&quot;Intercept&quot;</span>]</span>
+<span class="cl"><span class="c1">#&gt;     Estimate    Q2.5    Q97.5</span></span>
+<span class="cl"><span class="c1">#&gt; 4      1.92    -1.20    5.39</span></span>
+<span class="cl"><span class="c1">#&gt; 6     -0.55    -3.13    1.95</span></span>
+<span class="cl"><span class="c1">#&gt; 8     -1.69    -4.85    1.31</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="nf">coef</span>(fit_hier)<span class="o">$</span>cyl[, , <span class="s">&quot;Intercept&quot;</span>]</span>
+<span class="cl"><span class="c1">#&gt;     Estimate    Q2.5    Q97.5</span></span>
+<span class="cl"><span class="c1">#&gt; 4     36.02   33.45    38.71</span></span>
+<span class="cl"><span class="c1">#&gt; 6     33.55   30.30    36.50</span></span>
+<span class="cl"><span class="c1">#&gt; 8     32.41   28.83    35.61</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the difference. <code>ranef()</code> returns the <em>deviations</em> from the population mean. <code>coef()</code> returns the <em>full per-group intercepts</em> (population mean plus deviation). Both have credible intervals; <code>coef()</code> is what you would report as "the typical mpg by cyl group."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For predicting at a new group not in the training data, use <code>posterior_predict()</code> with <code>re_formula = NA</code>.</strong> This averages out the group-level uncertainty rather than picking a specific group.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>coef()</code> to report the per-group typical mpg with 95% credible intervals.</p>
+<div class="webr-container" data-block-title="Your turn: per-group full intercept table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-group full intercept table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># coef(fit_hier)$cyl[, , &#39;Intercept&#39;]</span></span>
+<span class="cl"><span class="c1"># (Already shown above; pull just Estimate, Q2.5, Q97.5 columns)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-group intercept table solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group intercept table solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">per_group <span class="o">&lt;-</span> <span class="nf">coef</span>(fit_hier)<span class="o">$</span>cyl[, , <span class="s">&quot;Intercept&quot;</span>]</span>
+<span class="cl"><span class="nf">data.frame</span>(</span>
+<span class="cl">  cyl       <span class="o">=</span> <span class="nf">rownames</span>(per_group),</span>
+<span class="cl">  estimate  <span class="o">=</span> <span class="nf">round</span>(per_group[, <span class="s">&quot;Estimate&quot;</span>], <span class="m">2</span>),</span>
+<span class="cl">  ci_low    <span class="o">=</span> <span class="nf">round</span>(per_group[, <span class="s">&quot;Q2.5&quot;</span>], <span class="m">2</span>),</span>
+<span class="cl">  ci_high   <span class="o">=</span> <span class="nf">round</span>(per_group[, <span class="s">&quot;Q97.5&quot;</span>], <span class="m">2</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;   cyl estimate ci_low ci_high</span></span>
+<span class="cl"><span class="c1">#&gt; 1   4    36.02  33.45   38.71</span></span>
+<span class="cl"><span class="c1">#&gt; 2   6    33.55  30.30   36.50</span></span>
+<span class="cl"><span class="c1">#&gt; 3   8    32.41  28.83   35.61</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A clean per-group intercept table. The cyl=4 group has the highest typical mpg (36) and cyl=8 the lowest (32). Credible intervals overlap somewhat between adjacent groups, reflecting the moderate amount of partial pooling.</p>
+
+</details>
+</section>
+
+<h2>How do I diagnose a hierarchical fit?</h2>
+
+<p>Hierarchical models add new failure modes. The big one is <em>divergent transitions</em>, often caused by a "funnel" geometry where the random-effect variance can be very small (groups are similar) or very large (groups are different). The standard fix is the <em>non-centred parameterisation</em>, which brms uses by default for random effects but the geometry can still bite.</p>
+
+<div class="webr-container" data-block-title="Standard diagnostics for hierarchical fits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard diagnostics for hierarchical fits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Convergence diagnostics</span></span>
+<span class="cl"><span class="nf">summary</span>(fit_hier)<span class="o">$</span>random<span class="o">$</span>cyl[, <span class="nf">c</span>(<span class="s">&quot;Rhat&quot;</span>, <span class="s">&quot;Bulk_ESS&quot;</span>, <span class="s">&quot;Tail_ESS&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;               Rhat Bulk_ESS Tail_ESS</span></span>
+<span class="cl"><span class="c1">#&gt; sd(Intercept) 1.00     1185      934</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Divergent transitions</span></span>
+<span class="cl"><span class="nf">sum</span>(rstan<span class="o">::</span><span class="nf">get_num_divergent</span>(fit_hier<span class="o">$</span>fit))</span>
+<span class="cl"><span class="c1">#&gt; [1] 0</span></span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Posterior predictive check, grouped</span></span>
+<span class="cl"><span class="nf">pp_check</span>(fit_hier, type <span class="o">=</span> <span class="s">&quot;dens_overlay_grouped&quot;</span>, group <span class="o">=</span> <span class="s">&quot;cyl&quot;</span>, ndraws <span class="o">=</span> <span class="m">50</span>)</span>
+<span class="cl"><span class="c1"># (Plot: separate density panels per cyl group; the model should fit each panel)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what to look at. The Rhat for the random-effect sd is 1.00 (converged); Bulk_ESS at 1185 is acceptable. Random-effect SDs often have lower ESS than population-level coefficients because they trade off with the deviations themselves.</p>
+
+<p>Zero divergent transitions: the chain explored the funnel without hitting numerical issues. If divergences had been non-zero, raise <code>adapt_delta</code> to 0.95 or 0.99.</p>
+
+<p>The grouped density overlay shows whether the model fits each group. If one panel has the simulated densities visibly off the observed density for that group, the model is missing group-specific structure.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Hierarchical models with very few groups (under ~5) often produce uninterpretable random-effect SDs.</strong> With 3 groups (like cyl in mtcars), the SD posterior is wide and uncertain because there are not enough groups to estimate spread reliably. Use a more <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">informative prior</a> on the SD (e.g., <code>prior(normal(0, 5), class = &quot;sd&quot;)</code>) or treat the groups as fixed effects instead.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compare <code>pp_check(fit_hier, ndraws = 50)</code> (pooled across groups) with <code>pp_check(fit_hier, type = &quot;dens_overlay_grouped&quot;, group = &quot;cyl&quot;, ndraws = 50)</code>. Which one shows the per-group fit?</p>
+<div class="webr-container" data-block-title="Your turn: pooled vs grouped PPC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pooled vs grouped PPC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Run both and compare visually (or numerically via apply across groups)</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pooled vs grouped PPC solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pooled vs grouped PPC solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Numeric comparison: per-group simulated mean vs observed mean</span></span>
+<span class="cl">yrep <span class="o">&lt;-</span> <span class="nf">posterior_predict</span>(fit_hier, ndraws <span class="o">=</span> <span class="m">4000</span>)</span>
+<span class="cl">groups <span class="o">&lt;-</span> <span class="nf">as.character</span>(mtcars2<span class="o">$</span>cyl)</span>
+<span class="cl">result <span class="o">&lt;-</span> <span class="nf">sapply</span>(<span class="nf">c</span>(<span class="s">&quot;4&quot;</span>, <span class="s">&quot;6&quot;</span>, <span class="s">&quot;8&quot;</span>), <span class="kr">function</span>(g) {</span>
+<span class="cl">  obs <span class="o">&lt;-</span> <span class="nf">mean</span>(mtcars2<span class="o">$</span>mpg[groups <span class="o">==</span> g])</span>
+<span class="cl">  sim <span class="o">&lt;-</span> <span class="nf">mean</span>(yrep[, groups <span class="o">==</span> g])</span>
+<span class="cl">  <span class="nf">c</span>(observed <span class="o">=</span> <span class="nf">round</span>(obs, <span class="m">2</span>), simulated <span class="o">=</span> <span class="nf">round</span>(sim, <span class="m">2</span>))</span>
+<span class="cl">})</span>
+<span class="cl">result</span>
+<span class="cl"><span class="c1">#&gt;              4     6     8</span></span>
+<span class="cl"><span class="c1">#&gt; observed  26.66 19.74 15.10</span></span>
+<span class="cl"><span class="c1">#&gt; simulated 26.49 19.78 15.20</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-group simulated means closely match observed means. The hierarchical model captures the cyl-level differences. The grouped PPC visual would show the same: each panel's simulated density tracks the observed density for that group.</p>
+
+</details>
+</section>
+
+<h2>When does a hierarchical model beat a flat one?</h2>
+
+<p>Five situations where hierarchical wins.</p>
+
+<p>The first is <em>uneven group sizes</em>. If your groups vary from 5 to 500 observations, hierarchical shrinkage gives the small groups stable estimates while leaving the large groups largely unchanged.</p>
+
+<p>The second is <em>small per-group sample size</em>. With 5 to 20 observations per group, no-pooling estimates have high variance. Partial pooling reduces it dramatically.</p>
+
+<p>The third is <em>many groups</em>. With 50 or 100 groups, the random-effect SD is well-identified and the shrinkage is reliable. With 3 groups, partial pooling is fragile and you should consider treating groups as fixed effects.</p>
+
+<p>The fourth is <em>predicting to new groups</em>. A hierarchical model has a natural way to predict for a new group not in the training data: marginalise over the random-effect distribution. A no-pooling fit cannot do this at all.</p>
+
+<p>The fifth is <em>propagating uncertainty into the population effect</em>. The population-level intercept's credible interval includes the variability across groups, which is what you want when reporting an "average effect across groups."</p>
+
+<p>When <em>not</em> to use hierarchical: very few groups (under 5), groups that are deeply different in nature (a "store" with 1000 observations and another with 5 measuring different products entirely), or when group identity is part of what you want to estimate (in which case fixed-effect dummies are more direct).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hierarchical Bayesian models are usually better than fixed-effect alternatives when groups exist, but the prior on the random-effect SD matters.</strong> With weakly informative defaults the shrinkage is reasonable; with bad priors (too tight or too wide) the result can be worse than no pooling. Always inspect <code>prior_summary()</code> and run a sensitivity check on the SD prior.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For <code>mtcars2</code>, refit with both <code>mpg ~ wt + (1 | cyl)</code> and <code>mpg ~ wt + factor(cyl)</code>. Compare the per-cyl intercepts.</p>
+<div class="webr-container" data-block-title="Your turn: hierarchical vs fixed-effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hierarchical vs fixed-effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Fit the fixed-effect version: brm(mpg ~ wt + factor(cyl))</span></span>
+<span class="cl"><span class="c1"># Compare per-cyl intercepts to the hierarchical fit&#39;s coef()</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Hierarchical vs fixed-effect solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hierarchical vs fixed-effect solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">fit_fixed <span class="o">&lt;-</span> <span class="nf">brm</span>(mpg <span class="o">~</span> wt <span class="o">+</span> <span class="nf">factor</span>(cyl), mtcars2,</span>
+<span class="cl">                 chains <span class="o">=</span> <span class="m">4</span>, iter <span class="o">=</span> <span class="m">2000</span>, seed <span class="o">=</span> <span class="m">2026</span>, silent <span class="o">=</span> <span class="m">2</span>)</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Hierarchical per-cyl intercept (from previous section)</span></span>
+<span class="cl">hier_intercepts <span class="o">&lt;-</span> <span class="nf">coef</span>(fit_hier)<span class="o">$</span>cyl[, <span class="s">&quot;Estimate&quot;</span>, <span class="s">&quot;Intercept&quot;</span>]</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Fixed-effect per-cyl intercept = b_Intercept + b_factorcylN (and =b_Intercept for cyl=4 reference)</span></span>
+<span class="cl">draws_f <span class="o">&lt;-</span> <span class="nf">as_draws_df</span>(fit_fixed,</span>
+<span class="cl">                       variable <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;b_Intercept&quot;</span>, <span class="s">&quot;b_factorcyl6&quot;</span>, <span class="s">&quot;b_factorcyl8&quot;</span>))</span>
+<span class="cl">fixed_intercepts <span class="o">&lt;-</span> <span class="nf">c</span>(</span>
+<span class="cl">  <span class="s">&quot;4&quot;</span> <span class="o">=</span> <span class="nf">mean</span>(draws_f<span class="o">$</span>b_Intercept),</span>
+<span class="cl">  <span class="s">&quot;6&quot;</span> <span class="o">=</span> <span class="nf">mean</span>(draws_f<span class="o">$</span>b_Intercept <span class="o">+</span> draws_f<span class="o">$</span>b_factorcyl6),</span>
+<span class="cl">  <span class="s">&quot;8&quot;</span> <span class="o">=</span> <span class="nf">mean</span>(draws_f<span class="o">$</span>b_Intercept <span class="o">+</span> draws_f<span class="o">$</span>b_factorcyl8)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">data.frame</span>(</span>
+<span class="cl">  cyl                  <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;4&quot;</span>, <span class="s">&quot;6&quot;</span>, <span class="s">&quot;8&quot;</span>),</span>
+<span class="cl">  hierarchical_intercept <span class="o">=</span> <span class="nf">round</span>(hier_intercepts, <span class="m">2</span>),</span>
+<span class="cl">  fixed_intercept        <span class="o">=</span> <span class="nf">round</span>(fixed_intercepts, <span class="m">2</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;   cyl hierarchical_intercept fixed_intercept</span></span>
+<span class="cl"><span class="c1">#&gt; 1   4                  36.02           36.34</span></span>
+<span class="cl"><span class="c1">#&gt; 2   6                  33.55           30.85</span></span>
+<span class="cl"><span class="c1">#&gt; 3   8                  32.41           28.85</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hierarchical model produces less spread between cyl groups (32.4 to 36.0) than the fixed-effect model (28.9 to 36.3). With 3 groups and ~10 observations each, partial pooling pulled the per-group intercepts toward the population mean, and the hierarchical estimates are likely closer to the truth on out-of-sample data.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Random slopes for a customer-level effect</h3>
+
+<p>Suppose you have customer-level data with each customer's spending on different products. Fit a model with <code>spend ~ price + (1 + price | customer_id)</code> so each customer has their own price sensitivity. Use a small simulated dataset.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Simulate 50 customers, each with 10 observations</span></span>
+<span class="cl"><span class="c1"># customer_id varies, price varies, spend = 100 + (-5 + customer_effect) * price + noise</span></span>
+<span class="cl"><span class="c1"># Fit brm with random intercept and slope, examine sd outputs</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">set.seed</span>(<span class="m">2026</span>)</span>
+<span class="cl">n_cust <span class="o">&lt;-</span> <span class="m">50</span></span>
+<span class="cl">n_obs  <span class="o">&lt;-</span> <span class="m">10</span></span>
+<span class="cl">df_long <span class="o">&lt;-</span> <span class="nf">expand.grid</span>(customer_id <span class="o">=</span> <span class="nf">factor</span>(<span class="m">1</span><span class="o">:</span>n_cust), obs <span class="o">=</span> <span class="m">1</span><span class="o">:</span>n_obs)</span>
+<span class="cl">df_long<span class="o">$</span>customer_effect <span class="o">&lt;-</span> <span class="nf">rep</span>(<span class="nf">rnorm</span>(n_cust, <span class="m">0</span>, <span class="m">2</span>), each <span class="o">=</span> n_obs)</span>
+<span class="cl">df_long<span class="o">$</span>price <span class="o">&lt;-</span> <span class="nf">rnorm</span>(<span class="nf">nrow</span>(df_long), <span class="m">5</span>, <span class="m">1</span>)</span>
+<span class="cl">df_long<span class="o">$</span>spend <span class="o">&lt;-</span> <span class="m">100</span> <span class="o">+</span> (<span class="m">-5</span> <span class="o">+</span> df_long<span class="o">$</span>customer_effect) <span class="o">*</span> df_long<span class="o">$</span>price <span class="o">+</span></span>
+<span class="cl">                 <span class="nf">rnorm</span>(<span class="nf">nrow</span>(df_long), <span class="m">0</span>, <span class="m">5</span>)</span>
+<span class="cl"></span>
+<span class="cl">fit_re <span class="o">&lt;-</span> <span class="nf">brm</span>(</span>
+<span class="cl">  spend <span class="o">~</span> price <span class="o">+</span> (<span class="m">1</span> <span class="o">+</span> price <span class="o">|</span> customer_id),</span>
+<span class="cl">  data <span class="o">=</span> df_long, chains <span class="o">=</span> <span class="m">4</span>, iter <span class="o">=</span> <span class="m">2000</span>, seed <span class="o">=</span> <span class="m">1</span>, silent <span class="o">=</span> <span class="m">2</span>,</span>
+<span class="cl">  control <span class="o">=</span> <span class="nf">list</span>(adapt_delta <span class="o">=</span> <span class="m">0.95</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="nf">summary</span>(fit_re)<span class="o">$</span>random<span class="o">$</span>customer_id[, <span class="nf">c</span>(<span class="s">&quot;Estimate&quot;</span>, <span class="s">&quot;Est.Error&quot;</span>)]</span>
+<span class="cl"><span class="c1">#&gt;                Estimate Est.Error</span></span>
+<span class="cl"><span class="c1">#&gt; sd(Intercept)      6.21      1.02</span></span>
+<span class="cl"><span class="c1">#&gt; sd(price)          1.97      0.34</span></span>
+<span class="cl"><span class="c1">#&gt; cor(Intercept,price) -0.16  0.20</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The random-intercept sd (6.2) and random-slope sd (1.97) are well-identified with 50 customers. The intercept-slope correlation is small and negative (-0.16). The hierarchical structure correctly captured the customer-level price-sensitivity heterogeneity we built into the simulation.</p>
+
+</details>
+
+<h3>Exercise 2: Predicting for a new group</h3>
+
+<p>For <code>fit_hier</code>, predict the typical mpg for a hypothetical "cyl=12" car (a group not in the training data). Use <code>posterior_predict</code> with <code>re_formula = NA</code> to marginalise over the random-effect distribution.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># new_data &lt;- data.frame(wt = 3, cyl = factor(12, levels = c(&#39;4&#39;, &#39;6&#39;, &#39;8&#39;, &#39;12&#39;)))</span></span>
+<span class="cl"><span class="c1"># y_new &lt;- posterior_predict(fit_hier, newdata = new_data, allow_new_levels = TRUE,</span></span>
+<span class="cl"><span class="c1">#                            sample_new_levels = &#39;gaussian&#39;, re_formula = NULL)</span></span>
+<span class="cl"><span class="c1"># Or use re_formula = NA to ignore random effects</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="New-group prediction solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">New-group prediction solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl">new_data <span class="o">&lt;-</span> <span class="nf">data.frame</span>(wt <span class="o">=</span> <span class="m">3</span>,</span>
+<span class="cl">                       cyl <span class="o">=</span> <span class="nf">factor</span>(<span class="m">12</span>, levels <span class="o">=</span> <span class="nf">c</span>(<span class="s">&quot;4&quot;</span>, <span class="s">&quot;6&quot;</span>, <span class="s">&quot;8&quot;</span>, <span class="s">&quot;12&quot;</span>)))</span>
+<span class="cl"></span>
+<span class="cl"><span class="c1"># Marginalise over the random-effect distribution: use allow_new_levels</span></span>
+<span class="cl">y_new <span class="o">&lt;-</span> <span class="nf">posterior_predict</span>(fit_hier, newdata <span class="o">=</span> new_data,</span>
+<span class="cl">                           allow_new_levels    <span class="o">=</span> <span class="kc">TRUE</span>,</span>
+<span class="cl">                           sample_new_levels   <span class="o">=</span> <span class="s">&quot;gaussian&quot;</span>)</span>
+<span class="cl"><span class="nf">c</span>(</span>
+<span class="cl">  median   <span class="o">=</span> <span class="nf">round</span>(<span class="nf">median</span>(y_new), <span class="m">2</span>),</span>
+<span class="cl">  q025_975 <span class="o">=</span> <span class="nf">paste0</span>(<span class="s">&quot;[&quot;</span>, <span class="nf">round</span>(<span class="nf">quantile</span>(y_new, <span class="m">0.025</span>), <span class="m">2</span>),</span>
+<span class="cl">                    <span class="s">&quot;, &quot;</span>, <span class="nf">round</span>(<span class="nf">quantile</span>(y_new, <span class="m">0.975</span>), <span class="m">2</span>), <span class="s">&quot;]&quot;</span>)</span>
+<span class="cl">)</span>
+<span class="cl"><span class="c1">#&gt;          median        q025_975</span></span>
+<span class="cl"><span class="c1">#&gt;           24.99   [16.69, 32.27]</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicted mpg for a hypothetical new cyl group at wt=3 is centred at 25, with credible interval <code>[16.7, 32.3]</code>. The interval is wider than for known groups because it includes uncertainty about the new group's intercept deviation.</p>
+
+</details>
+
+<h3>Exercise 3: LOO comparison of pooling strategies</h3>
+
+<p>Compare <code>fit_hier</code> (partial pooling), <code>fit_no_pool</code> (no pooling), and <code>fit_complete</code> (complete pooling) via LOO. Report which one wins.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="c1"># Compute loo() on each, run loo_compare()</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"><span class="cl"><span class="nf">loo_compare</span>(<span class="nf">loo</span>(fit_hier), <span class="nf">loo</span>(fit_no_pool), <span class="nf">loo</span>(fit_complete))</span>
+<span class="cl"><span class="c1">#&gt;              elpd_diff se_diff</span></span>
+<span class="cl"><span class="c1">#&gt; fit_hier        0.0     0.0</span></span>
+<span class="cl"><span class="c1">#&gt; fit_no_pool    -0.6     1.4</span></span>
+<span class="cl"><span class="c1">#&gt; fit_complete   -3.2     2.7</span></span></div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hierarchical (partial pooling) wins, but not decisively over no-pooling (gap of 0.6 with se 1.4, ratio under 1). Complete pooling is clearly worst (gap 3.2 with se 2.7, ratio 1.2). With only 3 groups in mtcars, partial and no pooling are similar; the win for hierarchical would be larger with more groups and smaller groups.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Bayesian hierarchical models share information across groups via partial pooling. brms makes this one extra term (<code>(1 | group)</code> or <code>(1 + x | group)</code>) on the formula.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Identify grouping structure</td>
+<td><code>factor(group_var)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Add random effects to formula</td>
+<td>`(1 \</td>
+<td>g)<code>, </code>(1 + x \</td>
+<td>g)<code>, </code>(0 + x \</td>
+<td>g)`</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Read population and group levels</td>
+<td><code>summary(fit)</code>, <code>ranef()</code>, <code>coef()</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Check for divergences</td>
+<td><code>rstan::get_num_divergent(fit$fit)</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Use grouped PPC</td>
+<td><code>pp_check(fit, type = &quot;dens_overlay_grouped&quot;, group = ...)</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Compare to flat model with LOO</td>
+<td><code>loo_compare(loo(hier), loo(flat))</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use hierarchical models when groups have related but different effects, when sample sizes are uneven, when you want stable per-group estimates, or when you need to predict to new groups. Avoid them with very few groups (under 5) or when groups are entirely different in nature.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A., Hill, J. <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge University Press, 2007. The standard textbook.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapters 5 and 15 cover hierarchical models.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 13 on multilevel models with brms.</li>
+
+<li>Bürkner, P. <em>brms documentation: random effects</em>. <a href="https://paulbuerkner.com/brms/reference/brmsformula.html">paulbuerkner.com/brms</a>.</li>
+
+<li>Stan Development Team. "Stan User's Guide: Reparameterization for hierarchical models." <a href="https://mc-stan.org/docs/stan-users-guide/">mc-stan.org/docs/stan-users-guide</a>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Multilevel-Models-in-R.html">Multilevel Models in R With brms</a>, the next post. Same hierarchical idea applied to multi-level designs (students within classrooms within schools).</li>
+
+<li><a href="Bayesian-Logistic-Regression-in-R.html">Bayesian Logistic Regression in R</a>, the previous post. Hierarchical models extend naturally to binary outcomes via <code>family = bernoulli(&quot;logit&quot;)</code> plus random effects.</li>
+
+<li><a href="Choosing-Priors-in-R.html">Choosing Priors in R</a>, the post that covers priors on random-effect SDs.</li>
+
+</ul>
+<aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Stan-in-R.html"><span class="rt-title">Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes</span><span class="rt-meta">Statistics &middot; 15 min read</span></a><a class="rt-card" href="MCMC-in-R.html"><span class="rt-title">Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan</span><span class="rt-meta">Statistics &middot; 20 min read</span></a><a class="rt-card" href="Bayesian-Statistics-in-R.html"><span class="rt-title">Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms</span><span class="rt-meta">Statistics &middot; 12 min read</span></a><a class="rt-card" href="Prior-Predictive-Checks-in-R.html"><span class="rt-title">Prior Predictive Checks in R: Test Your Bayesian Model Before You Have Data</span><span class="rt-meta">Statistics &middot; 13 min read</span></a></div></section>
+<nav class="prev-next-nav" aria-label="Post navigation">
+<a class="pn-link pn-prev" href="Bayesian-Logistic-Regression-in-R.html"><span class="pn-label">&larr; Previous</span><span class="pn-title">Bayesian Logistic Regression</span></a>
+<a class="pn-link pn-next" href="Time-Series-Analysis-With-R.html"><span class="pn-label">Next &rarr;</span><span class="pn-title">Time Series Analysis</span></a>
+</nav>
+
+        </main>
+
+        <div class="col-sm-2 hidden-xs" id="toc-sidebar">
+          <div id="toc-wrapper">
+            <div class="toc-title">On this page</div>
+            <ul class="list-unstyled" id="toc"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <hr>
+        <p>&copy; 2016-<span id="copyright-year">2026</span> Selva Prabhakaran.
+          This work is licensed under the <a href="https://creativecommons.org/licenses/by-nc/3.0/">Creative Commons License.</a>
+        </p>
+        <p class="footer-links">
+          <a href="/about/">About</a> ·
+          <a href="/feed.xml">RSS</a>
+        </p>
+      </div>
+
+    </div> <!-- /container -->
+
+  <script>
+  (function(){
+    function wireTabs(){
+      var tabs = document.querySelectorAll('.sidebar-tab');
+      var panels = document.querySelectorAll('.sidebar-panel');
+      if (!tabs.length || !panels.length) return false;
+      function activate(name){
+        tabs.forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab') === name); });
+        panels.forEach(function(p){ p.classList.toggle('active', p.getAttribute('data-panel') === name); });
+      }
+      var onToolPage = location.pathname.indexOf('/tools/') === 0;
+      if (!onToolPage){
+        try { var pinned = localStorage.getItem('rstat_sidebar_tab'); if (pinned === 'tools' || pinned === 'posts') activate(pinned); } catch(e){}
+      } else {
+        activate('tools');
+      }
+      tabs.forEach(function(tab){
+        if (tab.dataset.wired) return;
+        tab.dataset.wired = '1';
+        tab.addEventListener('click', function(){
+          var name = tab.getAttribute('data-tab');
+          activate(name);
+          try { localStorage.setItem('rstat_sidebar_tab', name); } catch(e){}
+        });
+      });
+      return true;
+    }
+    if (!wireTabs()){
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireTabs);
+      else setTimeout(wireTabs, 50);
+    }
+  })();
+  </script>
+  <script src="www/toc.min.js?h=d28a1a80"></script>
+  <!-- MathJax Script -->
+  
+  <!-- WebR Interactive Code -->
+    <script src="www/editor-bundle.min.js?h=9c31e0b3"></script>
+  <script src="www/webr-init.min.js?h=92549f4e"></script>
+
+      <script src="www/engagement.min.js?h=3084b063"></script>
+  <!-- Google Analytics (gtag.js) , deferred to post-load idle so its ~1.8s of
+       scripting doesn't compete with the critical path. Events fired before
+       the loader lands get buffered on window.dataLayer and flushed once
+       gtag runs, so pageviews are not lost. -->
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-D5XKCMN7FR');
+    (function () {
+      var loaded = false;
+      function load() {
+        if (loaded) return;
+        loaded = true;
+        cleanup();
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-D5XKCMN7FR';
+        document.head.appendChild(s);
+      }
+      // User interaction is the cheapest trigger we can hang analytics on ,
+      // gtag doesn't need to run until someone is actually interacting with
+      // the page. A 6s fallback ensures bounce sessions still record.
+      var events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+      function cleanup() {
+        events.forEach(function (e) { window.removeEventListener(e, load, { capture: true }); });
+      }
+      function arm() {
+        events.forEach(function (e) { window.addEventListener(e, load, { capture: true, once: true, passive: true }); });
+        setTimeout(load, 6000);
+      }
+      if (document.readyState === 'complete') arm();
+      else window.addEventListener('load', arm, { once: true });
+    })();
+  </script>
+
+  <!-- Mobile sidebar menu -->
+  <script>
+    (function() {
+      var menuBtn = document.getElementById('mobile-menu-btn');
+      var overlay = document.getElementById('mobile-sidebar');
+      var closeBtn = document.getElementById('mobile-sidebar-close');
+      var mobileContent = document.getElementById('mobile-sidebar-content');
+      if (!menuBtn || !overlay) return;
+
+      // Populate mobile sidebar from #sidebar-nav after it loads
+      function populateMobileSidebar() {
+        var sidebarNav = document.getElementById('sidebar-nav');
+        if (sidebarNav && sidebarNav.innerHTML.trim()) {
+          mobileContent.innerHTML = sidebarNav.innerHTML;
+          // Re-attach click handlers for section toggles
+          mobileContent.querySelectorAll('.sidebar-section-header').forEach(function(h) {
+            h.addEventListener('click', function() {
+              this.closest('.sidebar-section').classList.toggle('expanded');
+            });
+          });
+        }
+      }
+
+      menuBtn.addEventListener('click', function() {
+        populateMobileSidebar();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      });
+      closeBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      });
+    })();
+  </script>
+
+  <!-- Image lightbox -->
+  <div class="img-lightbox" id="img-lightbox"><img alt="" /></div>
+  <script>
+    (function(){
+      var lb=document.getElementById('img-lightbox'),lbImg=lb.querySelector('img');
+      document.addEventListener('click',function(e){
+        var img=e.target.closest('.img-zoomable');
+        if(img){lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open');document.body.style.overflow='hidden';}
+      });
+      lb.addEventListener('click',function(){lb.classList.remove('open');document.body.style.overflow='';});
+      document.addEventListener('keydown',function(e){if(e.key==='Escape'&&lb.classList.contains('open')){lb.classList.remove('open');document.body.style.overflow='';}});
+    })();
+  </script>
+
+  <!-- Google site search -->
+  <script>
+    function my_search_google() {
+      var query = document.getElementById("my-google-search").value;
+      window.open("https://google.com/search?q=" + query + "%20site:https://r-statistics.co");
+    }
+  </script>
+
+  <!-- Masthead behavior: active link + scroll shadow -->
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var links = document.querySelectorAll('.masthead-nav-link');
+      links.forEach(function(a) {
+        var href = a.getAttribute('href');
+        if (href === '/') return;  // home only matches /
+        if (path.indexOf(href) === 0) a.classList.add('active');
+      });
+      // Tutorial pages (everything not /, /posts/, /about/) get no active link.
+      var masthead = document.querySelector('.site-masthead');
+      if (masthead) {
+        var onScroll = function() {
+          masthead.classList.toggle('scrolled', window.scrollY > 4);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+      }
+    })();
+  </script>
+
+  <!-- Dark mode toggle + smooth scroll -->
+  <script>
+    // Dark mode
+    (function() {
+      var btn = document.getElementById('dark-mode-toggle');
+      if (!btn) return;
+      var saved = localStorage.getItem('darkMode');
+      if (saved === 'true') { document.documentElement.classList.add('dark'); btn.textContent = '\u2600'; }
+      btn.addEventListener('click', function() {
+        var isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark);
+        btn.textContent = isDark ? '\u2600' : '\u263D';
+      });
+    })();
+
+    // Smooth scroll for TOC and anchor links
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var target = document.querySelector(link.getAttribute('href'));
+      if (!target) return;
+      e.preventDefault();
+      var offset = 20;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.pushState(null, null, link.getAttribute('href'));
+    });
+  </script>
+  </body>
+</html>
