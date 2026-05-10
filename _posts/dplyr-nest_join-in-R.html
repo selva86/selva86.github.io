@@ -1,0 +1,329 @@
+---
+title: "dplyr nest_join() in R: Right Matches as List Column"
+description: "Use dplyr nest_join() to join two tables where the right's matches are stored as a list column on the left in R. Covers vs left_join, unnest, 5 examples."
+keywords: "dplyr nest_join, R nested join, nest_join vs left_join, dplyr list column join, nest_join unnest, R hierarchical merge"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "nest_join()|dplyr nest_join|nested join|list column join|nest_join vs left_join"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr nest_join() in R: Join With Right Stored as List Column</h1>
+
+<p class="lead">The <code>nest_join()</code> function in <a class="auto-link" href="https://r-statistics.co/dplyr-joins-in-R.html" title="dplyr Joins in R: left_join, inner_join, full_join (With Examples)">dplyr joins</a> two tables where each matched group from the RIGHT is stored as a NESTED data frame inside a list column. Each row of x ends up with a list-column of all matching y rows.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>nest_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # right matches as list column</span>
+nest_join(x, y, by = &quot;id&quot;, name = &quot;data&quot;)<span class="qa-cmt"> # custom column name</span>
+left_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">               # different: rows multiply</span>
+inner_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # different: only matched rows</span>
+df |&gt; nest_join(...) |&gt; tidyr::unnest(y)<span class="qa-cmt"> # back to flat form</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is nest_join() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">keep one row per left, with right matches as a list column</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nest_join()</text><text x="125" y="126" class="branch-label">flatten matches into multiple rows</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-joins-in-R.html" title="dplyr Joins in R: left_join, inner_join, full_join">left_join()</a> or <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join()</a></text><text x="125" y="182" class="branch-label">many-models pipeline (model per row)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nest_join() + map</text><text x="125" y="238" class="branch-label">group-and-<a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> downstream</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">nest_join() lets you keep raw matches</text><text x="125" y="294" class="branch-label">simple lookup</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">left_join() is cleaner</text></svg></div>
+
+<h2>What nest_join() does in one sentence</h2>
+
+<p><strong><code>nest_join(x, y, by)</code> returns a copy of x with ONE additional list column where each row holds a tibble of all matching rows from y.</strong> Unlike left_join, the row count of x is preserved; matching y rows are bundled instead of duplicated.</p>
+
+<p>This is the "nested" filter+merge pattern. Useful when you want each x row to keep ALL its y matches in one place for downstream per-row computation.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>nest_join(x, y, by = NULL, keep = FALSE, name = NULL)</code>. <code>name</code> is the new list-column's name (defaults to the y data frame's deparsed name).</strong></p>
+
+<div class="webr-container" data-block-title="Each customer with all their orders nested">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each customer with all their orders nested</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+customers &lt;- data.frame(id = 1:3, name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;))
+orders    &lt;- data.frame(id = c(1, 1, 3, 5), amount = c(10, 20, 30, 40))
+
+nest_join(customers, orders, by = &quot;id&quot;)
+#&gt;   id name             orders
+#&gt; 1  1    a tibble [2 x 1]   &lt;-- amounts 10, 20
+#&gt; 2  2    b tibble [0 x 1]   &lt;-- empty (no orders)
+#&gt; 3  3    c tibble [1 x 1]   &lt;-- amount 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Customer 2 has an empty tibble (no orders). The new column is named after the y argument.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>nest_join()</code> preserves x's row count exactly (one nested cell per row).</strong> This is the key difference from left_join, which multiplies rows when y has multiple matches.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard nest_join</h3>
+
+<div class="webr-container" data-block-title="Each customer + their orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each customer + their orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nest_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Custom column name</h3>
+
+<div class="webr-container" data-block-title="Rename the nested column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename the nested column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nest_join(customers, orders, by = &quot;id&quot;, name = &quot;all_orders&quot;)
+#&gt; # ... new column &quot;all_orders&quot; instead of &quot;orders&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Inspect a single row's nested data</h3>
+
+<div class="webr-container" data-block-title="Look at one customer&#x27;s orders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look at one customer&#x27;s orders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- nest_join(customers, orders, by = &quot;id&quot;)
+nested$orders[[1]]
+#&gt;   amount
+#&gt; 1     10
+#&gt; 2     20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The list column is accessed with <code>[[i]]</code> (each cell is a tibble).</p>
+
+<h3>4. Combine with map for many-models or per-row analysis</h3>
+
+<div class="webr-container" data-block-title="Compute total amount per customer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute total amount per customer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nest_join(customers, orders, by = &quot;id&quot;) |&gt;
+  mutate(total = purrr::map_dbl(orders, ~ sum(.x$amount)))
+#&gt;   id name             orders total
+#&gt; 1  1    a tibble [2 x 1]    30
+#&gt; 2  2    b tibble [0 x 1]     0
+#&gt; 3  3    c tibble [1 x 1]    30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>purrr::map_dbl</code> over the list column gives per-row aggregation without losing the raw rows.</p>
+
+<h3>5. Unnest back to flat form</h3>
+
+<div class="webr-container" data-block-title="Convert back to long form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert back to long form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- nest_join(customers, orders, by = &quot;id&quot;)
+
+flat &lt;- nested |&gt;
+  tidyr::unnest(orders, keep_empty = TRUE)
+#&gt; Same as left_join(customers, orders, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>unnest</code> reverses nest_join.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>nest_join()</code> is the dplyr way to express "for each x row, give me ALL its y matches as a sub-table".</strong> This is the "many-models" / "per-customer summary" pattern made first-class. left_join multiplies rows; nest_join keeps them and stores matches as a list column.</div></div>
+
+<h2>nest_join() vs left_join() vs group_by() + nest()</h2>
+
+<p><strong>Three approaches to "x with its y matches" in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Result shape</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nest_join(x, y)</code></td>
+<td>x's row count, list column from y</td>
+<td>Direct nested lookup</td>
+</tr>
+<tr>
+<td><code>left_join(x, y)</code></td>
+<td>Possibly multiplied rows</td>
+<td>Flat output</td>
+</tr>
+<tr>
+<td><code>left_join + group_by(x_id) + nest()</code></td>
+<td>Same as nest_join</td>
+<td>More verbose; equivalent</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>nest_join</code> for direct "x with nested y matches".</li>
+
+<li><code>left_join</code> for flat output with one row per match.</li>
+
+<li><code>group_by + nest</code> if you need additional aggregation before nesting.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use nest_join when each x row needs to do per-row computation on ALL its y matches.</strong></p>
+
+<div class="webr-container" data-block-title="Per-customer order summary via nest_join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-customer order summary via nest_join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">customers |&gt;
+  nest_join(orders, by = &quot;id&quot;) |&gt;
+  mutate(
+    n_orders   = purrr::map_int(orders, nrow),
+    total_amt  = purrr::map_dbl(orders, ~ sum(.x$amount, na.rm = TRUE)),
+    avg_amt    = purrr::map_dbl(orders, ~ mean(.x$amount, na.rm = TRUE))
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per customer, compute order count, total, and average from the nested tibble. Without nest_join you'd group_by + summarise, then join back; nest_join compresses the workflow.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: empty tibble for unmatched rows.</strong> Customers without orders get a 0-row tibble (not NA). <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">Map functions</a> need to handle empty input gracefully.</p>
+
+<p><strong>Pitfall 2: assuming nest_join is a JSON-like nested join.</strong> It is not: each cell is a TIBBLE (data frame), not a list of fields. Access with <code>[[i]]</code> or <code>purrr::map</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>nest_join</code> is more memory-intensive than left_join because each cell holds a tibble.</strong> For very large data, the overhead matters. Profile before using on >1M rows.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each car name in <code>mtcars</code>, attach a nested tibble of all cars sharing the same <code>cyl</code> value (a "siblings" list). Save to <code>ex_nested</code>.</p>
+<div class="webr-container" data-block-title="Your turn: nest siblings by cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nest siblings by cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_named &lt;- mtcars |&gt; tibble::rownames_to_column(&quot;car&quot;)
+
+ex_nested &lt;- mtcars_named |&gt;
+  # your code here
+
+ex_nested$siblings[[1]]
+#&gt; Expected: tibble of all cars with the same cyl as row 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nested &lt;- mtcars_named |&gt;
+  nest_join(mtcars_named, by = &quot;cyl&quot;, name = &quot;siblings&quot;)
+
+# Look at the first car's siblings:
+nrow(ex_nested$siblings[[1]])
+#&gt; [1] 7 (Mazda RX4 has cyl=6; 7 cars share that)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Self-nest_join by cyl. Each car's "siblings" cell is a tibble of all cars (including itself) with the same cyl.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr / tidyr functions</h2>
+
+<p>After mastering nest_join, look at:</p>
+
+<ul>
+
+<li><code>left_join()</code>: flat alternative</li>
+
+<li><code>tidyr::nest()</code>: pure nesting on grouped data</li>
+
+<li><code>tidyr::unnest()</code>: flatten list columns</li>
+
+<li><code>purrr::map()</code>: per-row computation on nested cells</li>
+
+<li><code>dplyr::group_by()</code> + <code>summarise()</code>: alternative aggregation pattern</li>
+
+<li><code>tibble::tribble()</code>: build nested tibbles by hand</li>
+
+</ul>
+
+<p>For tidymodels / many-models workflows, <code>tidyr::nest()</code> followed by <code>mutate(model = map(data, ~ lm(y ~ x, .)))</code> is the canonical pattern.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does nest_join do in dplyr?</strong></p>
+
+<p><code>nest_join(x, y, by)</code> adds a list column to x where each cell is a tibble of all matching rows from y. x's row count is preserved.</p>
+
+<p><strong>What is the difference between nest_join and left_join?</strong></p>
+
+<p>left_join multiplies x's rows when y has multiple matches. nest_join keeps x's row count and stores y's matches as a list column. Same data, different shape.</p>
+
+<p><strong>How do I unnest the result of nest_join?</strong></p>
+
+<p><code>tidyr::unnest(result, name_of_list_col)</code> flattens the nested column. Equivalent to left_join (with keep_empty option for unmatched rows).</p>
+
+<p><strong>Why does my unmatched row have a 0-row tibble?</strong></p>
+
+<p>Because nest_join keeps x's row but no y rows match. The cell is an empty tibble, not NA. <code>purrr::map(orders, nrow)</code> returns 0 for those rows.</p>
+
+<p><strong>When should I use nest_join over left_join?</strong></p>
+
+<p>When each x row needs per-row computation on ALL its y matches (counting, summing, fitting a model). nest_join keeps the raw y rows with the x row instead of separating them.</p>

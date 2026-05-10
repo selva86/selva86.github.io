@@ -1,0 +1,374 @@
+---
+title: "dplyr rows_update() in R: Update Existing Rows by Key"
+description: "Use dplyr rows_update() to update existing rows in a tibble matched by key in R. Covers vs rows_upsert, unmatched arg, in_place, and 5 worked examples."
+keywords: "dplyr rows_update, R update rows by key, rows_update vs rows_upsert, dplyr unmatched, rows_update in_place, R sql update"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rows_update()|dplyr rows_update|update existing rows|rows_update vs rows_upsert|sql update"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr rows_update() in R: Update Existing Rows by Key</h1>
+
+<p class="lead">The <code>rows_update()</code> function in dplyr modifies columns of EXISTING rows in x using values from y, matched by key. Errors if y has keys not present in x (use <code>rows_upsert</code> for insert-or-update semantics).</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rows_update(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # update existing; error on missing</span>
+rows_update(x, y, by = &quot;id&quot;, unmatched = &quot;ignore&quot;)<span class="qa-cmt"> # ignore unmatched in y</span>
+rows_upsert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # insert OR update</span>
+rows_insert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # insert only</span>
+rows_patch(x, y, by = &quot;id&quot;)<span class="qa-cmt">               # only update NAs in x</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rows_update() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">update only existing rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rows_update()</text><text x="125" y="126" class="branch-label">insert OR update</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rows_upsert()</text><text x="125" y="182" class="branch-label">insert only (error on dup)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rows_insert()</text><text x="125" y="238" class="branch-label">update only <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a></text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rows_patch()</text><text x="125" y="294" class="branch-label">delete by key</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rows_delete()</text><text x="125" y="350" class="branch-label">append blindly</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_rows()</a></text></svg></div>
+
+<h2>What rows_update() does in one sentence</h2>
+
+<p><strong><code>rows_update(x, y, by)</code> returns x with each row whose key appears in y replaced by y's values for the matching columns; errors if y has keys not in x.</strong> It is "UPDATE existing only".</p>
+
+<p>Part of the rows_* family (rows_insert, rows_update, rows_upsert, rows_delete, rows_patch) for SQL-style row mutations.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rows_update(x, y, by = NULL, unmatched = &quot;error&quot;, in_place = FALSE)</code>. <code>unmatched = &quot;ignore&quot;</code> skips y's rows whose keys aren't in x.</strong></p>
+
+<div class="webr-container" data-block-title="Update price for two products">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update price for two products</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- data.frame(id = 1:4, price = c(10, 20, 30, 40))
+y &lt;- data.frame(id = c(2, 4), price = c(99, 88))
+
+rows_update(x, y, by = &quot;id&quot;)
+#&gt;   id price
+#&gt; 1  1    10
+#&gt; 2  2    99   &lt;-- updated
+#&gt; 3  3    30
+#&gt; 4  4    88   &lt;-- updated</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>rows_update</code> when y is a list of CHANGES and every key in y must exist in x.</strong> For mixed insert+update, use <code>rows_upsert</code> instead.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Update existing rows</h3>
+
+<div class="webr-container" data-block-title="Patch a few records">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Patch a few records</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:3, status = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;))
+y &lt;- data.frame(id = c(1, 3), status = c(&quot;X&quot;,&quot;Z&quot;))
+
+rows_update(x, y, by = &quot;id&quot;)
+#&gt;   id status
+#&gt; 1  1      X
+#&gt; 2  2      b
+#&gt; 3  3      Z</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Error on unmatched in y</h3>
+
+<div class="webr-container" data-block-title="y has key not in x">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">y has key not in x</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:2, val = c(10, 20))
+y &lt;- data.frame(id = c(1, 99), val = c(100, 999))
+
+rows_update(x, y, by = &quot;id&quot;)
+#&gt; Error: y has 1 row with a key not in x (id = 99)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Ignore unmatched</h3>
+
+<div class="webr-container" data-block-title="Skip y rows whose keys aren&#x27;t in x">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip y rows whose keys aren&#x27;t in x</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rows_update(x, y, by = &quot;id&quot;, unmatched = &quot;ignore&quot;)
+#&gt;   id val
+#&gt; 1  1 100   &lt;-- updated
+#&gt; 2  2  20
+#&gt; (id=99 in y was skipped silently)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Multi-column update</h3>
+
+<div class="webr-container" data-block-title="Update multiple fields per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update multiple fields per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:3, name = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), score = c(10, 20, 30))
+y &lt;- data.frame(id = c(1, 3), name = c(&quot;ALICE&quot;,&quot;CAROL&quot;), score = c(15, 35))
+
+rows_update(x, y, by = &quot;id&quot;)
+#&gt;   id  name score
+#&gt; 1  1 ALICE    15
+#&gt; 2  2     b    20
+#&gt; 3  3 CAROL    35</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All non-key columns in y overwrite the corresponding columns in x.</p>
+
+<h3>5. Composite key</h3>
+
+<div class="webr-container" data-block-title="Update by multiple key columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update by multiple key columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(region=c(&quot;NA&quot;,&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;,&quot;X&quot;), qty=c(100, 200, 50))
+y &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;),     product=c(&quot;Y&quot;,&quot;X&quot;),       qty=c(999, 49))
+
+rows_update(x, y, by = c(&quot;region&quot;,&quot;product&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The rows_* family covers SQL-style row mutations: INSERT, UPDATE, UPSERT, DELETE, PATCH.</strong> Each is one verb with key-based semantics. They replace ad-hoc patterns like <code>bind_rows + filter + summarise</code> for incremental updates.</div></div>
+
+<h2>rows_update() vs rows_upsert() vs rows_patch()</h2>
+
+<p><strong>Three update patterns in dplyr's rows_* family.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inserts new?</th>
+<th>Updates existing?</th>
+<th>Touches NA only?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows_insert(x, y)</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>n/a</td>
+</tr>
+<tr>
+<td><code>rows_update(x, y)</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>No (overwrites all)</td>
+</tr>
+<tr>
+<td><code>rows_upsert(x, y)</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No (overwrites all)</td>
+</tr>
+<tr>
+<td><code>rows_patch(x, y)</code></td>
+<td>No</td>
+<td>Only NA cells</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>rows_delete(x, y)</code></td>
+<td>No (removes)</td>
+<td>n/a</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>rows_update</code> to apply CORRECTIONS to existing records.</li>
+
+<li><code>rows_upsert</code> to SYNC from an authoritative source.</li>
+
+<li><code>rows_patch</code> to FILL IN <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> without overwriting good ones.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use rows_update for "apply corrections" workflows.</strong></p>
+
+<div class="webr-container" data-block-title="Apply corrections to master">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply corrections to master</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master      &lt;- read_csv(&quot;master.csv&quot;)
+corrections &lt;- read_csv(&quot;corrections.csv&quot;)
+
+# Apply corrections; error if any correction's key isn't in master
+master_v2 &lt;- master |&gt; rows_update(corrections, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error-on-unmatched behaviour catches bugs where corrections.csv has stray IDs not in master.</p>
+
+<p>For incremental sync (add new + update existing):</p>
+
+<div class="webr-container" data-block-title="Upsert sync">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Upsert sync</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master_v3 &lt;- master |&gt; rows_upsert(latest_batch, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: errors on unmatched in y.</strong> Default <code>unmatched = &quot;error&quot;</code> errors if y has keys not in x. Use <code>&quot;ignore&quot;</code> to silently skip.</p>
+
+<p><strong>Pitfall 2: column order or types must match.</strong> y's update columns must exist in x with compatible types. Mismatch errors at the call site.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rows_update</code> overwrites ALL non-key columns in y, even if the value is NA.</strong> If y has NA in a column, the corresponding x value is set to NA. Use <code>rows_patch</code> if you only want to update NA values in x.</div></div>
+
+<h2>Why rows_update beats hand-rolled filter+mutate</h2>
+
+<p><strong>Before rows_update existed, applying corrections required filter to the matching rows, modifying their columns, then binding back.</strong> This is verbose, easy to misorder, and silently corrupts data if you mistakenly join on the wrong key. rows_update encapsulates the safe pattern: validate keys, replace columns, return a clean result. The error-on-unmatched default catches a common bug class (corrections referencing non-existent IDs). For data-quality-sensitive pipelines, this safety check pays for itself within the first few runs.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Update car names in a small <code>mtcars_top</code> (first 3 rows) with new SEO-friendly labels. Save to <code>ex_updated</code>.</p>
+<div class="webr-container" data-block-title="Your turn: update 2 car names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: update 2 car names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_top &lt;- mtcars[1:3, ] |&gt; tibble::rownames_to_column(&quot;car&quot;)
+updates    &lt;- data.frame(
+  car  = c(&quot;Mazda RX4&quot;, &quot;Datsun 710&quot;),
+  mpg  = c(99, 88)
+)
+
+ex_updated &lt;- mtcars_top |&gt;
+  # your code here
+
+ex_updated[, c(&quot;car&quot;,&quot;mpg&quot;)]
+#&gt; Expected: 2 rows updated, 1 unchanged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_updated &lt;- mtcars_top |&gt;
+  rows_update(updates, by = &quot;car&quot;)
+
+ex_updated[, c(&quot;car&quot;,&quot;mpg&quot;)]
+#&gt;             car mpg
+#&gt; 1     Mazda RX4  99
+#&gt; 2 Mazda RX4 Wag  21
+#&gt; 3    Datsun 710  88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> rows_update overwrites mpg for matching car names (Mazda RX4 and Datsun 710); Mazda RX4 Wag keeps its original mpg.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering rows_update, look at:</p>
+
+<ul>
+
+<li><code>rows_insert()</code>: insert only</li>
+
+<li><code>rows_upsert()</code>: insert OR update</li>
+
+<li><code>rows_patch()</code>: only <a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> cells</li>
+
+<li><code>rows_delete()</code>: remove by key</li>
+
+<li><code>mutate()</code>: change values without key matching</li>
+
+<li><code>case_when()</code>: conditional update inside mutate</li>
+
+</ul>
+
+<p>For "selective update by condition" (not key-based), <code>mutate(col = case_when(condition ~ new_value, TRUE ~ col))</code> is the right pattern.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rows_update do in dplyr?</strong></p>
+
+<p><code>rows_update(x, y, by)</code> updates rows in x whose key matches a row in y, replacing non-key columns with y's values. Errors if y has keys not in x.</p>
+
+<p><strong>What is the difference between rows_update and rows_upsert?</strong></p>
+
+<p>rows_update only updates existing rows (errors on new keys in y). rows_upsert updates existing AND inserts new. Use upsert for sync; update for corrections.</p>
+
+<p><strong>What is the unmatched argument?</strong></p>
+
+<p><code>unmatched = &quot;error&quot;</code> (default) errors if y has keys not in x. <code>unmatched = &quot;ignore&quot;</code> silently skips them. Use ignore when y may legitimately have extra keys.</p>
+
+<p><strong>Does rows_update overwrite NAs?</strong></p>
+
+<p>Yes. If y has NA in a column, the corresponding x value is set to NA. Use <code>rows_patch</code> to update ONLY x's existing NA cells.</p>
+
+<p><strong>Can rows_update handle composite keys?</strong></p>
+
+<p>Yes: <code>rows_update(x, y, by = c(&quot;col1&quot;,&quot;col2&quot;))</code>. Tuple matching applies.</p>

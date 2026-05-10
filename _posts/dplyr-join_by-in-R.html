@@ -1,0 +1,372 @@
+---
+title: "dplyr join_by() in R: Modern Key Specification for Joins"
+description: "Use dplyr join_by() to specify join keys with equality, inequality, and rolling matches in R. Covers vs by, between, closest, and 5 worked R examples."
+keywords: "dplyr join_by, R join_by syntax, join_by inequality, join_by between, join_by closest, dplyr 1.1 joins, rolling join R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "join_by()|dplyr join_by|join_by inequality|rolling join|closest match"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr join_by() in R: Modern Key Specification for Joins</h1>
+
+<p class="lead">The <code>join_by()</code> helper in dplyr 1.1 specifies join keys using formula-style syntax, supporting equality, <a class="auto-link" href="R-Comparison-Operators-in-R.html" title="R Comparison Operators: ==, !=, <, >, <=, >= Guide">inequality</a>, between, and rolling joins. It generalizes the older string-based <code>by</code> argument.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>left_join(x, y, join_by(id))<span class="qa-cmt">                   # equality (same as by=&quot;id&quot;)</span>
+left_join(x, y, join_by(id, date))<span class="qa-cmt">             # multi-column equality</span>
+left_join(x, y, join_by(x_id == y_id))<span class="qa-cmt">         # mapped names</span>
+left_join(x, y, join_by(date &gt;= start_date))<span class="qa-cmt">   # inequality</span>
+left_join(x, y, join_by(between(d, start, end)))<span class="qa-cmt"> # range match</span>
+left_join(x, y, join_by(closest(date &gt;= ts)))<span class="qa-cmt">   # rolling join</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is join_by() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">equality joins on common name(s)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">join_by(id) or by = &quot;id&quot;</text><text x="125" y="126" class="branch-label">mapped names</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">join_by(x_id == y_id) or by = c(&quot;x_id&quot; = &quot;y_id&quot;)</text><text x="125" y="182" class="branch-label">inequality / interval / range matches</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">join_by() (NEW capability)</text><text x="125" y="238" class="branch-label">closest / rolling join</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">join_by(closest(...))</text><text x="125" y="294" class="branch-label">old code</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">by = &quot;id&quot; still works</text><text x="125" y="350" class="branch-label">helper not needed for simple cases</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">by = &quot;id&quot; is fine</text></svg></div>
+
+<h2>What join_by() does in one sentence</h2>
+
+<p><strong><code>join_by(...)</code> returns a join specification object that the join verbs (<code>left_join</code>, <code>inner_join</code>, etc.) use to determine matching rules; it supports <code>==</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>between()</code>, and <code>closest()</code>.</strong> Introduced in dplyr 1.1, it adds inequality and rolling joins to the dplyr toolbox.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>join_by(...)</code>. Each argument is an unquoted column name, equality, or inequality expression involving one column from each side.</strong></p>
+
+<div class="webr-container" data-block-title="Equality and inequality together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equality and inequality together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+events &lt;- data.frame(event = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), time = c(5, 15, 25))
+windows &lt;- data.frame(window = c(&quot;morning&quot;,&quot;mid&quot;,&quot;late&quot;),
+                      start = c(0, 10, 20), end = c(10, 20, 30))
+
+left_join(events, windows, join_by(time &gt;= start, time &lt; end))
+#&gt;   event time window start end
+#&gt; 1     a    5 morning    0  10
+#&gt; 2     b   15     mid   10  20
+#&gt; 3     c   25    late   20  30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For pure equality joins, <code>by = &quot;id&quot;</code> is shorter and equally clear.</strong> Reach for <code>join_by()</code> when you need inequality, range, or rolling joins (capabilities the old <code>by</code> could not express).</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Equality (same as by)</h3>
+
+<div class="webr-container" data-block-title="join_by equivalent of by = &#x27;id&#x27;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">join_by equivalent of by = &#x27;id&#x27;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">left_join(customers, orders, join_by(id))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Mapped column names</h3>
+
+<div class="webr-container" data-block-title="join_by with column mapping">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">join_by with column mapping</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">left_join(customers, orders, join_by(id == user_id))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same as <code>by = c(&quot;id&quot; = &quot;user_id&quot;)</code>.</p>
+
+<h3>3. Inequality (event in window)</h3>
+
+<div class="webr-container" data-block-title="Event time within a window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Event time within a window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events  &lt;- data.frame(event = c(&quot;a&quot;,&quot;b&quot;), time = c(5, 15))
+windows &lt;- data.frame(start = c(0, 10), end = c(10, 20), window = c(&quot;AM&quot;,&quot;PM&quot;))
+
+left_join(events, windows, join_by(time &gt;= start, time &lt; end))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each event matches the window whose start <= time < end. NOT possible with the old by.</p>
+
+<h3>4. Range match with between</h3>
+
+<div class="webr-container" data-block-title="time falls between [start, end]">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">time falls between [start, end]</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">left_join(events, windows, join_by(between(time, start, end)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>between(x, low, high)</code> is sugar for <code>x &gt;= low &amp; x &lt;= high</code>.</p>
+
+<h3>5. Rolling / closest join</h3>
+
+<div class="webr-container" data-block-title="Most recent quote at-or-before each trade">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most recent quote at-or-before each trade</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trades &lt;- data.frame(trade_id = 1:3, ts = as.POSIXct(c(&quot;2024-01-01 10:00:01&quot;,
+                                                         &quot;2024-01-01 10:00:05&quot;,
+                                                         &quot;2024-01-01 10:00:09&quot;)))
+quotes &lt;- data.frame(quote_id = 1:4, ts = as.POSIXct(c(&quot;2024-01-01 10:00:00&quot;,
+                                                         &quot;2024-01-01 10:00:03&quot;,
+                                                         &quot;2024-01-01 10:00:06&quot;,
+                                                         &quot;2024-01-01 10:00:10&quot;)),
+                      price = c(100, 101, 102, 103))
+
+left_join(trades, quotes, join_by(closest(ts &gt;= ts)))
+#&gt;   trade_id ts.x quote_id ts.y price
+#&gt; 1        1 t1   1        q1   100
+#&gt; 2        2 t2   2        q2   101
+#&gt; 3        3 t3   3        q3   102</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>closest(ts &gt;= ts)</code> matches each trade with the latest quote whose ts <= the trade's ts. The classic time-series "as-of" join.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>join_by()</code> adds INEQUALITY and ROLLING joins to dplyr.</strong> Pre-1.1, these required workarounds (cross_join + filter, fuzzyjoin package). Now they are first-class. Inequality joins are the killer feature: "match each event to the active window" in one line.</div></div>
+
+<h2>join_by() vs by argument vs fuzzyjoin</h2>
+
+<p><strong>Three ways to specify join keys in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Equality</th>
+<th>Inequality</th>
+<th>Rolling</th>
+<th>dplyr version</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>by = &quot;id&quot;</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+<td>All</td>
+</tr>
+<tr>
+<td><code>by = c(&quot;x&quot; = &quot;y&quot;)</code></td>
+<td>Yes (mapped)</td>
+<td>No</td>
+<td>No</td>
+<td>All</td>
+</tr>
+<tr>
+<td><code>join_by(id)</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>1.1+</td>
+</tr>
+<tr>
+<td><code>fuzzyjoin::*_join</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>(separate package)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>by = &quot;id&quot;</code> for simple equality joins.</li>
+
+<li><code>join_by(...)</code> for inequality, range, or rolling joins.</li>
+
+<li><code>fuzzyjoin</code> package for fuzzy / regex / interval joins (predates 1.1).</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "as-of" join is the killer use case for <code>join_by(closest(...))</code>.</strong></p>
+
+<div class="webr-container" data-block-title="As-of trade-quote join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">As-of trade-quote join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trades |&gt;
+  left_join(quotes, join_by(closest(ts &gt;= ts), symbol))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For each trade, get the latest quote at-or-before its timestamp, matched on symbol. Standard finance / time-series pattern.</p>
+
+<p>For range joins:</p>
+
+<div class="webr-container" data-block-title="Event matched to its price period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Event matched to its price period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events |&gt;
+  left_join(price_periods, join_by(between(event_date, start_date, end_date)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each event matches the price period that contains its date.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: column name ambiguity in inequality.</strong> <code>join_by(time &gt;= start)</code> works because time is in events and start is in windows. If both tables had <code>time</code>, you'd need to disambiguate.</p>
+
+<p><strong>Pitfall 2: many-to-many warnings.</strong> Inequality joins often produce many-to-many matches. Pass <code>relationship = &quot;many-to-many&quot;</code> to suppress, or <code>&quot;one-to-one&quot;</code> to error if duplicates.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>join_by()</code> requires dplyr 1.1.0 or later (released 2023).</strong> Older dplyr installations only support the string <code>by</code> argument. Check <code>packageVersion(&quot;dplyr&quot;)</code> if confused.</div></div>
+
+<h2>Why join_by matters for time-series work</h2>
+
+<p><strong>Before join_by, "match each event to the most recent quote at-or-before its time" required either a self-join with filter (slow on big data) or the fuzzyjoin / data.table packages (extra dependency).</strong> join_by(closest(ts >= ts)) makes this a one-line dplyr call. Same applies to "match each transaction to its active price period" using <code>between()</code>. These two patterns (rolling and range) cover most time-series and event-window joins. Range joins also appear in interval-based analytics (matching events to bins, calls to billing periods). Once you internalize join_by, dplyr replaces a lot of clunky multi-step workarounds.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Match each <code>mtcars</code> car to its mpg "tier" using interval comparison. Tier = "low" if mpg < 18, "mid" if 18 <= mpg < 25, "high" otherwise. Save to <code>ex_tier</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bin mpg into tiers via join_by">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bin mpg into tiers via join_by</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tiers &lt;- data.frame(
+  tier = c(&quot;low&quot;,&quot;mid&quot;,&quot;high&quot;),
+  lo   = c(-Inf, 18, 25),
+  hi   = c(18,   25, Inf)
+)
+
+mtcars_n &lt;- mtcars |&gt; tibble::rownames_to_column(&quot;car&quot;)
+
+ex_tier &lt;- mtcars_n |&gt;
+  # your code here
+
+head(ex_tier[, c(&quot;car&quot;,&quot;mpg&quot;,&quot;tier&quot;)])
+#&gt; Expected: each car gets its tier label</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tier &lt;- mtcars_n |&gt;
+  left_join(tiers, join_by(mpg &gt;= lo, mpg &lt; hi))
+
+head(ex_tier[, c(&quot;car&quot;,&quot;mpg&quot;,&quot;tier&quot;)])
+#&gt;                car  mpg tier
+#&gt; 1        Mazda RX4 21.0  mid
+#&gt; 2    Mazda RX4 Wag 21.0  mid
+#&gt; 3       Datsun 710 22.8  mid
+#&gt; 4   Hornet 4 Drive 21.4  mid
+#&gt; 5 Hornet Sportabout 18.7  mid
+#&gt; 6           Valiant 18.1  mid</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>join_by(mpg &gt;= lo, mpg &lt; hi)</code> matches each car to the tier whose interval contains its mpg.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr / tidyr functions</h2>
+
+<p>After mastering join_by, look at:</p>
+
+<ul>
+
+<li><code>left_join()</code> / <code>inner_join()</code> etc.: use join_by inside</li>
+
+<li><code>between()</code>: range comparison helper</li>
+
+<li><code>closest()</code>: rolling-join helper (within join_by)</li>
+
+<li><code>data.table::merge(roll = TRUE)</code>: rolling joins in data.table</li>
+
+<li><code>fuzzyjoin</code> package: fuzzy / interval / regex joins</li>
+
+</ul>
+
+<p>For very large rolling joins, data.table's roll = TRUE is faster than dplyr 1.1's join_by(closest(...)).</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does join_by do in dplyr?</strong></p>
+
+<p><code>join_by(...)</code> returns a join specification used by left_join / <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join</a> / etc. Supports equality, inequality, between, and closest expressions.</p>
+
+<p><strong>What is the difference between join_by and the by argument?</strong></p>
+
+<p><code>by = &quot;id&quot;</code> is the older string-based form, supports only equality. <code>join_by(id)</code> is the new (1.1+) form, supports equality plus inequality, range, and rolling joins.</p>
+
+<p><strong>How do I do an inequality join in dplyr?</strong></p>
+
+<p>Use join_by: <code>left_join(events, windows, join_by(time &gt;= start, time &lt; end))</code>. Each event matches windows whose start <= time < end.</p>
+
+<p><strong>What is a rolling join in dplyr?</strong></p>
+
+<p>A rolling (or "as-of") join matches each row to the closest record in the other table by time or numeric distance. Express with <code>join_by(closest(ts &gt;= ts))</code>.</p>
+
+<p><strong>Do I need dplyr 1.1 for join_by?</strong></p>
+
+<p>Yes. join_by was introduced in dplyr 1.1.0 (Jan 2023). Earlier versions only support the string <code>by</code> argument.</p>

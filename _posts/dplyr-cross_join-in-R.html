@@ -1,0 +1,356 @@
+---
+title: "dplyr cross_join() in R: Cartesian Product of Two Tables"
+description: "Use dplyr cross_join() to compute the Cartesian product of two data frames in R. Covers vs expand_grid, full join with no key, name conflicts, 5 examples."
+keywords: "dplyr cross_join, R cartesian product, cross_join vs expand_grid, dplyr full cross, R combination tables, cross join no key"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cross_join()|dplyr cross_join|cartesian product|combination of tables|cross_join vs expand_grid"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr cross_join() in R: Cartesian Product of Two Tables</h1>
+
+<p class="lead">The <code>cross_join()</code> function in dplyr returns the Cartesian product of two data frames, pairing every row of x with every row of y. Result rows = nrow(x) * nrow(y).</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cross_join(x, y)<span class="qa-cmt">                        # all combinations</span>
+cross_join(x, y, suffix = c(&quot;.x&quot;,&quot;.y&quot;))<span class="qa-cmt"> # disambiguate column names</span>
+tidyr::expand_grid(...)<span class="qa-cmt">                  # similar; lighter input</span>
+dplyr::full_join(x, y, by = character())<span class="qa-cmt"> # equivalent in older dplyr</span>
+nrow(cross_join(x, y))<span class="qa-cmt">                   # = nrow(x) * nrow(y)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cross_join() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">every combination of x rows and y rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cross_join()</text><text x="125" y="126" class="branch-label">generate combinations from vectors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tidyr::expand_grid()</text><text x="125" y="182" class="branch-label">match by key</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="dplyr-joins-in-R.html" title="dplyr Joins in R: left_join, inner_join, full_join">left_join()</a>, <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join()</a>, full_join()</text><text x="125" y="238" class="branch-label">compute pairwise distances / comparisons</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">cross_join() + filter</text><text x="125" y="294" class="branch-label">avoid</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cross_join on big tables (explosion of rows)</text></svg></div>
+
+<h2>What cross_join() does in one sentence</h2>
+
+<p><strong><code>cross_join(x, y)</code> returns a data frame containing every combination of rows from x and y; the result has <code>nrow(x) * nrow(y)</code> rows.</strong> No key is used; no rows are dropped.</p>
+
+<p>This is the SQL CROSS JOIN. Useful for generating all-pair combinations, full grids, or pairwise comparison sets.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>cross_join(x, y, suffix = c(&quot;.x&quot;, &quot;.y&quot;))</code>. No <code>by</code> argument; every row pairs with every row.</strong></p>
+
+<div class="webr-container" data-block-title="Every combination of products and regions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Every combination of products and regions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+products &lt;- data.frame(product = c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;))
+regions  &lt;- data.frame(region  = c(&quot;NA&quot;,&quot;EU&quot;))
+
+cross_join(products, regions)
+#&gt;   product region
+#&gt; 1       X     NA
+#&gt; 2       X     EU
+#&gt; 3       Y     NA
+#&gt; 4       Y     EU
+#&gt; 5       Z     NA
+#&gt; 6       Z     EU</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>cross_join</code> to generate all combinations for grid expansion or pairwise comparison.</strong> For simple vector combinations, <code>tidyr::expand_grid()</code> is more direct.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Generate all combinations</h3>
+
+<div class="webr-container" data-block-title="Product x Region grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Product x Region grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">products &lt;- data.frame(product = c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;))
+regions  &lt;- data.frame(region  = c(&quot;NA&quot;,&quot;EU&quot;))
+
+cross_join(products, regions)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3 * 2 = 6 rows.</p>
+
+<h3>2. Pairwise distance setup</h3>
+
+<div class="webr-container" data-block-title="All pairs of cities for distance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All pairs of cities for distance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cities &lt;- data.frame(name = c(&quot;NYC&quot;,&quot;LA&quot;,&quot;SF&quot;,&quot;Chicago&quot;))
+
+pairs &lt;- cross_join(cities, cities, suffix = c(&quot;_a&quot;,&quot;_b&quot;)) |&gt;
+  filter(name_a &lt; name_b)
+nrow(pairs)
+#&gt; [1] 6  (4 choose 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>cross_join then filter for non-redundant pairs is the standard pattern for "all unique pairs".</p>
+
+<h3>3. Combine with computation</h3>
+
+<div class="webr-container" data-block-title="Compute revenue for every product/region grid cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute revenue for every product/region grid cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">budget &lt;- data.frame(product = c(&quot;X&quot;,&quot;Y&quot;,&quot;Z&quot;), price = c(10, 20, 15))
+demand &lt;- data.frame(region  = c(&quot;NA&quot;,&quot;EU&quot;), qty = c(100, 80))
+
+cross_join(budget, demand) |&gt;
+  mutate(revenue = price * qty)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Suffix to disambiguate</h3>
+
+<div class="webr-container" data-block-title="Same column name in both tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same column name in both tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_a &lt;- data.frame(x = 1:2, label = c(&quot;a&quot;,&quot;b&quot;))
+df_b &lt;- data.frame(x = 3:4, label = c(&quot;c&quot;,&quot;d&quot;))
+
+cross_join(df_a, df_b, suffix = c(&quot;_l&quot;,&quot;_r&quot;))
+#&gt;   x_l label_l x_r label_r
+#&gt; 1   1       a   3       c
+#&gt; 2   1       a   4       d
+#&gt; 3   2       b   3       c
+#&gt; 4   2       b   4       d</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Older dplyr equivalent</h3>
+
+<div class="webr-container" data-block-title="Pre-cross_join era">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pre-cross_join era</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full_join(products, regions, by = character())
+# Empty character() means &quot;no join keys&quot; -&gt; cross product</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cross_join</code> (added in dplyr 1.1) is the modern, explicit form.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>cross_join scales as O(nrow(x) * nrow(y)).</strong> Two 1,000-row tables become a 1,000,000-row result. Always check sizes before running on real data. For very large grids, consider <code>tidyr::expand_grid()</code> (memory-efficient for vector inputs) or generating combinations on the fly.</div></div>
+
+<h2>cross_join() vs expand_grid() vs full_join() vs combn()</h2>
+
+<p><strong>Four ways to generate <a class="auto-link" href="Counting-Principles-in-R.html" title="Counting Principles in R: Permutations, Combinations & Birthday Problem">combinations in R</a>.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cross_join(x, y)</code></td>
+<td>Two data frames</td>
+<td>All-pair df</td>
+<td>Two existing tables</td>
+</tr>
+<tr>
+<td><code>tidyr::expand_grid()</code></td>
+<td>Vectors / lists</td>
+<td>All-pair df</td>
+<td>Variadic vector input</td>
+</tr>
+<tr>
+<td><code>full_join(by = character())</code></td>
+<td>Two data frames</td>
+<td>All-pair df</td>
+<td>Pre-1.1 dplyr</td>
+</tr>
+<tr>
+<td><code>base::combn(x, m)</code></td>
+<td>Vector</td>
+<td>Combinations</td>
+<td>Choose m of n</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>cross_join</code> for two existing data frames.</li>
+
+<li><code>expand_grid</code> when starting from vectors.</li>
+
+<li><code>combn</code> for "choose m" combinations.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use cross_join for "what-if" grid analysis.</strong></p>
+
+<div class="webr-container" data-block-title="Three-way scenario grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-way scenario grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">products  &lt;- data.frame(product = c(&quot;A&quot;,&quot;B&quot;,&quot;C&quot;), unit_cost = c(5, 7, 9))
+volumes   &lt;- data.frame(volume  = c(100, 500, 1000, 5000))
+discounts &lt;- data.frame(discount = c(0, 0.1, 0.2))
+
+scenarios &lt;- products |&gt;
+  cross_join(volumes) |&gt;
+  cross_join(discounts) |&gt;
+  mutate(total_cost = unit_cost * volume * (1 - discount))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3 products <em> 4 volumes </em> 3 discounts = 36 scenarios. Compute total_cost for each. Useful for <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">sensitivity analysis</a>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: row explosion.</strong> <code>cross_join</code> of two 10k tables = 100M rows. Always check sizes first.</p>
+
+<p><strong>Pitfall 2: column name conflicts.</strong> Both tables having a column named <code>id</code> produces <code>id.x</code> and <code>id.y</code> in the result; rename or pass <code>suffix</code> to customize.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>cross_join</code> has NO <code>by</code> argument by design.</strong> It is for "no key, all combinations" semantics. If you need a key-based join, use <code>left_join</code> / <code>inner_join</code> instead.</div></div>
+
+<h2>When to use cross_join vs filter pattern</h2>
+
+<p><strong>The cross_join + filter pattern handles "all valid pairs" computations elegantly but at high memory cost.</strong> For pairwise distance, comparison, or compatibility checks, the natural expression is <code>cross_join</code> followed by <code>filter(valid)</code>. The cost: the intermediate cartesian table is huge. For n = 1,000 cities, cross_join produces 1M rows before filter reduces it. This is fine for n in the hundreds; problematic for n in the tens of thousands. Alternatives include nested loops with early termination, or the <code>proxy</code> and <code>vegan</code> packages for specialized distance computation. As a rule: if the result of cross_join would exceed a few million rows, design a smarter algorithm.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Generate all combinations of 3 cylinder counts and 2 transmission types. Save to <code>ex_grid</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cyl x am combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cyl x am combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyls &lt;- data.frame(cyl = c(4, 6, 8))
+ams  &lt;- data.frame(am  = c(0, 1))
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: 6 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- cross_join(cyls, ams)
+
+ex_grid
+#&gt;   cyl am
+#&gt; 1   4  0
+#&gt; 2   4  1
+#&gt; 3   6  0
+#&gt; 4   6  1
+#&gt; 5   8  0
+#&gt; 6   8  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every cyl pairs with every am: 3 * 2 = 6 rows.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr / tidyr functions</h2>
+
+<p>After mastering cross_join, look at:</p>
+
+<ul>
+
+<li><code>tidyr::expand_grid()</code>: vector-input alternative</li>
+
+<li><code>tidyr::expand()</code>: complete grid from existing data</li>
+
+<li><code>tidyr::complete()</code>: fill missing combinations</li>
+
+<li><code>full_join()</code>: match by key, all unmatched</li>
+
+<li><code>combn()</code> / <code>expand.grid()</code>: base R alternatives</li>
+
+<li><code>crossing()</code>: tidyr; same as expand_grid</li>
+
+</ul>
+
+<p>For "fill missing combinations in existing data", <code>tidyr::complete()</code> is the right tool.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does cross_join do in dplyr?</strong></p>
+
+<p><code>cross_join(x, y)</code> returns the Cartesian product: every row of x paired with every row of y. The result has nrow(x) * nrow(y) rows.</p>
+
+<p><strong>What is the difference between cross_join and expand_grid?</strong></p>
+
+<p>cross_join takes two data frames. expand_grid takes vectors or lists (more flexible) and returns a tibble of all combinations.</p>
+
+<p><strong>How do I do a cross join in older dplyr?</strong></p>
+
+<p><code>full_join(x, y, by = character())</code> worked before cross_join was added. cross_join was introduced in dplyr 1.1.</p>
+
+<p><strong>Why is my cross_join so slow / large?</strong></p>
+
+<p>Because the result grows as nrow(x) * nrow(y). Two 1,000-row tables produce 1,000,000 rows. Always check sizes before running.</p>
+
+<p><strong>Can cross_join take more than 2 tables?</strong></p>
+
+<p>Not directly, but you can chain: <code>df1 |&gt; cross_join(df2) |&gt; cross_join(df3)</code>. Be careful with row count explosion.</p>

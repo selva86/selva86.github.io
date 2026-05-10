@@ -1,0 +1,371 @@
+---
+title: "dplyr rows_insert() in R: Add New Rows by Key"
+description: "Use dplyr rows_insert() to append new rows to a tibble matched by key in R. Covers conflict handling, rows_insert vs bind_rows, in_place, 5 worked examples."
+keywords: "dplyr rows_insert, R add rows by key, rows_insert vs bind_rows, dplyr conflict, rows_insert by, R upsert insert only"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rows_insert()|dplyr rows_insert|insert rows|rows_insert by key|conflict handling"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr rows_insert() in R: Add New Rows by Key</h1>
+
+<p class="lead">The <code>rows_insert()</code> function in dplyr appends rows from y into x, errors if y contains keys already in x. It is the SQL <code>INSERT</code> equivalent: insert new, never overwrite.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rows_insert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # error on duplicate keys</span>
+rows_insert(x, y, by = &quot;id&quot;, conflict = &quot;ignore&quot;)<span class="qa-cmt"> # silently skip dups</span>
+rows_upsert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # insert OR update</span>
+rows_update(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # update only</span>
+bind_rows(x, y)<span class="qa-cmt">                            # appends without key check</span>
+rows_append(x, y)<span class="qa-cmt">                          # append (no key check, dplyr 1.1+)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rows_insert() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">add NEW rows; error on key conflict</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rows_insert()</text><text x="125" y="126" class="branch-label">add new + update existing</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rows_upsert()</text><text x="125" y="182" class="branch-label">update only existing</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rows_update()</text><text x="125" y="238" class="branch-label">append blindly (no key check)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_rows()</a> or rows_append()</text><text x="125" y="294" class="branch-label">delete rows by key</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rows_delete()</text><text x="125" y="350" class="branch-label">patch only <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rows_patch()</text></svg></div>
+
+<h2>What rows_insert() does in one sentence</h2>
+
+<p><strong><code>rows_insert(x, y, by)</code> returns x with all rows from y appended, IF none of y's keys already exist in x; otherwise it errors (unless <code>conflict = &quot;ignore&quot;</code>).</strong> It is "insert new keys only".</p>
+
+<p>This and the rows_* family (rows_update, rows_upsert, rows_delete, rows_patch) implement SQL-style row mutations on data frames.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rows_insert(x, y, by = NULL, conflict = &quot;error&quot;, in_place = FALSE)</code>. by defaults to common columns.</strong></p>
+
+<div class="webr-container" data-block-title="Insert new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Insert new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- data.frame(id = 1:2, name = c(&quot;a&quot;,&quot;b&quot;))
+y &lt;- data.frame(id = 3:4, name = c(&quot;c&quot;,&quot;d&quot;))
+
+rows_insert(x, y, by = &quot;id&quot;)
+#&gt;   id name
+#&gt; 1  1    a
+#&gt; 2  2    b
+#&gt; 3  3    c
+#&gt; 4  4    d</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>rows_insert</code> ERRORS on duplicate keys by default.</strong> Pass <code>conflict = &quot;ignore&quot;</code> to silently skip rows whose keys already exist in x. Use this to enforce the invariant "key is unique".</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Insert new keys</h3>
+
+<div class="webr-container" data-block-title="Append rows that don&#x27;t already exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Append rows that don&#x27;t already exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:2, name = c(&quot;a&quot;,&quot;b&quot;))
+y &lt;- data.frame(id = 3:4, name = c(&quot;c&quot;,&quot;d&quot;))
+
+rows_insert(x, y, by = &quot;id&quot;)
+#&gt; 4 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Conflict on existing key</h3>
+
+<div class="webr-container" data-block-title="Errors when key already exists">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Errors when key already exists</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:2, name = c(&quot;a&quot;,&quot;b&quot;))
+y &lt;- data.frame(id = c(2, 3), name = c(&quot;X&quot;,&quot;c&quot;))
+
+rows_insert(x, y, by = &quot;id&quot;)
+#&gt; Error: y has 1 row with a key that already exists in x</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Ignore conflicts</h3>
+
+<div class="webr-container" data-block-title="Skip duplicates silently">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip duplicates silently</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rows_insert(x, y, by = &quot;id&quot;, conflict = &quot;ignore&quot;)
+#&gt;   id name
+#&gt; 1  1    a
+#&gt; 2  2    b
+#&gt; 3  3    c
+#&gt; (id=2 in y skipped because it already exists)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Multi-column key</h3>
+
+<div class="webr-container" data-block-title="Composite key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Composite key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;), qty=c(100, 50))
+y &lt;- data.frame(region=c(&quot;AS&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Z&quot;), qty=c(30, 20))
+
+rows_insert(x, y, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt; 4 rows; (EU,Y) and (AS,X), (EU,Z) all unique tuples</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. In-place modification (data.table style)</h3>
+
+<div class="webr-container" data-block-title="Mutate in place (in_place = TRUE for data.tables)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mutate in place (in_place = TRUE for data.tables)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For tibbles, in_place is FALSE; for data.tables, can be TRUE for speed.
+rows_insert(x, y, by = &quot;id&quot;, in_place = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The rows_* family (rows_insert, rows_update, rows_upsert, rows_delete, rows_patch) implements SQL-style upsert semantics on data frames.</strong> Each handles one specific mutation. Combined, they replace ad-hoc filter + bind_rows patterns.</div></div>
+
+<h2>rows_insert() vs bind_rows() vs rows_upsert()</h2>
+
+<p><strong>Three append/update patterns in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Behavior</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows_insert(x, y, by)</code></td>
+<td>Error on dup keys, append new</td>
+<td>Strict "no duplicates"</td>
+</tr>
+<tr>
+<td><code>rows_upsert(x, y, by)</code></td>
+<td>Insert new, update existing</td>
+<td>Sync from updated source</td>
+</tr>
+<tr>
+<td><code>rows_update(x, y, by)</code></td>
+<td>Update existing, error on new</td>
+<td>Patch existing only</td>
+</tr>
+<tr>
+<td><code>bind_rows(x, y)</code></td>
+<td>Append blindly, no key check</td>
+<td>Quick stack</td>
+</tr>
+<tr>
+<td><code>rows_append(x, y)</code></td>
+<td>Append (no key check)</td>
+<td>dplyr 1.1+ explicit append</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>rows_insert</code> for adding new records, validating no duplicates.</li>
+
+<li><code>rows_upsert</code> for incremental sync from a source.</li>
+
+<li><code>rows_update</code> for patching existing records.</li>
+
+<li><code>bind_rows</code> for ignore-the-key vertical stacking.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use rows_insert in incremental load pipelines where duplicate keys are bugs.</strong></p>
+
+<div class="webr-container" data-block-title="Validated incremental insert">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Validated incremental insert</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+current   &lt;- read_csv(&quot;master.csv&quot;)
+new_batch &lt;- read_csv(&quot;today.csv&quot;)
+
+# Validate no key collisions, then append:
+updated &lt;- current |&gt; rows_insert(new_batch, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If today's batch has any id that already exists in master, the insert errors out: a forced data-quality check.</p>
+
+<p>For "either insert new or update existing":</p>
+
+<div class="webr-container" data-block-title="Upsert variant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Upsert variant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">updated &lt;- current |&gt; rows_upsert(new_batch, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting that conflict defaults to "error".</strong> A single duplicate key crashes the whole call. Use <code>conflict = &quot;ignore&quot;</code> to silently skip; or pre-filter to ensure uniqueness.</p>
+
+<p><strong>Pitfall 2: column order or types must match.</strong> y must have all columns x has (or be a subset). Type mismatches error.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rows_insert</code> and friends are NOT in-place for tibbles by default.</strong> They return a new data frame. The <code>in_place = TRUE</code> option only applies to data.tables for speed; for tibbles the result must be assigned.</div></div>
+
+<h2>Why the rows_* family exists</h2>
+
+<p><strong>Before the rows_<em> family (added in dplyr 1.0), incremental updates to data frames required hand-rolled patterns: filter the rows to update, modify, bind_rows, watch for duplicates.</strong> This is error-prone and verbose. The rows_</em> family encapsulates the SQL-style operations as named verbs. rows_insert says "append new", rows_update says "patch existing", rows_upsert says "do both", rows_delete says "remove", rows_patch says "<a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> only". Each is one clear semantics, easy to reason about. For analytic workflows that mimic production data pipelines (incremental loads, corrections, deletions), this family is the right toolkit.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Append 3 new car rows to a small <code>mtcars_top</code> (first 3 rows of mtcars). Verify the result has 6 rows. Save to <code>ex_added</code>.</p>
+<div class="webr-container" data-block-title="Your turn: insert 3 new car rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: insert 3 new car rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_top &lt;- mtcars[1:3, ] |&gt; tibble::rownames_to_column(&quot;car&quot;)
+new_cars   &lt;- data.frame(
+  car  = c(&quot;Tesla S&quot;,&quot;Tesla 3&quot;,&quot;Tesla X&quot;),
+  mpg  = c(120, 130, 90),
+  cyl  = c(0, 0, 0),
+  disp = c(0, 0, 0),
+  hp   = c(670, 480, 670),
+  drat = c(0, 0, 0),
+  wt   = c(2.5, 1.8, 2.4),
+  qsec = c(11, 13, 15),
+  vs   = c(0, 0, 0),
+  am   = c(1, 1, 1),
+  gear = c(1, 1, 1),
+  carb = c(0, 0, 0)
+)
+
+ex_added &lt;- mtcars_top |&gt;
+  # your code here
+
+nrow(ex_added)
+#&gt; Expected: 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_added &lt;- mtcars_top |&gt;
+  rows_insert(new_cars, by = &quot;car&quot;)
+
+nrow(ex_added)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rows_insert</code> appends the 3 Tesla rows because their car names don't conflict with the existing 3.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering rows_insert, look at:</p>
+
+<ul>
+
+<li><code>rows_update()</code>: update only existing rows</li>
+
+<li><code>rows_upsert()</code>: insert or update</li>
+
+<li><code>rows_delete()</code>: remove rows by key</li>
+
+<li><code>rows_patch()</code>: update only NA values</li>
+
+<li><code>bind_rows()</code>: append without key check</li>
+
+<li><code>rows_append()</code>: dplyr 1.1+; explicit append</li>
+
+</ul>
+
+<p>For SQL-style upsert workflows on data frames, the rows_* family covers the standard CRUD operations.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rows_insert do in dplyr?</strong></p>
+
+<p><code>rows_insert(x, y, by)</code> appends rows from y to x; errors if any of y's keys already exist in x. The "insert new only" semantics.</p>
+
+<p><strong>What is the difference between rows_insert and bind_rows?</strong></p>
+
+<p>bind_rows ignores keys, just stacks vertically. rows_insert validates that y's keys don't collide with x's. Use rows_insert when key uniqueness matters.</p>
+
+<p><strong>What is the conflict argument in rows_insert?</strong></p>
+
+<p><code>conflict = &quot;error&quot;</code> (default) errors on duplicate keys. <code>conflict = &quot;ignore&quot;</code> silently skips conflicting rows. No <code>replace</code> option (use <code>rows_upsert</code> for that).</p>
+
+<p><strong>Can rows_insert handle multi-column keys?</strong></p>
+
+<p>Yes: <code>rows_insert(x, y, by = c(&quot;col1&quot;,&quot;col2&quot;))</code>. The composite is the key; conflicts are detected by tuple matching.</p>
+
+<p><strong>Does rows_insert modify x in place?</strong></p>
+
+<p>For tibbles, no: it returns a new data frame. For data.tables with <code>in_place = TRUE</code>, modification can be in place (rare in dplyr workflows).</p>
