@@ -456,15 +456,41 @@ def convert(md_text):
             out.append(f'<blockquote><p>{text}</p></blockquote>')
             continue
 
-        # Unordered list
-        if re.match(r'^[\-\*]\s', line.strip()):
-            items = []
-            while i < len(lines) and re.match(r'^[\-\*]\s', lines[i].strip()):
-                items.append(md_inline(lines[i].strip()[2:]))
+        # Unordered list (with 1-level nesting via indent)
+        if re.match(r'^\s*[\-\*]\s', line) and re.match(r'^[\-\*]\s', line.strip()):
+            # Collect all consecutive list lines, preserving leading whitespace.
+            raw_items = []
+            while i < len(lines) and re.match(r'^\s*[\-\*]\s', lines[i]) and re.match(r'^[\-\*]\s', lines[i].strip()):
+                m = re.match(r'^(\s*)[\-\*]\s(.*)$', lines[i])
+                indent = len(m.group(1))
+                text = md_inline(m.group(2))
+                raw_items.append((indent, text))
                 i += 1
+            # Render with 1 level of nesting. Any indent > 0 becomes a child of the previous top-level item.
             out.append('<ul>')
-            for item in items:
-                out.append(f'<li>{item}</li>')
+            j = 0
+            while j < len(raw_items):
+                indent, text = raw_items[j]
+                if indent == 0:
+                    # Look ahead for nested children
+                    children = []
+                    k = j + 1
+                    while k < len(raw_items) and raw_items[k][0] > 0:
+                        children.append(raw_items[k][1])
+                        k += 1
+                    if children:
+                        out.append(f'<li>{text}<ul>')
+                        for c in children:
+                            out.append(f'<li>{c}</li>')
+                        out.append('</ul></li>')
+                        j = k
+                    else:
+                        out.append(f'<li>{text}</li>')
+                        j += 1
+                else:
+                    # Orphan indented item with no parent; render flat as fallback
+                    out.append(f'<li>{text}</li>')
+                    j += 1
             out.append('</ul>')
             continue
 
