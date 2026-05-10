@@ -946,7 +946,7 @@ Strings (15):
 - base-substr-in-R
 - base-substring-in-R
 - base-strsplit-in-R
-- base-grepl-in-R
+- base-grep-grepl-in-R
 - base-gsub-in-R
 - base-regmatches-in-R
 

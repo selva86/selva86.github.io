@@ -2670,6 +2670,23 @@ def main():
     if not only_target:
         _save_sidebar_snapshot(_curr_sidebar_sig, SIDEBAR_STATE_PATH)
 
+    # Refresh PSEO master tracker (pseo-status.json) - cheap, idempotent.
+    # Runs on every build so url/published_date/update_date stay current
+    # automatically after each /publish-post call. Failures are non-fatal.
+    try:
+        import subprocess
+        tracker_script = os.path.join(SCRIPT_DIR, '..', 'Scripts', 'build_pseo_tracker.py')
+        if os.path.exists(tracker_script):
+            r = subprocess.run(
+                [sys.executable, tracker_script],
+                capture_output=True, text=True, timeout=30
+            )
+            if r.returncode == 0:
+                last = (r.stdout or '').strip().splitlines()[-1:] or ['']
+                print(f'  PSEO tracker: {last[0].strip()}')
+    except Exception as e:
+        print(f'  PSEO tracker refresh skipped: {e}')
+
 
 if __name__ == '__main__':
     main()
