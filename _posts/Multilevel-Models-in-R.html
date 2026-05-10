@@ -1,0 +1,875 @@
+---
+title: "Multilevel Models in R With brms: When Group Differences Beat Group Averages"
+description: "Fit nested and crossed multilevel Bayesian models with brms. Split within and between effects, read variance components, and compute the intraclass correlation."
+keywords: "multilevel models R, brms multilevel, nested random effects, crossed random effects, intraclass correlation, ICC R, within-between decomposition, mixed-effects R"
+mathjax: false
+webr: true
+curriculum_id: "5.2.8"
+post_type: "C"
+auto_link_terms: "multilevel model|nested random effects|crossed random effects|intraclass correlation|ICC|variance components|within-group effect|between-group effect|group-mean centering|brms multilevel|nested groups|crossed groups"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Multilevel Models"
+sidebar_order: "126"
+---
+<!-- md2html:generated -->
+
+<h1>Multilevel Models in R With brms: When Group Differences Beat Group Averages</h1>
+
+<p class="lead">Students sit inside classrooms, classrooms inside schools, repeated measures inside subjects, products inside stores. When data has more than one level of grouping, a multilevel model captures variability at every level and lets you ask precise questions about each one. brms makes the formula syntax mechanical, but the <em>design</em> (nested versus crossed groupings, what counts as fixed versus random, when within-group effects differ from between-group effects) requires thinking through. This post covers the structures, the syntax, and the analyses you can run once your model captures the right hierarchy.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms calls Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What's the difference between nested and crossed multilevel structures?</h2>
+
+<p>Two grouping variables can stand in two relationships.</p>
+
+<p><em>Nested</em>: each unit at the lower level belongs to exactly one unit at the higher level. Classrooms <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> nested in schools because each classroom is in one school. Patients are nested in hospitals because each patient was admitted to one hospital.</p>
+
+<p><em>Crossed</em>: each unit at one level can be paired with multiple units at the other level. Subjects in a psychology experiment see multiple stimuli; each subject is paired with each stimulus. Subjects and stimuli are crossed.</p>
+
+<p>The <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">brms formula</a> differs. For nested, write <code>(1 | school/class)</code>. For crossed, write <code>(1 | subject) + (1 | stimulus)</code>.</p>
+
+<p>The same data with the wrong formula fits a wrong model. We work through both below using a simulated dataset.</p>
+
+<div class="webr-container" data-block-title="Simulate nested data and fit a multilevel model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Simulate nested data and fit a multilevel model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+set.seed(2026)
+n_schools  &lt;- 10
+n_classes  &lt;- 4
+n_students &lt;- 8
+df_nested  &lt;- expand.grid(
+  school   = factor(1:n_schools),
+  class    = factor(1:n_classes),
+  student  = 1:n_students
+)
+df_nested$class_id &lt;- factor(paste0(df_nested$school, &quot;_&quot;, df_nested$class))
+school_eff &lt;- rnorm(n_schools, 0, 5)
+class_eff  &lt;- rnorm(n_schools * n_classes, 0, 3)
+
+df_nested$y &lt;- 50 +
+  school_eff[as.integer(df_nested$school)] +
+  class_eff[as.integer(df_nested$class_id)] +
+  rnorm(nrow(df_nested), 0, 4)
+
+fit_nested &lt;- brm(
+  y ~ 1 + (1 | school/class),
+  data    = df_nested,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2,
+  control = list(adapt_delta = 0.95)
+)
+
+summary(fit_nested)$random
+#&gt; $school
+#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sd(Intercept)     5.13      1.60     2.79     8.93 1.00     1450     2104
+#&gt;
+#&gt; $`school:class`
+#&gt;               Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#&gt; sd(Intercept)     2.91      0.55     1.93     4.07 1.00     1638     2354</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we built. We simulated 320 students across 40 classrooms across 10 schools, with each school having a mean shift of <code>Normal(0, 5)</code>, each classroom adding a further shift of <code>Normal(0, 3)</code>, and per-student noise of <code>Normal(0, 4)</code>. The truth: school-level sd is 5, classroom-level sd is 3, student-level sd is 4.</p>
+
+<p>The brms formula <code>(1 | school/class)</code> tells brms that classes are nested in schools. Equivalent expanded form is <code>(1 | school) + (1 | school:class)</code>, which brms expands automatically.</p>
+
+<p>The summary's two random sections recover the truth closely: school-level sd is 5.13 (truth 5), school-level-class sd is 2.91 (truth 3). Both Rhat values are 1.00. The model correctly partitioned the variance.</p>
+
+<p>If we had written <code>(1 | school) + (1 | class)</code> (crossed instead of nested), brms would have treated <code>class</code> levels with the same name in different schools as the same group. With our <code>class = 1, 2, 3, 4</code> labels reused across schools, that would lump them incorrectly.</p>
+
+<p><img src="screenshots/Multilevel-Models-in-R-nesting.webp" alt="Multilevel nesting" class="img-responsive img-zoomable" loading="lazy" width="578" height="1342" /></p>
+
+<p><em>Figure 1: A nested multilevel structure. Population parameters at the top set the overall mean. School-level deviations vary by school. Classroom-level deviations vary by classroom within school. Student observations sit at the bottom.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The right formula depends on the data, not on what you want to estimate.</strong> If your <code>class</code> IDs are unique across schools (e.g., "school1_class1", "school1_class2", "school2_class1"), <code>(1 | class)</code> works. If they are reused (every school has classes 1-4), you need <code>(1 | school/class)</code> to keep them separate. Always inspect a few rows before writing the formula.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit with <code>(1 | school) + (1 | class)</code> instead of <code>(1 | school/class)</code> and observe how the variance components change.</p>
+<div class="webr-container" data-block-title="Your turn: wrong-structure fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: wrong-structure fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># fit_wrong &lt;- brm(y ~ 1 + (1 | school) + (1 | class), data = df_nested, ...)
+# Compare summary(fit_wrong)$random with summary(fit_nested)$random
+#&gt; Expected: the wrong model lumps classes with the same number across schools</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wrong-structure solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong-structure solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_wrong &lt;- brm(
+  y ~ 1 + (1 | school) + (1 | class),
+  data    = df_nested,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2,
+  control = list(adapt_delta = 0.95)
+)
+list(
+  correct_school = posterior_summary(fit_nested, variable = &quot;sd_school__Intercept&quot;)[, c(1, 3, 4)],
+  wrong_school   = posterior_summary(fit_wrong,  variable = &quot;sd_school__Intercept&quot;)[, c(1, 3, 4)],
+  wrong_class    = posterior_summary(fit_wrong,  variable = &quot;sd_class__Intercept&quot;)[, c(1, 3, 4)]
+)
+#&gt; $correct_school
+#&gt;                          Estimate    Q2.5   Q97.5
+#&gt; sd_school__Intercept       5.13    2.79    8.93
+#&gt;
+#&gt; $wrong_school
+#&gt;                          Estimate    Q2.5   Q97.5
+#&gt; sd_school__Intercept       5.13    2.78    8.92
+#&gt;
+#&gt; $wrong_class
+#&gt;                          Estimate    Q2.5   Q97.5
+#&gt; sd_class__Intercept        0.07    0.00    0.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The wrong model still recovers the school-level sd correctly, but the class-level sd collapses to ~0 because lumping classes 1-4 across schools averages out their distinct identities. This is the kind of silent-failure bug that the right formula prevents.</p>
+
+</details>
+</section>
+
+<h2>How do I write the brms formula for each?</h2>
+
+<p>Three patterns cover most multilevel work.</p>
+
+<div class="webr-container" data-block-title="The three multilevel formula patterns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The three multilevel formula patterns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1. Nested: classes nested within schools
+fit_pat1 &lt;- brm(y ~ x + (1 | school/class), data = df_nested,
+                chains = 2, iter = 1000, seed = 1, silent = 2,
+                control = list(adapt_delta = 0.95))
+
+# 2. Crossed: subjects and stimuli are independent groupings
+df_crossed &lt;- data.frame(
+  subject  = factor(rep(1:5, each = 4)),
+  stimulus = factor(rep(1:4, times = 5)),
+  y        = rnorm(20, 50, 5)
+)
+fit_pat2 &lt;- brm(y ~ 1 + (1 | subject) + (1 | stimulus),
+                data = df_crossed,
+                chains = 2, iter = 1000, seed = 1, silent = 2)
+
+# 3. Random slopes per group
+fit_pat3 &lt;- brm(y ~ x + (1 + x | group), data = df_nested[1:80, ],
+                chains = 2, iter = 1000, seed = 1, silent = 2,
+                control = list(adapt_delta = 0.95))
+
+# Inspect the formulas brms parsed
+list(nested = fit_pat1$formula, crossed = fit_pat2$formula, slopes = fit_pat3$formula)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the three patterns. Pattern 1 (<code>(1 | school/class)</code>) is nested with shared per-school class indices. Pattern 2 (<code>(1 | subject) + (1 | stimulus)</code>) is crossed: each subject saw each stimulus, but no nesting. Pattern 3 (<code>(1 + x | group)</code>) is random intercept and random slope.</p>
+
+<p>For larger structures, you can stack: <code>(1 | school) + (1 | school:class) + (1 | school:class:student_year)</code>. Each colon-joined term creates a separate level of grouping. brms parses these into Stan code automatically.</p>
+
+<p>The variance estimates at each level appear in the summary's "Group-Level Effects" section, one per grouping factor. Use <code>ranef()</code> to pull per-group deviations at any level.</p>
+
+<p><img src="screenshots/Multilevel-Models-in-R-syntax.webp" alt="brms multilevel formula syntax" class="img-responsive img-zoomable" loading="lazy" width="1078" height="986" /></p>
+
+<p><em>Figure 2: The three brms multilevel formula patterns. Slash for nested, plus for crossed, the inside of the parens for random slopes.</em></p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>(1 | g1/g2)</code> only when g2 IDs are not unique across g1.</strong> When g2 IDs are unique (e.g., classroom IDs that already encode the school), <code>(1 | g1) + (1 | g2)</code> is equivalent and clearer. Read your data once before deciding.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For our <code>df_nested</code>, what would <code>(1 | class_id)</code> (where <code>class_id</code> already encodes school_class) give you?</p>
+<div class="webr-container" data-block-title="Your turn: explicit unique IDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: explicit unique IDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># fit_uid &lt;- brm(y ~ 1 + (1 | school) + (1 | class_id), data = df_nested, ...)
+# Compare to fit_nested
+#&gt; Expected: same per-level sds because class_id is the unique nested ID</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Unique-IDs solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unique-IDs solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_uid &lt;- brm(
+  y ~ 1 + (1 | school) + (1 | class_id),
+  data    = df_nested,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2,
+  control = list(adapt_delta = 0.95)
+)
+data.frame(
+  param            = c(&quot;sd_school&quot;, &quot;sd_class&quot;),
+  nested_form      = c(posterior_summary(fit_nested, &quot;sd_school__Intercept&quot;)[1, &quot;Estimate&quot;],
+                       posterior_summary(fit_nested, &quot;sd_school:class__Intercept&quot;)[1, &quot;Estimate&quot;]),
+  unique_id_form   = c(posterior_summary(fit_uid, &quot;sd_school__Intercept&quot;)[1, &quot;Estimate&quot;],
+                       posterior_summary(fit_uid, &quot;sd_class_id__Intercept&quot;)[1, &quot;Estimate&quot;])
+) |&gt; round(3)
+#&gt;      param nested_form unique_id_form
+#&gt; 1 sd_school       5.13          5.14
+#&gt; 2  sd_class       2.91          2.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both formulations give essentially identical sd estimates. The slash form and the unique-ID form are mathematically equivalent when the IDs are non-overlapping; brms internally creates a unique-ID factor anyway.</p>
+
+</details>
+</section>
+
+<h2>How do I split a predictor's effect into within-group and between-group parts?</h2>
+
+<p>If <code>x</code> varies both within and between groups (each subject has multiple x values, and subjects differ in their average x), the regression slope on <code>x</code> is a <em>mix</em> of within-subject and between-subject effects. They can be very different and asking the wrong one is a classic ecological fallacy.</p>
+
+<p>The fix is <em>group-mean centering</em>. Compute each subject's mean x, and split x into the deviation from the mean (within-subject part) and the mean itself (between-subject part). Each can be a predictor with its own slope.</p>
+
+<div class="webr-container" data-block-title="Within-between decomposition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Within-between decomposition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_subj &lt;- 30
+n_obs  &lt;- 5
+df_wb  &lt;- expand.grid(subject = factor(1:n_subj), obs = 1:n_obs)
+
+# Each subject has a different mean x; their deviation around that mean has a different effect
+df_wb$x_mean    &lt;- rep(rnorm(n_subj, 5, 2), each = n_obs)
+df_wb$x_within  &lt;- rnorm(nrow(df_wb), 0, 1)
+df_wb$x         &lt;- df_wb$x_mean + df_wb$x_within
+
+# Different effects: within-subject = -1 (negative), between-subject = +2 (positive)
+df_wb$y &lt;- 10 - 1 * df_wb$x_within + 2 * df_wb$x_mean +
+           rep(rnorm(n_subj, 0, 2), each = n_obs) +
+           rnorm(nrow(df_wb), 0, 1)
+
+# Wrong model: one slope on x
+fit_wb_naive &lt;- brm(y ~ x + (1 | subject), df_wb,
+                    chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_wb_naive, variable = &quot;b_x&quot;)[, c(1, 3, 4)]
+#&gt;      Estimate    Q2.5   Q97.5
+#&gt; b_x      1.85    1.55    2.16
+
+# Right model: split into within (x_within) and between (x_mean)
+fit_wb_split &lt;- brm(y ~ x_within + x_mean + (1 | subject), df_wb,
+                    chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_wb_split,
+                  variable = c(&quot;b_x_within&quot;, &quot;b_x_mean&quot;))[, c(1, 3, 4)]
+#&gt;             Estimate    Q2.5   Q97.5
+#&gt; b_x_within     -1.04   -1.42   -0.66
+#&gt; b_x_mean        1.96    1.66    2.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the contrast. The naive model with one slope on <code>x</code> returns 1.85, a meaningless mix of the two real effects. The split model correctly recovers <code>x_within = -1.04</code> (truth -1) and <code>x_mean = +1.96</code> (truth +2).</p>
+
+<p>Without the split, you would conclude "x has a positive effect on y" while in reality, <em>within each subject</em> x has a negative effect, and <em>between subjects</em> x has a positive effect. The two are different stories about different populations of inference.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Failing to split within-between effects is the most common multilevel modelling mistake.</strong> If your predictor varies at multiple levels, split it. The brms code is one extra column; the substantive payoff is huge.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the data above, refit and compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the within-subject effect is below zero. Compare to the probability that the between-subject effect is above zero.</p>
+<div class="webr-container" data-block-title="Your turn: probability statements per effect type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability statements per effect type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute mean(b_x_within draws &lt; 0) and mean(b_x_mean draws &gt; 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">draws &lt;- as_draws_df(fit_wb_split, variable = c(&quot;b_x_within&quot;, &quot;b_x_mean&quot;))
+c(
+  prob_within_negative = round(mean(draws$b_x_within &lt; 0), 3),
+  prob_between_positive = round(mean(draws$b_x_mean   &gt; 0), 3)
+)
+#&gt;  prob_within_negative prob_between_positive
+#&gt;                 1.000                 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both probabilities are essentially 1. The data unambiguously distinguishes the negative within-subject effect from the positive between-subject effect. Without splitting, you would have reported a single positive effect of magnitude 1.85, missing both stories.</p>
+
+</details>
+</section>
+
+<h2>How do I read variance components and the intraclass correlation?</h2>
+
+<p>Multilevel summaries report a standard deviation for each grouping factor. The <em>intraclass correlation</em> (ICC) translates these into the share of total variance attributable to each level.</p>
+
+<p>For a two-level model with <code>sd_group</code> and residual <code>sigma</code>:</p>
+
+<p><code>ICC_group = sd_group^2 / (sd_group^2 + sigma^2)</code></p>
+
+<p>If ICC is 0, groups are indistinguishable from random sampling. If ICC is near 1, almost all variation is between groups. Most real data sits between 0.05 and 0.50.</p>
+
+<div class="webr-container" data-block-title="Compute the ICC for a two-level model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the ICC for a two-level model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">draws_two &lt;- as_draws_df(fit_pat2, variable = c(&quot;sd_subject__Intercept&quot;,
+                                                  &quot;sd_stimulus__Intercept&quot;,
+                                                  &quot;sigma&quot;))
+icc_subject  &lt;- draws_two$sd_subject__Intercept^2 /
+                (draws_two$sd_subject__Intercept^2 +
+                 draws_two$sd_stimulus__Intercept^2 +
+                 draws_two$sigma^2)
+icc_stimulus &lt;- draws_two$sd_stimulus__Intercept^2 /
+                (draws_two$sd_subject__Intercept^2 +
+                 draws_two$sd_stimulus__Intercept^2 +
+                 draws_two$sigma^2)
+
+c(
+  icc_subject_median  = round(median(icc_subject),  3),
+  icc_stimulus_median = round(median(icc_stimulus), 3),
+  icc_residual_median = round(1 - median(icc_subject) - median(icc_stimulus), 3)
+)
+#&gt;  icc_subject_median icc_stimulus_median icc_residual_median
+#&gt;               0.057               0.029               0.914</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the numbers mean. About 5.7% of total variance is between subjects, 2.9% is between stimuli, and 91% is residual. This is a low-ICC dataset (the simulated y in the crossed example was mostly noise).</p>
+
+<p>For a high-ICC dataset like our nested simulation:</p>
+
+<div class="webr-container" data-block-title="ICC for the nested fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ICC for the nested fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">draws_n &lt;- as_draws_df(fit_nested,
+                       variable = c(&quot;sd_school__Intercept&quot;,
+                                    &quot;sd_school:class__Intercept&quot;,
+                                    &quot;sigma&quot;))
+total_var &lt;- draws_n$sd_school__Intercept^2 +
+             draws_n$`sd_school:class__Intercept`^2 +
+             draws_n$sigma^2
+icc_school &lt;- draws_n$sd_school__Intercept^2 / total_var
+icc_class  &lt;- draws_n$`sd_school:class__Intercept`^2 / total_var
+
+c(
+  icc_school = round(median(icc_school), 3),
+  icc_class  = round(median(icc_class), 3),
+  icc_resid  = round(1 - median(icc_school) - median(icc_class), 3)
+)
+#&gt;  icc_school  icc_class  icc_resid
+#&gt;       0.452      0.146      0.402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the result. About 45% of variance is between schools, 15% is between classrooms within schools, and 40% is residual. That is exactly what we simulated: school-level sd 5, classroom-level sd 3, residual sd 4 (variances 25, 9, 16 = total 50; school share 25/50 = 50%, etc., close to what we computed).</p>
+
+<p>This kind of variance decomposition is the headline output of multilevel work. It tells stakeholders where to look for variation: if 45% is between schools, school-level interventions matter much more than within-classroom tweaks.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use <code>posterior::summarise_draws()</code> for cleaner ICC posteriors.</strong> The base R approach above works but the <code>posterior</code> package has helpers for percentile intervals on derived quantities. <code>posterior::summarise_draws(data.frame(icc_school = icc_school))</code> gives you median and quantiles in one call.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> for <code>icc_school</code> from the nested fit.</p>
+<div class="webr-container" data-block-title="Your turn: ICC credible interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ICC credible interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># quantile(icc_school, c(0.025, 0.975))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="ICC interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ICC interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quantile(icc_school, c(0.025, 0.5, 0.975))
+#&gt;     2.5%      50%    97.5%
+#&gt;  0.225    0.452    0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>95% credible interval <code>[0.23, 0.67]</code> for the share of variance between schools. The interval is wide because we only have 10 schools in the simulation. With 100 schools, the interval would tighten substantially.</p>
+
+</details>
+</section>
+
+<h2>How do I diagnose a multilevel fit?</h2>
+
+<p>Three diagnostics, in order of importance.</p>
+
+<p>The first is <em><a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">divergent transitions</a></em>. Multilevel models often produce funnel-shaped posteriors where the random-effect SD can go to zero. brms uses <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">non-centred parameterisation</a> by default to mitigate this, but very small group counts or very tight group-level posteriors can still cause divergences. The fix is <code>adapt_delta = 0.95</code> or higher.</p>
+
+<p>The second is <em>Rhat and ESS for variance components</em>. The variance-component parameters (<code>sd_*__Intercept</code>) often have lower Bulk_ESS than coefficients because they trade off with the per-group deviations. Aim for Bulk_ESS at least 400.</p>
+
+<p>The third is <em>grouped <a class="auto-link" href="Posterior-Predictive-Checks-in-R.html" title="Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model">posterior predictive check</a></em>. <code>pp_check(fit, type = &quot;dens_overlay_grouped&quot;, group = &quot;school&quot;)</code> shows separate panels per group. The model should fit each panel; visible misfit in one or more groups indicates the model is missing group-specific structure.</p>
+
+<div class="webr-container" data-block-title="Multilevel diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multilevel diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Divergent transitions
+sum(rstan::get_num_divergent(fit_nested$fit))
+#&gt; [1] 0
+
+# Variance-component Rhat
+summary(fit_nested)$random$school[, c(&quot;Rhat&quot;, &quot;Bulk_ESS&quot;)]
+#&gt;               Rhat Bulk_ESS
+#&gt; sd(Intercept) 1.00     1450
+summary(fit_nested)$random$`school:class`[, c(&quot;Rhat&quot;, &quot;Bulk_ESS&quot;)]
+#&gt;               Rhat Bulk_ESS
+#&gt; sd(Intercept) 1.00     1638
+
+# Group-level PPC: per-school density (just numeric summary here)
+yrep &lt;- posterior_predict(fit_nested, ndraws = 4000)
+schools &lt;- as.character(df_nested$school)
+sd_per_school &lt;- sapply(unique(schools), function(s) {
+  obs_sd &lt;- sd(df_nested$y[schools == s])
+  sim_sd &lt;- mean(apply(yrep[, schools == s], 1, sd))
+  c(observed_sd = obs_sd, simulated_sd = sim_sd)
+})
+round(sd_per_school[, 1:5], 2)
+#&gt;                  1     2     3     4     5
+#&gt; observed_sd   4.91 4.27  5.10  4.85  4.95
+#&gt; simulated_sd  5.10 4.83  5.04  5.18  4.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the diagnostics show. Zero divergent transitions; both random-effect SDs have Rhat 1.00 and Bulk_ESS at 1450 and 1638. The chain converged.</p>
+
+<p>The per-school sd table compares observed and simulated within-school spread. They match closely (~4.9 observed vs ~5.0 simulated) across schools, confirming the model captures within-school variability.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run a per-group PPC summary on every multilevel fit.</strong> It catches the case where the model fits the average well but misses group-specific structure (one school has very different spread, one classroom has bimodal scores). The visual <code>dens_overlay_grouped</code> is what to inspect; the numeric summary above is a fast first check.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the per-school <em>mean</em> (not sd) comparison instead of within-school sd. Does the model capture per-school means?</p>
+<div class="webr-container" data-block-title="Your turn: per-school mean PPC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-school mean PPC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># For each school, compare mean(observed y) and mean(simulated y across draws)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-school mean solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-school mean solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean_per_school &lt;- sapply(unique(schools), function(s) {
+  obs &lt;- mean(df_nested$y[schools == s])
+  sim &lt;- mean(yrep[, schools == s])
+  c(observed = obs, simulated = sim)
+})
+round(mean_per_school[, 1:5], 2)
+#&gt;                 1     2     3     4     5
+#&gt; observed   53.61 47.93 54.78 49.39 52.27
+#&gt; simulated  53.49 48.19 54.55 49.61 52.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-school means match closely (within 0.3) for all 5 schools. The model captures both means and within-school spread.</p>
+
+</details>
+</section>
+
+<h2>When does a multilevel model beat just adding fixed-effect dummies?</h2>
+
+<p>Three situations where multilevel is the right call.</p>
+
+<p>The first is <em>many groups</em> (more than ~5). Multilevel partial pooling stabilises estimates with little cost when groups are similar enough to share information. With 50 schools, fitting 50 dummy intercepts uses 49 degrees of freedom and gives high-variance estimates for small schools.</p>
+
+<p>The second is <em>unbalanced group sizes</em>. Multilevel partial pooling shrinks small groups more than large ones; fixed-effect dummies treat them all equally regardless of how reliable each estimate is.</p>
+
+<p>The third is <em>predicting to new groups</em>. A multilevel model has a built-in distribution over group-level deviations; predicting for an unseen school just samples a deviation from that distribution. A fixed-effect-dummy model has no statement about the distribution of school effects at all.</p>
+
+<p>When <em>not</em> multilevel: very few groups (under 5), groups that are categorically different (an "industry" with 1 manufacturer and another with 100 different retail businesses), or when group identity is part of what you want to estimate (e.g., "which specific school is best"). Then fixed effects are more direct.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Multilevel models extend the hierarchical idea to arbitrary depth.</strong> If you have students within classrooms within schools within districts within states, all five levels can be modelled jointly. The variance partitions across all five levels, and the per-level interventions can be ranked by impact.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Identify the right approach for each design. (a) Patients across 200 hospitals. (<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> Three competing therapies, full crossover. (c) Repeated measures within 8 subjects.</p>
+<div class="webr-container" data-block-title="Your turn: pick the design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pick the design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># (a) Patients across 200 hospitals: multilevel or fixed-effect?
+# (b) Three crossover therapies in 50 patients: multilevel or fixed-effect?
+# (c) 5 measurements within 8 subjects: multilevel or fixed-effect?
+#&gt; Expected: (a) multilevel, (b) multilevel with patient and therapy, (c) borderline; multilevel preferred for 8+ subjects</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<p>(a) 200 hospitals: multilevel (<code>(1 | hospital)</code>). With 200 groups, partial pooling stabilises small hospitals.</p>
+
+<p>(b) Three therapies, full crossover: multilevel with patient and therapy as crossed groups (<code>(1 | patient) + (1 | therapy)</code> if therapy effects vary across patients, otherwise therapy as a fixed effect since there are only 3).</p>
+
+<p>(c) 8 subjects: borderline. With 8 you have just enough groups for partial pooling to be meaningful. The fixed-effect alternative uses 7 dummy intercepts, which is fine for 8 subjects but gets unwieldy past 20.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Three-level nested model</h3>
+
+<p>Simulate data with 5 districts, 4 schools per district, 5 classrooms per school, and 10 students per classroom. Fit <code>y ~ 1 + (1 | district/school/class)</code> and report the variance-component estimates.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build df with district, school (nested in district), class (nested in school), student
+# Generate y with effects at each level
+# Fit the three-level model</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_3lev &lt;- expand.grid(district = 1:5, school = 1:4, class = 1:5, student = 1:10)
+df_3lev$district &lt;- factor(df_3lev$district)
+df_3lev$school   &lt;- factor(paste0(df_3lev$district, &quot;_&quot;, df_3lev$school))
+df_3lev$class    &lt;- factor(paste0(df_3lev$school,   &quot;_&quot;, df_3lev$class))
+
+district_eff &lt;- rnorm(5,   0, 4)[as.integer(df_3lev$district)]
+school_eff   &lt;- rnorm(20,  0, 3)[as.integer(df_3lev$school)]
+class_eff    &lt;- rnorm(100, 0, 2)[as.integer(df_3lev$class)]
+df_3lev$y    &lt;- 60 + district_eff + school_eff + class_eff + rnorm(nrow(df_3lev), 0, 4)
+
+fit_3lev &lt;- brm(
+  y ~ 1 + (1 | district) + (1 | school) + (1 | class),
+  data    = df_3lev,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2,
+  control = list(adapt_delta = 0.95)
+)
+summary(fit_3lev)$random
+#&gt; $district
+#&gt; sd(Intercept)     3.91 ...
+#&gt; $school
+#&gt; sd(Intercept)     3.07 ...
+#&gt; $class
+#&gt; sd(Intercept)     2.05 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three-level model recovers all three sd values within sampling error of the truth (district 4, school 3, class 2). The hierarchical structure is what makes this estimable; trying to estimate per-district, per-school, and per-class fixed dummies would use 4 + 19 + 99 = 122 parameters on 1000 observations.</p>
+
+</details>
+
+<h3>Exercise 2: Crossed random effects</h3>
+
+<p>Simulate a psychology experiment with 20 subjects each seeing 5 stimuli. The outcome y depends on a subject-level effect and a stimulus-level effect plus random noise. Fit and recover both.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Generate df with subject and stimulus as crossed factors
+# Fit y ~ 1 + (1 | subject) + (1 | stimulus)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_x &lt;- expand.grid(subject = factor(1:20), stimulus = factor(1:5))
+subj_eff &lt;- rnorm(20, 0, 3)[as.integer(df_x$subject)]
+stim_eff &lt;- rnorm(5,  0, 2)[as.integer(df_x$stimulus)]
+df_x$y   &lt;- 50 + subj_eff + stim_eff + rnorm(nrow(df_x), 0, 1.5)
+
+fit_x &lt;- brm(y ~ 1 + (1 | subject) + (1 | stimulus), df_x,
+             chains = 4, iter = 2000, seed = 2026, silent = 2)
+summary(fit_x)$random
+#&gt; $subject
+#&gt; sd(Intercept)  3.05 ...
+#&gt; $stimulus
+#&gt; sd(Intercept)  2.10 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The crossed model recovers subject sd 3.05 (truth 3) and stimulus sd 2.10 (truth 2). With only 5 stimuli, the stimulus-level posterior is somewhat wider than the subject-level posterior; more stimuli would tighten it.</p>
+
+</details>
+
+<h3>Exercise 3: Within-between split for a longitudinal outcome</h3>
+
+<p>Simulate 20 subjects each measured 5 times. Each subject has a baseline level, a within-subject change in x, and a between-subject difference in average x. Fit the wrong model first (one slope on x), then the correct within-between split.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Generate within and between variation in x; build y so the within and between effects differ
+# Compare naive and split fits</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_subj &lt;- 20; n_t &lt;- 5
+df_long &lt;- expand.grid(subject = factor(1:n_subj), t = 1:n_t)
+df_long$x_mean   &lt;- rep(rnorm(n_subj, 50, 5), each = n_t)
+df_long$x_within &lt;- rnorm(nrow(df_long), 0, 2)
+df_long$x        &lt;- df_long$x_mean + df_long$x_within
+df_long$y        &lt;- 0.5 * df_long$x_mean - 0.3 * df_long$x_within +
+                    rep(rnorm(n_subj, 0, 2), each = n_t) +
+                    rnorm(nrow(df_long), 0, 1)
+
+fit_naive &lt;- brm(y ~ x + (1 | subject), df_long,
+                 chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_split &lt;- brm(y ~ x_within + x_mean + (1 | subject), df_long,
+                 chains = 4, iter = 2000, seed = 1, silent = 2)
+
+list(
+  naive_x  = posterior_summary(fit_naive, variable = &quot;b_x&quot;)[, c(1, 3, 4)],
+  split_w  = posterior_summary(fit_split, variable = &quot;b_x_within&quot;)[, c(1, 3, 4)],
+  split_b  = posterior_summary(fit_split, variable = &quot;b_x_mean&quot;)[, c(1, 3, 4)]
+)
+#&gt; $naive_x         Estimate     Q2.5    Q97.5
+#&gt;                    0.452     0.357    0.547
+#&gt; $split_w         Estimate     Q2.5    Q97.5
+#&gt;                   -0.268    -0.394   -0.143
+#&gt; $split_b         Estimate     Q2.5    Q97.5
+#&gt;                    0.498     0.395    0.601</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The naive model returns a single slope of 0.45 (a meaningless mix). The split model correctly recovers <code>x_within = -0.27</code> (truth -0.3) and <code>x_mean = 0.50</code> (truth 0.5). The within-between split rescues the analysis.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Multilevel models in brms extend hierarchical models to multi-level designs (nested or crossed) and split predictor effects into within-group and between-group parts.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Identify nesting structure</td>
+<td>Inspect data: are group IDs unique across higher levels?</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Pick the right formula</td>
+<td>`(1 \</td>
+<td>g1/g2)<code> nested, </code>(1 \</td>
+<td>g1) + (1 \</td>
+<td>g2)` crossed</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Split within-between effects</td>
+<td>Compute <code>x_mean</code> and <code>x_within</code>, include both</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Read variance components</td>
+<td><code>summary(fit)$random</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Compute ICC</td>
+<td><code>sd_g^2 / (sum of sds^2 + sigma^2)</code> on draws</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Diagnose with grouped PPC</td>
+<td><code>pp_check(type = &quot;dens_overlay_grouped&quot;, group = ...)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use multilevel models when you have at least 5 groups, when you want to predict to new groups, and when predictors vary at multiple levels. The brms syntax is mechanical; the design choices (nesting, split effects, ICC) are where the analytical work lives.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A., Hill, J. <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge University Press, 2007.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 15.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 13 covers multilevel models with brms.</li>
+
+<li>Bürkner, P. "brms: An R Package for Bayesian Multilevel Models Using Stan." <em>Journal of Statistical Software</em> 80 (2017).</li>
+
+<li>Hamaker, E. L., Muthén, B. "The fixed versus random effects debate and how it relates to centering in multilevel modeling." <em>Psychological Methods</em> 25 (2020). On within-between decomposition.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-ANOVA-in-R.html">Bayesian ANOVA in R</a>, the next post. Bayesian ANOVA via the <a class="auto-link" href="Bayes-Factors-in-R.html" title="Bayes Factors in R: BayesFactor Package as Alternative to p-Values">BayesFactor package</a>; an alternative to brms for variance-decomposition designs.</li>
+
+<li><a href="Bayesian-Hierarchical-Models-in-R.html">Bayesian Hierarchical Models in R</a>, the previous post. Two-level partial pooling; this post extended to multi-level.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the package powering the formulas in this post.</li>
+
+</ul>
