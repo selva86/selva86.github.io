@@ -1,0 +1,297 @@
+---
+title: "ggplot2 geom_raster() in R: Fast Heatmap From Regular Grid"
+description: "Use ggplot2 geom_raster() to draw a heatmap from a regular grid in R, faster than geom_tile. Covers fill, scale, vs geom_tile, and 5 worked examples."
+keywords: "ggplot2 geom_raster, R heatmap raster, geom_raster vs geom_tile, fast heatmap ggplot, raster fill, regular grid heatmap"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "geom_raster()|ggplot2 geom_raster|heatmap raster|geom_raster vs geom_tile|fast heatmap"
+auto_link_case_sensitive: true
+fr_parent: "ggplot2-Tutorial-With-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>ggplot2 geom_raster() in R: Fast Heatmap From Regular Grid</h1>
+
+<p class="lead">The <code>geom_raster()</code> function in ggplot2 draws heatmaps from data on a regular grid. It is FASTER than <code>geom_tile()</code> when the grid is evenly spaced.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>ggplot(df, aes(x, y, fill = value)) + geom_raster()
+geom_raster(interpolate = TRUE)<span class="qa-cmt">        # smooth interpolation</span>
+geom_tile()<span class="qa-cmt">                             # equivalent, slower for regular grids</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is geom_raster() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 293" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="258"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">regular grid heatmap (equal spacing)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">geom_raster() (fast)</text><text x="125" y="126" class="branch-label">irregular grid</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="Heatmap-in-R.html" title="Heatmap in R: Build and Customize with ggplot2 geom_tile()">geom_tile()</a> (slower but works)</text><text x="125" y="182" class="branch-label">contour lines instead of fill</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">geom_contour()</text><text x="125" y="238" class="branch-label">hexagonal binning</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">geom_hex()</text></svg></div>
+
+<h2>What geom_raster() does in one sentence</h2>
+
+<p><strong><code>geom_raster()</code> is a fast version of <code>geom_tile()</code> for evenly spaced grid data.</strong> Each (x, y) cell is filled with the corresponding <a class="auto-link" href="ggplot2-Aesthetics-aes-Map-Data.html" title="ggplot2 aes(): Map Any Variable to Any Visual Property — The Complete Reference">fill aesthetic</a> value.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>geom_raster(interpolate = FALSE, ...)</code>. Requires aes(x, y, fill).</strong></p>
+
+<div class="webr-container" data-block-title="Heatmap of correlation matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heatmap of correlation matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+cor_mat &lt;- cor(mtcars[, 1:5])
+cor_long &lt;- as_tibble(cor_mat, rownames = &quot;x&quot;) |&gt;
+  tidyr::pivot_longer(-x, names_to = &quot;y&quot;, values_to = &quot;cor&quot;)
+
+ggplot(cor_long, aes(x, y, fill = cor)) +
+  geom_raster() +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>geom_raster</code> when your grid is REGULAR (equal x and y spacing).</strong> For irregular grids, geom_tile is more flexible.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Correlation heatmap</h3>
+
+<div class="webr-container" data-block-title="Standard usage">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard usage</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(cor_long, aes(x, y, fill = cor)) +
+  geom_raster() +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. With interpolation</h3>
+
+<div class="webr-container" data-block-title="Smooth blending">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smooth blending</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(df, aes(x, y, fill = z)) +
+  geom_raster(interpolate = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Image data</h3>
+
+<div class="webr-container" data-block-title="Image-like raster">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Image-like raster</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">matrix_data &lt;- matrix(rnorm(100), 10, 10)
+df_grid &lt;- as_tibble(matrix_data) |&gt;
+  mutate(row = row_number()) |&gt;
+  tidyr::pivot_longer(-row, names_to = &quot;col&quot;, values_to = &quot;z&quot;)
+
+ggplot(df_grid, aes(col, row, fill = z)) +
+  geom_raster()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. With theme cleanup</h3>
+
+<div class="webr-container" data-block-title="Pure heatmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pure heatmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(df, aes(x, y, fill = z)) +
+  geom_raster() +
+  theme_void() +
+  scale_fill_viridis_c()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Compare to geom_tile</h3>
+
+<div class="webr-container" data-block-title="Same output for regular grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same output for regular grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(df, aes(x, y, fill = z)) + geom_raster()
+ggplot(df, aes(x, y, fill = z)) + geom_tile()
+# Same visual; raster is faster</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>geom_raster</code> is <code>geom_tile</code> optimized for REGULAR grids.</strong> It exploits the regularity to render faster (especially useful for large grids 100x100+).</div></div>
+
+<h2>geom_raster() vs geom_tile() vs geom_hex()</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Grid type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>geom_raster()</code></td>
+<td>Regular</td>
+<td>Fast heatmaps</td>
+</tr>
+<tr>
+<td><code>geom_tile()</code></td>
+<td>Any</td>
+<td>Heatmaps with irregular cells</td>
+</tr>
+<tr>
+<td><code>geom_hex()</code></td>
+<td>Hexagonal binning</td>
+<td>2D density</td>
+</tr>
+<tr>
+<td><code>geom_bin2d()</code></td>
+<td>Rectangular binning</td>
+<td>2D density</td>
+</tr>
+</tbody>
+</table>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Heatmaps for matrices, correlation matrices, and per-cell aggregations.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_grid |&gt;
+  ggplot(aes(x, y, fill = value)) +
+  geom_raster() +
+  scale_fill_viridis_c() +
+  coord_fixed() +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: irregular grid.</strong> geom_raster expects evenly-spaced x and y. Irregular spacing produces visual artifacts.</p>
+
+<p><strong>Pitfall 2: <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</strong> Empty cells appear gray (NA color). Fill with 0 or NA explicitly via <code>complete()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>geom_raster()</code> is NOT for non-rectangular layouts.</strong> For hex bins, use geom_hex; for bins, use geom_bin2d.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Plot a heatmap of mtcars <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a>. Save to <code>ex_plot</code>.</p>
+<div class="webr-container" data-block-title="Your turn: correlation heatmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: correlation heatmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor_mat &lt;- cor(mtcars)
+cor_long &lt;- as_tibble(cor_mat, rownames = &quot;x&quot;) |&gt;
+  tidyr::pivot_longer(-x, names_to = &quot;y&quot;, values_to = &quot;cor&quot;)
+
+ex_plot &lt;- cor_long |&gt;
+  # your code here</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_plot &lt;- ggplot(cor_long, aes(x, y, fill = cor)) +
+  geom_raster() +
+  scale_fill_viridis_c() +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> geom_raster fills each (x, y) cell with the correlation value; viridis colors highlight values.</p>
+
+</details>
+</section>
+
+<h2>Related ggplot2 functions</h2>
+
+<p>After mastering geom_raster, look at:</p>
+
+<ul>
+
+<li><code>geom_tile()</code>: more flexible for irregular grids</li>
+
+<li><code>geom_hex()</code>: hexagonal 2D bins</li>
+
+<li><code>geom_bin2d()</code>: rectangular 2D bins</li>
+
+<li><code>geom_contour()</code>: contour lines</li>
+
+<li><code>scale_fill_viridis_c()</code>: perceptually uniform colors</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does geom_raster do in ggplot2?</strong></p>
+
+<p><code>geom_raster()</code> draws a fast heatmap from regular-grid data. Each (x, y) cell is filled with the fill aesthetic value.</p>
+
+<p><strong>What is the difference between geom_raster and geom_tile?</strong></p>
+
+<p>geom_raster is faster but requires a REGULAR grid. geom_tile works for any grid but is slower for large regular grids.</p>
+
+<p><strong>Should I use geom_raster or geom_hex?</strong></p>
+
+<p>geom_raster for grid data you already have. geom_hex for 2D density of raw points (it bins them automatically).</p>
+
+<p><strong>How do I add interpolation?</strong></p>
+
+<p>Pass <code>interpolate = TRUE</code> to geom_raster. Smooths transitions between cells.</p>
+
+<p><strong>Can I use geom_raster for image data?</strong></p>
+
+<p>Yes. It is the standard tool for matrix/image-like display. Use <code>coord_fixed()</code> to keep the aspect ratio.</p>
