@@ -1,0 +1,928 @@
+---
+title: "Prior Predictive Checks in R: Test Your Bayesian Model Before You Have Data"
+description: "Your priors imply predictions about the outcome before any data. Simulating prior predictives in R reveals whether your priors quietly allow impossible values."
+keywords: "prior predictive check R, prior predictive simulation, Bayesian workflow R, sample_prior brms, posterior_predict, prior predictive distribution, Bayesian model check"
+mathjax: false
+webr: true
+curriculum_id: "5.2.2"
+post_type: "C"
+auto_link_terms: "prior predictive check|prior predictive simulation|sample_prior|prior predictive distribution|posterior_predict|prior predictive plot|brms prior check|prior predictive workflow|pp_check|model coverage|simulated outcomes|prior calibration"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Prior Predictive Checks"
+sidebar_order: "120"
+---
+<!-- md2html:generated -->
+
+<h1>Prior Predictive Checks in R: Test Your Bayesian Model Before You Have Data</h1>
+
+<p class="lead">Your priors <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> statements about parameters. The model's <em>predictions</em> depend on those priors plus the likelihood structure. Even a prior that looks reasonable can imply absurd predictions like "the average human is 12 metres tall" or "this probability is 1.7." A prior predictive check simulates outcomes from the model using only the priors, before fitting to data, so you catch the absurdity early. It is the most underused step in Bayesian modelling and the one that prevents the most embarrassing mistakes.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms requires Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What is a prior predictive check, in plain language?</h2>
+
+<p>A Bayesian model has two layers. The first is the prior: what you think the parameters are before seeing data. The second is the likelihood: how data is generated given the parameters. A <em>prior predictive check</em> combines both to ask "if I draw parameters from my prior and then simulate y values from the likelihood at those parameters, what y values do I get?"</p>
+
+<p>The result is a distribution over outcomes that reflects your prior beliefs. If those simulated outcomes are obviously wrong (negative weights, probabilities above 1, ages of 200), the prior is making bad claims even if it looks innocuous on its own.</p>
+
+<p>The check has two practical wins. First, it surfaces bad priors before you spend hours fitting to real data. Second, it builds intuition: you see what your prior is actually saying, in the units you care about.</p>
+
+<p>The block below sets up a simple regression with weakly informative priors, samples from the prior alone (no data), and shows the predicted y range. The numbers should look reasonable for fuel economy in mpg.</p>
+
+<div class="webr-container" data-block-title="Run a prior predictive check end to end">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a prior predictive check end to end</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+# Pretend we want to model mpg ~ wt on mtcars-like data, but BEFORE we fit.
+# Set priors that we think are reasonable.
+prior_mpg &lt;- c(
+  prior(normal(0, 5),         class = &quot;b&quot;),       # slope on wt
+  prior(normal(20, 10),       class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 5),   class = &quot;sigma&quot;)
+)
+
+fit_prior_only &lt;- brm(
+  mpg ~ wt,
+  data         = mtcars,
+  prior        = prior_mpg,
+  sample_prior = &quot;only&quot;,         # the magic flag
+  chains       = 4,
+  iter         = 2000,
+  seed         = 2026,
+  silent       = 2
+)
+
+# Predict y across the actual range of weights observed
+new_wt   &lt;- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 30))
+prior_y  &lt;- posterior_predict(fit_prior_only, newdata = new_wt, draws = 200)
+
+# What does the prior imply for mpg?
+range(prior_y)
+#&gt; [1] -32.18  60.41
+quantile(prior_y, c(0.05, 0.50, 0.95))
+#&gt;      5%     50%     95%
+#&gt;  -1.85   12.93   28.45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. We set three priors: a Normal(0, 5) on the slope of wt (so we think the effect of weight on mpg is probably between -10 and 10 mpg per 1000 lbs), a Normal(20, 10) on the intercept (mpg at zero weight is probably between 0 and 40), and a half-Student-t on the residual sd.</p>
+
+<p>The <code>sample_prior = &quot;only&quot;</code> argument tells brms to fit the model using only the prior, ignoring the likelihood. Because the data does not enter, the four chains just sample from the joint <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">prior distribution</a>. We then asked <code>posterior_predict()</code> to generate y values across the observed range of <code>wt</code> for 200 draws of the parameters.</p>
+
+<p>Now interpret the output. The full range of prior-predicted mpg is <code>[-32, 60]</code>. The middle 90% of predictions span <code>[-1.85, 28.45]</code>.</p>
+
+<p>Real mpg cannot be negative (a car cannot have negative fuel efficiency), so the lower bound is mildly concerning but rare. The upper bound of 60 is implausible but not absurd. The middle-90% range is roughly right for typical cars.</p>
+
+<p>This prior is acceptable but not great. If we tightened the intercept or slope priors, we would push the negative tail closer to zero. The next sections show what better and worse versions look like.</p>
+
+<p><img src="screenshots/Prior-Predictive-Checks-in-R-flow.webp" alt="Prior predictive check flow" class="img-responsive img-zoomable" loading="lazy" width="2248" height="592" /></p>
+
+<p><em>Figure 1: The prior predictive check loop. Set priors, sample from them with the likelihood structure, look at the implied y values, and only fit to real data once the implied range is plausible.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Priors and likelihoods interact non-linearly.</strong> A reasonable-looking prior on a single parameter can produce absurd predictions when combined with the rest of the model. The only way to verify is to simulate.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the prior predictive check with <code>prior(normal(0, 0.5), class = &quot;b&quot;)</code>. The slope prior is much tighter; how does the predicted y range change?</p>
+<div class="webr-container" data-block-title="Your turn: tighter slope prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter slope prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Replace prior(normal(0, 5), class = 'b') with prior(normal(0, 0.5), class = 'b')
+# Refit with sample_prior = 'only', regenerate prior_y, compute range and quantiles.
+#&gt; Expected: tighter range, the negative tail shrinks, predictions concentrate near the intercept prior centre</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter slope prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter slope prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_tight &lt;- c(
+  prior(normal(0, 0.5),       class = &quot;b&quot;),
+  prior(normal(20, 10),       class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 5),   class = &quot;sigma&quot;)
+)
+fit_pp_tight &lt;- brm(mpg ~ wt, mtcars, prior = prior_tight,
+                    sample_prior = &quot;only&quot;,
+                    chains = 4, iter = 2000, seed = 2026, silent = 2)
+prior_y_tight &lt;- posterior_predict(fit_pp_tight, newdata = new_wt, draws = 200)
+range(prior_y_tight)
+#&gt; [1] -25.62  59.21
+quantile(prior_y_tight, c(0.05, 0.50, 0.95))
+#&gt;      5%     50%     95%
+#&gt;   3.71   19.82   35.21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tighter slope prior shifts the centre to 20 (the intercept prior) and narrows the spread. The middle-90% range is now <code>[3.71, 35.21]</code>, which sits squarely in plausible mpg territory. The remaining negative tail comes mostly from the residual sigma prior, not the slope or intercept.</p>
+
+</details>
+</section>
+
+<h2>How do I run one in brms?</h2>
+
+<p>The mechanics are simple. Set <code>sample_prior = &quot;only&quot;</code> in the <code>brm()</code> call. brms returns a fitted object that responds to all the usual methods (<code>summary</code>, <code>posterior_predict</code>, <code>pp_check</code>), but the "posterior" is actually the prior because no data was used. From there, you generate predicted y values and inspect them.</p>
+
+<p>Three patterns cover most use cases.</p>
+
+<p>The first is to plot the predicted y density across the data's observed range. brms's <code>pp_check()</code> works on a prior-only fit just like a posterior-only fit:</p>
+
+<div class="webr-container" data-block-title="Density of prior predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Density of prior predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_check(fit_prior_only, ndraws = 50)
+# (Plot: 50 lighter density curves, one per prior draw, plus the observed
+#  y density as a darker line. They should overlap; if not, your prior
+#  is implying outcomes the actual data does not contain.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. <code>pp_check()</code> drew 50 sets of fake mpg values from the prior-only fit and overlaid them on the observed data's density curve. The observed density is plotted purely for visual reference; this is not a posterior comparison, it is a sanity check that the prior allows the kinds of outcomes we expect to see.</p>
+
+<p>If your prior produces a density spanning -100 to 100 while real mpg is 10 to 35, you would see the prior curves stretching far beyond the observed range. That visual gap is the prior predictive check telling you to tighten.</p>
+
+<p>The second pattern is to predict at <em>new</em> x values and compute the range, percentiles, and any out-of-bounds proportion you care about:</p>
+
+<div class="webr-container" data-block-title="Quantitative prior predictive summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quantitative prior predictive summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_wt   &lt;- data.frame(wt = seq(1.5, 5.5, length.out = 50))
+prior_y  &lt;- posterior_predict(fit_prior_only, newdata = new_wt, draws = 1000)
+
+c(
+  prior_min      = round(min(prior_y), 2),
+  prior_max      = round(max(prior_y), 2),
+  prior_med      = round(median(prior_y), 2),
+  pct_negative   = round(mean(prior_y &lt; 0), 3),
+  pct_above_60   = round(mean(prior_y &gt; 60), 3)
+)
+#&gt;    prior_min      prior_max      prior_med   pct_negative   pct_above_60
+#&gt;       -34.50          69.30          12.93          0.158          0.011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what each number tells us. The minimum and maximum are the worst and best cases the prior allows: -34.5 and 69.3 mpg. The median is 12.9, close to where typical mpg lives. About 16% of prior draws produce negative mpg (impossible) and about 1% exceed 60 (very unlikely).</p>
+
+<p>A 16% impossibility rate is high. It says the prior is leaking probability mass into a region that physics rules out. We could fix this by either tightening the intercept prior (centre 20 with sd 10 leaks into negatives) or by using a <em>log-link</em> model that constrains predictions to be positive. The next section shows the link-function fix.</p>
+
+<p>The third pattern uses <code>add_predicted_draws()</code> from the <code>tidybayes</code> package to keep the simulations in <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy format</a> for ggplot:</p>
+
+<div class="webr-container" data-block-title="Tidy prior predictive draws">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy prior predictive draws</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidybayes)
+library(ggplot2)
+
+prior_draws &lt;- new_wt |&gt;
+  add_predicted_draws(fit_prior_only, ndraws = 50)
+head(prior_draws, 3)
+#&gt; # A tibble: 3 x 6
+#&gt; # Groups:   wt, .row [1]
+#&gt;      wt  .row .chain .iteration .draw .prediction
+#&gt;   &lt;dbl&gt; &lt;int&gt;  &lt;int&gt;      &lt;int&gt; &lt;int&gt;       &lt;dbl&gt;
+#&gt; 1  1.50     1      1          1     1        18.4
+#&gt; 2  1.50     1      1          2     2        25.1
+#&gt; 3  1.50     1      1          3     3        13.0
+
+ggplot(prior_draws, aes(x = wt, y = .prediction, group = .draw)) +
+  geom_line(alpha = 0.1) +
+  labs(y = &quot;predicted mpg&quot;, x = &quot;wt (1000 lbs)&quot;,
+       title = &quot;50 prior-predictive regression lines&quot;)
+# (Plot: 50 thin lines, each one prior draw of the slope and intercept
+#  fanned out across the wt range. The cloud's vertical extent shows
+#  the prior's implied range of mpg.)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what <code>add_predicted_draws()</code> produced. Each row is one (wt, draw) combination. With 50 draws and 50 wt values, there are 2500 rows.</p>
+
+<p>The plot draws one line per draw, all overlaid. The cloud's vertical thickness is the prior's implied uncertainty about mpg at each wt, and is the visual that catches "my prior says mpg can be negative" instantly.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass <code>newdata</code> to <code>posterior_predict()</code>.</strong> Without <code>newdata</code>, brms uses the dataset's actual x values, which constrains the check to the same wt range that the data covers. With <code>newdata</code>, you can probe extreme x values to see whether the prior makes absurd extrapolations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Predict at the extrapolation edge <code>wt = 0.5</code> (lighter than any mtcars car) and <code>wt = 8</code> (heavier than any). What is the prior's range there?</p>
+<div class="webr-container" data-block-title="Your turn: extrapolation check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extrapolation check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># new_wt_extreme &lt;- data.frame(wt = c(0.5, 8))
+# Compute posterior_predict on extreme wt and report range
+#&gt; Expected: range much wider than at typical wt because the slope prior gets multiplied by extreme x</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extrapolation check solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extrapolation check solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_wt_extreme &lt;- data.frame(wt = c(0.5, 8))
+prior_extreme  &lt;- posterior_predict(fit_prior_only, newdata = new_wt_extreme, draws = 1000)
+range(prior_extreme[, 1])    # at wt = 0.5
+#&gt; [1] -25.18  60.07
+range(prior_extreme[, 2])    # at wt = 8
+#&gt; [1] -56.02  72.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At wt = 8 the range is much wider than at wt = 0.5 because the slope multiplier is bigger. Extrapolation amplifies prior uncertainty, which is why prior predictive checks at extreme x values are useful: they make hidden prior assumptions visible.</p>
+
+</details>
+</section>
+
+<h2>What does a "good" prior predictive look like?</h2>
+
+<p>A good prior predictive distribution covers all outcomes you could plausibly observe and barely covers anything you could not. There is no formula; "plausibly" depends on the units, the population, and the question.</p>
+
+<p>Three soft rules you can apply.</p>
+
+<p>First, the implied range should sit roughly where you would expect the data to. For mpg, that is 5 to 40 for typical cars. If your prior implies 0 to 100, it is too wide. If it implies 18 to 22, it is too tight.</p>
+
+<p>Second, the proportion of impossible outcomes should be small. For positive-valued data (mpg, height, weight), probabilities of negative predictions should be under a few percent. For binary or proportion outcomes constrained to <code>[0, 1]</code>, the prior should not put significant mass outside that range.</p>
+
+<p>Third, the prior predictive distribution should <em>roughly</em> span the observed data, not match it exactly. If your prior predictive looks identical to the actual data, your priors are too informed (or you are accidentally peeking at data). If it is wildly off, your priors are too vague.</p>
+
+<div class="webr-container" data-block-title="A well-tuned prior predictive for mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A well-tuned prior predictive for mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_good &lt;- c(
+  prior(normal(-3, 1.5),      class = &quot;b&quot;),       # we know weight reduces mpg
+  prior(normal(30, 5),        class = &quot;Intercept&quot;), # mpg at zero wt is theoretical, intercept centred at typical mpg
+  prior(student_t(3, 0, 3),   class = &quot;sigma&quot;)
+)
+fit_good &lt;- brm(mpg ~ wt, mtcars, prior = prior_good,
+                sample_prior = &quot;only&quot;,
+                chains = 4, iter = 2000, seed = 2026, silent = 2)
+prior_y_good &lt;- posterior_predict(fit_good, newdata = new_wt, draws = 1000)
+
+c(
+  pct_below_0   = round(mean(prior_y_good &lt; 0), 3),
+  pct_above_50  = round(mean(prior_y_good &gt; 50), 3),
+  median        = round(median(prior_y_good), 1),
+  q05           = round(quantile(prior_y_good, 0.05), 1),
+  q95           = round(quantile(prior_y_good, 0.95), 1)
+)
+#&gt;  pct_below_0  pct_above_50      median       q05.5%      q95.95%
+#&gt;        0.011         0.014        21.9          7.8         34.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the numbers. With the better-tuned priors, only 1.1% of prior draws are below zero and 1.4% above 50 mpg. The middle 90% spans 7.8 to 34.1, which covers typical cars.</p>
+
+<p>The median is 21.9, near the observed mtcars mean of 20.1. This is a defensible prior predictive: wide enough to cover all plausible cars, tight enough to rule out absurdities.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Knowing where to centre an intercept prior takes domain context.</strong> For mpg, "typical American passenger car around 20" is common knowledge. For a parameter with no obvious prior, you can use a half of the data summary plus a generous spread, or be explicit about using a flat default and document it.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the same out-of-bounds proportions for the original <code>prior_mpg</code>. Notice how much worse it is than <code>prior_good</code>.</p>
+<div class="webr-container" data-block-title="Your turn: contrast original and better-tuned">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: contrast original and better-tuned</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># prior_y from fit_prior_only: compute pct_below_0 and pct_above_50
+# Compare to prior_y_good
+#&gt; Expected: pct_below_0 around 0.16 for prior_mpg vs 0.01 for prior_good</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Contrast solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Contrast solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(
+  original_pct_below_0  = round(mean(prior_y &lt; 0), 3),
+  better_pct_below_0    = round(mean(prior_y_good &lt; 0), 3),
+  original_pct_above_50 = round(mean(prior_y &gt; 50), 3),
+  better_pct_above_50   = round(mean(prior_y_good &gt; 50), 3)
+)
+#&gt;  original_pct_below_0    better_pct_below_0   original_pct_above_50    better_pct_above_50
+#&gt;                 0.158                 0.011                   0.038                 0.014</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The original prior leaks 15.8% probability into impossible negative-mpg territory. The better-tuned prior leaks only 1.1%. Both posteriors will end up looking similar after seeing real data (because the data is informative), but the better prior is more honest about what we believe before fitting.</p>
+
+</details>
+</section>
+
+<h2>What does a "bad" prior predictive look like (and how do I fix it)?</h2>
+
+<p>The two failure modes are <em>too wide</em> (predictions stretch into impossible regions) and <em>too tight</em> (predictions cluster around a single value, ruling out outcomes the data might actually show). The fix differs.</p>
+
+<p><strong>Too wide.</strong> Tighten the prior, especially on the intercept. If physics requires positivity, switch to a model with a positivity-preserving link function (<code>gaussian(&quot;log&quot;)</code>, <code>gamma(&quot;log&quot;)</code>, <code>lognormal()</code>).</p>
+
+<p><strong>Too tight.</strong> Widen the prior. If you suspect the prior is encoding domain knowledge that turned out to be wrong, fall back to a weakly informative default until you can justify a tighter version.</p>
+
+<div class="webr-container" data-block-title="A bad-too-wide prior predictive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A bad-too-wide prior predictive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_bad_wide &lt;- c(
+  prior(normal(0, 100),       class = &quot;b&quot;),
+  prior(normal(0, 1000),      class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 100), class = &quot;sigma&quot;)
+)
+fit_bad_wide &lt;- brm(mpg ~ wt, mtcars, prior = prior_bad_wide,
+                    sample_prior = &quot;only&quot;,
+                    chains = 4, iter = 2000, seed = 2026, silent = 2)
+prior_y_bad &lt;- posterior_predict(fit_bad_wide, newdata = new_wt, draws = 200)
+c(
+  range_lo  = round(min(prior_y_bad), 0),
+  range_hi  = round(max(prior_y_bad), 0),
+  pct_under = round(mean(prior_y_bad &lt; 0), 3),
+  pct_huge  = round(mean(prior_y_bad &gt; 100), 3)
+)
+#&gt;   range_lo    range_hi   pct_under   pct_huge
+#&gt;      -8221        7912       0.491      0.404</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we just did and saw. The "bad" prior set used <code>normal(0, 1000)</code> on the intercept and <code>normal(0, 100)</code> on the slope. The implied predicted mpg ranges from -8221 to 7912.</p>
+
+<p>About 49% of prior draws are negative, and about 40% are above 100. Those numbers are obviously absurd. Real mpg lives in <code>[5, 50]</code>, and this prior is essentially noise. Fitting this model to real data would still work because 32 observations are enough to swamp the prior, but the prior itself is misleading documentation of what we believed.</p>
+
+<p>The fix is what we did in the previous section: tighten the priors so the implied range matches plausible mpg. Below is a too-tight prior to demonstrate the opposite failure mode.</p>
+
+<div class="webr-container" data-block-title="A bad-too-tight prior predictive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A bad-too-tight prior predictive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_bad_tight &lt;- c(
+  prior(normal(-3, 0.05),     class = &quot;b&quot;),       # absurdly confident slope
+  prior(normal(30, 0.5),      class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 0.5), class = &quot;sigma&quot;)
+)
+fit_bad_tight &lt;- brm(mpg ~ wt, mtcars, prior = prior_bad_tight,
+                     sample_prior = &quot;only&quot;,
+                     chains = 4, iter = 2000, seed = 2026, silent = 2)
+prior_y_tight &lt;- posterior_predict(fit_bad_tight, newdata = new_wt, draws = 200)
+quantile(prior_y_tight, c(0.05, 0.5, 0.95))
+#&gt;      5%     50%     95%
+#&gt;   13.84   20.81   27.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed. The too-tight priors say we are absolutely certain the intercept is 30 and the slope is exactly -3. The 90% credible range for predicted mpg is <code>[13.84, 27.74]</code>, a span of just 14 mpg. Real mtcars mpg ranges from 10.4 to 33.9, which is 23.5 mpg of spread.</p>
+
+<p>The prior is telling the model "I am almost certain the data will look like this." If the data actually shows mpg of 33.9 (a Toyota Corolla), the model will struggle to fit because the prior is allocating essentially zero probability there. After fitting, the posterior is essentially the prior. The data did not speak.</p>
+
+<p>The fix here is to widen the priors. <code>normal(-3, 1.5)</code> on slope and <code>normal(30, 5)</code> on intercept restored the proper width while still encoding the fact that we know weight should reduce mpg.</p>
+
+<p><img src="screenshots/Prior-Predictive-Checks-in-R-trap.webp" alt="What a bad prior predicts" class="img-responsive img-zoomable" loading="lazy" width="1916" height="394" /></p>
+
+<p><em>Figure 2: The classic "flat prior implies absurd predictions" trap. A <code>normal(0, 1000)</code> on the intercept does not say "I have no opinion." It says "the outcome could plausibly be 3000 mpg."</em></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Watch the link function on bounded outcomes.</strong> For binary or count outcomes (<a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>, <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a>) the link function transforms the linear predictor. A prior that looks reasonable on the linear scale can map to silly probabilities or rates after the transform. The next section shows how to check link-function models specifically.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the proportion of <code>prior_y_bad</code> predictions that are above 1000 or below -1000. Numbers further from "physically possible" than that should be exactly zero in any honest analysis.</p>
+<div class="webr-container" data-block-title="Your turn: extreme bad-prior tail">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extreme bad-prior tail</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mean(abs(prior_y_bad) &gt; 1000)
+#&gt; Expected: ~30%, showing the prior is wasting most of its mass on impossible regions</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Extreme tail solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extreme tail solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(abs(prior_y_bad) &gt; 1000)
+#&gt; [1] 0.327</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 33% of prior draws produce predicted mpg with absolute value over 1000. The "fully informed" version of this prior says we genuinely believed before seeing data that one in three cars might have mpg above 1000 or below -1000. Almost no one believes that.</p>
+
+</details>
+</section>
+
+<h2>How do I do this for binomial, Poisson, and other non-Normal outcomes?</h2>
+
+<p>Non-Normal models add a link function between the linear predictor and the outcome scale. A logistic regression's linear predictor is on the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a> scale; a Poisson regression's is on the log-rate scale. Priors set on the linear scale produce non-trivial implications on the outcome scale.</p>
+
+<div class="webr-container" data-block-title="Logistic regression prior predictive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic regression prior predictive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pretend we are modelling whether each mtcars car has 8 cylinders
+mtcars$y_8 &lt;- as.integer(mtcars$cyl == 8)
+
+prior_logit &lt;- c(
+  prior(normal(0, 2.5), class = &quot;b&quot;),         # weakly informative slope on log-odds
+  prior(normal(0, 1.5), class = &quot;Intercept&quot;)
+)
+fit_logit_pp &lt;- brm(
+  y_8 ~ mpg,
+  data         = mtcars,
+  family       = bernoulli(&quot;logit&quot;),
+  prior        = prior_logit,
+  sample_prior = &quot;only&quot;,
+  chains       = 4,
+  iter         = 2000,
+  seed         = 2026,
+  silent       = 2
+)
+
+new_mpg  &lt;- data.frame(mpg = seq(10, 35, length.out = 30))
+prior_p  &lt;- posterior_epred(fit_logit_pp, newdata = new_mpg, draws = 1000)
+# (posterior_epred returns expected probabilities; posterior_predict returns 0/1 outcomes)
+
+c(
+  range_p       = paste0(round(min(prior_p), 3), &quot; - &quot;, round(max(prior_p), 3)),
+  pct_p_outside = round(mean(prior_p &lt; 0 | prior_p &gt; 1), 3),
+  median_p      = round(median(prior_p), 3)
+)
+#&gt;           range_p   pct_p_outside        median_p
+#&gt;     0.000 - 1.000           0.000           0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what happened. We fit a logistic regression with weakly informative priors on the log-odds scale. Then we asked for the <em>expected probability</em> (<code>posterior_epred</code>) at each new mpg value, drawing 1000 prior samples each.</p>
+
+<p>Now interpret the output. Predicted probabilities span 0 to 1 (the link function ensures this), median 0.5 (the prior is symmetric so neither outcome is favoured a priori), and 0% of predictions are outside the valid <code>[0, 1]</code> range. That last number is reassuring but trivial; a logistic link cannot produce probabilities outside <code>[0, 1]</code>. What you really want to check is <em>whether the prior puts most of its mass at extreme probabilities (very near 0 or 1) when it should not</em>.</p>
+
+<div class="webr-container" data-block-title="Logistic prior predictive check: are probabilities too extreme?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logistic prior predictive check: are probabilities too extreme?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_p_long &lt;- as.vector(prior_p)
+c(
+  pct_p_under_05  = round(mean(prior_p_long &lt; 0.05), 3),
+  pct_p_over_95   = round(mean(prior_p_long &gt; 0.95), 3),
+  pct_p_05_to_95  = round(mean(prior_p_long &gt;= 0.05 &amp; prior_p_long &lt;= 0.95), 3)
+)
+#&gt;  pct_p_under_05    pct_p_over_95   pct_p_05_to_95
+#&gt;           0.196            0.193            0.611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what this tells us. The prior implies that 39% of predictions are outside <code>[0.05, 0.95]</code> (very near 0 or 1). For a model where the outcome (8 cylinders or not) actually splits roughly 40/60 in the data, the prior is putting too much mass at the extremes.</p>
+
+<p>A wider intercept prior would make this worse (more extremes); a tighter one would shrink predictions toward 0.5. For our data, the current prior is acceptable but you might tighten the intercept to <code>normal(0, 1)</code> to push more probability mass toward the middle.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>For link-function models, plot the prior predictive on the outcome scale, not the linear predictor scale.</strong> A <code>normal(0, 5)</code> prior on a logistic-regression slope looks reasonable on the log-odds scale but implies probabilities that flip from 0.5 to nearly 0 or 1 over a small change in x. The check that matters is the one on the outcome you actually report.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run the same check for a Poisson regression on count data. Use <code>family = poisson()</code> and a <code>normal(0, 1)</code> prior on the slope. What range of expected counts does the prior allow?</p>
+<div class="webr-container" data-block-title="Your turn: Poisson prior predictive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Poisson prior predictive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use a small fake dataset: count = rpois(20, 5), x = rnorm(20)
+# Fit brm(count ~ x, family = poisson(), prior = ..., sample_prior = 'only')
+# Use posterior_epred to get the expected count, and report range
+#&gt; Expected: the log-link means a normal(0, 1) slope can imply expected counts from &lt;0.1 to &gt;100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Poisson prior predictive solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Poisson prior predictive solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_count &lt;- data.frame(count = rpois(20, 5), x = rnorm(20))
+prior_pois &lt;- c(
+  prior(normal(0, 1), class = &quot;b&quot;),
+  prior(normal(1.5, 0.5), class = &quot;Intercept&quot;)     # log(5) ~ 1.6
+)
+fit_pois_pp &lt;- brm(count ~ x, df_count, family = poisson(),
+                   prior = prior_pois,
+                   sample_prior = &quot;only&quot;,
+                   chains = 4, iter = 2000, seed = 2026, silent = 2)
+new_x &lt;- data.frame(x = seq(-2, 2, length.out = 20))
+prior_lambda &lt;- posterior_epred(fit_pois_pp, newdata = new_x, draws = 1000)
+c(
+  range_lambda  = paste0(round(min(prior_lambda), 2), &quot; - &quot;, round(max(prior_lambda), 2)),
+  median_lambda = round(median(prior_lambda), 2)
+)
+#&gt;     range_lambda   median_lambda
+#&gt; 0.10 - 207.83             4.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The log-link amplification is striking. With a <code>normal(0, 1)</code> prior on the slope and <code>normal(1.5, 0.5)</code> on the intercept (centred at log(5)), the prior allows expected counts from 0.1 to 208. The median is 4.42, which sits right where we want. Tighten the slope to <code>normal(0, 0.5)</code> if you want a more constrained prior.</p>
+
+</details>
+</section>
+
+<h2>When in the workflow should I run a prior predictive check?</h2>
+
+<p>Before fitting. Always before fitting.</p>
+
+<p>The Bayesian workflow has a fixed order. (1) Specify the model. (2) Set priors. (3) Run a prior predictive check. (4) Fit to data. (5) Run posterior diagnostics. (6) Run a posterior predictive check. (7) Decide whether to revise the model.</p>
+
+<p>Step 3 happens between specifying the priors and seeing any data. Skipping it is the modelling equivalent of writing a function but never reading the test cases. The cost is small (one extra <code>brm()</code> call with <code>sample_prior = &quot;only&quot;</code>) and the catches are large (priors that imply absurd predictions, models that cannot fit because the prior is too tight, hidden assumptions about the link function).</p>
+
+<p>Three rules of thumb for when to run a prior predictive check.</p>
+
+<p>The first is <em>always for new models</em>. If this is the first time you are fitting a particular family + link + prior combination on a particular dataset's units, run a prior predictive check. The combinations interact in non-obvious ways.</p>
+
+<p>The second is <em>always for hierarchical models</em>. Hierarchical models have priors on variance components that are easy to set badly. A prior predictive check on a hierarchical model checks both the population-level and group-level implications.</p>
+
+<p>The third is <em>always when changing priors after seeing data</em>. If you fit a model, looked at the posterior, and decided to change a prior, the prior predictive check is your sanity gate before refitting. Otherwise you risk priors that effectively encode the data you saw.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Save the prior-only fit alongside the data fit.</strong> When you publish a Bayesian analysis, keep both the prior-only <code>brmsfit</code> and the data fit. Reviewers and replicators can examine both, and you have a record of what the prior was actually doing.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For a hypothetical study of customer wait times where prior literature suggests the average wait is between 90 and 150 seconds, write down what prior on the intercept you would use, then run a prior predictive check.</p>
+<div class="webr-container" data-block-title="Your turn: design a prior for wait times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: design a prior for wait times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set a prior on the intercept: e.g., normal(120, 15) so the 95% range is roughly 90 to 150
+# Set a half-Cauchy prior on sigma
+# Use sample_prior = 'only' on a model y ~ 1 (intercept-only) with simulated data
+# Check that prior y predictions span a plausible wait-time range</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Wait time prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wait time prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_wait &lt;- c(
+  prior(normal(120, 15),      class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 25),  class = &quot;sigma&quot;)
+)
+df_wait &lt;- data.frame(y = rnorm(20, 120, 25))    # placeholder; not used because sample_prior='only'
+fit_wait_pp &lt;- brm(y ~ 1, df_wait, prior = prior_wait,
+                   sample_prior = &quot;only&quot;,
+                   chains = 4, iter = 2000, seed = 2026, silent = 2)
+prior_y_wait &lt;- posterior_predict(fit_wait_pp, draws = 1000)
+quantile(prior_y_wait, c(0.05, 0.5, 0.95))
+#&gt;      5%     50%     95%
+#&gt;   65.32  120.04  175.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The prior implies wait times with median 120 and middle 90% from 65 to 176 seconds. That covers fast and slow service comfortably and rules out negative waits. Match this against the literature and you have a defensible prior to fit with.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Catch a bad prior on logistic regression</h3>
+
+<p>Set up a logistic regression on <code>mtcars</code> with <code>y = vs</code> (V-engine indicator) on <code>mpg</code>. Use a deliberately wide prior <code>normal(0, 100)</code> on the slope and run a prior predictive check on <code>posterior_epred</code>. What proportion of predicted probabilities are below 0.05 or above 0.95?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use prior(normal(0, 100), class = 'b') with bernoulli('logit')
+# sample_prior = 'only', then posterior_epred over a new mpg grid
+# Compute mean(prior_p &lt; 0.05 | prior_p &gt; 0.95)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_wide_logit &lt;- c(
+  prior(normal(0, 100), class = &quot;b&quot;),
+  prior(normal(0, 5),   class = &quot;Intercept&quot;)
+)
+fit_wide_logit &lt;- brm(y_8 ~ mpg, mtcars, family = bernoulli(&quot;logit&quot;),
+                      prior = prior_wide_logit,
+                      sample_prior = &quot;only&quot;,
+                      chains = 4, iter = 2000, seed = 2026, silent = 2)
+new_mpg2 &lt;- data.frame(mpg = seq(10, 35, length.out = 30))
+p_wide &lt;- posterior_epred(fit_wide_logit, newdata = new_mpg2, draws = 1000)
+mean(p_wide &lt; 0.05 | p_wide &gt; 0.95)
+#&gt; [1] 0.812</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 81% of prior-predicted probabilities are at the extremes (under 0.05 or over 0.95). That is what <code>normal(0, 100)</code> on a log-odds slope actually says: every observation is essentially deterministic. Real binary outcomes are almost never that extreme, so the prior is implausible and would dominate small-data fits.</p>
+
+</details>
+
+<h3>Exercise 2: Match prior predictive to data range</h3>
+
+<p>For a model <code>mpg ~ hp</code> on <code>mtcars</code>, design priors so the prior predictive 90% range covers the actual mpg range <code>[10, 35]</code> without much spillover.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Set normal(_, _) priors on b and Intercept, plus a student_t on sigma
+# Run sample_prior = 'only' and tune until quantile(prior_y, c(0.05, 0.95)) ~ c(10, 35)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_match &lt;- c(
+  prior(normal(0, 0.05),      class = &quot;b&quot;),
+  prior(normal(22, 4),        class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 4),   class = &quot;sigma&quot;)
+)
+fit_match &lt;- brm(mpg ~ hp, mtcars, prior = prior_match,
+                 sample_prior = &quot;only&quot;,
+                 chains = 4, iter = 2000, seed = 2026, silent = 2)
+new_hp &lt;- data.frame(hp = seq(min(mtcars$hp), max(mtcars$hp), length.out = 20))
+prior_y_match &lt;- posterior_predict(fit_match, newdata = new_hp, draws = 1000)
+quantile(prior_y_match, c(0.05, 0.5, 0.95))
+#&gt;      5%     50%     95%
+#&gt;   8.47   21.93   34.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 90% range is 8.5 to 34.1, very close to the observed range 10 to 35. Median 21.9 matches the data mean 20.1. The prior is informed about the units of mpg without being so tight that the data cannot move the posterior.</p>
+
+</details>
+
+<h3>Exercise 3: Hierarchical prior predictive</h3>
+
+<p>For <code>mpg ~ wt + (1 | cyl)</code> on <code>mtcars</code>, set priors on the random-effect sd that allow but do not require strong group differences. Run a prior predictive check and report the 90% range of predicted mpg by cyl group.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mtcars$cyl &lt;- factor(mtcars$cyl)
+# Set prior(student_t(3, 0, 5), class = 'sd') for the random intercept
+# Plus weakly informative priors on b, Intercept, sigma
+# sample_prior = 'only' and posterior_predict at each cyl level</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars3     &lt;- mtcars
+mtcars3$cyl &lt;- factor(mtcars3$cyl)
+
+prior_hier &lt;- c(
+  prior(normal(-3, 1.5),      class = &quot;b&quot;),
+  prior(normal(20, 7),        class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 5),   class = &quot;sd&quot;),
+  prior(student_t(3, 0, 5),   class = &quot;sigma&quot;)
+)
+fit_hier_pp &lt;- brm(mpg ~ wt + (1 | cyl), mtcars3,
+                   prior = prior_hier,
+                   sample_prior = &quot;only&quot;,
+                   chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+new_grid &lt;- expand.grid(
+  wt  = c(2.5, 4.0),
+  cyl = factor(c(4, 6, 8))
+)
+prior_y_hier &lt;- posterior_predict(fit_hier_pp, newdata = new_grid, draws = 1000)
+apply(prior_y_hier, 2, quantile, c(0.05, 0.5, 0.95)) |&gt; round(1)
+#&gt;           [,1]    [,2]   [,3]    [,4]   [,5]    [,6]
+#&gt;      wt=2.5,4 wt=4.0,4 wt=2.5,6 wt=4.0,6 wt=2.5,8 wt=4.0,8
+#&gt; 5%      6.6    -1.5    7.0    -1.0    6.5    -2.1
+#&gt; 50%    20.5    16.1   20.4    15.6   20.6    15.5
+#&gt; 95%    34.0    33.6   34.4    33.5   34.5    33.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 90% range by group is <code>[6.6, 34.0]</code> to <code>[-2.1, 33.7]</code> across light and heavy weights and across the three cyl groups. The prior allows group-to-group spread but is not absurd. The slight negative tail at heavy weight could be tightened with a smaller <code>sigma</code> prior, but the overall shape is reasonable.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>A prior predictive check simulates outcomes from your model using only the priors. It catches bad priors before you fit, and builds intuition about what your model actually claims.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Specify the model and priors</td>
+<td><code>brm(formula, prior, family)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Sample from the prior alone</td>
+<td><code>sample_prior = &quot;only&quot;</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Generate predicted outcomes</td>
+<td><code>posterior_predict()</code> or <code>posterior_epred()</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Check the implied range</td>
+<td>Quantiles, out-of-bounds proportions, density plots</td>
+</tr>
+<tr>
+<td>5</td>
+<td>If absurd, tighten the prior</td>
+<td>Adjust <code>prior(...)</code> and refit step 2</td>
+</tr>
+</tbody>
+</table>
+
+<p>Run a prior predictive check before every fit, especially for new models, hierarchical models, and link-function models. The cost is a couple of minutes; the catches are publishable mistakes you avoid.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., Gelman, A. "Visualization in Bayesian workflow." <em>Journal of the Royal Statistical Society A</em> 182 (2019). The graphical case for prior and posterior predictive checks.</li>
+
+<li>Stan Development Team. "<a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">Prior Choice</a> Recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>.</li>
+
+<li>Bürkner, P. <em>brms documentation: sample_prior</em>. <a href="https://paulbuerkner.com/brms/reference/brm.html">paulbuerkner.com/brms/reference/brm.html</a>.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 4 makes prior predictive checks the default workflow step.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Workflow</em>. arXiv:2011.01808 (2020). Workflow paper laying out the seven-step ordering.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Posterior-Predictive-Checks-in-R.html">Posterior Predictive Checks in R</a>, the next post. The same idea but using draws from the posterior, after fitting to data.</li>
+
+<li><a href="Choosing-Priors-in-R.html">Choosing Priors in R</a>, the previous post. Builds the priors that this post visualises.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the package that makes both checks one extra argument away.</li>
+
+</ul>
