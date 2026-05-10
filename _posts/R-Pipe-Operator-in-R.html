@@ -1,0 +1,363 @@
+---
+title: "R Pipe Operator: %>% vs |> (Complete Guide)"
+description: "Compare R's pipe operators: magrittr %>% and native |>. Covers syntax, dot placeholder, when to use each, performance, lambdas, and 6 worked examples in R."
+keywords: "R pipe operator, %>% in R, R native pipe, |> in R, magrittr pipe, dplyr pipe, R chaining functions"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pipe operator|%>%|native pipe|R pipe|magrittr pipe"
+auto_link_case_sensitive: false
+fr_parent: "R-Basic-Syntax-Beginners-Guide.html"
+---
+<!-- md2html:generated -->
+
+<h1>R Pipe Operator: %>% vs |> (Complete Guide)</h1>
+
+<p class="lead">R has two pipe operators: <code>%&gt;%</code> from magrittr (the original) and <code>|&gt;</code> built into base R 4.1+. Both forward the left-hand value into the first argument of the right-hand function, enabling readable left-to-right code chains.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mtcars |&gt; head()<span class="qa-cmt">                          # native pipe (base R 4.1+)</span>
+mtcars %&gt;% head()<span class="qa-cmt">                         # magrittr pipe (needs library)</span>
+mtcars |&gt; filter(mpg &gt; 20) |&gt; nrow()<span class="qa-cmt">      # chained</span>
+mtcars %&gt;% .$mpg %&gt;% mean()<span class="qa-cmt">               # %&gt;% supports . placeholder</span>
+mtcars |&gt; (\(x) x$mpg)() |&gt; mean()<span class="qa-cmt">        # |&gt; needs lambda for placeholder</span>
+df |&gt; head(n = 3)<span class="qa-cmt">                         # extra args after pipe</span>
+mtcars %&gt;% {head(., n = 3)}<span class="qa-cmt">               # %&gt;% with curly-brace expression</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Which pipe should I use?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">modern code, R 4.1+, no magrittr loaded</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">|&gt;</text><text x="125" y="126" class="branch-label">need to pipe to non-first argument</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">%&gt;% with . placeholder</text><text x="125" y="182" class="branch-label">inside dplyr/tidyverse</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">either works; |&gt; increasingly preferred</text><text x="125" y="238" class="branch-label">R &lt; 4.1</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">%&gt;% (only option)</text><text x="125" y="294" class="branch-label">compound expression after pipe</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">%&gt;% with { } block</text><text x="125" y="350" class="branch-label">assign result back to LHS</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">%&lt;&gt;% (magrittr only, niche)</text><text x="125" y="406" class="branch-label"><a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">functional programming</a></text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">|&gt; with lambda \(x) x</text></svg></div>
+
+<h2>What R's pipe operators do in one sentence</h2>
+
+<p><strong>Both <code>|&gt;</code> and <code>%&gt;%</code> take the value on the left and pass it as the FIRST ARGUMENT to the function on the right.</strong> <code>mtcars |&gt; head()</code> is identical to <code>head(mtcars)</code>. The pipe form reads left-to-right; the function-call form reads right-to-left.</p>
+
+<p>The <code>|&gt;</code> operator is built into base R from version 4.1 (May 2021). The <code>%&gt;%</code> operator comes from the magrittr package (also re-exported by dplyr and the tidyverse). For 95% of use cases they are interchangeable.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The pipe goes between the value and the function, with the function written as if its first argument were already filled.</strong></p>
+
+<div class="webr-container" data-block-title="Three equivalent forms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three equivalent forms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+# Function call form
+head(filter(mtcars, mpg &gt; 20), n = 3)
+
+# Native pipe
+mtcars |&gt; filter(mpg &gt; 20) |&gt; head(n = 3)
+
+# magrittr pipe
+mtcars %&gt;% filter(mpg &gt; 20) %&gt;% head(n = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three return the same 3-row data frame. The pipe forms are easier to read for chains; the function call form is fine for one or two operations.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>|&gt;</code> for new code unless you specifically need <code>%&gt;%</code> features.</strong> The native pipe has no package dependency, parses faster, and is the modern default. Reach for <code>%&gt;%</code> only when you need the <code>.</code> placeholder, <code>%T&gt;%</code>, <code>%&lt;&gt;%</code>, or compound <code>{ }</code> expressions.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Single-step pipe</h3>
+
+<div class="webr-container" data-block-title="Same as head(mtcars)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same as head(mtcars)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; head()
+#&gt;                    mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#&gt; Mazda RX4         21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The simplest case: replace <code>head(mtcars)</code> with <code>mtcars |&gt; head()</code>. Useful at the START of any pipeline so the data flows naturally.</p>
+
+<h3>2. Chained pipe</h3>
+
+<div class="webr-container" data-block-title="Filter then select then top 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter then select then top 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  filter(cyl == 4) |&gt;
+  select(mpg, hp) |&gt;
+  head(n = 3)
+#&gt;                  mpg  hp
+#&gt; Datsun 710      22.8  93
+#&gt; Merc 240D       24.4  62
+#&gt; Merc 230        22.8  95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Multiple pipes chain function calls. Each step's output becomes the next step's first argument. Reads top-to-bottom: take mtcars, filter, select, take first 3.</p>
+
+<h3>3. Pipe with extra arguments</h3>
+
+<div class="webr-container" data-block-title="Pipe to first arg; pass others normally">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipe to first arg; pass others normally</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; head(n = 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>head()</code> accepts <code>n</code> as a named argument. The pipe puts <code>mtcars</code> as the first positional argument; named args after it work as usual.</p>
+
+<h3>4. magrittr <code>.</code> placeholder</h3>
+
+<div class="webr-container" data-block-title="When you need to pipe to a non-first argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When you need to pipe to a non-first argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(magrittr)
+
+mtcars %&gt;% lm(mpg ~ hp, data = .) %&gt;% summary()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>%&gt;%</code> supports <code>.</code> to indicate the pipe value's position. Native <code>|&gt;</code> does not (in base R 4.1; partial support added in 4.2 via <code>_</code> placeholder).</p>
+
+<h3>5. Native pipe with a lambda for non-first arg</h3>
+
+<div class="webr-container" data-block-title="Native pipe equivalent using anonymous function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Native pipe equivalent using anonymous function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  (\(d) lm(mpg ~ hp, data = d))() |&gt;
+  summary()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>.</code>, native pipe needs a lambda <code>\(d) ...</code> to redirect the input. More verbose than <code>%&gt;%</code>, but no package dependency.</p>
+
+<h3>6. Pipe to assignment</h3>
+
+<div class="webr-container" data-block-title="Send result back into a variable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Send result back into a variable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  pull(mpg) |&gt;
+  mean()
+
+result
+#&gt; [1] 24.025</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Standard pattern: pipe through transformations, finish with <code>mean()</code> or similar, assign the final scalar to a variable.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">pipe operator</a> only changes the SHAPE of code, not its meaning.</strong> <code>mtcars |&gt; head()</code> and <code>head(mtcars)</code> are exactly the same operation. The pipe is purely syntactic sugar to read function chains left-to-right. Performance is identical (or microseconds different); choose based on readability.</div></div>
+
+<h2>Native pipe (|>) vs magrittr pipe (%>%)</h2>
+
+<p><strong>Both forward LHS to the first argument. Differences are at the edges.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>`</th>
+<th>>` (native)</th>
+<th><code>%&gt;%</code> (magrittr)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Available</td>
+<td>R 4.1+</td>
+<td>Any version, needs magrittr</td>
+</tr>
+<tr>
+<td>Dependency</td>
+<td>None (base R)</td>
+<td>magrittr (or dplyr re-export)</td>
+</tr>
+<tr>
+<td><code>.</code> placeholder</td>
+<td>No (use <code>_</code> in 4.2+)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Lambda needed for non-first arg</td>
+<td>Yes</td>
+<td>No (use <code>.</code>)</td>
+</tr>
+<tr>
+<td><code>{ }</code> expression after pipe</td>
+<td>Limited</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>%T&gt;%</code> (tee)</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>%&lt;&gt;%</code> (compound assign)</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Parse speed</td>
+<td>Faster</td>
+<td>Slower (operator overload)</td>
+</tr>
+<tr>
+<td>Idiomatic in 2026+</td>
+<td>Increasingly</td>
+<td>Legacy</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>|&gt;</code> in new code targeting R 4.1 or later.</li>
+
+<li>Use <code>%&gt;%</code> when you need the <code>.</code> placeholder, <code>%T&gt;%</code>, or compound assignment.</li>
+
+<li>Mixing both in one file is fine; both work in tidyverse pipelines.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting parentheses on <code>|&gt;</code>.</strong> <code>mtcars |&gt; head</code> (no parens) errors. Native pipe always requires <code>()</code> after the function name. magrittr <code>%&gt;%</code> allows omitting parens if no other args: <code>mtcars %&gt;% head</code> works.</p>
+
+<p><strong>Pitfall 2: piping to a non-first argument with native pipe.</strong> <code>1:5 |&gt; mean(na.rm = TRUE)</code> works because <code>mean()</code> takes the vector as first arg. But <code>1:5 |&gt; sum(2:3)</code> adds 1:5 + 2:3 (unexpected). To pipe to a specific position, use a lambda: <code>1:5 |&gt; (\(x) sum(2:3, x))()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>_</code> placeholder in <code>|&gt;</code> (R 4.2+) only works with NAMED arguments.</strong> <code>mtcars |&gt; lm(mpg ~ hp, data = _)</code> works. <code>mtcars |&gt; lm(_, mpg ~ hp)</code> errors because <code>_</code> cannot be a positional argument. Use lambdas if you need positional flexibility.</div></div>
+
+<p><strong>Pitfall 3: confusing <code>|&gt;</code> with <code>&gt;&gt;</code> or other operators in other languages.</strong> R's pipe is <code>|&gt;</code> (vertical bar + greater-than). It is NOT <code>-&gt;</code>, <code>&gt;&gt;</code>, or <code>=&gt;</code>. Some languages use <code>|&gt;</code> differently; in R it is strictly "value into first argument".</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the native pipe <code>|&gt;</code> to compute the mean <code>mpg</code> of <code>mtcars</code> cars with <code>hp &gt; 100</code>. Save to <code>ex_mean</code>.</p>
+<div class="webr-container" data-block-title="Your turn: piped mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: piped mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: filter then pull then mean
+ex_mean &lt;- mtcars |&gt;
+  # your code here
+
+ex_mean
+#&gt; Expected: ~16.65 (mean mpg of high-hp cars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean &lt;- mtcars |&gt;
+  filter(hp &gt; 100) |&gt;
+  pull(mpg) |&gt;
+  mean()
+
+ex_mean
+#&gt; [1] 16.6478</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each step's result becomes the next step's first argument. <code>filter(hp &gt; 100)</code> keeps high-hp rows; <code>pull(mpg)</code> extracts mpg as a vector; <code>mean()</code> averages it. Reads top-to-bottom.</p>
+
+</details>
+</section>
+
+<h2>Related R operators</h2>
+
+<p>After mastering the pipe, look at:</p>
+
+<ul>
+
+<li><code>%T&gt;%</code> (magrittr tee operator): pipes value to a function but keeps the original</li>
+
+<li><code>%&lt;&gt;%</code> (compound assignment): updates LHS in place</li>
+
+<li><code>%$%</code> (exposition pipe): exposes column names</li>
+
+<li><code>\(x) ...</code> (R 4.1+ lambda): anonymous function syntax often used with pipes</li>
+
+<li><code>_</code> placeholder (R 4.2+): pipe to a named argument</li>
+
+</ul>
+
+<p>The pipe pairs naturally with all dplyr verbs and most tidyverse functions because they are designed to take data as the first argument.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between %>% and |> in R?</strong></p>
+
+<p><code>%&gt;%</code> is from the magrittr package (also exported by dplyr); <code>|&gt;</code> is built into base R 4.1+. Both forward the LHS value to the first argument of the RHS function. Differences: <code>%&gt;%</code> supports the <code>.</code> placeholder, <code>%T&gt;%</code>, <code>%&lt;&gt;%</code>. <code>|&gt;</code> is faster, has no package dependency, and is the modern default.</p>
+
+<p><strong>Should I use the native pipe |> or magrittr %>%?</strong></p>
+
+<p>For new code, <code>|&gt;</code> is preferred unless you need <code>%&gt;%</code>-specific features like the <code>.</code> placeholder. Both work in tidyverse pipelines. The choice rarely affects performance; pick based on readability and target R version.</p>
+
+<p><strong>How do I pipe to a non-first argument in R?</strong></p>
+
+<p>With <code>%&gt;%</code>, use the <code>.</code> placeholder: <code>df %&gt;% lm(y ~ x, data = .)</code>. With <code>|&gt;</code> (R 4.2+), use the <code>_</code> placeholder for named args only: <code>df |&gt; lm(y ~ x, data = _)</code>. For R 4.1 native pipe, use a lambda: <code>df |&gt; (\(d) lm(y ~ x, data = d))()</code>.</p>
+
+<p><strong>Does the pipe operator slow down R code?</strong></p>
+
+<p>Negligibly. Native <code>|&gt;</code> adds no measurable overhead. <code>%&gt;%</code> adds microseconds per call due to its operator overload. For any real workload, the pipe's cost is invisible.</p>
+
+<p><strong>Can I use the pipe operator outside the tidyverse?</strong></p>
+
+<p>Yes. Both pipes work with any function that takes data as its first argument. <code>c(3, 1, 2) |&gt; sort() |&gt; head(2)</code> uses base R only. The pipe is independent of the tidyverse, though tidyverse functions are designed to work especially well with it.</p>
