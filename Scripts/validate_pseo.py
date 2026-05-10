@@ -35,6 +35,32 @@ PSEO_JSON = PROJECT_ROOT / "www" / "programmatic-seo.json"
 USER_AGENT = "Mozilla/5.0 (validate_pseo)"
 
 
+def load_env_file():
+    """Load KEY=VALUE pairs from .env files into os.environ (without overriding).
+
+    Searches selva86.github.io/.env then the parent dir's .env (project root,
+    where shared secrets live since it sits outside the git repo).
+    """
+    candidates = [PROJECT_ROOT / ".env", PROJECT_ROOT.parent / ".env"]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            for raw in path.read_text(encoding="utf-8").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+        except OSError:
+            continue
+
+
+load_env_file()
+
+
 def fetch_google_suggest(query, timeout=10):
     url = (
         "https://suggestqueries.google.com/complete/search?client=firefox&q="
