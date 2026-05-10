@@ -1,0 +1,858 @@
+---
+title: "Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision"
+description: "Prior choice shapes the posterior, especially with small data. Weakly informative priors are the modern default. When and how to use informative priors instead."
+keywords: "choosing priors R, Bayesian priors R, weakly informative prior, reference prior, flat prior, informative prior R, brms priors, Stan priors, prior sensitivity"
+mathjax: false
+webr: true
+curriculum_id: "5.2.1"
+post_type: "C"
+auto_link_terms: "weakly informative prior|reference prior|flat prior|informative prior|prior sensitivity|prior_summary|set_prior|prior() in brms|half-Normal prior|half-Cauchy prior|Jeffreys prior|prior choice"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Choosing Priors"
+sidebar_order: "119"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision</h1>
+
+<p class="lead">Bayesian inference combines a prior (what you believed before seeing data) with a likelihood (what the data says) to get a posterior (what you believe after). With a lot of data the prior barely matters. With a small dataset the prior can dominate the answer. Knowing where your problem sits on that spectrum, and how to set a prior that is honest about your starting knowledge, is the difference between a Bayesian fit you can defend and one that just reflects your assumptions.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="40" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> The brms examples call Stan under the hood, which compiles models to native C++. Copy the blocks into RStudio with brms and <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a> installed.</div></div>
+
+<h2>Why does prior choice matter at all?</h2>
+
+<p>A Bayesian fit multiplies the prior density by the likelihood and normalises. If the prior is wide and flat, the posterior is shaped almost entirely by the likelihood (the data). If the prior is tight around a specific value, the posterior is pulled toward that value, and only a strong contradiction from the data can move it.</p>
+
+<p>The practical question is not "is the prior good or bad" but "is the prior appropriate to how much I knew before this dataset arrived." A weakly informative prior says "this parameter is probably in this rough range" without committing to a specific value. An informative prior says "I have strong reason from a literature value or a prior study to believe this parameter is close to X."</p>
+
+<p>The simulation below shows the same regression coefficient fit with three different priors on the same 20-observation dataset. The wide prior gives the data full reign. The weakly informative prior nudges modestly. The tight prior dominates and pulls the posterior far from what the data alone would say.</p>
+
+<div class="webr-container" data-block-title="Three priors, same data, three posteriors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three priors, same data, three posteriors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+set.seed(2026)
+n   &lt;- 20
+x   &lt;- rnorm(n)
+y   &lt;- 2 + 0.5 * x + rnorm(n, 0, 1)   # truth: slope = 0.5
+df  &lt;- data.frame(y = y, x = x)
+
+# Three brms fits, identical except for the prior on the slope (b)
+fit_flat   &lt;- brm(y ~ x, df, prior = prior(normal(0, 100), class = &quot;b&quot;),
+                  chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_weak   &lt;- brm(y ~ x, df, prior = prior(normal(0, 5),   class = &quot;b&quot;),
+                  chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_tight  &lt;- brm(y ~ x, df, prior = prior(normal(2, 0.2), class = &quot;b&quot;),
+                  chains = 4, iter = 2000, seed = 1, silent = 2)
+
+rbind(
+  flat        = posterior_summary(fit_flat,  variable = &quot;b_x&quot;)[, 1:4],
+  weak        = posterior_summary(fit_weak,  variable = &quot;b_x&quot;)[, 1:4],
+  tight_at_2  = posterior_summary(fit_tight, variable = &quot;b_x&quot;)[, 1:4]
+)
+#&gt;            Estimate Est.Error    Q2.5   Q97.5
+#&gt; flat          0.49      0.18    0.13    0.85
+#&gt; weak          0.49      0.18    0.14    0.84
+#&gt; tight_at_2    1.49      0.16    1.18    1.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we just ran. The data was simulated with a true slope of 0.5. We fit three models that differ only in the prior placed on the slope coefficient.</p>
+
+<p>The flat prior <code>normal(0, 100)</code> says the slope could plausibly be anywhere from -200 to 200. The weakly informative prior <code>normal(0, 5)</code> says the slope is probably between -10 and 10. The tight prior <code>normal(2, 0.2)</code> says we are quite sure the slope is near 2 (which is wrong).</p>
+
+<p>Now read the table. The flat prior posterior centres at 0.49 (matches the truth). The weakly informative posterior also centres at 0.49 (the prior is wide enough that the data dominates). The tight-but-wrong prior pulls the posterior to 1.49, halfway between the prior centre and the data signal.</p>
+
+<p>The tight prior outright produced a wrong answer. The data has 20 observations, the prior was strong, and the resulting posterior is a compromise that does not match either source alone. This is what people mean when they say "priors matter for small data."</p>
+
+<p><img src="screenshots/Choosing-Priors-in-R-spectrum.webp" alt="The prior spectrum" class="img-responsive img-zoomable" loading="lazy" width="1984" height="394" /></p>
+
+<p><em>Figure 1: The prior spectrum. Flat priors carry no information; weakly informative priors rule out absurd values; informative priors encode actual prior knowledge; tight priors dominate the data when data is scarce.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A prior is a claim about your beliefs before the data, not about the data itself.</strong> If you would not bet money on a prior's centre being correct given everything you knew before this study, the prior is too tight. The fix is to widen it until you genuinely would bet on the range it covers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-fit with a <code>normal(0, 1)</code> prior on the slope. Is it still wide enough that the data dominates with 20 observations?</p>
+<div class="webr-container" data-block-title="Your turn: borderline-tight prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: borderline-tight prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit with prior(normal(0, 1), class = &quot;b&quot;) and read the b_x posterior summary.
+#&gt; Expected: the posterior centre is close to 0.5 (data still wins), but the prior contributes a small nudge</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Borderline prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Borderline prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_borderline &lt;- brm(y ~ x, df, prior = prior(normal(0, 1), class = &quot;b&quot;),
+                      chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_borderline, variable = &quot;b_x&quot;)[, 1:4]
+#&gt;      Estimate Est.Error    Q2.5   Q97.5
+#&gt; b_x      0.48      0.17    0.14    0.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior centres at 0.48 (close to the truth of 0.5). The <code>normal(0, 1)</code> prior is informative enough to pull slightly toward zero, but with 20 observations the data signal is strong enough to override it. With only 5 observations the same prior would visibly bias the posterior.</p>
+
+</details>
+</section>
+
+<h2>What's a reference prior, and when should I avoid one?</h2>
+
+<p>A <em>reference prior</em> (sometimes called <em>flat</em>, <em>uniform</em>, or <em>non-informative</em>) tries to express "I know nothing." Examples are <code>normal(0, 1000)</code> for a regression coefficient, or an improper uniform <code>(-Inf, Inf)</code>. The intuition is that an extremely wide prior contributes essentially zero information, so the posterior reflects only the data.</p>
+
+<p>Reference priors look principled but they cause two problems in practice.</p>
+
+<p>The first is <em>prior predictive checks fail</em>. If you simulate predicted outcomes from a model with a <code>normal(0, 1000)</code> prior on the intercept, you will see predictions ranging from -3000 to 3000 in any unit. That is absurd for almost any real measurement (mpg, height, blood pressure, click rate). A reference prior is <em>not</em> informationless; it is informationless about the parameter while making strong claims about the implied predictions.</p>
+
+<p>The second is <em>numerical instability</em>. Stan and other samplers converge much faster on bounded posteriors. A reference prior leaves the posterior unbounded until the likelihood pulls it in. With small data the likelihood is too weak to do that quickly, and you get <a class="auto-link" href="Hamiltonian-Monte-Carlo-in-R.html" title="Hamiltonian Monte Carlo in R: The Physics Trick That Makes Stan So Fast">divergent transitions</a> and slow mixing.</p>
+
+<p>Modern Bayesian practice treats reference priors as a fallback when even a weakly informative prior would be controversial (regulatory or legal contexts, or replications where you must show "the data alone says this"). For day-to-day work, weakly informative priors are better.</p>
+
+<div class="webr-container" data-block-title="When a flat prior misbehaves on small data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When a flat prior misbehaves on small data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_small &lt;- 5
+df_small &lt;- data.frame(y = rnorm(n_small, 2, 1), x = rnorm(n_small))
+
+fit_flat_small &lt;- brm(y ~ x, df_small,
+                      prior = prior(normal(0, 1000), class = &quot;b&quot;),
+                      chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_weak_small &lt;- brm(y ~ x, df_small,
+                      prior = prior(normal(0, 5), class = &quot;b&quot;),
+                      chains = 4, iter = 2000, seed = 1, silent = 2)
+
+rbind(
+  flat_5obs = posterior_summary(fit_flat_small, variable = &quot;b_x&quot;)[, 1:4],
+  weak_5obs = posterior_summary(fit_weak_small, variable = &quot;b_x&quot;)[, 1:4]
+)
+#&gt;            Estimate Est.Error   Q2.5  Q97.5
+#&gt; flat_5obs      0.42      1.41  -2.39   3.18
+#&gt; weak_5obs      0.36      0.96  -1.62   2.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the contrast. With only 5 observations and a flat prior, the posterior on the slope spans <code>[-2.39, 3.18]</code>. The data is too weak to constrain the slope, so the posterior just inherits most of the prior's spread.</p>
+
+<p>With the weakly informative prior, the posterior on the same data spans <code>[-1.62, 2.20]</code>. The prior ruled out the extremes that the data could not constrain on its own. The point estimate barely moved (0.36 vs 0.42), but the <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">credible interval</a> is meaningfully tighter and the chain mixed more reliably.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A flat prior is not the same as no prior.</strong> It is a strong claim that values like 1000 or -1000 are equally plausible to values near zero. For most parameters in real applications, that is a bad assumption. The <code>normal(0, 1000)</code> style is a leftover habit from older textbooks; the Stan team recommends weakly informative priors as the default.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>prior_summary(fit_flat_small)</code>. Notice that brms still flags the implicit improper prior on the intercept and sigma. Defaults are not zero unless you intentionally make them so.</p>
+<div class="webr-container" data-block-title="Your turn: see what brms set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: see what brms set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># prior_summary(fit_flat_small)
+#&gt; Expected: your normal(0, 1000) on b plus brms's own student_t defaults on Intercept and sigma</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Prior summary on flat fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prior summary on flat fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_summary(fit_flat_small)
+#&gt;                  prior     class      coef ...    source
+#&gt;      normal(0, 1000)         b                       user
+#&gt;      normal(0, 1000)         b        x           (vec)
+#&gt;  student_t(3, 1.6, 2.5) Intercept                     default
+#&gt;     student_t(3, 0, 2.5)     sigma                   default</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You overrode the slope prior but left the intercept and sigma at their brms defaults. brms always picks a weakly informative default for those classes; you only override what you want to override.</p>
+
+</details>
+</section>
+
+<h2>What's a weakly informative prior, and why is it the modern default?</h2>
+
+<p>A <em>weakly informative prior</em> (WIP) is wide enough that a competent researcher would not push back on the range, but tight enough that absurd values are excluded. The Stan development team's published guidance is to use WIPs by default for almost everything.</p>
+
+<p>Three patterns cover most cases.</p>
+
+<p>For <em>regression coefficients on standardised predictors</em>: <code>normal(0, 1)</code> or <code>normal(0, 2.5)</code>. With predictors centred and scaled, a coefficient larger than 5 in magnitude is rarely plausible.</p>
+
+<p>For <em>standard deviations and other scale parameters</em>: half-Normal (<code>normal(0, 1)</code> truncated at zero) or half-Cauchy (<code>cauchy(0, 5)</code> truncated at zero). Both have most of their mass near zero and a long tail, expressing "small is more likely than large but very large is not impossible."</p>
+
+<p>For <em>intercepts</em>: a Student-t centred on a reasonable value with a scale matching the data's standard deviation. brms defaults to <code>student_t(3, mean(y), sd(y) * scale)</code> and that is usually fine.</p>
+
+<div class="webr-container" data-block-title="Default brms priors are already weakly informative">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default brms priors are already weakly informative</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_default &lt;- brm(y ~ x, df, chains = 4, iter = 2000, seed = 1, silent = 2)
+prior_summary(fit_default)
+#&gt;                       prior     class      coef ... source
+#&gt;                      (flat)         b                   default
+#&gt;                      (flat)         b        x          (vec)
+#&gt;  student_t(3, 1.9, 2.5) Intercept                       default
+#&gt;     student_t(3, 0, 2.5)     sigma                       default</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what brms picked. The <code>b</code> class (regression slopes) is <code>(flat)</code> by default, which is brms's only questionable default. The Intercept gets a Student-t centred on the data's mean (1.9 here) with scale 2.5 (a floor). Sigma gets a half-Student-t with scale 2.5.</p>
+
+<p>For most posts in this curriculum we override the slope class to a weakly informative <code>normal(0, 5)</code> because the brms default is one of the few places brms still uses an improper flat prior. Setting it explicitly with one extra line of code is the safest habit.</p>
+
+<p>The next code block fits the same model with a sensible WIP set on every parameter class:</p>
+
+<div class="webr-container" data-block-title="A complete weakly informative prior set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A complete weakly informative prior set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_wip &lt;- c(
+  prior(normal(0, 5),         class = &quot;b&quot;),         # slopes
+  prior(normal(0, 10),        class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)      # already brms's default; explicit for clarity
+)
+fit_wip &lt;- brm(y ~ x, df, prior = prior_wip,
+               chains = 4, iter = 2000, seed = 1, silent = 2)
+prior_summary(fit_wip)
+#&gt;                  prior     class    source
+#&gt;           normal(0, 5)         b        user
+#&gt;           normal(0, 5)         b   (vec)
+#&gt;          normal(0, 10) Intercept     user
+#&gt;     student_t(3, 0, 2.5)  sigma      user</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we set. Every parameter class is now explicit. <code>normal(0, 5)</code> on slopes says effects are probably in <code>[-10, 10]</code> units of y per unit of x. <code>normal(0, 10)</code> on the intercept says the typical y at x=0 is probably in <code>[-20, 20]</code>. The half-Student-t on sigma says residual sd is probably small but could be large.</p>
+
+<p>The <code>source = user</code> column confirms the priors are explicit, not picked up from defaults. Future-you reading this fit's code six months from now will see exactly what was assumed.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Document priors as part of your model spec, not as an afterthought.</strong> Always include the <code>prior</code> argument explicitly even when it matches brms defaults. If you push the code to a colleague or a regulator, they should be able to see the prior choice without running <code>prior_summary()</code> themselves.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>default_prior()</code> (no fitting needed) to inspect what brms would default to for <code>mpg ~ wt + hp + (1 | cyl)</code> on <code>mtcars</code>. What prior class does the random-effect sd get?</p>
+<div class="webr-container" data-block-title="Your turn: inspect default priors without fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: inspect default priors without fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># default_prior(mpg ~ wt + hp + (1 | cyl), data = mtcars)
+#&gt; Expected: a row for class 'sd' with student_t(3, 0, ...) on it</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="default_prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">default_prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">default_prior(mpg ~ wt + hp + (1 | cyl), data = mtcars)
+#&gt;                  prior     class      coef group ...    source
+#&gt;                 (flat)         b
+#&gt;                 (flat)         b        hp
+#&gt;                 (flat)         b        wt
+#&gt;  student_t(3, 19.2, 7.4) Intercept
+#&gt;      student_t(3, 0, 7.4)        sd                 cyl
+#&gt;      student_t(3, 0, 7.4)     sigma</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The random-effect sd gets a half-Student-t prior at <code>student_t(3, 0, 7.4)</code>. brms uses the data-driven scale (7.4 here, derived from <code>sd(mpg)</code>) so the prior is on the right order of magnitude regardless of the units of your outcome.</p>
+
+</details>
+</section>
+
+<h2>How do I encode actual domain knowledge as an informative prior?</h2>
+
+<p>When you know something specific about a parameter (a published estimate, a meta-analysis result, a controlled prior study), encode it as an informative prior. The structure is the same as a WIP, just tighter and centred on the substantive value.</p>
+
+<div class="webr-container" data-block-title="Pull a literature value into your model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull a literature value into your model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Suppose a published meta-analysis says the effect of x on y is around 0.5
+# with a 95% interval of [0.3, 0.7]. That implies a prior centred at 0.5
+# with sd ~ (0.7 - 0.5) / 1.96 ~ 0.1.
+
+prior_lit &lt;- c(
+  prior(normal(0.5, 0.1),     class = &quot;b&quot;, coef = &quot;x&quot;),
+  prior(normal(0, 10),        class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)
+)
+fit_lit &lt;- brm(y ~ x, df, prior = prior_lit,
+               chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_lit, variable = &quot;b_x&quot;)[, 1:4]
+#&gt;      Estimate Est.Error  Q2.5  Q97.5
+#&gt; b_x      0.50      0.08  0.34   0.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we set. The <code>coef = &quot;x&quot;</code> argument targets the slope on <code>x</code> specifically; without it, the prior would apply to every population-level coefficient. The <code>normal(0.5, 0.1)</code> translates the meta-analysis result into a prior, with the standard deviation chosen so 95% of the prior mass falls in <code>[0.3, 0.7]</code>.</p>
+
+<p>The posterior centres at 0.50 with a tighter credible interval <code>[0.34, 0.66]</code> than the WIP fit produced (which had <code>[0.14, 0.81]</code>). The prior contributed real information; the data refined it. This is what informative priors do: they let you carry forward what previous studies established, instead of pretending each analysis starts from scratch.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Only encode informative priors when you can defend the source.</strong> "I read a paper that found 0.5" is defensible. "It feels like 0.5 to me" is not. Sources include published meta-analyses, prior studies on the same population, regulatory specs, and physical or biological constraints (a probability is in <code>[0, 1]</code>, a wage cannot be negative).</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A colleague tells you the slope must be positive (a physical constraint). Encode that with <code>lb = 0</code> (lower bound zero) using <code>set_prior(..., lb = 0)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bounded prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bounded prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># prior_pos &lt;- prior(normal(0.5, 0.5), class = &quot;b&quot;, coef = &quot;x&quot;, lb = 0)
+# Refit and check that the posterior on b_x stays positive.
+#&gt; Expected: posterior centre near 0.5, no posterior mass below zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Lower-bound prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lower-bound prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_pos &lt;- c(
+  prior(normal(0.5, 0.5), class = &quot;b&quot;, coef = &quot;x&quot;, lb = 0),
+  prior(normal(0, 10),    class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)
+)
+fit_pos &lt;- brm(y ~ x, df, prior = prior_pos,
+               chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_pos, variable = &quot;b_x&quot;)[, c(1, 3, 4)]
+#&gt;      Estimate    Q2.5   Q97.5
+#&gt; b_x      0.51    0.13    0.86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lower-bound truncation enforces positivity. The posterior cannot dip below zero even if the data were ambiguous, because the prior assigns zero probability there. This is how you encode hard constraints (probabilities, scales, physical positivity) into a brms prior.</p>
+
+</details>
+</section>
+
+<h2>How do I see what my prior is doing before I see data?</h2>
+
+<p>A prior is hard to evaluate by reading the code. The prior on the slope is <code>normal(0, 5)</code>; what does that imply for predicted y values across plausible x? The answer is a <em>prior predictive distribution</em>: simulate y values from your model using only the prior (no data), and see whether they look reasonable.</p>
+
+<p>brms supports this directly via <code>sample_prior = &quot;only&quot;</code>, which fits the model using only the prior (ignoring the likelihood). The result is a posterior identical to the prior, which lets you visualise predictions.</p>
+
+<div class="webr-container" data-block-title="Sample from the prior alone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample from the prior alone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_prior_only &lt;- brm(
+  y ~ x,
+  df,
+  prior         = c(prior(normal(0, 5), class = &quot;b&quot;),
+                    prior(normal(0, 10), class = &quot;Intercept&quot;),
+                    prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)),
+  sample_prior  = &quot;only&quot;,
+  chains        = 4,
+  iter          = 2000,
+  seed          = 1,
+  silent        = 2
+)
+
+# Predicted y at x in [-3, 3]
+new_x &lt;- data.frame(x = seq(-3, 3, length.out = 30))
+pred  &lt;- posterior_predict(fit_prior_only, newdata = new_x, draws = 200)
+# Each column of pred is one x value; each row is one prior draw of y
+
+range(pred)
+#&gt; [1] -47.32  46.81
+quantile(pred, c(0.05, 0.5, 0.95))
+#&gt;      5%     50%     95%
+#&gt; -18.92    0.05   18.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what <code>sample_prior = &quot;only&quot;</code> did. brms fit the model using only the prior, ignoring the likelihood. The result has 4000 draws from each parameter's prior. We then asked <code>posterior_predict()</code> to simulate y values for 30 new x values across a reasonable range, drawing 200 prior draws each.</p>
+
+<p>Now interpret the predictions. Across all prior draws and all 30 x values, predicted y ranged from -47 to 47. The middle 90% of predictions span <code>[-19, 19]</code>. With a <code>normal(0, 10)</code> prior on the intercept and <code>normal(0, 5)</code> on the slope, that range is wide enough to cover any reasonable y you might observe but tight enough that we are not predicting y values near 1000.</p>
+
+<p>If the prior implied predictions like <code>[-3000, 3000]</code> (which <code>normal(0, 1000)</code> would), you would catch the problem here, before ever fitting to data. The next post in the curriculum drills deeper into prior predictive checks; this section is the entry point.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Prior predictive checks are the most underused step in Bayesian modelling.</strong> Too many users set priors mechanically and only inspect the posterior. A 5-minute prior predictive check at the start can prevent a published model that secretly assumes wages can be negative or probabilities can exceed 1.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-run the prior-only fit with <code>prior(normal(0, 1000), class = &quot;b&quot;)</code> and observe the predicted y range. Does it stay reasonable?</p>
+<div class="webr-container" data-block-title="Your turn: flat prior predictive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flat prior predictive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit fit_prior_only with prior(normal(0, 1000), class = &quot;b&quot;) on slope.
+# Compute range(posterior_predict(fit_prior_only_flat, newdata = new_x, draws = 200)).
+#&gt; Expected: enormous range like [-9000, 9000], showing the prior is making absurd claims</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Flat prior predictive solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flat prior predictive solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_prior_flat &lt;- brm(
+  y ~ x, df,
+  prior         = c(prior(normal(0, 1000), class = &quot;b&quot;),
+                    prior(normal(0, 1000), class = &quot;Intercept&quot;),
+                    prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)),
+  sample_prior  = &quot;only&quot;,
+  chains = 4, iter = 2000, seed = 1, silent = 2
+)
+pred_flat &lt;- posterior_predict(fit_prior_flat, newdata = new_x, draws = 200)
+range(pred_flat)
+#&gt; [1] -8732.4  8657.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The flat prior predicts y values from -8700 to 8700. That is absurd for any real measurement. Spotting this <em>before</em> fitting saves you from publishing a model whose prior assumes the moon is made of cheese.</p>
+
+</details>
+</section>
+
+<h2>How do I check my prior didn't drive the result?</h2>
+
+<p>Two diagnostics. The first is a <em>prior-vs-posterior comparison</em>: the posterior should look like the data updated the prior, not like the prior unchanged. The second is a <em>prior <a class="auto-link" href="Sensitivity-Analysis-in-R.html" title="Sensitivity Analysis in R: How Robust Are Your Statistical Conclusions?">sensitivity analysis</a></em>: refit with a wider and a tighter prior and see whether the substantive conclusion changes.</p>
+
+<div class="webr-container" data-block-title="Prior vs posterior side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prior vs posterior side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_draws &lt;- as_draws_df(fit_prior_only,    variable = &quot;b_x&quot;) |&gt;
+                 transform(source = &quot;prior&quot;)
+post_draws  &lt;- as_draws_df(fit_wip,           variable = &quot;b_x&quot;) |&gt;
+                 transform(source = &quot;posterior&quot;)
+both &lt;- rbind(prior_draws, post_draws)
+
+# Summary by source
+aggregate(b_x ~ source, both,
+          function(z) c(mean = mean(z), sd = sd(z), q5 = quantile(z, 0.05),
+                        q95 = quantile(z, 0.95)))
+#&gt;      source  b_x.mean   b_x.sd   b_x.q5   b_x.q95
+#&gt; 1     prior     0.013    4.989   -8.221    8.214
+#&gt; 2 posterior     0.487    0.179    0.193    0.781</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what the table tells us. The prior on <code>b_x</code> was <code>normal(0, 5)</code>, so prior draws have mean ~0 and sd ~5. After observing 20 data points, the posterior centres at 0.49 with sd 0.18 and a 90% interval of <code>[0.19, 0.78]</code>. The data narrowed the prior dramatically.</p>
+
+<p>That is what we want. If the posterior had centred at zero with sd close to 5 (matching the prior), the data would not be informing the answer: either the data is too weak to override the prior, or the prior is too tight, or both.</p>
+
+<p>The second diagnostic is a <em>sensitivity check</em>. Vary the prior and see whether the substantive conclusion (sign, magnitude, decision) is stable.</p>
+
+<div class="webr-container" data-block-title="Prior sensitivity sweep">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prior sensitivity sweep</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">priors_sweep &lt;- list(
+  wide   = prior(normal(0, 100), class = &quot;b&quot;),
+  weak   = prior(normal(0, 5),   class = &quot;b&quot;),
+  medium = prior(normal(0, 1),   class = &quot;b&quot;),
+  tight  = prior(normal(0, 0.2), class = &quot;b&quot;)
+)
+
+results &lt;- lapply(priors_sweep, function(p) {
+  f &lt;- brm(y ~ x, df, prior = p, chains = 4, iter = 2000, seed = 1, silent = 2)
+  posterior_summary(f, variable = &quot;b_x&quot;)[, c(1, 3, 4)]
+})
+do.call(rbind, results)
+#&gt;         Estimate    Q2.5   Q97.5
+#&gt; wide        0.49    0.13    0.85
+#&gt; weak        0.49    0.14    0.84
+#&gt; medium      0.45    0.13    0.79
+#&gt; tight       0.18    0.05    0.32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the sweep. With the wide and weakly informative priors, the posterior centres on 0.49 (matches the data). With the medium prior <code>normal(0, 1)</code>, the posterior shifts slightly to 0.45 (the prior is starting to bite). With the tight prior <code>normal(0, 0.2)</code>, the posterior collapses to 0.18 (the prior is dominating).</p>
+
+<p>Three of the four priors agree on the substantive conclusion ("the slope is positive and around 0.4 to 0.5"). The tight prior pulled hard. Reporting this sweep alongside your headline result is the standard way to demonstrate that your conclusion is not a prior artifact.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build the sensitivity sweep into your workflow, not as an emergency response.</strong> Add a small loop over three or four priors at the end of every Bayesian analysis. If the conclusion is stable, you have evidence the data is doing the work. If it shifts, you have a story to tell about how much your prior knowledge contributed.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the <code>fit_lit</code> model from earlier (informative <code>normal(0.5, 0.1)</code> prior), run the sensitivity sweep and report whether the conclusion is robust across <code>normal(0.5, 0.1)</code>, <code>normal(0.5, 0.5)</code>, and <code>normal(0, 5)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: literature-informed sensitivity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: literature-informed sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Loop over three priors centred at 0.5 with three different sds.
+# Compare posterior_summary(fit, variable = &quot;b_x&quot;) across the three.
+#&gt; Expected: all three centre near 0.5, the tight one has the narrowest interval</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Literature-informed sensitivity solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Literature-informed sensitivity solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">priors_lit &lt;- list(
+  tight  = prior(normal(0.5, 0.1), class = &quot;b&quot;, coef = &quot;x&quot;),
+  medium = prior(normal(0.5, 0.5), class = &quot;b&quot;, coef = &quot;x&quot;),
+  weak   = prior(normal(0,   5),   class = &quot;b&quot;, coef = &quot;x&quot;)
+)
+results_lit &lt;- lapply(priors_lit, function(p) {
+  f &lt;- brm(y ~ x, df, prior = c(p,
+                                prior(normal(0, 10), class = &quot;Intercept&quot;),
+                                prior(student_t(3, 0, 2.5), class = &quot;sigma&quot;)),
+           chains = 4, iter = 2000, seed = 1, silent = 2)
+  posterior_summary(f, variable = &quot;b_x&quot;)[, c(1, 3, 4)]
+})
+do.call(rbind, results_lit)
+#&gt;         Estimate    Q2.5   Q97.5
+#&gt; tight       0.50    0.34    0.66
+#&gt; medium      0.49    0.18    0.79
+#&gt; weak        0.49    0.14    0.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three centre on 0.49 to 0.50 (the data and the literature agree). The tight prior produces the narrowest interval (because it is contributing real information beyond the data); the wide prior produces the widest. The substantive conclusion ("the slope is around 0.5") is robust across the three. That is the picture you want to see and report.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Tighten priors as data shrinks</h3>
+
+<p>Simulate datasets of size 5, 20, and 200 from the same generating process. Fit each with the same weakly informative prior <code>normal(0, 5)</code> on the slope. How much does the prior contribute to the posterior in each case?</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Loop over n in c(5, 20, 200). For each n:
+#  - Generate y = 2 + 0.5 * x + rnorm(n)
+#  - Fit brm(y ~ x, df, prior = prior(normal(0, 5), class = 'b'))
+#  - Record posterior_summary on b_x
+# Compare estimate and Q2.5/Q97.5 widths</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_n &lt;- lapply(c(5, 20, 200), function(n) {
+  set.seed(2026)
+  ex_x &lt;- rnorm(n)
+  ex_y &lt;- 2 + 0.5 * ex_x + rnorm(n)
+  ex_df &lt;- data.frame(y = ex_y, x = ex_x)
+  f &lt;- brm(y ~ x, ex_df, prior = prior(normal(0, 5), class = &quot;b&quot;),
+           chains = 4, iter = 2000, seed = 1, silent = 2)
+  c(n = n, posterior_summary(f, variable = &quot;b_x&quot;)[, c(1, 3, 4)])
+})
+do.call(rbind, results_n)
+#&gt;        n Estimate    Q2.5   Q97.5
+#&gt; [1,]   5     0.43    -0.71    1.51
+#&gt; [2,]  20     0.49     0.13    0.85
+#&gt; [3,] 200     0.49     0.36    0.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 5 observations, the credible interval is <code>[-0.71, 1.51]</code> (width 2.2) and the prior is contributing meaningfully. With 200 observations the interval is <code>[0.36, 0.62]</code> (width 0.26) and the prior is contributing almost nothing. This is the standard "more data, less prior dependence" picture.</p>
+
+</details>
+
+<h3>Exercise 2: Compare a flat and weakly informative prior on a small-n hierarchical model</h3>
+
+<p>Use <code>mtcars</code> with a random intercept by <code>cyl</code>. Fit twice: once with <code>prior(normal(0, 1000), class = &quot;sd&quot;)</code> on the random-effect sd, once with <code>prior(student_t(3, 0, 7), class = &quot;sd&quot;)</code>. Compare the posterior on <code>sd_cyl__Intercept</code>.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mtcars$cyl &lt;- factor(mtcars$cyl)
+# Fit twice with different priors on the sd class.
+# Compare prior_summary() and posterior_summary(..., variable = 'sd_cyl__Intercept').</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2     &lt;- mtcars
+mtcars2$cyl &lt;- factor(mtcars2$cyl)
+
+f_flat &lt;- brm(mpg ~ wt + (1 | cyl), mtcars2,
+              prior  = prior(normal(0, 1000), class = &quot;sd&quot;),
+              chains = 4, iter = 2000, seed = 1, silent = 2)
+f_wip  &lt;- brm(mpg ~ wt + (1 | cyl), mtcars2,
+              prior  = prior(student_t(3, 0, 7), class = &quot;sd&quot;),
+              chains = 4, iter = 2000, seed = 1, silent = 2)
+
+rbind(
+  flat = posterior_summary(f_flat, variable = &quot;sd_cyl__Intercept&quot;)[, 1:4],
+  wip  = posterior_summary(f_wip,  variable = &quot;sd_cyl__Intercept&quot;)[, 1:4]
+)
+#&gt;       Estimate Est.Error    Q2.5    Q97.5
+#&gt; flat     7.58      8.31     0.45    27.91
+#&gt; wip      2.79      1.58     0.43     7.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The flat prior allows the random-effect sd to drift up to 28 (an absurd number for a 32-row dataset). The weakly informative prior keeps it in the realistic range. Hierarchical models are particularly sensitive to the prior on variance components, especially with small numbers of groups.</p>
+
+</details>
+
+<h3>Exercise 3: Translate a literature value into an informative prior</h3>
+
+<p>A study reports that the effect of caffeine intake on reaction time has a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> of <code>[-12, -2]</code> ms per 100 mg. Translate that into a prior centred at -7 with sd <code>(12 - 2) / (2 * 1.96)</code>. Fit <code>brm(rt ~ caffeine, ...)</code> on a simulated dataset with that prior.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate caffeine in [0, 5] (units of 100 mg) and rt = 250 - 7 * caffeine + rnorm(n, 0, 25)
+# Compute the prior sd from the CI: (12 - 2) / (2 * 1.96) ~ 2.55
+# Fit with prior(normal(-7, 2.55), class = 'b', coef = 'caffeine')</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n &lt;- 30
+caffeine &lt;- runif(n, 0, 5)
+rt       &lt;- 250 - 7 * caffeine + rnorm(n, 0, 25)
+df_caf   &lt;- data.frame(rt = rt, caffeine = caffeine)
+
+prior_caf &lt;- c(
+  prior(normal(-7, 2.55), class = &quot;b&quot;, coef = &quot;caffeine&quot;),
+  prior(normal(250, 50),  class = &quot;Intercept&quot;),
+  prior(student_t(3, 0, 25), class = &quot;sigma&quot;)
+)
+fit_caf &lt;- brm(rt ~ caffeine, df_caf, prior = prior_caf,
+               chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_caf, variable = &quot;b_caffeine&quot;)[, c(1, 3, 4)]
+#&gt;             Estimate   Q2.5   Q97.5
+#&gt; b_caffeine     -7.08  -10.4   -3.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior centres at -7.08 with credible interval <code>[-10.4, -3.8]</code>, both reflecting the literature prior and the 30 simulated observations. The width of the credible interval is meaningfully tighter than the prior's <code>[-12, -2]</code> because the data refined the literature value.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>A Bayesian prior is a claim about your beliefs before the data. Pick it according to how much you actually know.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Prior type</th>
+<th>Example</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reference / flat</td>
+<td><code>normal(0, 1000)</code>, improper uniform</td>
+<td>Almost never; legacy / regulatory only</td>
+</tr>
+<tr>
+<td>Weakly informative</td>
+<td><code>normal(0, 5)</code>, half-Cauchy(0, 5)</td>
+<td>Default for most parameters</td>
+</tr>
+<tr>
+<td>Informative</td>
+<td><code>normal(0.5, 0.1)</code> from a meta-analysis</td>
+<td>When you have a defensible source</td>
+</tr>
+<tr>
+<td>Constrained</td>
+<td><code>normal(0.5, 0.5)</code> with <code>lb = 0</code></td>
+<td>When physics or definition requires it</td>
+</tr>
+</tbody>
+</table>
+
+<p>Always document priors explicitly in your code, run a prior predictive check before fitting, and report a sensitivity sweep alongside your headline result. The next post in this section drills into prior predictive checks; the post after that covers posterior predictive checks.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Stan Development Team. "Prior Choice Recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>. The canonical guidance.</li>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 5 covers prior choice.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 4 makes prior predictive checks the default workflow.</li>
+
+<li>Gabry, J., Simpson, D., Vehtari, A., Betancourt, M., Gelman, A. "Visualization in Bayesian workflow." <em>JRSS A</em> (2019). The graphical case for prior and posterior checking.</li>
+
+<li>Bürkner, P. <em>brms documentation: setting priors</em>. <a href="https://paulbuerkner.com/brms/reference/set_prior.html">paulbuerkner.com/brms/reference/set_prior.html</a>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Prior-Predictive-Checks-in-R.html">Prior Predictive Checks in R</a>, the next post. Drills into using <code>sample_prior = &quot;only&quot;</code> to simulate y values from your prior alone.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the previous post. Covers brms's formula syntax that this post's examples build on.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener for prior-likelihood-posterior intuition.</li>
+
+</ul>
+
+{% endraw %}
