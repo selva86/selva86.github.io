@@ -1,0 +1,337 @@
+---
+title: "dplyr recode() in R: Map Old Values to New (Superseded)"
+description: "Use dplyr recode() to map old values to new values in R. Covers .default, factor handling, recode vs case_match, why it is superseded, and 5 examples."
+keywords: "dplyr recode, R recode values, recode vs case_match, recode factor levels, dplyr value mapping, recode default, recode superseded"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "recode()|dplyr recode|recode vs case_match|recode factor|recode_factor|map old to new"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr recode() in R: Map Old Values to New (Superseded)</h1>
+
+<p class="lead">The <code>recode()</code> function in dplyr maps old values to new values, providing a quick way to relabel <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a>. As of dplyr 1.1, it is superseded by <code>case_match()</code>; existing code still works but new code should use case_match.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>recode(x, &quot;a&quot; = &quot;Apple&quot;, &quot;b&quot; = &quot;Banana&quot;)<span class="qa-cmt">     # value -&gt; value</span>
+recode(x, &quot;a&quot; = &quot;Apple&quot;, .default = &quot;Other&quot;)<span class="qa-cmt"> # default for unmatched</span>
+recode(num, `1` = &quot;low&quot;, `2` = &quot;high&quot;)<span class="qa-cmt">       # numeric keys: backticks</span>
+case_match(x, &quot;a&quot; ~ &quot;Apple&quot;, &quot;b&quot; ~ &quot;Banana&quot;)<span class="qa-cmt"> # modern equivalent</span>
+forcats::fct_recode(f, Apple = &quot;a&quot;)<span class="qa-cmt">          # factor-aware</span>
+recode_factor(x, &quot;a&quot; = &quot;Apple&quot;)<span class="qa-cmt">              # returns factor</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is recode() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">new code, value mapping</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">case_match() (preferred)</text><text x="125" y="126" class="branch-label">legacy code, value mapping</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">recode() (still works)</text><text x="125" y="182" class="branch-label">factor levels</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">forcats::fct_recode() (factor-aware)</text><text x="125" y="238" class="branch-label">3+ conditions, not just values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">case_when()</a></text><text x="125" y="294" class="branch-label">2 outcomes only</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="base-ifelse-in-R.html" title="ifelse() in R: Vectorized Conditional">if_else()</a></text><text x="125" y="350" class="branch-label">text replacement (regex)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="stringr-str_replace-in-R.html" title="stringr str_replace() in R: Replace Pattern in Strings">stringr::str_replace()</a></text></svg></div>
+
+<h2>What recode() does in one sentence</h2>
+
+<p><strong><code>recode(x, old1 = new1, old2 = new2, ..., .default = NULL)</code> returns x with each <code>old</code> value replaced by <code>new</code>.</strong> Unmatched values are kept (or set to <code>.default</code> if specified).</p>
+
+<p><code>recode()</code> is "superseded" since dplyr 1.1, meaning <code>case_match()</code> is recommended for new code. recode still works and existing pipelines need no changes.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>recode(.x, ..., .default = NULL, .missing = NULL)</code>. The <code>...</code> are <code>old = new</code> named arguments.</strong></p>
+
+<div class="webr-container" data-block-title="Map letters to fruit names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map letters to fruit names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;)
+
+recode(x, &quot;a&quot; = &quot;Apple&quot;, &quot;b&quot; = &quot;Banana&quot;)
+#&gt; [1] &quot;Apple&quot;  &quot;Banana&quot; &quot;c&quot;      &quot;d&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For new code, prefer <code>case_match()</code> over <code>recode()</code>.</strong> Same result, formula syntax, more flexible (supports <code>c()</code> for multi-value mapping in one branch).</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Simple value relabeling</h3>
+
+<div class="webr-container" data-block-title="Two replacements; rest kept">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two replacements; rest kept</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;, &quot;a&quot;)
+
+recode(x, &quot;a&quot; = &quot;Apple&quot;, &quot;b&quot; = &quot;Banana&quot;)
+#&gt; [1] &quot;Apple&quot;  &quot;Banana&quot; &quot;c&quot;      &quot;d&quot;      &quot;Apple&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Default for unmatched</h3>
+
+<div class="webr-container" data-block-title="Catch-all via .default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Catch-all via .default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;)
+
+recode(x, &quot;a&quot; = &quot;Apple&quot;, &quot;b&quot; = &quot;Banana&quot;, .default = &quot;Other&quot;)
+#&gt; [1] &quot;Apple&quot;  &quot;Banana&quot; &quot;Other&quot;  &quot;Other&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Numeric keys</h3>
+
+<div class="webr-container" data-block-title="Recode integer codes (need backticks)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recode integer codes (need backticks)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(1, 2, 3, 1, 2)
+
+recode(codes, `1` = &quot;low&quot;, `2` = &quot;med&quot;, `3` = &quot;high&quot;)
+#&gt; [1] &quot;low&quot;  &quot;med&quot;  &quot;high&quot; &quot;low&quot;  &quot;med&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Backticks are required because R names cannot start with digits.</p>
+
+<h3>4. Recode within mutate</h3>
+
+<div class="webr-container" data-block-title="Add a relabeled column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a relabeled column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(grade = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;F&quot;))
+
+df |&gt;
+  mutate(label = recode(grade, &quot;A&quot; = &quot;excellent&quot;, &quot;B&quot; = &quot;good&quot;, &quot;C&quot; = &quot;ok&quot;, .default = &quot;fail&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Factor-aware (recode_factor)</h3>
+
+<div class="webr-container" data-block-title="Returns a factor instead of character">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Returns a factor instead of character</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)
+f &lt;- recode_factor(g, &quot;a&quot; = &quot;Alpha&quot;, &quot;b&quot; = &quot;Beta&quot;)
+class(f)
+#&gt; [1] &quot;factor&quot;
+levels(f)
+#&gt; [1] &quot;Alpha&quot; &quot;Beta&quot;  &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>recode_factor</code> returns a factor with levels in the order you defined them.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>recode is superseded; case_match is the modern equivalent.</strong> They are functionally similar; the difference is <code>case_match</code> uses formulas (<code>val ~ out</code>), supports multi-value matching (<code>c(&quot;a&quot;,&quot;b&quot;) ~ &quot;X&quot;</code>), and integrates better with newer dplyr APIs. Existing recode calls are NOT broken; just don't write new ones.</div></div>
+
+<h2>recode() vs case_match() vs forcats::fct_recode()</h2>
+
+<p><strong>Three value-mapping functions in the tidyverse.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Type-safe</th>
+<th>Factor-aware</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recode()</code></td>
+<td>No</td>
+<td>No (use recode_factor)</td>
+<td>Superseded</td>
+</tr>
+<tr>
+<td><code>case_match()</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Recommended (1.1+)</td>
+</tr>
+<tr>
+<td><code>forcats::fct_recode()</code></td>
+<td>n/a</td>
+<td>Yes (factor-aware)</td>
+<td>Recommended for factors</td>
+</tr>
+<tr>
+<td><code>case_when(x == &quot;a&quot; ~ &quot;X&quot;)</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Verbose for value mapping</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>case_match</code> for new value-mapping code on character/numeric.</li>
+
+<li><code>fct_recode</code> for factor levels.</li>
+
+<li><code>case_when</code> for arbitrary conditions.</li>
+
+<li><code>recode</code> only in legacy code (no need to refactor).</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Most recode (or case_match) usage is categorical relabeling: short input domain, fixed output.</strong></p>
+
+<p>Common variations:</p>
+
+<ul>
+
+<li>Country code -> region: <code>recode(code, US = &quot;NA&quot;, CA = &quot;NA&quot;, UK = &quot;EU&quot;, .default = &quot;Other&quot;)</code></li>
+
+<li>Status code -> label: <code>recode(status, &quot;200&quot; = &quot;ok&quot;, &quot;404&quot; = &quot;missing&quot;, .default = &quot;error&quot;)</code></li>
+
+<li>Survey response -> numeric: <code>recode(resp, agree = 1, disagree = -1, .default = 0)</code></li>
+
+</ul>
+
+<p>For factor data, switch to <code>forcats::fct_recode()</code> which preserves factor structure and lets you reorder levels.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: argument order matters with named args.</strong> <code>recode(x, old1 = new1, old2 = new2)</code>. Reversing them silently changes the mapping.</p>
+
+<p><strong>Pitfall 2: numeric keys need backticks.</strong> <code>recode(x, 1 = &quot;low&quot;)</code> errors. <code>recode(x, </code>1<code> = &quot;low&quot;)</code> works. Names cannot start with a digit in R.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>recode</code> is superseded as of dplyr 1.1.0.</strong> It still works and is not deprecated, but <code>case_match()</code> is preferred for new code. The dplyr team may deprecate it in a future major version.</div></div>
+
+<h2>Why recode was superseded</h2>
+
+<p><strong>dplyr's design philosophy is "one obvious way to do it" per use case.</strong> Before dplyr 1.1, value mapping was split across <code>recode</code> (concise, named-arg syntax) and <code>case_when</code> (verbose, condition-based). Power users wanted multi-value mapping (<code>c(&quot;a&quot;,&quot;b&quot;) ~ &quot;X&quot;</code>) which recode couldn't do cleanly. The team introduced <code>case_match</code> in 1.1 as the formula-syntax replacement: same conciseness as recode, plus multi-value matching, plus integration with the rest of the modern dplyr API. Old recode calls still work, so legacy pipelines need no rewrites; new code should default to case_match. Factor-aware recoding moved to the <code>forcats</code> package via <code>fct_recode</code>, which preserves factor structure properly.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recode <code>mtcars$cyl</code> (4, 6, 8) into <code>c(&quot;small&quot;, &quot;med&quot;, &quot;big&quot;)</code>. Save to <code>ex_size</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cyl to label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cyl to label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- mtcars$cyl |&gt;
+  # your code here
+
+head(ex_size)
+#&gt; Expected: c(&quot;med&quot;, &quot;med&quot;, &quot;small&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- recode(mtcars$cyl, `4` = &quot;small&quot;, `6` = &quot;med&quot;, `8` = &quot;big&quot;)
+head(ex_size)
+#&gt; [1] &quot;med&quot;   &quot;med&quot;   &quot;small&quot; &quot;med&quot;   &quot;big&quot;   &quot;med&quot;
+
+# Modern equivalent with case_match:
+ex_modern &lt;- case_match(
+  mtcars$cyl,
+  4 ~ &quot;small&quot;,
+  6 ~ &quot;med&quot;,
+  8 ~ &quot;big&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Backticks let you name numeric levels. case_match is the recommended replacement; recode still works.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering recode, look at:</p>
+
+<ul>
+
+<li><code>case_match()</code>: modern replacement</li>
+
+<li><code>case_when()</code>: condition-based</li>
+
+<li><code>if_else()</code>: 2-way branch</li>
+
+<li><code>forcats::fct_recode()</code>: factor-aware version</li>
+
+<li><code>forcats::fct_collapse()</code>: combine multiple levels into one</li>
+
+<li><code>dplyr::na_if()</code>: convert specific value to NA</li>
+
+</ul>
+
+<p>For factor cleanup, the <code>forcats</code> package has specialized tools (fct_recode, fct_collapse, <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">fct_relevel</a>) that recode cannot match.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is recode deprecated in dplyr?</strong></p>
+
+<p>Superseded, not deprecated. As of dplyr 1.1, <code>case_match()</code> is the recommended replacement. recode still works; the team may deprecate it in a future major version.</p>
+
+<p><strong>What is the difference between recode and case_match?</strong></p>
+
+<p>Both map old values to new. recode uses <code>old = new</code> named arguments; case_match uses formula syntax <code>old ~ new</code>. case_match supports multi-value mapping naturally and integrates with the rest of the modern dplyr API.</p>
+
+<p><strong>How do I recode numeric values with recode?</strong></p>
+
+<p>Use backticks: <code>recode(x, </code>1<code> = &quot;low&quot;, </code>2<code> = &quot;high&quot;)</code>. Numeric names cannot be unquoted in R.</p>
+
+<p><strong>What is the .default argument in recode?</strong></p>
+
+<p><code>.default = value</code> is the catch-all for unmatched inputs. Without it, unmatched values pass through unchanged.</p>
+
+<p><strong>How do I recode factor levels?</strong></p>
+
+<p>Use <code>forcats::fct_recode(f, NewLabel = &quot;old_level&quot;)</code> for factor-aware recoding. It preserves factor structure and ordering.</p>

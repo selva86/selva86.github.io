@@ -1,0 +1,381 @@
+---
+title: "dplyr cumall() in R: Cumulative All-True Across a Vector"
+description: "Use dplyr cumall() to track whether a logical condition has been TRUE since the start of a vector in R. Covers cumall vs cumany, filter window, 5 examples."
+keywords: "dplyr cumall, R cumulative all, cumall vs cumany, dplyr cumulative TRUE, R streak detection, cumall filter window, dplyr running condition"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cumall()|dplyr cumall|cumulative all|running TRUE|cumall vs cumany"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr cumall() in R: Cumulative All-True Across a Vector</h1>
+
+<p class="lead">The <code>cumall()</code> function in dplyr returns TRUE for each position as long as ALL preceding logical values were TRUE. Once a FALSE appears, every later position is FALSE. It is the cumulative version of <code>all()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cumall(c(TRUE, TRUE, FALSE, TRUE))<span class="qa-cmt">   # T T F F</span>
+cumall(x &gt; 0)<span class="qa-cmt">                         # streak of positives from start</span>
+cumall(!is.na(x))<span class="qa-cmt">                     # take rows until first NA</span>
+df |&gt; filter(cumall(value &gt; threshold))
+df |&gt; arrange(date) |&gt; filter(cumall(complete))
+cumany(c(FALSE, FALSE, TRUE, FALSE))<span class="qa-cmt"> # opposite: F F T T</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cumall() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">&quot;consecutive TRUE from the start&quot;</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cumall()</text><text x="125" y="126" class="branch-label">&quot;any TRUE so far&quot;</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cumany()</text><text x="125" y="182" class="branch-label">streak counting (number of consecutive TRUEs)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rle() + custom</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter rows</a> until a stopping condition</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">filter(cumall(condition))</text><text x="125" y="294" class="branch-label">check at end</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">all(condition)</text><text x="125" y="350" class="branch-label">per-group running TRUE</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + cumall</text></svg></div>
+
+<h2>What cumall() does in one sentence</h2>
+
+<p><strong><code>cumall(x)</code> returns a logical vector where position <code>i</code> is TRUE if and only if <code>x[1] &amp; x[2] &amp; ... &amp; x[i]</code> are all TRUE.</strong> As soon as ONE FALSE appears, every later position is FALSE.</p>
+
+<p>This is the cumulative version of <code>all()</code>. It answers: "up to this point, has every value been TRUE?" The opposite is <code>cumany()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>cumall(x)</code>. x is a logical vector. Returns a logical vector of the same length.</strong></p>
+
+<div class="webr-container" data-block-title="Streak of TRUEs from the start">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Streak of TRUEs from the start</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+cumall(c(TRUE, TRUE, FALSE, TRUE, TRUE))
+#&gt; [1]  TRUE  TRUE FALSE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>filter(cumall(condition))</code> keeps rows from the start of a (sorted) data frame UNTIL the first row where <code>condition</code> is FALSE.</strong> Powerful idiom for "take rows until X happens".</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Streak of positives from start</h3>
+
+<div class="webr-container" data-block-title="How long does the streak last?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How long does the streak last?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(5, 3, 7, -1, 4, 2)
+cumall(x &gt; 0)
+#&gt; [1]  TRUE  TRUE  TRUE FALSE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The streak ends at position 4 where the first negative appears.</p>
+
+<h3>2. Take rows until first NA</h3>
+
+<div class="webr-container" data-block-title="filter until first missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">filter until first missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(value = c(10, 20, NA, 30, 40))
+
+df |&gt;
+  filter(cumall(!is.na(value)))
+#&gt;   value
+#&gt; 1    10
+#&gt; 2    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Stops at the first NA. Subsequent rows are dropped even if non-NA.</p>
+
+<h3>3. Take rows below a threshold</h3>
+
+<div class="webr-container" data-block-title="rows where running &#x27;in spec&#x27; holds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rows where running &#x27;in spec&#x27; holds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(measurement = c(0.1, 0.2, 0.4, 0.7, 0.3))
+
+df |&gt;
+  filter(cumall(measurement &lt; 0.5))
+#&gt;   measurement
+#&gt; 1         0.1
+#&gt; 2         0.2
+#&gt; 3         0.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Once a value exceeds 0.5 (row 4), all subsequent rows are excluded.</p>
+
+<h3>4. Per-group cumall</h3>
+
+<div class="webr-container" data-block-title="Reset streak per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset streak per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;),
+  ok   = c(TRUE, TRUE, FALSE, TRUE, TRUE)
+)
+
+df |&gt;
+  group_by(user) |&gt;
+  filter(cumall(ok))
+#&gt; # A tibble: 4 x 2
+#&gt;   user  ok
+#&gt;   a     TRUE
+#&gt;   a     TRUE
+#&gt;   b     TRUE
+#&gt;   b     TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Within each user, take rows until the first FALSE.</p>
+
+<h3>5. Sorted timeline</h3>
+
+<div class="webr-container" data-block-title="Visits until first failure (chronological)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visits until first failure (chronological)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- data.frame(
+  time     = 1:6,
+  success  = c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE)
+)
+
+events |&gt;
+  arrange(time) |&gt;
+  filter(cumall(success))
+#&gt;   time success
+#&gt; 1    1    TRUE
+#&gt; 2    2    TRUE
+#&gt; 3    3    TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>cumall()</code> and <code>cumany()</code> are mirrors.</strong> <code>cumall(x)</code> is "every value up to here is TRUE"; <code>cumany(x)</code> is "at least one value up to here is TRUE". Together they let you express "until X happens" and "since X happened" idioms cleanly.</div></div>
+
+<h2>cumall() vs cumany() vs all() vs cumsum()</h2>
+
+<p><strong>Four cumulative / aggregate logical functions in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cumall(x)</code></td>
+<td>Same-length logical</td>
+<td>Streak of TRUE from start</td>
+<td>"Take until first FALSE"</td>
+</tr>
+<tr>
+<td><code>cumany(x)</code></td>
+<td>Same-length logical</td>
+<td>TRUE once any TRUE seen</td>
+<td>"Mark from first TRUE on"</td>
+</tr>
+<tr>
+<td><code>all(x)</code></td>
+<td>Single boolean</td>
+<td>TRUE if every value TRUE</td>
+<td>Final check</td>
+</tr>
+<tr>
+<td><code>any(x)</code></td>
+<td>Single boolean</td>
+<td>TRUE if any value TRUE</td>
+<td>Final check</td>
+</tr>
+<tr>
+<td><code>cumsum(x)</code></td>
+<td>Same-length numeric</td>
+<td>Running sum</td>
+<td>Count or accumulate</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>cumall(cond)</code> to keep rows up to the first failing condition.</li>
+
+<li><code>cumany(cond)</code> to keep rows from the first matching condition onward.</li>
+
+<li><code>all</code> / <code>any</code> for end-of-vector summaries.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "take until / drop after" pattern is the killer use case for cumall + filter.</strong></p>
+
+<div class="webr-container" data-block-title="Take rows until first failure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Take rows until first failure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  arrange(date) |&gt;
+  filter(cumall(in_compliance))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returns rows from the start until the first non-compliant event, in chronological order. Common in audit / SLA workflows.</p>
+
+<p>The mirror pattern uses cumany:</p>
+
+<div class="webr-container" data-block-title="Take rows from first trigger">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Take rows from first trigger</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  arrange(date) |&gt;
+  filter(cumany(triggered))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returns rows from the first triggered event onward.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: order matters.</strong> cumall reads left-to-right, so the data must be in the desired order. Sort with <code>arrange(...)</code> first.</p>
+
+<p><strong>Pitfall 2: NA handling.</strong> <code>cumall(c(TRUE, NA, TRUE))</code> returns <code>c(TRUE, NA, NA)</code>. Once NA appears, the streak ends. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> NAs before cumall if you don't want this.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>filter(cumall(cond))</code> keeps rows TILL the first FALSE; <code>filter(cond)</code> keeps ALL rows where cond is TRUE.</strong> Subtle but completely different semantics. Make sure cumall is what you want.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From a sequence of integer scores, keep only the rows up to (and including) the first time the score drops below 50. Save to <code>ex_streak</code>.</p>
+<div class="webr-container" data-block-title="Your turn: streak above threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: streak above threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(score = c(80, 75, 90, 45, 60, 70))
+
+ex_streak &lt;- df |&gt;
+  # your code here
+
+ex_streak
+#&gt; Expected: 3 rows (80, 75, 90)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_streak &lt;- df |&gt;
+  filter(cumall(score &gt;= 50))
+ex_streak
+#&gt;   score
+#&gt; 1    80
+#&gt; 2    75
+#&gt; 3    90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cumall(score &gt;= 50)</code> is TRUE for rows 1-3, FALSE from row 4 onward (because score=45 fails). Filter keeps the TRUE rows.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering cumall, look at:</p>
+
+<ul>
+
+<li><code>cumany()</code>: mirror; cumulative any-TRUE</li>
+
+<li><code>cummean()</code>: running mean</li>
+
+<li><code>cumsum()</code>, <code>cumprod()</code>, <code>cummin()</code>, <code>cummax()</code>: base R cumulatives</li>
+
+<li><code>lead()</code> / <code>lag()</code>: shift values for transition detection</li>
+
+<li><code>rle()</code>: run-length encoding for streak counting</li>
+
+<li><code>slider</code> package: rolling-window operations</li>
+
+</ul>
+
+<p>For more flexible cumulative operations (rolling window, custom function), the <code>slider</code> package generalizes cumulative patterns.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does cumall do in dplyr?</strong></p>
+
+<p><code>cumall(x)</code> returns a logical vector where each position is TRUE if EVERY preceding value was TRUE. As soon as one FALSE appears, every later position is FALSE.</p>
+
+<p><strong>What is the difference between cumall and all in R?</strong></p>
+
+<p><code>all(x)</code> returns ONE logical value: TRUE if every element of x is TRUE. <code>cumall(x)</code> returns a vector the same length as x: TRUE up to the first FALSE, then all FALSE.</p>
+
+<p><strong>What is the difference between cumall and cumany?</strong></p>
+
+<p><code>cumall</code> is the running version of <code>all</code> (every value so far is TRUE). <code>cumany</code> is the running version of <code>any</code> (at least one value so far is TRUE). They are mirrors.</p>
+
+<p><strong>How do I take rows until a condition fails?</strong></p>
+
+<p><code>df |&gt; filter(cumall(condition))</code>. Sort the data first if order matters. The filter keeps rows until the first FALSE.</p>
+
+<p><strong>Does cumall <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a>?</strong></p>
+
+<p>Once NA appears in the input, all subsequent positions become NA in the output (because <code>TRUE &amp; NA</code> is NA). Filter NAs first if this is unwanted.</p>

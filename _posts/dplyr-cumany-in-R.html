@@ -1,0 +1,384 @@
+---
+title: "dplyr cumany() in R: Cumulative Any-True Across a Vector"
+description: "Use dplyr cumany() to mark every position from the first TRUE onward in a logical vector. Covers cumany vs cumall, filter idiom, NA, and 5 worked examples."
+keywords: "dplyr cumany, R cumulative any, cumany vs cumall, dplyr cumulative TRUE, R running any, cumany filter, dplyr trigger window"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cumany()|dplyr cumany|cumulative any|running any TRUE|cumany vs cumall"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr cumany() in R: Cumulative Any-True Across a Vector</h1>
+
+<p class="lead">The <code>cumany()</code> function in dplyr returns FALSE until the first TRUE in a logical vector, then TRUE for every position thereafter. It is the cumulative version of <code>any()</code> and the mirror of <code>cumall()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cumany(c(FALSE, FALSE, TRUE, FALSE))<span class="qa-cmt">   # F F T T</span>
+cumany(x &gt; 100)<span class="qa-cmt">                         # mark from first big value onward</span>
+df |&gt; filter(cumany(triggered))<span class="qa-cmt">         # rows from first trigger</span>
+df |&gt; arrange(time) |&gt; filter(cumany(start_event))
+cumall(c(TRUE, FALSE))<span class="qa-cmt">                  # mirror: T F (until first FALSE)</span>
+which(cumany(x))[1]<span class="qa-cmt">                     # find first TRUE position</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cumany() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">&quot;from the first TRUE onward&quot;</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cumany()</text><text x="125" y="126" class="branch-label">&quot;until the first FALSE&quot;</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cumall() (mirror)</text><text x="125" y="182" class="branch-label">find position of first TRUE</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">which.max(condition)</text><text x="125" y="238" class="branch-label">count consecutive TRUEs</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rle() on the input</text><text x="125" y="294" class="branch-label">per-group running any</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> + cumany</text><text x="125" y="350" class="branch-label">final check (any TRUE in the whole vector)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">any()</text></svg></div>
+
+<h2>What cumany() does in one sentence</h2>
+
+<p><strong><code>cumany(x)</code> returns FALSE for each position UNTIL the first TRUE is seen; from there onward, every position is TRUE.</strong> It is the cumulative version of <code>any()</code>.</p>
+
+<p>The opposite of <code>cumall()</code>. Together they cover "before / from first match" and "until / before first failure" idioms.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>cumany(x)</code>. x is a logical vector. Returns a logical vector of the same length.</strong></p>
+
+<div class="webr-container" data-block-title="Mark from first TRUE onward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mark from first TRUE onward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+cumany(c(FALSE, FALSE, TRUE, FALSE, TRUE))
+#&gt; [1] FALSE FALSE  TRUE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>filter(cumany(condition))</code> keeps rows from the FIRST row where condition is TRUE through the END.</strong> It is "drop everything before the first match" rather than "keep everything where match is TRUE".</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. From first big value onward</h3>
+
+<div class="webr-container" data-block-title="Mark events after the threshold is first crossed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mark events after the threshold is first crossed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(50, 60, 120, 80, 130, 70)
+cumany(x &gt; 100)
+#&gt; [1] FALSE FALSE  TRUE  TRUE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Filter from first triggered event</h3>
+
+<div class="webr-container" data-block-title="Drop everything before first trigger">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop everything before first trigger</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  time      = 1:6,
+  triggered = c(FALSE, FALSE, TRUE, FALSE, TRUE, FALSE)
+)
+
+df |&gt;
+  filter(cumany(triggered))
+#&gt;   time triggered
+#&gt; 1    3      TRUE
+#&gt; 2    4     FALSE
+#&gt; 3    5      TRUE
+#&gt; 4    6     FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Once the trigger fires (row 3), every later row is kept regardless of subsequent trigger state.</p>
+
+<h3>3. Per-group cumany</h3>
+
+<div class="webr-container" data-block-title="Reset window per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset window per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  user = c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;b&quot;),
+  hit  = c(FALSE, TRUE, FALSE, FALSE, TRUE)
+)
+
+df |&gt;
+  group_by(user) |&gt;
+  filter(cumany(hit))
+#&gt; # A tibble: 3 x 2
+#&gt;   user  hit
+#&gt;   a     TRUE
+#&gt;   a     FALSE
+#&gt;   b     TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Time-series "after first error" filter</h3>
+
+<div class="webr-container" data-block-title="Keep readings from first failure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep readings from first failure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">readings &lt;- data.frame(
+  ts    = 1:6,
+  fail  = c(FALSE, FALSE, FALSE, TRUE, FALSE, TRUE)
+)
+
+readings |&gt;
+  arrange(ts) |&gt;
+  filter(cumany(fail))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Useful for post-incident analysis: ignore everything before the first failure.</p>
+
+<h3>5. Find position of first TRUE</h3>
+
+<div class="webr-container" data-block-title="Use which.max for index">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use which.max for index</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(FALSE, FALSE, TRUE, FALSE)
+which.max(x)
+#&gt; [1] 3
+which.max(cumany(x))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>which.max</code> on a logical vector returns the position of the first TRUE. Slightly different result from <code>cumany</code> but related semantically.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>cumany()</code> is "have we seen at least one TRUE so far?".</strong> Once the answer becomes yes, it stays yes for every subsequent position. This makes it perfect for "mark everything from event X onward" filters.</div></div>
+
+<h2>cumany() vs cumall() vs any() vs which.max()</h2>
+
+<p><strong>Four functions for handling "first TRUE" semantics in R.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cumany(x)</code></td>
+<td>Vector: FALSE -> TRUE at first TRUE</td>
+<td>"From first match onward"</td>
+</tr>
+<tr>
+<td><code>cumall(x)</code></td>
+<td>Vector: TRUE -> FALSE at first FALSE</td>
+<td>"Until first failure"</td>
+</tr>
+<tr>
+<td><code>any(x)</code></td>
+<td>Single boolean</td>
+<td>"Is there at least one TRUE?"</td>
+</tr>
+<tr>
+<td><code>which.max(x)</code></td>
+<td>Single integer</td>
+<td>Position of first TRUE</td>
+</tr>
+<tr>
+<td><code>min(which(x))</code></td>
+<td>Single integer</td>
+<td>Same; explicit</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>cumany</code> to keep rows from a marker onward.</li>
+
+<li><code>cumall</code> to drop rows after a marker.</li>
+
+<li><code>any</code> for one-shot test.</li>
+
+<li><code>which.max</code> to find the position only.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "post-event window" pattern is the cumany sweet spot.</strong></p>
+
+<div class="webr-container" data-block-title="From first event onward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">From first event onward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  arrange(timestamp) |&gt;
+  filter(cumany(event_occurred))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returns chronologically all rows from the first event onward. Common in:</p>
+
+<ul>
+
+<li>Customer journey analysis: from first purchase onward</li>
+
+<li>Anomaly detection: from first <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> onward</li>
+
+<li>Cohort analysis: from first signup onward</li>
+
+</ul>
+
+<p>The opposite-direction filter uses cumall:</p>
+
+<div class="webr-container" data-block-title="Mirror: until first failure">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mirror: until first failure</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; arrange(timestamp) |&gt; filter(cumall(no_failure))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returns rows up until the first failure.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: order matters.</strong> cumany reads left-to-right. Always <code>arrange()</code> first if order is meaningful.</p>
+
+<p><strong>Pitfall 2: NA propagation.</strong> <code>cumany(c(FALSE, NA, TRUE))</code> returns <code>c(FALSE, NA, TRUE)</code>. The NA is preserved in place. Pre-filter NAs if you want strict TRUE/FALSE results.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>filter(cumany(cond))</code> is NOT the same as <code>filter(cond)</code>.</strong> filter keeps EVERY row where cond is TRUE; cumany filter keeps every row from the first TRUE onward (including subsequent FALSE rows). Different semantics.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From a sequence of daily login records, keep only rows from the first day the user logged in onward (drop pre-signup zeros). Save to <code>ex_active</code>.</p>
+<div class="webr-container" data-block-title="Your turn: from first login onward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: from first login onward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logins &lt;- data.frame(
+  day      = 1:6,
+  logged_in = c(0, 0, 1, 0, 1, 0)
+)
+
+ex_active &lt;- logins |&gt;
+  # your code here
+
+ex_active
+#&gt; Expected: 4 rows (day 3 onward)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_active &lt;- logins |&gt;
+  filter(cumany(logged_in == 1))
+ex_active
+#&gt;   day logged_in
+#&gt; 1   3         1
+#&gt; 2   4         0
+#&gt; 3   5         1
+#&gt; 4   6         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cumany(logged_in == 1)</code> becomes TRUE at day 3 (first login) and stays TRUE for days 4-6 even though the user didn't log in every day.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering cumany, look at:</p>
+
+<ul>
+
+<li><code>cumall()</code>: mirror; "until first FALSE"</li>
+
+<li><code>cummean()</code>: running mean</li>
+
+<li><code>cumsum()</code>, <code>cumprod()</code>, <code>cummin()</code>, <code>cummax()</code>: base R cumulatives</li>
+
+<li><code>lead()</code> / <code>lag()</code>: shift values for transition detection</li>
+
+<li><code>rle()</code>: run-length encoding</li>
+
+<li><code>slider</code> package: rolling-window operations</li>
+
+</ul>
+
+<p>For window-based cumulative computations (e.g., last N days), the <code>slider</code> package is more flexible than the cumulative family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does cumany do in dplyr?</strong></p>
+
+<p><code>cumany(x)</code> returns FALSE until the first TRUE in x, then TRUE for every later position. It is the running version of <code>any()</code>.</p>
+
+<p><strong>What is the difference between cumany and cumall?</strong></p>
+
+<p><code>cumany</code> is "any TRUE so far": once any TRUE appears, the running result is TRUE. <code>cumall</code> is "all TRUE so far": once any FALSE appears, the running result is FALSE. Mirrors of each other.</p>
+
+<p><strong>How do I keep rows from the first match onward?</strong></p>
+
+<p><code>df |&gt; filter(cumany(condition))</code>. Sort first if order matters. The filter keeps rows from the first TRUE position onward.</p>
+
+<p><strong>Does cumany <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a>?</strong></p>
+
+<p>NAs propagate per position: <code>cumany(c(FALSE, NA, TRUE))</code> returns <code>c(FALSE, NA, TRUE)</code>. The NA stays in place. Pre-filter NAs for strict TRUE/FALSE behaviour.</p>
+
+<p><strong>What is the difference between cumany and any?</strong></p>
+
+<p><code>any(x)</code> returns ONE boolean: TRUE if any element of x is TRUE. <code>cumany(x)</code> returns a vector of the same length: FALSE until the first TRUE, then TRUE thereafter.</p>
