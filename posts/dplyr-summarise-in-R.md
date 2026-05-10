@@ -207,6 +207,34 @@ When to use which:
 
 **Pitfall 3: trying to return multiple values per group.** `summarise(df, q = quantile(x, c(0.25, 0.75)))` errors because each group expression must return a scalar. Either name each value (`p25 = quantile(x, 0.25), p75 = quantile(x, 0.75)`) or use `reframe()` (dplyr 1.1+) for vector returns.
 
+## Try it yourself
+
+**Try it:** For each `cyl` group in `mtcars`, compute the mean `mpg` and the count of rows. Save the result to `ex_by_cyl`.
+
+```r title="Your turn: per-group summary"
+# Try it: mean mpg and row count per cylinder
+ex_by_cyl <- # your code here
+
+ex_by_cyl
+#> Expected: 3 rows, one per cyl, with avg_mpg and n columns
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_by_cyl <- mtcars |> summarise(avg_mpg = mean(mpg), n = n(), .by = cyl)
+ex_by_cyl
+#>   cyl  avg_mpg  n
+#> 1   6 19.74286  7
+#> 2   4 26.66364 11
+#> 3   8 15.10000 14
+```
+
+**Explanation:** `summarise()` with `.by = cyl` produces one row per unique cyl value. `n()` counts rows in each group; `mean(mpg)` averages within each group. The `.by` form auto-ungroups the result.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `summarise()`, look at:

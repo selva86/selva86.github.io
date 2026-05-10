@@ -238,6 +238,23 @@ def check_decision_tree(fm, body):
     return True, "n/a for this category"
 
 
+def check_tryit_exercise(fm, body):
+    """function-deep PSEO must have ## Try it yourself H2 + **Try it:** block + collapsible solution."""
+    cat = (fm.get("category_id") or "").strip()
+    has_h2 = bool(re.search(r"^##\s+Try it yourself\s*$", body, re.MULTILINE))
+    has_prompt = "**Try it:**" in body
+    has_details = "<details>" in body and "Click to reveal solution" in body
+    if cat == "function-deep":
+        if has_h2 and has_prompt and has_details:
+            return True, "Try it section + prompt + collapsible solution present"
+        missing = []
+        if not has_h2: missing.append("## Try it yourself H2")
+        if not has_prompt: missing.append("**Try it:** prompt")
+        if not has_details: missing.append("collapsible solution")
+        return False, f"missing: {', '.join(missing)}"
+    return True, "n/a for this category"
+
+
 def check_auto_link_safety(fm, body):
     """Lightweight check: warn if any auto_link_term is a 2-3 letter all-caps abbrev with case_sensitive=false."""
     case_sensitive = (fm.get("auto_link_case_sensitive", "false").lower() == "true")
@@ -266,6 +283,7 @@ CHECKS = [
     ("15 auto_link_safety",      check_auto_link_safety),
     ("16 quick_answer_block",    check_quick_answer),
     ("17 decision_tree_block",   check_decision_tree),
+    ("18 tryit_exercise",        check_tryit_exercise),
 ]
 
 

@@ -209,6 +209,36 @@ When to use which:
 
 **Pitfall 3: locale surprises with character sorting.** Sort order for non-ASCII characters depends on the system locale. Pass `.locale = "en"` (or another explicit locale) to get reproducible results across machines.
 
+## Try it yourself
+
+**Try it:** Sort `mtcars` by `cyl` ascending, then by `mpg` descending within each cyl group. Save the result to `ex_sorted` and print the first 5 rows of `cyl` and `mpg`.
+
+```r title="Your turn: multi-key sort"
+# Try it: cyl asc, then mpg desc
+ex_sorted <- # your code here
+
+ex_sorted |> select(cyl, mpg) |> head(5)
+#> Expected: 5 rows starting with cyl == 4 and the highest mpg in cyl == 4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_sorted <- mtcars |> arrange(cyl, desc(mpg))
+ex_sorted |> select(cyl, mpg) |> head(5)
+#>                cyl  mpg
+#> Toyota Corolla   4 33.9
+#> Fiat 128         4 32.4
+#> Honda Civic      4 30.4
+#> Lotus Europa     4 30.4
+#> Fiat X1-9        4 27.3
+```
+
+**Explanation:** When you pass multiple arguments to `arrange()`, the first is the primary sort key. Ties on `cyl` are broken by the second key, `desc(mpg)`, which sorts descending. So all 4-cyl cars appear first, with the highest mpg at the top.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `arrange()`, look at:

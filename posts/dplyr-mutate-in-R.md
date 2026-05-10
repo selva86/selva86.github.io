@@ -207,6 +207,34 @@ When to use which:
 
 **Pitfall 3: `mutate()` keeps all columns; `transmute()` drops them.** If you want only the new columns and a few keepers, use `transmute()`. Mixing them up is a frequent source of "where did all my columns go" or "why are these columns still here" surprises.
 
+## Try it yourself
+
+**Try it:** Add a new column `mpg_per_cyl = mpg / cyl` to `mtcars`. Save the result to `ex_mtcars2` and print the first 3 rows of `mpg`, `cyl`, and the new column.
+
+```r title="Your turn: compute mpg per cylinder"
+# Try it: add mpg_per_cyl column
+ex_mtcars2 <- # your code here
+
+ex_mtcars2 |> select(mpg, cyl, mpg_per_cyl) |> head(3)
+#> Expected: 3 rows showing mpg, cyl, mpg_per_cyl
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_mtcars2 <- mtcars |> mutate(mpg_per_cyl = mpg / cyl)
+ex_mtcars2 |> select(mpg, cyl, mpg_per_cyl) |> head(3)
+#>                mpg cyl mpg_per_cyl
+#> Mazda RX4     21.0   6    3.500000
+#> Mazda RX4 Wag 21.0   6    3.500000
+#> Datsun 710    22.8   4    5.700000
+```
+
+**Explanation:** `mutate()` takes `name = expression` pairs. The expression `mpg / cyl` is evaluated row-wise (vectorized), and the result becomes a new column appended to every row.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `mutate()`, look at:

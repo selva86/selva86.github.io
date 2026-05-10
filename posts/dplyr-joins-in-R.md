@@ -236,6 +236,47 @@ When to use which:
 
 **Pitfall 3: forgetting to dedupe before joining.** If `x` has duplicate keys you did not expect, the join silently produces duplicates. Always inspect `x |> count(key) |> filter(n > 1)` before a join if you suspect duplication. Or use `relationship = "one-to-one"` to assert and fail loudly.
 
+## Try it yourself
+
+**Try it:** Given the two tibbles below, perform a `left_join` on `id` so every row of `customers` is kept and `orders` data is added where it matches. Save the result to `ex_joined`.
+
+```r title="Your turn: left_join two tables"
+customers <- tibble::tibble(
+  id = 1:4,
+  name = c("Alice","Bob","Cara","Dan")
+)
+
+orders <- tibble::tibble(
+  id = c(1, 2, 4),
+  amount = c(100, 250, 50)
+)
+
+# Try it: left_join customers with orders
+ex_joined <- # your code here
+
+ex_joined
+#> Expected: 4 rows; Cara (id=3) has NA for amount
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_joined <- customers |> left_join(orders, by = "id")
+ex_joined
+#> # A tibble: 4 x 3
+#>      id name  amount
+#>   <int> <chr>  <dbl>
+#> 1     1 Alice    100
+#> 2     2 Bob      250
+#> 3     3 Cara      NA
+#> 4     4 Dan       50
+```
+
+**Explanation:** `left_join()` keeps every row of `x` (customers) and brings in matching columns from `y` (orders). Cara has no order, so her `amount` is `NA`. The `by = "id"` argument tells dplyr which column to match on.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering dplyr joins, look at:

@@ -225,6 +225,35 @@ starwars |> select(starts_with("hair")) |> head(1)
 
 **Pitfall 3: `.data` quoting in functions.** Inside your own function, refer to columns with `.data[[col]]` or `{{ col }}` to avoid name lookup surprises. This is the tidy-evaluation rabbit hole; for one-off scripts, the bare-name form is fine.
 
+## Try it yourself
+
+**Try it:** From `starwars`, select only the columns `name`, `height`, and `mass`, and rename `mass` to `body_mass_kg`. Save to `ex_compact`.
+
+```r title="Your turn: select and rename"
+# Try it: pick 3 cols + rename mass
+ex_compact <- # your code here
+
+head(ex_compact, 2)
+#> Expected: tibble with columns name, height, body_mass_kg
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_compact <- starwars |> select(name, height, body_mass_kg = mass)
+head(ex_compact, 2)
+#> # A tibble: 2 x 3
+#>   name           height body_mass_kg
+#>   <chr>           <int>        <dbl>
+#> 1 Luke Skywalker    172           77
+#> 2 C-3PO             167           75
+```
+
+**Explanation:** Inside `select()`, the form `new_name = old_name` renames a column at the same time it picks it. Other columns are dropped because they are not listed.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `select()`, look at:

@@ -209,6 +209,40 @@ When to use which:
 
 **Pitfall 3: factor `.drop = TRUE` silently drops empty groups.** If your grouping variable is a factor and some levels have zero rows, those levels disappear by default. To keep all factor levels in the result (even with zero observations), set `.drop = FALSE` in `group_by()`.
 
+## Try it yourself
+
+**Try it:** Group `mtcars` by `cyl`, then add a column `mpg_rank` that ranks `mpg` within each cyl group (highest mpg = rank 1). Save the result to `ex_ranked`.
+
+```r title="Your turn: ranked mpg within cyl groups"
+# Try it: rank mpg within each cyl group
+ex_ranked <- # your code here
+
+ex_ranked |> select(cyl, mpg, mpg_rank) |> head(5)
+#> Expected: 5 rows with mpg_rank values like 1, 2, 3 within each cyl group
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_ranked <- mtcars |>
+  group_by(cyl) |>
+  mutate(mpg_rank = rank(-mpg)) |>
+  ungroup()
+
+ex_ranked |> select(cyl, mpg, mpg_rank) |> head(5)
+#>   cyl  mpg mpg_rank
+#> 1   6 21.0      2.5
+#> 2   6 21.0      2.5
+#> 3   4 22.8      9.5
+#> 4   6 21.4      1.0
+#> 5   8 18.7      4.0
+```
+
+**Explanation:** `group_by(cyl)` tags the data with cylinder grouping. Inside the grouped frame, `rank(-mpg)` ranks each row within its own cyl group (negation makes higher mpg = rank 1). `ungroup()` removes the grouping after, so subsequent operations are not surprised by it.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `group_by()`, look at:

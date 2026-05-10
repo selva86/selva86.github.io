@@ -98,6 +98,49 @@ Tail H2s like "FAQ", "Related dplyr functions", "Try it yourself" are included; 
 
 Opt-out via frontmatter `jump_chips: false` if a post should not advertise navigation (rare).
 
+## 3e. Try it yourself exercise (mandatory for function-deep PSEO)
+
+Place ONE inline exercise under an `## Try it yourself` H2 between `## Common pitfalls` and `## Related ...`. The exercise uses the existing site-wide `**Try it:**` pattern (md2html.py wraps it in `<section class="tryit-block">`).
+
+Format (do not deviate; the converter expects this exact shape):
+
+```
+## Try it yourself
+
+**Try it:** Filter mtcars to keep cars with cyl == 4 AND mpg > 25. Save the result to ex_filtered.
+
+\`\`\`r title="Your turn: filter mtcars"
+# Try it: filter mtcars
+ex_filtered <- # your code here
+
+ex_filtered
+#> Expected: 6 rows
+\`\`\`
+
+<details>
+<summary>Click to reveal solution</summary>
+
+\`\`\`r title="Solution"
+ex_filtered <- mtcars |> filter(cyl == 4, mpg > 25)
+nrow(ex_filtered)
+#> [1] 6
+\`\`\`
+
+**Explanation:** Comma-separated conditions in filter() combine with AND. The result keeps only rows satisfying both.
+
+</details>
+```
+
+Rules:
+- Difficulty: easy to medium. Single concept (the function being explained), or two concepts at most.
+- Variable names: prefix with `ex_` to avoid colliding with tutorial state in the shared WebR session.
+- Expected output: include `#> Expected: ...` so readers can self-verify.
+- Solution: ALWAYS in `<details>` with `<summary>Click to reveal solution</summary>`. Never inline.
+- Explanation: 1 to 2 sentences after the solution code.
+- Skip rule: omit the entire section if the function has no meaningful exercise (e.g., `glimpse()`, `print()`).
+
+The jump-chip strip auto-detects `## Try it yourself` and renders the chip with class `try-it` (amber, drawn attention).
+
 ## 3c. Run-live callout (auto-injected, do not write manually)
 
 For PSEO posts, build.py automatically injects a green "Run live, no install needed" callout above the first WebR code block. Authors do NOT write this; it appears once per post. Opt-out via frontmatter `runlive_callout: false` if a post should not advertise the runtime (rare).

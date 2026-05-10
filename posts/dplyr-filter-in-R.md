@@ -212,6 +212,31 @@ When to use which:
 
 **Pitfall 3: chained `&` is faster than separate filter calls in some cases.** `filter(df, a > 0, b > 0)` and `filter(df, a > 0) |> filter(b > 0)` produce the same result, but the single call evaluates conditions in one pass. For large data, prefer the comma form.
 
+## Try it yourself
+
+**Try it:** Filter `mtcars` to keep only cars with `cyl == 4` AND `mpg > 25`. Save the result to `ex_filtered` and print the row count.
+
+```r title="Your turn: filter mtcars"
+# Try it: filter rows where cyl == 4 AND mpg > 25
+ex_filtered <- # your code here
+
+nrow(ex_filtered)
+#> Expected: 6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_filtered <- mtcars |> filter(cyl == 4, mpg > 25)
+nrow(ex_filtered)
+#> [1] 6
+```
+
+**Explanation:** Comma-separated conditions inside `filter()` combine with AND. The result keeps only rows satisfying both. Equivalent to `filter(mtcars, cyl == 4 & mpg > 25)`.
+
+</details>
+
 ## Related dplyr functions
 
 After mastering `filter()`, look at:
