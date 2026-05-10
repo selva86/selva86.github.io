@@ -1,0 +1,392 @@
+---
+title: "tidyr pivot_longer() in R: Wide to Long Format"
+description: "Use tidyr pivot_longer() to reshape wide data to long format in R. Covers names_to, values_to, multiple value columns, regex patterns, and 6 examples."
+keywords: "tidyr pivot_longer, R wide to long, reshape data R, pivot longer R, R reshape, names_to values_to, gather replacement"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pivot_longer()|tidyr pivot_longer|wide to long|reshape long|gather replacement"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr pivot_longer() in R: Wide to Long Format</h1>
+
+<p class="lead">The <code>pivot_longer()</code> function in tidyr reshapes wide data into long format by collapsing multiple columns into key-value pairs. It is the modern replacement for <code>gather()</code> and the most common reshape operation.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pivot_longer(df, cols = c(a, b, c))<span class="qa-cmt">                       # specific columns</span>
+pivot_longer(df, cols = -id)<span class="qa-cmt">                              # all except id</span>
+pivot_longer(df, cols = starts_with(&quot;year&quot;))<span class="qa-cmt">              # tidyselect</span>
+pivot_longer(df, cols = ..., names_to = &quot;year&quot;, values_to = &quot;sales&quot;)
+pivot_longer(df, cols = ..., names_to = c(&quot;var&quot;, &quot;year&quot;), names_sep = &quot;_&quot;)
+pivot_longer(df, cols = ..., names_to = c(&quot;.value&quot;, &quot;year&quot;), names_sep = &quot;_&quot;)
+pivot_longer(df, cols = ..., values_drop_na = TRUE)<span class="qa-cmt">       # skip NA values</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">pivot_longer()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">wide -&gt; long, simple key-value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pivot_longer(cols = ...)</text><text x="125" y="126" class="branch-label">column names hold variable info</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">names_to with regex/sep</text><text x="125" y="182" class="branch-label">multiple value columns to keep separate</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">names_to = c(&quot;.value&quot;, &quot;x&quot;)</text><text x="125" y="238" class="branch-label">long -&gt; wide</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pivot_wider()</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> across cols</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">across() inside summarise</text><text x="125" y="350" class="branch-label">transpose matrix</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">t()</text><text x="125" y="406" class="branch-label">reshape data.table style</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">melt() and dcast()</text></svg></div>
+
+<h2>What pivot_longer() does in one sentence</h2>
+
+<p><strong><code>pivot_longer()</code> collapses multiple columns into two new columns: one for the OLD COLUMN NAMES (the "key") and one for the VALUES they held.</strong> Each input row produces multiple output rows, one per column being pivoted.</p>
+
+<p>This is the "tidy" form of data: one observation per row, one variable per column. Most analysis functions (<a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, dplyr, broom) work best with long data; wide is for human-readable output.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>pivot_longer(data, cols, names_to, values_to)</code> is the minimum.</strong> <code>cols</code> selects columns to pivot; <code>names_to</code> is the name for the new "key" column; <code>values_to</code> is the name for the new "value" column.</p>
+
+<div class="webr-container" data-block-title="Build a small wide data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a small wide data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+wide &lt;- tibble::tribble(
+  ~country, ~y2020, ~y2021, ~y2022,
+  &quot;USA&quot;,    100,    110,    120,
+  &quot;UK&quot;,      80,     85,     88,
+  &quot;DE&quot;,      90,     95,    100
+)
+
+print(wide)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature:</p>
+
+<pre><code>pivot_longer(data, cols, ..., cols_vary = &quot;fastest&quot;,
+             names_to = &quot;name&quot;, names_prefix = NULL, names_sep = NULL,
+             names_pattern = NULL, names_ptypes = list(), names_transform = list(),
+             names_repair = &quot;check_unique&quot;,
+             values_to = &quot;value&quot;, values_drop_na = FALSE,
+             values_ptypes = list(), values_transform = list())</code></pre>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>cols = -id</code> is shorthand for "every column except id".</strong> Pivot every column except the identifier columns. This pattern appears in nearly every real-world reshape.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Basic wide to long</h3>
+
+<div class="webr-container" data-block-title="Pivot year columns to long">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivot year columns to long</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide |&gt;
+  pivot_longer(cols = c(y2020, y2021, y2022),
+               names_to = &quot;year&quot;, values_to = &quot;sales&quot;)
+#&gt; # A tibble: 9 x 3
+#&gt;   country year  sales
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 USA     y2020   100
+#&gt; 2 USA     y2021   110
+#&gt; 3 USA     y2022   120
+#&gt; 4 UK      y2020    80
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three year columns collapse into rows. Each country now has 3 rows (one per year).</p>
+
+<h3>2. All except identifier</h3>
+
+<div class="webr-container" data-block-title="Pivot everything except country">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivot everything except country</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide |&gt;
+  pivot_longer(cols = -country, names_to = &quot;year&quot;, values_to = &quot;sales&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Negative selection: <code>-country</code> means "all columns except country". Common for "tidy this whole table except the IDs" pattern.</p>
+
+<h3>3. tidyselect helpers</h3>
+
+<div class="webr-container" data-block-title="Pivot columns matching pattern">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivot columns matching pattern</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide |&gt;
+  pivot_longer(cols = starts_with(&quot;y&quot;), names_to = &quot;year&quot;, values_to = &quot;sales&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>starts_with()</code>, <code>ends_with()</code>, <code>contains()</code>, <code>matches()</code> (regex), <code>where()</code> for column selection.</p>
+
+<h3>4. Strip prefix from names</h3>
+
+<div class="webr-container" data-block-title="Drop the y prefix from year names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the y prefix from year names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide |&gt;
+  pivot_longer(cols = -country,
+               names_to = &quot;year&quot;,
+               names_prefix = &quot;y&quot;,
+               values_to = &quot;sales&quot;)
+#&gt;   country year  sales
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 USA     2020    100
+#&gt; 2 USA     2021    110
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>names_prefix = &quot;y&quot;</code> removes the "y" prefix when the column name becomes a year value. Useful for cleaning naming conventions in one step.</p>
+
+<h3>5. Split column names into multiple parts</h3>
+
+<div class="webr-container" data-block-title="When column names encode 2 things separated by _">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When column names encode 2 things separated by _</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide2 &lt;- tibble::tribble(
+  ~country, ~sales_2020, ~sales_2021, ~costs_2020, ~costs_2021,
+  &quot;USA&quot;,    100, 110, 50, 55,
+  &quot;UK&quot;,      80,  85, 40, 42
+)
+
+wide2 |&gt;
+  pivot_longer(cols = -country,
+               names_to = c(&quot;metric&quot;, &quot;year&quot;),
+               names_sep = &quot;_&quot;)
+#&gt; # A tibble: 8 x 4
+#&gt;   country metric year  value
+#&gt;   &lt;chr&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 USA     sales  2020    100
+#&gt; 2 USA     sales  2021    110
+#&gt; 3 USA     costs  2020     50
+#&gt; 4 USA     costs  2021     55
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>names_to = c(&quot;metric&quot;, &quot;year&quot;)</code> with <code>names_sep = &quot;_&quot;</code> splits each column name into TWO new columns. The values column captures the numeric value.</p>
+
+<h3>6. Multiple value columns with .value</h3>
+
+<div class="webr-container" data-block-title="Keep each metric as its own column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep each metric as its own column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide2 |&gt;
+  pivot_longer(cols = -country,
+               names_to = c(&quot;.value&quot;, &quot;year&quot;),
+               names_sep = &quot;_&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;   country year  sales costs
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 USA     2020    100    50
+#&gt; 2 USA     2021    110    55
+#&gt; 3 UK      2020     80    40
+#&gt; 4 UK      2021     85    42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The special <code>.value</code> keyword in <code>names_to</code> tells pivot_longer to preserve those names as VALUE COLUMNS rather than collapsing into a single value column.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The most powerful and confusing feature of pivot_longer is <code>.value</code>.</strong> Use it when the column name encodes a VARIABLE name (like "sales" or "costs") plus another dimension (like year). Result: one row per (id, year) combination, with separate columns for each variable type.</div></div>
+
+<h2>pivot_longer() vs older reshape methods</h2>
+
+<p><strong><code>pivot_longer()</code> (tidyr 1.0+) replaced <code>gather()</code> (tidyr 0.x) and <code>melt()</code> (reshape2).</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>Modern tidyr</th>
+<th>Old tidyr</th>
+<th>reshape2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">Wide to long</a></td>
+<td>pivot_longer</td>
+<td>gather</td>
+<td>melt</td>
+</tr>
+<tr>
+<td>Long to wide</td>
+<td>pivot_wider</td>
+<td>spread</td>
+<td>dcast</td>
+</tr>
+<tr>
+<td>Multi-key names</td>
+<td>names_sep / names_pattern</td>
+<td>(manual)</td>
+<td>(manual)</td>
+</tr>
+<tr>
+<td>Multi-value</td>
+<td>names_to = c(".value", ...)</td>
+<td>(impossible cleanly)</td>
+<td>(variable.name + value.name)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>pivot_longer()</code> and <code>pivot_wider()</code> for new code.</li>
+
+<li><code>gather()</code>/<code>spread()</code> are deprecated but still work in old code.</li>
+
+<li><code>melt()</code>/<code>dcast()</code> from reshape2 are still common in tutorials but supersedeed by tidyr.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to specify <code>cols</code>.</strong> Without <code>cols</code>, <code>pivot_longer()</code> does nothing useful. Always specify which columns to pivot, either by name list or tidyselect helpers.</p>
+
+<p><strong>Pitfall 2: <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">type coercion</a> with mixed columns.</strong> If columns being pivoted have different types (e.g., one numeric, one character), they will all become CHARACTER in the output. Convert types upstream or use <code>values_transform = list(...)</code> for column-specific coercion.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>names_to = c(&quot;.value&quot;, &quot;x&quot;)</code> requires that the SAME number of pieces appear in every column name.</strong> If column names mix <code>sales_2020</code> and <code>sales</code>, the parser fails. Either rename inconsistent columns first, or use <code>names_pattern</code> (regex) for more control.</div></div>
+
+<p><strong>Pitfall 3: NA propagation through pivot.</strong> Wide data with <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> produces long data with NA values in <code>values_to</code>. Use <code>values_drop_na = TRUE</code> to skip them entirely.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a wide tibble with columns <code>student</code>, <code>math_2024</code>, <code>english_2024</code>, <code>math_2025</code>, <code>english_2025</code>. Use <code>pivot_longer</code> with <code>.value</code> to get one row per (student, year) with separate <code>math</code> and <code>english</code> columns. Save to <code>ex_long</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pivot with .value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pivot with .value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- tibble::tribble(
+  ~student, ~math_2024, ~english_2024, ~math_2025, ~english_2025,
+  &quot;Alice&quot;,   85, 90, 88, 92,
+  &quot;Bob&quot;,     78, 82, 80, 85
+)
+
+# Try it: pivot to one row per (student, year)
+ex_long &lt;- scores |&gt;
+  # your code here
+
+ex_long
+#&gt; Expected: 4 rows, 4 cols (student, year, math, english)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- scores |&gt;
+  pivot_longer(cols = -student,
+               names_to = c(&quot;.value&quot;, &quot;year&quot;),
+               names_sep = &quot;_&quot;)
+
+ex_long
+#&gt; # A tibble: 4 x 4
+#&gt;   student year   math english
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Alice   2024     85      90
+#&gt; 2 Alice   2025     88      92
+#&gt; 3 Bob     2024     78      82
+#&gt; 4 Bob     2025     80      85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.value</code> preserves the prefix (math, english) as separate value columns. The suffix (year) becomes a regular long column. Result: one row per (student, year), with subject scores as columns.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering pivot_longer, look at:</p>
+
+<ul>
+
+<li><code>pivot_wider()</code>: inverse operation, long to wide</li>
+
+<li><code>separate()</code>, <code>separate_wider_delim()</code>: split one column into many</li>
+
+<li><code>unite()</code>: combine multiple columns into one</li>
+
+<li><code>nest()</code>, <code>unnest()</code>: list-column reshaping</li>
+
+<li><code>complete()</code>: fill in implicit combinations</li>
+
+<li><code>fill()</code>: forward-fill <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a></li>
+
+</ul>
+
+<p>For data.table users, <code>melt()</code> and <code>dcast()</code> are the equivalents and are often faster on large data.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I reshape from wide to long in R?</strong></p>
+
+<p>Use <code>tidyr::pivot_longer(data, cols = ..., names_to = &quot;key&quot;, values_to = &quot;value&quot;)</code>. Specify <code>cols</code> (which columns to pivot) and provide names for the new key and value columns.</p>
+
+<p><strong>What is the difference between gather() and pivot_longer()?</strong></p>
+
+<p><code>pivot_longer()</code> is the modern replacement (tidyr 1.0+). It handles multi-value reshaping (<code>.value</code>), multi-key names (<code>names_sep</code>, <code>names_pattern</code>), and tidyselect column specification more cleanly. <code>gather()</code> is deprecated but still works in old code.</p>
+
+<p><strong>How do I pivot multiple value columns at once with pivot_longer?</strong></p>
+
+<p>Use <code>names_to = c(&quot;.value&quot;, &quot;other_dim&quot;)</code> with <code>names_sep</code> or <code>names_pattern</code>. The <code>.value</code> keyword tells tidyr that part of the column name becomes a NEW COLUMN (not collapsed into the value column).</p>
+
+<p><strong>What does the cols argument do in pivot_longer?</strong></p>
+
+<p><code>cols</code> selects which columns to pivot. Use bare names: <code>cols = c(a, b, c)</code>. Use tidyselect: <code>cols = starts_with(&quot;year&quot;)</code>. Use negative selection: <code>cols = -id</code> for "everything except id".</p>
+
+<p><strong>How do I handle NAs when pivoting longer?</strong></p>
+
+<p>Set <code>values_drop_na = TRUE</code> to skip rows where the value would be NA. Otherwise NAs are preserved. For more control, filter after pivoting: <code>pivot_longer(...) %&gt;% filter(!is.na(value))</code>.</p>
