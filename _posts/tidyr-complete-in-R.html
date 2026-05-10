@@ -1,0 +1,351 @@
+---
+title: "tidyr complete() in R: Fill Missing Combinations of Columns"
+description: "Use tidyr complete() to insert missing combinations of columns into a data frame in R. Covers fill, nesting, expand, and 5 worked examples."
+keywords: "tidyr complete, R complete combinations, complete fill missing, tidyr nesting, complete vs expand, fill missing rows R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidyr::complete()|tidyr complete|complete combinations|fill missing rows|complete vs expand"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr complete() in R: Fill Missing Combinations of Columns</h1>
+
+<p class="lead">The <code>complete()</code> function in tidyr ensures every COMBINATION of specified column values is present in the data frame, inserting NA rows where missing. It is the "make <a class="auto-link" href="tidyr-expand-complete-Make-Implicit-Missing-Values-Explicit.html" title="tidyr expand() & complete() in R: Make Implicit Missing Values Explicit">implicit missing values</a> explicit" operation.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; complete(year, product)<span class="qa-cmt">                # fill all year-product combos</span>
+df |&gt; complete(year, product, fill = list(qty = 0))
+df |&gt; complete(nesting(year, quarter), product)<span class="qa-cmt"> # respect existing pairs</span>
+df |&gt; tidyr::expand(year, product)<span class="qa-cmt">            # similar but returns just combos</span>
+df |&gt; group_by(g) |&gt; complete(...)<span class="qa-cmt">            # per-group complete</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is complete() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">ensure all combinations are present</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">complete()</text><text x="125" y="126" class="branch-label">generate combinations only (no merge)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">expand()</text><text x="125" y="182" class="branch-label">generate from vectors</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">expand_grid()</text><text x="125" y="238" class="branch-label">forward-fill missing values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fill()</text><text x="125" y="294" class="branch-label">replace NA with constant after complete</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">complete(..., fill = list(...))</text></svg></div>
+
+<h2>What complete() does in one sentence</h2>
+
+<p><strong><code>complete(data, ...)</code> adds rows for every combination of the named columns that doesn't already appear, with other columns set to NA (or to a fill default).</strong> It makes implicit missing combinations explicit.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>complete(data, ..., fill = list())</code>. <code>...</code> are columns whose combinations should be complete.</strong></p>
+
+<div class="webr-container" data-block-title="Ensure all year-product combos exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ensure all year-product combos exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+sales &lt;- tibble(
+  year    = c(2024, 2024, 2025),
+  product = c(&quot;X&quot;,&quot;Y&quot;,&quot;X&quot;),
+  qty     = c(100, 200, 150)
+)
+
+sales |&gt;
+  complete(year, product)
+#&gt;    year product   qty
+#&gt;    2024       X   100
+#&gt;    2024       Y   200
+#&gt;    2025       X   150
+#&gt;    2025       Y    NA   &lt;-- inserted (was missing)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>fill = list(qty = 0)</code> to fill the new rows with a default instead of NA.</strong> Common for sales / metric data where missing means zero.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard complete</h3>
+
+<div class="webr-container" data-block-title="All year-product combos">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All year-product combos</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  complete(year, product)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. With fill default</h3>
+
+<div class="webr-container" data-block-title="Missing -&gt; 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing -&gt; 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  complete(year, product, fill = list(qty = 0))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Per-group complete</h3>
+
+<div class="webr-container" data-block-title="Complete within each region">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete within each region</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_by_region |&gt;
+  group_by(region) |&gt;
+  complete(year, product) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Nesting (preserve existing combinations)</h3>
+
+<div class="webr-container" data-block-title="Don&#x27;t generate combos that don&#x27;t exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Don&#x27;t generate combos that don&#x27;t exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events |&gt;
+  complete(nesting(user, year), product)
+#&gt; Each user-year is preserved (not all year x user); add product combos within those.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>nesting()</code> keeps a subset of pairs together rather than generating their cross product.</p>
+
+<h3>5. Combine with fill</h3>
+
+<div class="webr-container" data-block-title="Complete then forward-fill">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Complete then forward-fill</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  complete(year, product) |&gt;
+  group_by(product) |&gt;
+  arrange(year) |&gt;
+  fill(qty)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Complete ensures rows; fill carries forward values for the new NA rows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>complete()</code> exposes IMPLICIT missing values.</strong> If 2025 had no data for product Y, the row was simply absent; complete makes it appear with NA, so downstream summaries treat it correctly.</div></div>
+
+<h2>complete() vs expand() vs expand_grid() vs full_join</h2>
+
+<p><strong>Four ways to fill combinations.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>complete(data, ...)</code></td>
+<td>Data + columns</td>
+<td>Original data + missing rows</td>
+<td>Make missing explicit</td>
+</tr>
+<tr>
+<td><code>expand(data, ...)</code></td>
+<td>Data + columns</td>
+<td>Just combinations (no original data)</td>
+<td>Pure combinations</td>
+</tr>
+<tr>
+<td><code>expand_grid(...)</code></td>
+<td>Vectors</td>
+<td>All-pair tibble</td>
+<td>Combinations from scratch</td>
+</tr>
+<tr>
+<td><code>full_join(x, y)</code></td>
+<td>Two tables</td>
+<td>Joined</td>
+<td>Different problem</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>complete to add missing rows in-place.</li>
+
+<li>expand for combinations without original data.</li>
+
+<li>expand_grid when starting from vectors.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use complete for time-series with sparse observations to ensure regular intervals.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales |&gt;
+  complete(
+    date    = seq(min(date), max(date), by = &quot;month&quot;),
+    product,
+    fill = list(qty = 0)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ensure every (month, product) combination exists, with qty = 0 for missing.</p>
+
+<p>For per-subject completion:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">patient_data |&gt;
+  group_by(patient_id) |&gt;
+  complete(visit = 1:10) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: cross-product explosion.</strong> <code>complete(year, product, region)</code> generates n_year <em> n_product </em> n_region rows. For high-cardinality data, this can be huge.</p>
+
+<p><strong>Pitfall 2: NA after complete.</strong> New rows have NA in non-key columns. Use <code>fill = list(...)</code> to default, or chain with <code>fill()</code> for forward-fill.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>complete()</code> does NOT use <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> automatically; it generates the FULL cross-product across the named columns.</strong> Use <code>nesting()</code> or group_by to restrict.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Ensure every (cyl, gear) combination exists in a small mtcars subset, with a count column. Save to <code>ex_complete</code>.</p>
+<div class="webr-container" data-block-title="Your turn: complete cyl x gear combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: complete cyl x gear combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- mtcars |&gt;
+  count(cyl, gear)
+
+ex_complete &lt;- mt |&gt;
+  # your code here
+
+ex_complete
+#&gt; Expected: 9 rows (3 cyl * 3 gear), missing combos filled with NA or 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_complete &lt;- mt |&gt;
+  complete(cyl, gear, fill = list(n = 0))
+
+ex_complete
+#&gt; # 9 rows: every (cyl, gear) combo with n = count or 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> complete inserts the missing combinations and fills n with 0.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering complete, look at:</p>
+
+<ul>
+
+<li><code>expand()</code>: just combinations, no merge</li>
+
+<li><code>expand_grid()</code>: combinations from vectors</li>
+
+<li><code>crossing()</code>: similar to expand_grid</li>
+
+<li><code>nesting()</code>: preserve existing pairs</li>
+
+<li><code>fill()</code>: forward-fill values</li>
+
+<li><code>replace_na()</code>: scalar fill</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does complete do in tidyr?</strong></p>
+
+<p><code>complete(data, ...)</code> adds rows for every missing combination of the named columns; other columns are set to NA (or to a fill default).</p>
+
+<p><strong>How do I avoid cross-product explosion with complete?</strong></p>
+
+<p>Use <code>nesting(col1, col2)</code> to keep specific column pairs together instead of generating their full cross product.</p>
+
+<p><strong>Can I fill the missing values with something other than NA?</strong></p>
+
+<p>Yes. Pass <code>fill = list(col = 0)</code> to set a default for the new rows.</p>
+
+<p><strong>What is the difference between complete and expand?</strong></p>
+
+<p>complete adds missing rows to the existing data frame. expand returns ONLY the combinations (without the original data). complete = expand + <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">full_join</a>.</p>
+
+<p><strong>Should I group_by before complete?</strong></p>
+
+<p>If you want combinations to apply within each group only, yes: <code>group_by(g) |&gt; complete(...) |&gt; ungroup()</code>. Otherwise complete operates across the full data frame.</p>

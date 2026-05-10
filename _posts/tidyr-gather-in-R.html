@@ -1,0 +1,312 @@
+---
+title: "tidyr gather() in R: Wide to Long (Superseded by pivot_longer)"
+description: "Use tidyr gather() to reshape wide to long format in R (superseded by pivot_longer). Covers migration, key/value, vs pivot_longer, and 5 examples."
+keywords: "tidyr gather, R gather vs pivot_longer, gather superseded, wide to long R, tidyr reshape, gather migration"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidyr::gather()|tidyr gather|gather superseded|gather vs pivot_longer|wide to long"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr gather() in R: Wide to Long (Superseded by pivot_longer)</h1>
+
+<p class="lead">The <code>gather()</code> function in tidyr reshapes data from <a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">WIDE to LONG format</a>. As of tidyr 1.0, it is SUPERSEDED by <code>pivot_longer()</code>; existing code works but new code should use pivot_longer.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, a, b, c)<span class="qa-cmt">         # superseded</span>
+df |&gt; pivot_longer(cols = c(a, b, c), names_to = &quot;var&quot;, values_to = &quot;val&quot;)<span class="qa-cmt">  # modern</span>
+df |&gt; gather(key, value, -id)<span class="qa-cmt">                              # gather all but id</span>
+df |&gt; pivot_longer(-id, names_to = &quot;key&quot;, values_to = &quot;value&quot;)<span class="qa-cmt">              # modern</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Should I use gather()?</div><svg class="dt-svg" viewBox="0 0 720 237" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="202"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">new code</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">NO. Use pivot_longer().</text><text x="125" y="126" class="branch-label">legacy code</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">works.</text><text x="125" y="182" class="branch-label">migration</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">gather(key=X, value=Y, cols) -&gt; pivot_longer(cols, names_to=X, values_to=Y).</text></svg></div>
+
+<h2>What gather() did in one sentence</h2>
+
+<p><strong><code>gather(data, key, value, cols)</code> took a wide data frame and stacked the named columns into TWO new columns: a <code>key</code> column (column names) and a <code>value</code> column (the values).</strong> Since tidyr 1.0, it is superseded by the more flexible <code>pivot_longer()</code>.</p>
+
+<h2>Migration</h2>
+
+<p><strong>Replace <code>gather(key = X, value = Y, cols)</code> with <code>pivot_longer(cols, names_to = X, values_to = Y)</code>.</strong></p>
+
+<div class="webr-container" data-block-title="Old vs new">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Old vs new</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+wide &lt;- tibble(id = 1:3, a = 10:12, b = 20:22, c = 30:32)
+
+# OLD (still works):
+wide |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, a, b, c)
+
+# NEW:
+wide |&gt; pivot_longer(cols = c(a, b, c), names_to = &quot;var&quot;, values_to = &quot;val&quot;)
+#&gt;   id var val
+#&gt;   1  a   10
+#&gt;   1  b   20
+#&gt;   1  c   30
+#&gt;   2  a   11
+#&gt;   ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>pivot_longer()</code> supports more than one value column at once and has cleaner argument naming.</strong> For new code, always use pivot_longer.</div></div>
+
+<h2>Five common patterns (legacy)</h2>
+
+<h3>1. Standard gather</h3>
+
+<div class="webr-container" data-block-title="Wide to long">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wide to long</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, -id)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Modern: <code>pivot_longer(-id, names_to = &quot;var&quot;, values_to = &quot;val&quot;)</code>.</p>
+
+<h3>2. Specific columns</h3>
+
+<div class="webr-container" data-block-title="Only some columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Only some columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; gather(key = &quot;metric&quot;, value = &quot;value&quot;, a, b, c)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Modern: <code>pivot_longer(c(a, b, c), names_to = &quot;metric&quot;, values_to = &quot;value&quot;)</code>.</p>
+
+<h3>3. Tidyselect</h3>
+
+<div class="webr-container" data-block-title="Use tidyselect helpers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use tidyselect helpers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; gather(key = &quot;key&quot;, value = &quot;val&quot;, starts_with(&quot;score_&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Modern: <code>pivot_longer(starts_with(&quot;score_&quot;), names_to = &quot;key&quot;, values_to = &quot;val&quot;)</code>.</p>
+
+<h3>4. Drop NA</h3>
+
+<div class="webr-container" data-block-title="na.rm = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">na.rm = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, a, b, na.rm = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Modern: <code>pivot_longer(c(a, b), names_to = &quot;var&quot;, values_to = &quot;val&quot;, values_drop_na = TRUE)</code>.</p>
+
+<h3>5. Verify same result</h3>
+
+<div class="webr-container" data-block-title="Identical output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Identical output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">old &lt;- df |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, a, b, c)
+new &lt;- df |&gt; pivot_longer(c(a, b, c), names_to = &quot;var&quot;, values_to = &quot;val&quot;)
+identical(old, new)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Gather was superseded because pivot_longer is more powerful.</strong> pivot_longer handles names_pattern (regex), multiple value columns, and complex naming via names_glue. Gather had none of these.</div></div>
+
+<h2>gather() vs pivot_longer()</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>gather()</th>
+<th>pivot_longer()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wide -> long</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Multiple value columns</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>names_pattern (regex)</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>names_sep (split key)</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>values_drop_na</td>
+<td>Yes (na.rm)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Superseded</td>
+<td>Recommended</td>
+</tr>
+</tbody>
+</table>
+
+<h2>A practical migration</h2>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Before:
+df |&gt; gather(key, value, -id)
+
+# After:
+df |&gt; pivot_longer(-id, names_to = &quot;key&quot;, values_to = &quot;value&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Argument names are explicit; positional args of gather were less obvious.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing key and value.</strong> gather takes (key, value, ...) where key gets the COLUMN names and value gets the values. pivot_longer makes this explicit with names_to and values_to.</p>
+
+<p><strong>Pitfall 2: forgetting tidyselect.</strong> gather uses tidyselect for its column args. So does pivot_longer.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>gather</code> and <code>spread</code> were superseded in tidyr 1.0 (2019).</strong> That's many years ago. Most current tutorials use pivot_longer/pivot_wider. Migrating saves you from outdated examples.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reshape a wide data frame to long using BOTH gather and pivot_longer, then verify identical output. Save check to <code>ex_check</code>.</p>
+<div class="webr-container" data-block-title="Your turn: confirm gather == pivot_longer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: confirm gather == pivot_longer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wide &lt;- tibble(id = 1:2, x = c(10, 20), y = c(100, 200))
+
+old &lt;- wide |&gt; gather(key = &quot;var&quot;, value = &quot;val&quot;, -id)
+new &lt;- wide |&gt; pivot_longer(-id, names_to = &quot;var&quot;, values_to = &quot;val&quot;)
+
+ex_check &lt;- # your code here
+
+ex_check
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_check &lt;- identical(old, new)
+
+ex_check
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> For simple wide-to-long, both produce identical output.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After understanding gather's deprecation, look at:</p>
+
+<ul>
+
+<li><code>pivot_longer()</code>: modern replacement</li>
+
+<li><code>pivot_wider()</code>: opposite direction</li>
+
+<li><code>tidyr::spread()</code>: also superseded</li>
+
+<li><code>tidyr::unite()</code>: <a class="auto-link" href="tidyr-unite-in-R.html" title="tidyr unite() in R: Combine Columns Into One">combine columns</a> into one</li>
+
+<li><code>tidyr::separate_wider_delim()</code>: <a class="auto-link" href="tidyr-separate-in-R.html" title="tidyr separate() in R: Split One Column Into Many">split column</a></li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Is gather deprecated in tidyr?</strong></p>
+
+<p>Superseded since tidyr 1.0 (2019). Use <code>pivot_longer()</code> for new code.</p>
+
+<p><strong>What is the modern replacement for gather?</strong></p>
+
+<p><code>pivot_longer(cols, names_to = &quot;key&quot;, values_to = &quot;value&quot;)</code>.</p>
+
+<p><strong>Why was gather superseded?</strong></p>
+
+<p>It couldn't handle multiple value columns or complex name parsing. pivot_longer is a strict superset.</p>
+
+<p><strong>Are gather and spread both superseded?</strong></p>
+
+<p>Yes. gather -> pivot_longer; spread -> pivot_wider. Both since tidyr 1.0.</p>
+
+<p><strong>Will gather be removed?</strong></p>
+
+<p>Possibly in a future major version. Migrate proactively.</p>
