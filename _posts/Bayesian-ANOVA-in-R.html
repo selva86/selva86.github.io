@@ -1,0 +1,952 @@
+---
+title: "Bayesian ANOVA in R With BayesFactor: Report Evidence, Not Just p-values"
+description: "Run Bayesian ANOVA in R with the BayesFactor package. Bayes factors quantify evidence directly; sample posterior group means and run custom contrasts."
+keywords: "Bayesian ANOVA R, BayesFactor package, anovaBF, Bayes factor ANOVA, two-way Bayesian, repeated measures Bayesian, Bayesian factorial, evidence quantification"
+mathjax: false
+webr: true
+curriculum_id: "5.2.9"
+post_type: "C"
+auto_link_terms: "Bayesian ANOVA|BayesFactor package|anovaBF|Bayes factor|BF10|BF01|model comparison Bayesian|posterior group means|repeated measures Bayesian|factorial Bayesian|evidence ratio|Bayesian hypothesis testing"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Bayesian ANOVA"
+sidebar_order: "127"
+---
+<!-- md2html:generated -->
+
+<h1>Bayesian ANOVA in R With BayesFactor: Report Evidence, Not Just p-values</h1>
+
+<p class="lead">Frequentist ANOVA returns an F-statistic and a p-value: "p = 0.03, reject the null." That sentence is famously hard to interpret correctly. Bayesian ANOVA via the <a class="auto-link" href="Bayes-Factors-in-R.html" title="Bayes Factors in R: BayesFactor Package as Alternative to p-Values">BayesFactor package</a> returns a Bayes factor: a direct ratio of how plausible the data is under one model versus another. "BF = 8" means the data is 8 times more likely under the model with the group effect than under the null. That phrasing is what stakeholders actually want to hear, and the BayesFactor package computes it for one-way, two-way, factorial, and repeated-measures designs in one line.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<h2>What does Bayesian ANOVA give you that frequentist ANOVA does not?</h2>
+
+<p>Three things. First, <em>direct evidence</em>. A Bayes factor is the ratio of the marginal likelihood of two models. BF = 8 says the data is 8 times more likely under model A than model B.</p>
+
+<p>There is no null-hypothesis logic to translate, no <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">Type I error</a> rate to convert, no "rejecting the null" language.</p>
+
+<p>Second, <em>evidence for the null</em>. A p-value above 0.05 says you "fail to reject" the null but cannot quantify support for it. A Bayes factor below 1 (e.g., BF = 0.2) says the data is 5 times more likely under the null than the alternative. Bayesian methods quantify both directions of evidence.</p>
+
+<p>Third, <em>posterior over the group means</em>. After running anovaBF, you can extract the <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a> over each group's mean with one extra call. That gives you per-group credible intervals and direct comparisons (probability that group A's mean exceeds group B's), all without writing a separate model.</p>
+
+<p>The BayesFactor package is also pure R with no external Stan dependency, which makes it the fastest Bayesian-ANOVA tool to install and use.</p>
+
+<div class="webr-container" data-block-title="Run a Bayesian ANOVA in three lines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a Bayesian ANOVA in three lines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(BayesFactor)
+
+set.seed(2026)
+
+# Three groups with different means: control, treatment_A, treatment_B
+df_anova &lt;- data.frame(
+  outcome = c(rnorm(20, 50, 5), rnorm(20, 55, 5), rnorm(20, 53, 5)),
+  group   = factor(rep(c(&quot;control&quot;, &quot;treatment_A&quot;, &quot;treatment_B&quot;), each = 20))
+)
+
+bf &lt;- anovaBF(outcome ~ group, data = df_anova)
+bf
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] group : 6.245   ±0.01%
+#&gt;
+#&gt; Against denominator:
+#&gt;   Intercept only
+#&gt; ---
+#&gt; Bayes factor type: BFlinearModel, JZS</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. We simulated three groups with means 50, 55, 53 and standard deviation 5. The truth: there is a real group effect.</p>
+
+<p><code>anovaBF(outcome ~ group, data)</code> fit two models internally: one with <code>group</code> as a predictor (the alternative) and one without (the null, "Intercept only"). It then computed the ratio of their marginal likelihoods.</p>
+
+<p>The output BF = 6.245 says the data is 6.2 times more likely under the model with <code>group</code> than under the null. That is moderate-to-strong evidence for the group effect.</p>
+
+<p>Compare to a frequentist ANOVA on the same data:</p>
+
+<div class="webr-container" data-block-title="Frequentist ANOVA on the same data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Frequentist ANOVA on the same data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(aov(outcome ~ group, data = df_anova))
+#&gt;             Df Sum Sq Mean Sq F value  Pr(&gt;F)
+#&gt; group        2   270    134.8   5.392 0.00712 **
+#&gt; Residuals   57  1424     25.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the comparison. The F-test gives p = 0.0071: the null is rejected at conventional thresholds. Strictly, that means "if there were no group effect, we would see a F-statistic at least this large 0.7% of the time."</p>
+
+<p>The Bayes factor gives BF = 6.2: "the data is 6.2 times more likely under the alternative than the null." Both methods reach the same qualitative conclusion (the group effect is real), but the Bayes factor is much easier to communicate.</p>
+
+<p><img src="screenshots/Bayesian-ANOVA-in-R-bf-flow.webp" alt="BayesFactor ANOVA flow" class="img-responsive img-zoomable" loading="lazy" width="1880" height="394" /></p>
+
+<p><em>Figure 1: BayesFactor ANOVA workflow. Pass the formula and data to anovaBF(), get a Bayes factor for each model considered, then sample from the posterior over group means.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Bayes factor is the <em>ratio of evidence</em>, not a probability.</strong> BF = 6.2 does not mean "62% probability the alternative is true." It means "the data updates your prior odds of the alternative versus null by a factor of 6.2." If you started with 1:1 prior odds, your posterior odds <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> 6.2:1, which is about 86% probability for the alternative.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute BF the other way (null over alternative) by using <code>1/bf</code>. Verify the relationship.</p>
+<div class="webr-container" data-block-title="Your turn: invert the Bayes factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: invert the Bayes factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1 / bf
+#&gt; Expected: about 0.16, the data is 0.16 times as likely under the null</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Invert BF solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Invert BF solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">1 / bf
+#&gt; Bayes factor analysis
+#&gt; --------------
+#&gt; [1] Intercept only : 0.1601 ±0.01%
+#&gt;
+#&gt; Against denominator:
+#&gt;   group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inverting a Bayes factor swaps which model is the numerator. <code>1/bf = 0.16</code> says the data is 0.16 times as likely under the null as under the alternative, which is just the same evidence expressed the other way. Researchers report whichever direction is more intuitive for their narrative.</p>
+
+</details>
+</section>
+
+<h2>How do I run anovaBF() on a one-way design?</h2>
+
+<p>The minimal usage. <code>anovaBF(formula, data)</code> returns a BayesFactor object. The <code>[1]</code> indicates you can index into it for multiple models in a multi-factor design (next section). For a one-way design with one grouping factor, there is just one model versus the null.</p>
+
+<div class="webr-container" data-block-title="One-way ANOVA with explicit prior settings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-way ANOVA with explicit prior settings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_default &lt;- anovaBF(outcome ~ group, data = df_anova)
+bf_strong  &lt;- anovaBF(outcome ~ group, data = df_anova,
+                      rscaleFixed = &quot;ultrawide&quot;)  # less informative prior
+
+c(
+  bf_default = round(extractBF(bf_default)$bf, 3),
+  bf_strong  = round(extractBF(bf_strong)$bf, 3)
+)
+#&gt; bf_default  bf_strong
+#&gt;      6.245      4.842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed. <code>rscaleFixed</code> controls the prior scale on the group effects. Default is "medium"; "wide" and "ultrawide" are progressively less informative. With ultrawide, the BF drops slightly (4.84 vs 6.25) because the wider prior dilutes the evidence.</p>
+
+<p>For most one-way designs the default is fine. Document which scale you used; reviewers may ask whether your conclusion is robust to the <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">prior choice</a>.</p>
+
+<p>To get the posterior over the group means, sample from the BayesFactor object:</p>
+
+<div class="webr-container" data-block-title="Sample posterior group means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sample posterior group means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_samples &lt;- posterior(bf_default, iterations = 10000)
+head(post_samples, 3)
+#&gt;          mu group-control group-treatment_A group-treatment_B sig2 g_group
+#&gt; [1,] 53.34       -2.93           1.69            1.21           29.97  0.55
+#&gt; [2,] 52.74       -2.50           1.83            0.74           24.13  0.39
+#&gt; [3,] 52.99       -3.20           1.39            1.85           28.83  0.32
+
+# Posterior median for each group (mu + group deviation)
+group_means &lt;- t(apply(post_samples[, 1:4], 1, function(row) {
+  c(control     = row[1] + row[2],
+    treatment_A = row[1] + row[3],
+    treatment_B = row[1] + row[4])
+}))
+apply(group_means, 2, function(m) {
+  c(median = round(median(m), 2),
+    q025   = round(quantile(m, 0.025), 2),
+    q975   = round(quantile(m, 0.975), 2))
+})
+#&gt;            control treatment_A treatment_B
+#&gt; median       49.71       55.07       53.18
+#&gt; q025         47.50       52.85       51.00
+#&gt; q975         51.91       57.21       55.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the output. <code>posterior(bf, iterations = 10000)</code> returned 10000 posterior draws across the parameters. <code>mu</code> is the grand mean; <code>group-control</code>, <code>group-treatment_A</code>, <code>group-treatment_B</code> are the group-level deviations from the grand mean. <code>sig2</code> is the residual variance.</p>
+
+<p>We computed each group's mean as <code>mu + group deviation</code> per draw, then summarised. The posterior medians (49.7, 55.1, 53.2) recover the simulated truth (50, 55, 53) closely. The 95% credible intervals tell you where each group mean is with what uncertainty.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>posterior()</code> returns an <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">MCMC</a> object compatible with the coda package.</strong> You can use <code>coda::summary()</code> on it for traceplots and per-parameter summaries, or convert to a matrix for custom calculations.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that treatment_A's mean exceeds the control mean.</p>
+<div class="webr-container" data-block-title="Your turn: probability of difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute group_means[, 'treatment_A'] - group_means[, 'control']
+# Compute mean(diff &gt; 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability of difference solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability of difference solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diff_a_vs_c &lt;- group_means[, &quot;treatment_A&quot;] - group_means[, &quot;control&quot;]
+c(
+  median_diff = round(median(diff_a_vs_c), 2),
+  ci          = paste0(&quot;[&quot;, round(quantile(diff_a_vs_c, 0.025), 2),
+                       &quot;, &quot;, round(quantile(diff_a_vs_c, 0.975), 2), &quot;]&quot;),
+  prob_pos    = round(mean(diff_a_vs_c &gt; 0), 3)
+)
+#&gt;   median_diff               ci         prob_pos
+#&gt;          5.32   [2.13, 8.43]            0.999</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior median difference is 5.3 mpg (close to the truth of 5) with 95% <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a> <code>[2.1, 8.4]</code>. Posterior probability that treatment_A exceeds control is 99.9%, decisive evidence.</p>
+
+</details>
+</section>
+
+<h2>How do I read a Bayes factor and interpret its magnitude?</h2>
+
+<p>Standard interpretation thresholds (Jeffreys, 1961; refined by Kass and Raftery):</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Bayes factor</th>
+<th>Evidence for alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BF < 1</td>
+<td>Negative evidence (data favours null)</td>
+</tr>
+<tr>
+<td>1 to 3</td>
+<td>Anecdotal</td>
+</tr>
+<tr>
+<td>3 to 10</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>10 to 30</td>
+<td>Strong</td>
+</tr>
+<tr>
+<td>30 to 100</td>
+<td>Very strong</td>
+</tr>
+<tr>
+<td>> 100</td>
+<td>Extreme/decisive</td>
+</tr>
+</tbody>
+</table>
+
+<p>Most published results in the social sciences would land in the "anecdotal" or "moderate" zones if reported as Bayes factors, which is one reason switching from p-values to BF is sometimes resisted.</p>
+
+<p>Below we run anovaBF on a near-null dataset and see what an inconclusive BF looks like.</p>
+
+<div class="webr-container" data-block-title="A near-null dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A near-null dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_null &lt;- data.frame(
+  outcome = c(rnorm(20, 50, 5), rnorm(20, 51, 5), rnorm(20, 50.5, 5)),
+  group   = factor(rep(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), each = 20))
+)
+bf_null &lt;- anovaBF(outcome ~ group, data = df_null)
+bf_null
+#&gt; [1] group : 0.279   ±0.01%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the result. BF = 0.28 says the data is 0.28 times as likely under the model with the group effect than under the null. Equivalently, BF for the null is <code>1/0.28 = 3.6</code>: the data is 3.6 times more likely under the null. That is moderate evidence <em>for</em> the null.</p>
+
+<p>The frequentist version would give a non-significant p-value and we would have to say "we failed to reject the null," which is hedge-y. The BF lets us say "the data moderately supports the null."</p>
+
+<div class="webr-container" data-block-title="Compare frequentist and Bayesian on the near-null">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare frequentist and Bayesian on the near-null</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">freq_p &lt;- summary(aov(outcome ~ group, data = df_null))[[1]]$`Pr(&gt;F)`[1]
+c(
+  freq_p_value = round(freq_p, 3),
+  bf_alt       = round(extractBF(bf_null)$bf, 3),
+  bf_null      = round(1 / extractBF(bf_null)$bf, 3)
+)
+#&gt;  freq_p_value       bf_alt        bf_null
+#&gt;         0.785        0.279          3.582</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through. p = 0.79 (high, not significant). BF for alternative = 0.28; BF for null = 3.58. Both methods conclude there is no support for a group effect, but the Bayesian version actively supports the null with moderate evidence rather than just failing to find evidence against it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>BF thresholds are not p-value thresholds.</strong> A BF of 3 is roughly equivalent to a p-value of 0.05 for a two-sided test, but they encode different things. BF directly compares model fit; p-value measures only how surprising the data is under the null. Do not translate "BF > 3" as "significant"; describe it in evidence-ratio terms.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the BF for null vs alternative on the near-null dataset and check that it lands in the "moderate" range.</p>
+<div class="webr-container" data-block-title="Your turn: evidence for null">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: evidence for null</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 1 / bf_null
+#&gt; Expected: BF for null around 3 to 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Evidence for null solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Evidence for null solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">1 / bf_null
+#&gt; [1] Intercept only : 3.582 ±0.01%
+#&gt;
+#&gt; Against denominator: group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BF = 3.58 for the null model versus the alternative. This is in the "moderate evidence" range. We can confidently say the data favours the null; we cannot say "definitive" because BF would need to be over 10 for that.</p>
+
+</details>
+</section>
+
+<h2>How do I do two-way ANOVA and compare interaction models?</h2>
+
+<p>For a 2x2 or larger <a class="auto-link" href="Experimental-Design-Principles-in-R.html" title="Experimental Design in R: The Three Principles That Make Results Valid and Generalisable">factorial design</a>, anovaBF compares all model variants automatically. Each row of the output is one model versus the null.</p>
+
+<div class="webr-container" data-block-title="Two-way ANOVA with interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way ANOVA with interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+df_two &lt;- expand.grid(
+  factor_A = factor(c(&quot;low&quot;, &quot;high&quot;)),
+  factor_B = factor(c(&quot;control&quot;, &quot;treatment&quot;)),
+  rep      = 1:25
+)
+df_two$y &lt;- 50 + 5 * (df_two$factor_A == &quot;high&quot;) +
+            3 * (df_two$factor_B == &quot;treatment&quot;) +
+            2 * (df_two$factor_A == &quot;high&quot; &amp; df_two$factor_B == &quot;treatment&quot;) +
+            rnorm(nrow(df_two), 0, 5)
+
+bf_two &lt;- anovaBF(y ~ factor_A * factor_B, data = df_two)
+bf_two
+#&gt; [1] factor_A                                : 1.821e+04 ±0.01%
+#&gt; [2] factor_B                                : 18.50     ±0.01%
+#&gt; [3] factor_A + factor_B                     : 5.612e+05 ±2.1%
+#&gt; [4] factor_A + factor_B + factor_A:factor_B : 4.301e+05 ±2.7%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what each line means. anovaBF reported four model variants:</p>
+
+<ol>
+
+<li><code>factor_A</code> only: BF = 18,210 against the null. Strong evidence for an A effect.</li>
+
+<li><code>factor_B</code> only: BF = 18.5. Moderate-to-strong evidence for a B effect alone.</li>
+
+<li>Both main effects: BF = 561,200. Combined main-effects model is much better than null.</li>
+
+<li>Both mains plus interaction: BF = 430,100. Interaction model is best in absolute terms but barely better than mains-only.</li>
+
+</ol>
+
+<p>To compare model 4 (interaction) vs model 3 (mains only):</p>
+
+<div class="webr-container" data-block-title="Compare the interaction model directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the interaction model directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_interact_vs_main &lt;- bf_two[4] / bf_two[3]
+bf_interact_vs_main
+#&gt; [1] factor_A + factor_B + factor_A:factor_B : 0.766</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we just computed. Dividing model 4's BF by model 3's BF gives the interaction-vs-main BF directly: 0.77. The interaction does NOT add evidence over and above the main effects. The data is 0.77 times as likely under the interaction model.</p>
+
+<p>This is the right way to test for an interaction with BayesFactor: directly compare the two models, not their ratios against the null. With BF = 0.77, the interaction is "anecdotal" (close to 1), so we do not need it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always compare the most-complex and next-simpler model directly, not just both against the null.</strong> <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">Model selection</a> in BayesFactor is bf_complex / bf_simpler. Reporting only "BF = 430,100" for the interaction model is misleading; the relevant comparison is interaction-vs-mains.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute BF for the main-effects model versus the A-only model.</p>
+<div class="webr-container" data-block-title="Your turn: incremental BF for adding factor B">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: incremental BF for adding factor B</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># bf_two[3] / bf_two[1]
+#&gt; Expected: BF for adding factor B over and above factor A</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Incremental BF solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Incremental BF solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_two[3] / bf_two[1]
+#&gt; [1] factor_A + factor_B : 30.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BF = 30.8 for adding factor B over and above factor A. That is "very strong evidence", adding factor B substantially improves the model. So we keep both main effects. The interaction (BF = 0.77) does not add evidence and gets dropped.</p>
+
+</details>
+</section>
+
+<h2>How does Bayesian ANOVA handle within-subject (repeated measures) designs?</h2>
+
+<p>For repeated measures, treat the subject as a random factor. anovaBF supports this via <code>whichRandom = &quot;subject&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Repeated measures ANOVA with BayesFactor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeated measures ANOVA with BayesFactor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+n_subj &lt;- 30
+df_rm  &lt;- expand.grid(
+  subject = factor(1:n_subj),
+  time    = factor(c(&quot;pre&quot;, &quot;mid&quot;, &quot;post&quot;))
+)
+subj_eff   &lt;- rnorm(n_subj, 0, 4)[as.integer(df_rm$subject)]
+time_eff   &lt;- c(0, 2, 4)[as.integer(df_rm$time)]
+df_rm$y    &lt;- 50 + subj_eff + time_eff + rnorm(nrow(df_rm), 0, 2)
+
+bf_rm &lt;- anovaBF(y ~ time + subject, data = df_rm,
+                 whichRandom = &quot;subject&quot;)
+bf_rm
+#&gt; [1] time + subject : 1.022e+09 ±0.81%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we did. The formula <code>y ~ time + subject</code> includes both the time factor and a per-subject intercept. <code>whichRandom = &quot;subject&quot;</code> tells anovaBF that subject should be treated as a nuisance random factor (we do not care about its effect, we just want to control for it).</p>
+
+<p>The BF is 1.02e+09, decisive evidence for the time effect even after accounting for subject-level variation. Without controlling for subjects, the BF would be much smaller (or even null) because subject-level variation would inflate the residual.</p>
+
+<p>To extract the posterior over time means after marginalising over subjects, use <code>posterior()</code> with appropriate filtering:</p>
+
+<div class="webr-container" data-block-title="Posterior over time means in repeated measures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Posterior over time means in repeated measures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_rm &lt;- posterior(bf_rm, iterations = 10000)
+
+# Posterior medians for time effects (relative to the grand mean)
+time_cols   &lt;- grep(&quot;^time-&quot;, colnames(post_rm), value = TRUE)
+time_post   &lt;- post_rm[, time_cols]
+apply(time_post, 2, function(d) {
+  c(median = round(median(d), 2),
+    q025   = round(quantile(d, 0.025), 2),
+    q975   = round(quantile(d, 0.975), 2))
+})
+#&gt;          time-pre time-mid time-post
+#&gt; median      -2.06    -0.05     2.11
+#&gt; q025        -2.92    -0.91     1.28
+#&gt; q975        -1.13     0.84     2.93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the output. Each column is one time level's deviation from the grand mean. Pre is at -2.06 (below average); mid is near zero; post is +2.11 (above average).</p>
+
+<p>The simulated truth was time effects of <code>c(0, 2, 4)</code>; centred on the mean, those become <code>c(-2, 0, 2)</code>. Recovered correctly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Repeated-measures BF naturally controls for subject effects without adding parameters to interpret.</strong> The BF you report is for the time factor <em>after</em> subject-level variation has been accounted for. Stakeholders see the right number; the nuisance variation is handled silently.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the probability that the post mean exceeds the pre mean.</p>
+<div class="webr-container" data-block-title="Your turn: pre vs post probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pre vs post probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># diff &lt;- time_post[, 'time-post'] - time_post[, 'time-pre']
+# mean(diff &gt; 0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Pre vs post solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pre vs post solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diff_post_pre &lt;- time_post[, &quot;time-post&quot;] - time_post[, &quot;time-pre&quot;]
+c(
+  median   = round(median(diff_post_pre), 2),
+  ci       = paste0(&quot;[&quot;, round(quantile(diff_post_pre, 0.025), 2),
+                    &quot;, &quot;, round(quantile(diff_post_pre, 0.975), 2), &quot;]&quot;),
+  prob_pos = round(mean(diff_post_pre &gt; 0), 4)
+)
+#&gt;          median            ci         prob_pos
+#&gt;            4.17    [3.13, 5.20]           1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior median difference is 4.17 with 95% credible interval <code>[3.13, 5.20]</code>. Posterior probability that post exceeds pre is 100% across all 10000 draws. Decisive evidence.</p>
+
+</details>
+</section>
+
+<h2>When should I use BayesFactor vs brms for ANOVA-style designs?</h2>
+
+<p>Both can do Bayesian ANOVA, with different strengths.</p>
+
+<p><code>BayesFactor::anovaBF()</code>:</p>
+
+<ul>
+
+<li>Pure R, no Stan dependency, fast install and fast first run.</li>
+
+<li>Returns Bayes factors directly. The interpretation is "how much does the data update the odds of model A vs model B."</li>
+
+<li>Limited to factorial and repeated-measures designs supported by the JZS prior. Custom likelihoods, hierarchical structures, non-standard predictors are not supported.</li>
+
+</ul>
+
+<p><code>brms</code>:</p>
+
+<ul>
+
+<li>Full flexibility: any family, any custom prior, any hierarchical structure.</li>
+
+<li>Returns posterior samples; you compute Bayes factors yourself via <code>bayes_factor()</code> (which uses bridgesampling under the hood and is slower).</li>
+
+<li>Requires Stan installation and 30-90 second model compile time.</li>
+
+</ul>
+
+<p>The decision rule: if your design is a standard factorial or repeated-measures ANOVA, use BayesFactor. If you need custom likelihood, hierarchical structure, or non-standard predictors, use brms. For everything in between, both work.</p>
+
+<div class="webr-container" data-block-title="Comparing BayesFactor and brms on a one-way design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Comparing BayesFactor and brms on a one-way design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># BayesFactor
+bf_one &lt;- extractBF(anovaBF(outcome ~ group, data = df_anova))$bf
+
+# brms with bridgesampling-based BF
+fit_brms_alt  &lt;- brms::brm(outcome ~ group, df_anova,
+                           save_pars = save_pars(all = TRUE),
+                           chains = 4, iter = 4000, seed = 2026, silent = 2)
+fit_brms_null &lt;- brms::brm(outcome ~ 1, df_anova,
+                           save_pars = save_pars(all = TRUE),
+                           chains = 4, iter = 4000, seed = 2026, silent = 2)
+brms_bf &lt;- brms::bayes_factor(fit_brms_alt, fit_brms_null)$bf
+
+c(BayesFactor_BF = round(bf_one, 3),
+  brms_BF        = round(brms_bf, 3))
+#&gt;  BayesFactor_BF        brms_BF
+#&gt;           6.245          5.81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through. Both methods give very similar Bayes factors (6.25 vs 5.81) on the same data. The small difference comes from prior choices: BayesFactor uses a default JZS prior; brms uses its own weakly informative defaults. Both are in the "moderate-to-strong" evidence zone.</p>
+
+<p>For most one-way and factorial designs, BayesFactor is faster (no compile, no Stan dependency, runs in pure R). Reach for brms when you need its extra flexibility.</p>
+
+<p><img src="screenshots/Bayesian-ANOVA-in-R-vs-pvalues.webp" alt="Bayes factors vs p-values" class="img-responsive img-zoomable" loading="lazy" width="902" height="962" /></p>
+
+<p><em>Figure 2: F-tests give p-values; Bayes factors give direct evidence ratios. The interpretation in BF land is qualitatively different: BF > 3 is "moderate evidence", BF > 10 is "strong evidence", BF > 30 is "very strong".</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>BayesFactor uses the JZS (Jeffreys-Zellner-Siow) prior by default.</strong> It is a Cauchy prior on standardised effects, with scale parameter <code>rscaleFixed</code>. Most published BF results use this default; you can override with <code>rscaleFixed = &quot;wide&quot;</code> or <code>&quot;ultrawide&quot;</code> for less informative settings.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For the two-way design, compute the BF for the interaction term using brms-style <code>loo_compare</code> instead of BayesFactor. You should get a similar decision (interaction not preferred).</p>
+<div class="webr-container" data-block-title="Your turn: brms LOO on the two-way design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: brms LOO on the two-way design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit fit_main &lt;- brm(y ~ factor_A + factor_B, df_two)
+# Fit fit_inter &lt;- brm(y ~ factor_A * factor_B, df_two)
+# loo_compare(loo(fit_main), loo(fit_inter))
+#&gt; Expected: similar decision; interaction barely preferred or not at all</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="brms LOO solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">brms LOO solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_main  &lt;- brms::brm(y ~ factor_A + factor_B, df_two,
+                       chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_inter &lt;- brms::brm(y ~ factor_A * factor_B, df_two,
+                       chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_compare(loo(fit_main), loo(fit_inter))
+#&gt;             elpd_diff se_diff
+#&gt; fit_inter     0.0       0.0
+#&gt; fit_main     -0.4       1.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>LOO ranks the interaction model first, but only by 0.4 elpd units with se 1.4. The ratio is well below 1 SE; LOO cannot reliably prefer the interaction. This matches the BayesFactor result (interaction-vs-mains BF = 0.77, anecdotal). Different methods, same conclusion.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: One-way ANOVA on real data</h3>
+
+<p>Use the built-in <code>iris</code> dataset. Test whether <code>Sepal.Length</code> differs across <code>Species</code> using BayesFactor. Report the BF and the posterior medians for each species mean.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># bf_iris &lt;- anovaBF(Sepal.Length ~ Species, data = iris)
+# Pull posterior with posterior(bf_iris) and summarise per species</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bf_iris &lt;- anovaBF(Sepal.Length ~ Species, data = iris)
+bf_iris
+#&gt; [1] Species : 1.041e+27
+
+post_iris &lt;- posterior(bf_iris, iterations = 10000)
+species_cols &lt;- grep(&quot;^Species-&quot;, colnames(post_iris), value = TRUE)
+species_post &lt;- post_iris[, &quot;mu&quot;] + post_iris[, species_cols]
+apply(species_post, 2, function(m) {
+  c(median = round(median(m), 2),
+    q025   = round(quantile(m, 0.025), 2),
+    q975   = round(quantile(m, 0.975), 2))
+})
+#&gt;            Species-setosa Species-versicolor Species-virginica
+#&gt; median            5.01              5.94              6.59
+#&gt; q025              4.90              5.83              6.48
+#&gt; q975              5.13              6.06              6.71</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BF is essentially infinite (10^27), decisive evidence that species differ in Sepal.Length. Per-species posterior medians are 5.01, 5.94, 6.59, with tight credible intervals because there are 50 observations per species.</p>
+
+</details>
+
+<h3>Exercise 2: Compare two factorial models</h3>
+
+<p>Use <code>mtcars</code>. Fit a Bayesian ANOVA with <code>mpg ~ am * cyl</code>. Compare the interaction model to the main-effects model directly.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Convert am and cyl to factors
+# bf_mt &lt;- anovaBF(mpg ~ am * cyl, data = mtcars2)
+# Compare the two models with division</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2     &lt;- mtcars
+mtcars2$am  &lt;- factor(mtcars2$am)
+mtcars2$cyl &lt;- factor(mtcars2$cyl)
+
+bf_mt &lt;- anovaBF(mpg ~ am * cyl, data = mtcars2)
+bf_mt
+#&gt; [1] am       :  86.71
+#&gt; [2] cyl      :  3.57e+11
+#&gt; [3] am + cyl :  8.41e+11
+#&gt; [4] am + cyl + am:cyl : 4.31e+11
+
+c(
+  interaction_vs_main = round(extractBF(bf_mt[4])$bf / extractBF(bf_mt[3])$bf, 3),
+  cyl_vs_null         = round(extractBF(bf_mt[2])$bf, 3)
+)
+#&gt;  interaction_vs_main         cyl_vs_null
+#&gt;                0.513     357055117812.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Interaction-vs-mains BF is 0.51 (anecdotal evidence against interaction). The <a class="auto-link" href="Factorial-Experiments-in-R.html" title="Factorial Designs in R: 2^k Experiments, Main Effects, Confounding, and Interactions">main effect</a> of cyl alone is decisive (BF in the trillions). So the right model is <code>mpg ~ am + cyl</code> without interaction.</p>
+
+</details>
+
+<h3>Exercise 3: Repeated measures probability statement</h3>
+
+<p>Use the <code>df_rm</code> dataset above. Compute the posterior probability that the mid measurement exceeds the pre measurement (a smaller-magnitude difference than post-vs-pre).</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use bf_rm and posterior(bf_rm)
+# Compute time-mid minus time-pre and report the probability</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_rm &lt;- posterior(bf_rm, iterations = 10000)
+diff_mid_pre &lt;- post_rm[, &quot;time-mid&quot;] - post_rm[, &quot;time-pre&quot;]
+c(
+  median   = round(median(diff_mid_pre), 2),
+  ci       = paste0(&quot;[&quot;, round(quantile(diff_mid_pre, 0.025), 2),
+                    &quot;, &quot;, round(quantile(diff_mid_pre, 0.975), 2), &quot;]&quot;),
+  prob_pos = round(mean(diff_mid_pre &gt; 0), 3)
+)
+#&gt;          median            ci         prob_pos
+#&gt;            2.01    [1.18, 2.84]            1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior median difference is 2.0 with credible interval <code>[1.2, 2.8]</code>. Posterior probability that mid exceeds pre is 100%. Even though the difference is small (2 units vs 4 units for post-vs-pre), the within-subject design gives enough power to identify it decisively.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>The BayesFactor package gives you Bayesian ANOVA in pure R, with Bayes factors that quantify evidence directly and posterior samples for any group-mean comparison.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>BayesFactor function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Load data, ensure factors are <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">factor()</a></td>
+<td><code>factor()</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Run ANOVA</td>
+<td><code>anovaBF(formula, data)</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Read Bayes factors per model</td>
+<td>print bf object</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Compare models directly</td>
+<td><code>bf[i] / bf[j]</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Sample posterior over means</td>
+<td><code>posterior(bf, iterations = 10000)</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Compute custom contrasts</td>
+<td>base R on the posterior matrix</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use BayesFactor for standard factorial and repeated-measures designs. Use brms for everything else (custom families, hierarchical, non-standard predictors). The two methods generally agree on the same data, with BayesFactor being faster to install and run.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Morey, R. D., Rouder, J. N. <em>BayesFactor: Computation of Bayes Factors for Common Designs</em>. R package documentation. <a href="https://richarddmorey.github.io/BayesFactor/">richarddmorey.github.io/BayesFactor</a>.</li>
+
+<li>Rouder, J. N., Speckman, P. L., Sun, D., Morey, R. D., Iverson, G. "Bayesian t tests for accepting and rejecting the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a>." <em>Psychonomic Bulletin & Review</em> 16 (2009). The JZS prior paper.</li>
+
+<li>Kass, R. E., Raftery, A. E. "Bayes factors." <em>Journal of the American Statistical Association</em> 90 (1995). The interpretation thresholds.</li>
+
+<li>Wagenmakers, E.-J. et al. "<a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">Bayesian inference</a> for psychology, Part II: Example applications with JASP." <em>Psychonomic Bulletin & Review</em> 25 (2018).</li>
+
+<li>Jeffreys, H. <em>Theory of Probability</em>, 3rd ed. Oxford University Press, 1961. The foundational text on Bayes factors.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Workflow-in-R.html">The Bayesian Workflow in R</a>, the next post in the curriculum, summarising the full workflow from prior to posterior to predictive checks.</li>
+
+<li><a href="Multilevel-Models-in-R.html">Multilevel Models in R</a>, the previous post. brms-based hierarchical/multilevel modelling.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the alternative tool for ANOVA-style designs when BayesFactor is too restrictive.</li>
+
+</ul>
