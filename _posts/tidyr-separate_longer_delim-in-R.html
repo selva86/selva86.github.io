@@ -1,0 +1,332 @@
+---
+title: "tidyr separate_longer_delim() in R: Split Column Into Rows"
+description: "Use tidyr separate_longer_delim() to split a column's value into multiple rows by a delimiter in R. Covers vs separate_rows, vs separate_wider, 5 examples."
+keywords: "tidyr separate_longer_delim, R split column rows, separate_longer vs separate_wider, separate_rows superseded, tidyr 1.3"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "separate_longer_delim()|tidyr separate_longer_delim|split column into rows|separate rows"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr separate_longer_delim() in R: Split Column Into Rows</h1>
+
+<p class="lead">The <code>separate_longer_delim()</code> function in tidyr 1.3 splits a column's values by a delimiter and creates ONE NEW ROW per part. It is the tidy-data unstacking idiom: comma-separated lists become individual rows.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; separate_longer_delim(tags, delim = &quot;,&quot;)<span class="qa-cmt">    # one row per tag</span>
+df |&gt; separate_longer_delim(items, delim = &quot;; &quot;)
+df |&gt; separate_longer_delim(c(col1, col2), delim = &quot;,&quot;)<span class="qa-cmt"> # multiple cols</span>
+tidyr::separate_rows(df, tags, sep = &quot;,&quot;)<span class="qa-cmt">          # superseded predecessor</span>
+df |&gt; separate_wider_delim(...)<span class="qa-cmt">                    # different: into columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is separate_longer_delim() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">comma-list -&gt; rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">separate_longer_delim()</text><text x="125" y="126" class="branch-label">comma-list -&gt; columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="tidyr-separate-unite-Split-Combine-Columns-in-R.html" title="tidyr separate() & unite() in R: Split & Combine Character Columns">separate_wider_delim()</a></text><text x="125" y="182" class="branch-label">old code with separate_rows</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">works but superseded</text><text x="125" y="238" class="branch-label">positional split into rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">separate_longer_position()</text><text x="125" y="294" class="branch-label">list-column to rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tidyr::unnest_longer()</text></svg></div>
+
+<h2>What separate_longer_delim() does in one sentence</h2>
+
+<p><strong><code>separate_longer_delim(data, cols, delim)</code> splits each value of <code>cols</code> by <code>delim</code> and creates ONE NEW ROW per resulting part.</strong> Other columns' values are duplicated for each new row.</p>
+
+<p>This unstacks delimiter-separated lists into the standard tidy "one observation per row" format.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>separate_longer_delim(data, cols, delim)</code>. delim is a literal string (not regex).</strong></p>
+
+<div class="webr-container" data-block-title="Comma-separated tags to rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Comma-separated tags to rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+df &lt;- tibble(id = 1:2, tags = c(&quot;a,b,c&quot;,&quot;d,e&quot;))
+
+df |&gt;
+  separate_longer_delim(tags, delim = &quot;,&quot;)
+#&gt;   id tags
+#&gt; 1  1 a
+#&gt; 2  1 b
+#&gt; 3  1 c
+#&gt; 4  2 d
+#&gt; 5  2 e</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>This is a key tidy-data operation: convert "list inside a cell" to "one cell per item, one row per cell".</strong> Standard input prep for many downstream operations.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Comma-separated tags</h3>
+
+<div class="webr-container" data-block-title="Each tag becomes a row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Each tag becomes a row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(post_id = 1:2, tags = c(&quot;R,dplyr,tidyr&quot;,&quot;ggplot2,R&quot;))
+df |&gt;
+  separate_longer_delim(tags, delim = &quot;,&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Multi-character delimiter</h3>
+
+<div class="webr-container" data-block-title="&#x27;; &#x27; separator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">&#x27;; &#x27; separator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  separate_longer_delim(items, delim = &quot;; &quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Multiple columns at once</h3>
+
+<div class="webr-container" data-block-title="Both authors and keywords">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Both authors and keywords</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  separate_longer_delim(c(authors, keywords), delim = &quot;,&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Trim whitespace post-split</h3>
+
+<div class="webr-container" data-block-title="Combine with stringr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine with stringr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(stringr)
+df |&gt;
+  separate_longer_delim(tags, delim = &quot;,&quot;) |&gt;
+  mutate(tags = str_trim(tags))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Empty / NA handling</h3>
+
+<div class="webr-container" data-block-title="NAs and empties">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NAs and empties</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(id = 1:3, tags = c(&quot;a,b&quot;,&quot;&quot;, NA))
+df |&gt;
+  separate_longer_delim(tags, delim = &quot;,&quot;)
+#&gt; id 1 produces 2 rows (a, b)
+#&gt; id 2 produces 1 row (empty string)
+#&gt; id 3 produces 1 row (NA)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">**<code>separate_longer_delim()</code> is the modern replacement for <code>separate_rows()</code>.<em>* Same semantics; cleaner name and consistency with separate_wider_</em>. The <code>_longer_</code> and <code>_wider_</code> naming aligns with pivot_longer / pivot_wider conventions.</div></div>
+
+<h2>separate_longer_delim() vs separate_rows() vs unnest()</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Status</th>
+<th>Input</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>separate_longer_delim()</code></td>
+<td>Recommended</td>
+<td>String column</td>
+<td>Modern delimiter-to-rows</td>
+</tr>
+<tr>
+<td><code>tidyr::separate_rows()</code></td>
+<td>Superseded</td>
+<td>String column</td>
+<td>Same; older API</td>
+</tr>
+<tr>
+<td><code>tidyr::unnest()</code></td>
+<td>Recommended</td>
+<td>List column</td>
+<td>Already-list-shaped data</td>
+</tr>
+<tr>
+<td><code>unnest_longer()</code></td>
+<td>Recommended</td>
+<td>List column</td>
+<td>Single column to rows</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>separate_longer_delim for delimiter-separated strings.</li>
+
+<li>unnest for list columns (e.g., from JSON).</li>
+
+<li>Avoid separate_rows in new code.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use separate_longer_delim for "tags" or "tags-like" data normalization.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">posts |&gt;
+  separate_longer_delim(tags, delim = &quot;,&quot;) |&gt;
+  mutate(tags = trimws(tags)) |&gt;
+  count(tags, sort = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tag frequency analysis from comma-separated tag strings. Common pre-processing for text data.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to trim whitespace.</strong> <code>&quot;a, b, c&quot;</code> splits to "a", " b", " c". Use <code>mutate(col = trimws(col))</code> after.</p>
+
+<p><strong>Pitfall 2: confusing wider vs longer.</strong> wider splits into COLUMNS. longer splits into ROWS. Pick by what you want.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>separate_longer_delim()</code> requires tidyr 1.3+.</strong> Earlier versions only have <code>separate_rows()</code>. Check <code>packageVersion(&quot;tidyr&quot;)</code> if confused.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split a <code>genres</code> column of comma-separated movie genres into one row per genre. Save to <code>ex_long</code>.</p>
+<div class="webr-container" data-block-title="Your turn: split genres">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: split genres</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(
+  movie = c(&quot;Inception&quot;,&quot;La La Land&quot;),
+  genres = c(&quot;Sci-Fi,Thriller&quot;,&quot;Drama,Musical,Romance&quot;)
+)
+
+ex_long &lt;- df |&gt;
+  # your code here
+
+nrow(ex_long)
+#&gt; Expected: 5 (2 + 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- df |&gt;
+  separate_longer_delim(genres, delim = &quot;,&quot;)
+
+ex_long
+#&gt;   movie       genres
+#&gt; 1 Inception   Sci-Fi
+#&gt; 2 Inception   Thriller
+#&gt; 3 La La Land  Drama
+#&gt; 4 La La Land  Musical
+#&gt; 5 La La Land  Romance</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each comma-separated genre becomes its own row; movie name is repeated.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering separate_longer_delim, look at:</p>
+
+<ul>
+
+<li><code>separate_longer_position()</code>: split into rows by character position</li>
+
+<li><code>separate_wider_delim()</code>: split into columns</li>
+
+<li><code>separate_rows()</code>: superseded predecessor</li>
+
+<li><code>unnest_longer()</code>: list column to rows</li>
+
+<li><code>tidyr::nest()</code> / <code>unnest()</code>: <a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">list-column workflows</a></li>
+
+</ul>
+
+<p>For combining rows back into delimiter-separated strings, use <code>summarise(col = paste(col, collapse = &quot;,&quot;))</code> after grouping.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does separate_longer_delim do in tidyr?</strong></p>
+
+<p>Splits a column's values by a delimiter and creates one row per resulting part. Other columns are duplicated to match.</p>
+
+<p><strong>What is the difference between separate_longer_delim and separate_rows?</strong></p>
+
+<p>separate_rows is superseded by separate_longer_delim (and separate_longer_position). Same semantics, modern naming.</p>
+
+<p><strong>What is the difference between separate_longer_delim and separate_wider_delim?</strong></p>
+
+<p>longer creates new ROWS (one per part). wider creates new COLUMNS (one per part). Same input; different output shape.</p>
+
+<p><strong>How do I trim whitespace after split?</strong></p>
+
+<p><code>mutate(col = trimws(col))</code> after the split. Or strip whitespace with <code>strsplit + trimws</code> before separate.</p>
+
+<p><strong>What happens with NAs?</strong></p>
+
+<p><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> produce one row with NA. Empty strings produce one row with "". <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> after if you don't want them.</p>

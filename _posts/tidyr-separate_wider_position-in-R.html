@@ -1,0 +1,315 @@
+---
+title: "tidyr separate_wider_position() in R: Split by Character Position"
+description: "Use tidyr separate_wider_position() to split a string column at fixed character positions in R. Covers width, named widths, vs delim, 5 worked examples."
+keywords: "tidyr separate_wider_position, R split column position, fixed-width parse R, separate_wider_position widths, tidyr 1.3"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "separate_wider_position()|tidyr separate_wider_position|fixed-width parse|split by character position"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>tidyr separate_wider_position() in R: Split by Character Position</h1>
+
+<p class="lead">The <code>separate_wider_position()</code> function in tidyr 1.3 splits a string column into multiple columns based on FIXED CHARACTER POSITIONS. It is the right tool for fixed-width formats like dates without delimiters or coded IDs.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; separate_wider_position(col, widths = c(year=4, month=2, day=2))
+df |&gt; separate_wider_position(col, widths = c(prefix=3, code=5, suffix=2))
+df |&gt; separate_wider_position(col, widths = c(year=4, NA, month=2))<span class="qa-cmt"> # skip</span>
+df |&gt; separate_wider_delim(col, delim = &quot;-&quot;)<span class="qa-cmt">  # different: delimiter-based</span>
+df |&gt; separate_wider_regex(col, patterns = c(...))<span class="qa-cmt"> # regex-based</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="tidyr-separate-unite-Split-Combine-Columns-in-R.html" title="tidyr separate() & unite() in R: Split & Combine Character Columns">separate_wider_position()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fixed character widths</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">separate_wider_position()</text><text x="125" y="126" class="branch-label">delimiter between parts</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="tidyr-separate-in-R.html" title="tidyr separate() in R: Split One Column Into Many">separate_wider_delim()</a></text><text x="125" y="182" class="branch-label">regex groups</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">separate_wider_regex()</text><text x="125" y="238" class="branch-label">variable-position parsing</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">regex helpers (str_match)</text><text x="125" y="294" class="branch-label">skip parts of the input</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">name = NA in widths</text></svg></div>
+
+<h2>What separate_wider_position() does in one sentence</h2>
+
+<p><strong><code>separate_wider_position(data, cols, widths)</code> splits each value of <code>cols</code> at the cumulative positions defined by the named integer vector <code>widths</code>.</strong> Each name becomes a new column with the corresponding number of characters.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>separate_wider_position(data, cols, widths, too_few = &quot;error&quot;, too_many = &quot;error&quot;, cols_remove = TRUE)</code>. widths is a named integer vector.</strong></p>
+
+<div class="webr-container" data-block-title="Parse YYYYMMDD">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse YYYYMMDD</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+library(dplyr)
+
+df &lt;- tibble(date_str = c(&quot;20240115&quot;,&quot;20240320&quot;))
+
+df |&gt;
+  separate_wider_position(date_str, widths = c(year=4, month=2, day=2))
+#&gt;   year month day
+#&gt;   2024 01    15
+#&gt;   2024 03    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use named widths to label each segment.</strong> Skip a segment by using <code>NA</code> as the name: <code>widths = c(year=4, NA, month=2)</code> skips 2 characters between year and month.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Date string</h3>
+
+<div class="webr-container" data-block-title="YYYYMMDD format">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">YYYYMMDD format</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  separate_wider_position(d, widths = c(year=4, month=2, day=2))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Code with prefix and suffix</h3>
+
+<div class="webr-container" data-block-title="Parse &#x27;PRE12345AB&#x27;">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse &#x27;PRE12345AB&#x27;</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(code = c(&quot;PRE12345AB&quot;))
+df |&gt;
+  separate_wider_position(code, widths = c(prefix=3, num=5, suffix=2))
+#&gt;   prefix num   suffix
+#&gt;   PRE    12345 AB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Skip middle characters</h3>
+
+<div class="webr-container" data-block-title="Skip a separator character">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip a separator character</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(x = c(&quot;AB-12-CD&quot;))
+df |&gt;
+  separate_wider_position(x, widths = c(a=2, NA, num=2, NA, b=2))
+#&gt;   a num b
+#&gt;   AB 12  CD</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Handle short strings with too_few</h3>
+
+<div class="webr-container" data-block-title="Short rows tolerated">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Short rows tolerated</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(x = c(&quot;ABC123&quot;,&quot;XY&quot;))
+df |&gt;
+  separate_wider_position(x, widths = c(a=3, b=3), too_few = &quot;align_start&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Combine with other tidy operations</h3>
+
+<div class="webr-container" data-block-title="Parse then transform">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse then transform</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  separate_wider_position(date_str, widths = c(year=4, month=2, day=2)) |&gt;
+  mutate(across(everything(), as.integer))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Each width represents a CHARACTER COUNT, not a position.</strong> <code>widths = c(a=3, b=2)</code> means "first 3 chars to a, next 2 chars to b". Cumulative positions: a is chars 1-3, b is chars 4-5.</div></div>
+
+<h2>separate_wider_position() vs separate_wider_delim() vs str_sub</h2>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Splits by</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>separate_wider_position()</code></td>
+<td>Character positions</td>
+<td>Fixed-width formats</td>
+</tr>
+<tr>
+<td><code>separate_wider_delim()</code></td>
+<td>Delimiter</td>
+<td>Variable-width parts</td>
+</tr>
+<tr>
+<td><code>separate_wider_regex()</code></td>
+<td>Regex groups</td>
+<td>Pattern-based</td>
+</tr>
+<tr>
+<td><code>stringr::str_sub()</code></td>
+<td>Position substring</td>
+<td>One column at a time</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>separate_wider_position for FIXED-WIDTH (dates, codes).</li>
+
+<li>separate_wider_delim for DELIMITED.</li>
+
+<li>separate_wider_regex for COMPLEX patterns.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use for fixed-width data formats common in legacy systems.</strong></p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  separate_wider_position(
+    transaction_id,
+    widths = c(year=4, month=2, day=2, branch=3, seq=6)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Parse a structured ID into its semantic components in one step.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to name widths.</strong> Unnamed widths are dropped (treated as skip). Always name segments you want to keep.</p>
+
+<p><strong>Pitfall 2: mismatched total width.</strong> If widths sum to less than string length, extras are dropped silently. Use too_many = "error" to catch.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>separate_wider_position()</code> operates on CHARACTER counts, not BYTE counts.</strong> For multi-byte UTF-8 strings, the count is by codepoint, not byte.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split a 7-character ID like "A12-CD" into 3 named segments. Save to <code>ex_parsed</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parse fixed-width ID">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parse fixed-width ID</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(id = c(&quot;A12-CD&quot;))
+
+ex_parsed &lt;- df |&gt;
+  # your code here
+
+names(ex_parsed)
+#&gt; Expected: c(&quot;letter&quot;, &quot;num&quot;, &quot;code&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_parsed &lt;- df |&gt;
+  separate_wider_position(id, widths = c(letter=1, num=2, NA, code=2))
+
+ex_parsed
+#&gt;   letter num code
+#&gt;   A      12  CD</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Skip the dash between num and code with <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>Related tidyr functions</h2>
+
+<p>After mastering separate_wider_position, look at:</p>
+
+<ul>
+
+<li><code>separate_wider_delim()</code>: delimiter-based</li>
+
+<li><code>separate_wider_regex()</code>: regex-based</li>
+
+<li><code>separate_longer_delim()</code>: split into rows</li>
+
+<li><code>unite()</code>: <a class="auto-link" href="tidyr-unite-in-R.html" title="tidyr unite() in R: Combine Columns Into One">combine columns</a></li>
+
+<li><code>stringr::str_sub()</code>: position-based substring</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does separate_wider_position do in tidyr?</strong></p>
+
+<p>Splits a string column into multiple columns based on character widths. Each width specifies how many characters go into each new column.</p>
+
+<p><strong>How do I skip characters with separate_wider_position?</strong></p>
+
+<p>Use <code>NA</code> as the name in widths: <code>widths = c(a=3, NA, b=2)</code> skips one character between a and b.</p>
+
+<p><strong>What is the difference between separate_wider_position and separate_wider_delim?</strong></p>
+
+<p>position uses fixed character counts; delim uses a delimiter. Use position for fixed-width (YYYYMMDD); delim for variable parts (a-b-c).</p>
+
+<p><strong>Can I parse multi-byte UTF-8 with separate_wider_position?</strong></p>
+
+<p>Yes. Counts are by codepoint, not byte.</p>
+
+<p><strong>What happens if the string is shorter than the widths?</strong></p>
+
+<p>By default it errors. Pass <code>too_few = &quot;align_start&quot;</code> to fill with NA, or <code>&quot;align_end&quot;</code> for right-alignment.</p>
