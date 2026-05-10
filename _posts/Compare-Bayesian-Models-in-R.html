@@ -1,0 +1,862 @@
+---
+title: "Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits"
+description: "LOO-CV estimates out-of-sample predictive accuracy from a single fit. Use loo() and waic() in R to compare Bayesian models with honest standard errors."
+keywords: "compare Bayesian models R, LOO-CV R, WAIC R, loo package R, brms loo_compare, elpd_loo, Pareto k diagnostic, Bayesian model comparison, AIC vs LOO"
+mathjax: false
+webr: true
+curriculum_id: "5.2.4"
+post_type: "C"
+auto_link_terms: "LOO-CV|leave-one-out cross-validation|loo() function|loo_compare()|WAIC|elpd_loo|Pareto k diagnostic|Pareto-k warning|Bayesian model comparison|model selection Bayesian|loo package|posterior predictive accuracy"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Compare Bayesian Models"
+sidebar_order: "122"
+---
+<!-- md2html:generated -->
+
+<h1>Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits</h1>
+
+<p class="lead">You fit two or three Bayesian models on the same data. Which one do you report? For frequentist fits, the standard answer is <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, but AIC uses a point estimate of the parameters and ignores the posterior. The Bayesian replacement is leave-one-out cross-validation (LOO-CV), implemented in R by the <code>loo</code> package. It estimates how well your model predicts new data without actually refitting, gives a proper standard error on the comparison, and warns you when its own approximation is unreliable. This post walks through computing LOO and WAIC for brms models, reading the comparison output, and recognising the failure modes.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="35" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> The brms calls invoke Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms, cmdstanr, and the loo package installed.</div></div>
+
+<h2>Why does AIC fail for Bayesian models?</h2>
+
+<p>AIC (Akaike Information Criterion) is <code>-2 * log-likelihood + 2 * k</code>, where k is the number of parameters. The log-likelihood is computed at the maximum likelihood estimate (MLE), a single point in parameter space. AIC penalises adding parameters by <code>2 * k</code>, which is correct under a specific asymptotic argument about the MLE-fit model on new data.</p>
+
+<p>The trouble is that a Bayesian fit does not have an MLE. It has a <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">posterior distribution</a> over parameters. AIC has no clean way to use that posterior, so applied to a Bayesian fit, you would either reduce the posterior to a point (losing all uncertainty information) or use the posterior mean of the log-likelihood (which has no well-defined penalty).</p>
+
+<p>The Bayesian replacement is to estimate the <em>expected log predictive density</em> (elpd) of the model on new data using the full posterior. There <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> two practical methods.</p>
+
+<p>The first is <em>WAIC</em> (Widely Applicable Information Criterion), a closed-form estimate of elpd that uses every posterior draw. The second is <em>LOO-CV</em> (leave-one-out cross-validation), which estimates elpd by approximating what would happen if each observation were held out. LOO is now the recommended default; WAIC is an older approximation that often agrees but sometimes does not.</p>
+
+<p>Both compute the same quantity in expectation: how well the fitted model would predict a new observation drawn from the same population. Higher elpd is better, like higher likelihood is better.</p>
+
+<div class="webr-container" data-block-title="Three brms models, one LOO comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three brms models, one LOO comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+library(loo)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+# Three competing models for mpg
+fit_a &lt;- brm(mpg ~ wt,           data = mtcars, chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_b &lt;- brm(mpg ~ wt + hp,      data = mtcars, chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_c &lt;- brm(mpg ~ wt * hp,      data = mtcars, chains = 4, iter = 2000, seed = 1, silent = 2)
+
+loo_a &lt;- loo(fit_a)
+loo_b &lt;- loo(fit_b)
+loo_c &lt;- loo(fit_c)
+
+loo_compare(loo_a, loo_b, loo_c)
+#&gt;       elpd_diff se_diff
+#&gt; fit_c    0.0     0.0
+#&gt; fit_b   -1.6     2.1
+#&gt; fit_a   -3.0     3.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. We fit three nested-but-different models: <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">simple linear regression</a> on <code>wt</code>, plus <code>hp</code>, and with an interaction <code>wt * hp</code>. Each <code>loo()</code> call computed an elpd estimate using the full posterior of one fit, with no refitting and no held-out data needed from the user.</p>
+
+<p><code>loo_compare()</code> ranked the three models by elpd. The best model has <code>elpd_diff = 0</code> (it is the reference). The other rows show how much worse each model is in elpd units, with a standard error on the difference (<code>se_diff</code>).</p>
+
+<p>Now read the result. The interaction model <code>fit_c</code> is best, but only by 1.6 elpd units over <code>fit_b</code> with a standard error of 2.1. The standard rule of thumb is that an <code>elpd_diff</code> more than 4 standard errors below zero indicates a definitive preference; here <code>1.6 / 2.1 = 0.76</code>, well under 4.</p>
+
+<p>The conclusion is that the data does not have enough evidence to prefer the interaction over the simpler <code>wt + hp</code> model. Pick the simpler one for parsimony.</p>
+
+<p><img src="screenshots/Compare-Bayesian-Models-in-R-loo-flow.webp" alt="How LOO compares Bayesian models" class="img-responsive img-zoomable" loading="lazy" width="2248" height="664" /></p>
+
+<p><em>Figure 1: The LOO comparison loop. Fit each model, compute <a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">loo()</a> on each, hand them to loo_compare(), and judge whether the elpd difference exceeds a few standard errors.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>LOO comparison is one number with one standard error, not a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>.</strong> The output tells you how much better one model is <em>and</em> how confident you can be in that "better." Both numbers matter, and reporting the elpd difference alone is incomplete.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a fourth model <code>mpg ~ wt + hp + cyl</code> and add it to the comparison. Where does it rank?</p>
+<div class="webr-container" data-block-title="Your turn: add a fourth model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a fourth model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># fit_d &lt;- brm(mpg ~ wt + hp + cyl, data = mtcars, ...)
+# loo_d &lt;- loo(fit_d)
+# loo_compare(loo_a, loo_b, loo_c, loo_d)
+#&gt; Expected: fit_d ranks similarly to fit_b or fit_c, the difference within sampling error</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Fourth-model solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fourth-model solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_d &lt;- brm(mpg ~ wt + hp + cyl, mtcars,
+             chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_d &lt;- loo(fit_d)
+loo_compare(loo_a, loo_b, loo_c, loo_d)
+#&gt;       elpd_diff se_diff
+#&gt; fit_c    0.0     0.0
+#&gt; fit_d   -0.7     1.6
+#&gt; fit_b   -1.6     2.1
+#&gt; fit_a   -3.0     3.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>cyl</code> produces <code>fit_d</code>, which ranks just below <code>fit_c</code> by 0.7 elpd units (well within sampling error). The data cannot distinguish between the interaction model and the three-predictor model; either is a reasonable choice on predictive grounds. With only 32 cars, the safe call is the simpler model.</p>
+
+</details>
+</section>
+
+<h2>What does LOO-CV actually compute?</h2>
+
+<p>LOO-CV imagines holding out one observation, refitting the model on the remaining n-1 observations, and computing how well the refit predicts the held-out one. Repeat for each observation. Sum the per-observation log predictive densities; that sum is the elpd.</p>
+
+<p>The naive implementation refits the model n times (once per held-out observation), which is enormously expensive. The <code>loo</code> package's trick is <em>importance sampling</em>: it estimates the leave-one-out elpd from the full-data posterior alone, without any refitting. The trick works when the posterior with one observation removed is similar enough to the full-data posterior that re-weighting samples is reliable.</p>
+
+<p>The Pareto k diagnostic measures whether the trick is working. Each observation gets a <code>k</code> value. If <code>k &lt; 0.5</code>, the importance sampling estimate for that observation is reliable.</p>
+
+<p>If <code>k</code> is between 0.5 and 0.7, the estimate is acceptable. If <code>k &gt; 0.7</code>, the estimate is unreliable and you should refit without that observation.</p>
+
+<div class="webr-container" data-block-title="What is in a loo() object?">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What is in a loo() object?</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loo_b
+#&gt; Computed from 4000 by 32 log-likelihood matrix.
+#&gt;
+#&gt;          Estimate  SE
+#&gt; elpd_loo    -78.7 4.2
+#&gt; p_loo         4.2 1.1
+#&gt; looic       157.5 8.4
+#&gt; ------
+#&gt; Monte Carlo SE of elpd_loo is 0.0.
+#&gt;
+#&gt; All Pareto k estimates are good (k &lt; 0.7).
+#&gt; See help('pareto-k-diagnostic') for details.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the report. <code>elpd_loo</code> is the expected log predictive density (higher is better, can be negative). <code>p_loo</code> is the <em>effective number of parameters</em>, an estimate of model complexity from the posterior. <code>looic</code> is <code>-2 * elpd_loo</code>, the LOO information criterion, which puts the metric on the AIC scale (lower is better) for people who prefer that.</p>
+
+<p>The <code>MC SE of elpd_loo</code> is the Monte Carlo standard error from the finite number of posterior draws (here essentially zero, meaning we have plenty of draws). The "All Pareto k estimates are good" line confirms the importance sampling is reliable for every observation.</p>
+
+<p>That last line is the safety net. When it says "k > 0.7" for one or more observations, you should not trust the elpd estimate. We come back to this in section six.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>elpd_loo</code> itself is not interpretable in absolute terms.</strong> Whether <code>-78.7</code> is "good" depends on the data and the model. The number is meaningful only in <em>relative</em> comparison between models on the same data. That is why <code>loo_compare()</code> always reports differences, not absolute values.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute <code>loo()</code> on a single brms fit and inspect <code>loo$pointwise</code>, the per-observation elpd contributions. Which observation contributes the most negative elpd?</p>
+<div class="webr-container" data-block-title="Your turn: per-observation elpd">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-observation elpd</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># loo_b_pw &lt;- loo_b$pointwise
+# Sort by elpd_loo column ascending; the most negative observation is first.
+#&gt; Expected: one specific row of mtcars stands out as the hardest to predict</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Per-observation elpd solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-observation elpd solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loo_b_pw &lt;- loo_b$pointwise
+worst_3  &lt;- order(loo_b_pw[, &quot;elpd_loo&quot;])[1:3]
+data.frame(
+  car          = rownames(mtcars)[worst_3],
+  mpg          = mtcars$mpg[worst_3],
+  pred_mpg_avg = round(rowMeans(posterior_predict(fit_b))[worst_3], 1),
+  elpd_loo     = round(loo_b_pw[worst_3, &quot;elpd_loo&quot;], 2)
+)
+#&gt;             car  mpg pred_mpg_avg elpd_loo
+#&gt; 1 Toyota Corolla 33.9         28.4    -4.97
+#&gt; 2  Maserati Bora 15.0         13.4    -3.62
+#&gt; 3   Lotus Europa 30.4         24.6    -3.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Toyota Corolla contributes the most negative elpd (-4.97). Its observed mpg is 33.9, the highest in the dataset, and the model predicts 28.4. The Corolla is a known <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> in mtcars (light, low-power, exceptionally efficient), and the model has trouble. Per-observation elpd is the LOO equivalent of looking for influential points in a frequentist regression.</p>
+
+</details>
+</section>
+
+<h2>How do I run it in brms?</h2>
+
+<p>The mechanics. brms exposes <code>loo()</code> directly: <code>loo(fit)</code> returns a loo object. Comparing models is <code>loo_compare(loo_a, loo_b)</code> or <code>loo_compare(loo_a, loo_b, loo_c)</code>. The objects work for any brms family; binomial, Poisson, Student-t, hierarchical, all the same syntax.</p>
+
+<p>For very small datasets the LOO importance sampling is reliable. For very large datasets it is faster than refitting; for moderate ones it is fast enough to be the default.</p>
+
+<div class="webr-container" data-block-title="Add LOO at the end of every brms fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add LOO at the end of every brms fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_b &lt;- brm(mpg ~ wt + hp, mtcars, chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_b &lt;- loo(fit_b)
+loo_b
+#&gt;          Estimate  SE
+#&gt; elpd_loo    -78.7 4.2
+#&gt; p_loo         4.2 1.1
+#&gt; looic       157.5 8.4
+#&gt; All Pareto k estimates are good (k &lt; 0.7).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we just did. <code>loo()</code> ran on the fitted brmsfit object. It used the full 4000-draw posterior to compute per-observation elpd and aggregated them.</p>
+
+<p>The output reports <code>elpd_loo</code>, the effective number of parameters <code>p_loo</code>, and <code>looic</code>. The Pareto k summary at the bottom is the one piece you must not skip.</p>
+
+<p>For comparing models with different families on the same y (Normal vs Student-t, for instance), the comparison still works because elpd is on the log-density scale of y; the family difference is folded into the per-observation log-likelihood that <code>loo()</code> reads.</p>
+
+<div class="webr-container" data-block-title="Comparing different families on the same outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Comparing different families on the same outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_normal  &lt;- brm(mpg ~ wt + hp, mtcars,
+                   chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_student &lt;- brm(mpg ~ wt + hp, mtcars, family = student(),
+                   chains = 4, iter = 2000, seed = 1, silent = 2)
+
+loo_compare(loo(fit_normal), loo(fit_student))
+#&gt;             elpd_diff se_diff
+#&gt; fit_normal    0.0       0.0
+#&gt; fit_student  -0.4       1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we did. Both fits use the same formula <code>mpg ~ wt + hp</code> but different families. The Normal family fits slightly better in elpd terms (by 0.4 with se 1.5), but the difference is well within sampling error.</p>
+
+<p>For mtcars the Normal family is fine. For datasets with heavy tails or visible outliers, the same comparison would show Student-t winning by 4 or more elpd units. This is how you make the data-driven choice between likelihood families without committing to one a priori.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Cache loo objects with the model.</strong> Computing loo from a fresh brms fit takes a few seconds; computing it for several models in a comparison is repeated work. The brms convention is to add <code>fit$loo &lt;- loo(fit)</code> (or save the object alongside) so you do not recompute.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute LOO for both <code>fit_normal</code> and <code>fit_student</code>. Print only the elpd estimates and standard errors as a tidy two-row data frame.</p>
+<div class="webr-container" data-block-title="Your turn: tidy loo output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy loo output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build a data.frame with model name, elpd_loo estimate, elpd_loo SE
+# Tip: loo_x$estimates['elpd_loo', 'Estimate']</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tidy loo solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy loo solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data.frame(
+  model       = c(&quot;normal&quot;, &quot;student&quot;),
+  elpd_loo    = c(loo(fit_normal)$estimates[&quot;elpd_loo&quot;, &quot;Estimate&quot;],
+                  loo(fit_student)$estimates[&quot;elpd_loo&quot;, &quot;Estimate&quot;]),
+  elpd_loo_SE = c(loo(fit_normal)$estimates[&quot;elpd_loo&quot;, &quot;SE&quot;],
+                  loo(fit_student)$estimates[&quot;elpd_loo&quot;, &quot;SE&quot;])
+) |&gt; round(2)
+#&gt;     model elpd_loo elpd_loo_SE
+#&gt; 1  normal   -78.74        4.21
+#&gt; 2 student   -79.13        4.45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both models have similar elpd (-78.7 vs -79.1) with similar SEs. The student-t model is slightly worse in elpd but well within the SE of the comparison. For mtcars, neither family is wrong.</p>
+
+</details>
+</section>
+
+<h2>How do I read elpd_diff and the standard error?</h2>
+
+<p><code>loo_compare()</code> returns a table with two columns. <code>elpd_diff</code> is the difference in elpd between each model and the best (the best gets <code>elpd_diff = 0</code>). <code>se_diff</code> is the standard error of that difference.</p>
+
+<p>The rule of thumb: a model is <em>definitively</em> worse if <code>|elpd_diff| &gt; 4 * se_diff</code>. Below that threshold, the comparison is uncertain. Many published Bayesian analyses use looser thresholds (2 SE for a "weak preference," 4 SE for "strong"); both are defensible.</p>
+
+<div class="webr-container" data-block-title="Reading loo_compare output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading loo_compare output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loo_compare(loo_a, loo_b, loo_c)
+#&gt;       elpd_diff se_diff
+#&gt; fit_c    0.0     0.0
+#&gt; fit_b   -1.6     2.1
+#&gt; fit_a   -3.0     3.4
+
+abs(c(b = -1.6 / 2.1, a = -3.0 / 3.4))
+#&gt;     b     a
+#&gt; 0.762 0.882</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the decision. <code>fit_b</code> is 1.6 elpd units worse than <code>fit_c</code> with se 2.1; ratio 0.76. <code>fit_a</code> is 3.0 worse with se 3.4; ratio 0.88.</p>
+
+<p>Both ratios are well below 4, so the data does not decisively prefer <code>fit_c</code> over the alternatives. Reporting "fit_c is best" without the ratio context would mislead. The honest framing is that fit_c has the highest elpd, but the gap to fit_b and fit_a is within 1 SE; the data cannot reliably distinguish these models.</p>
+
+<p>For policy or scientific decisions, you typically want a stronger signal. Here is what 4-SE evidence looks like:</p>
+
+<div class="webr-container" data-block-title="A clearer LOO comparison">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A clearer LOO comparison</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_null &lt;- brm(mpg ~ 1, mtcars, chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_null &lt;- loo(fit_null)
+
+loo_compare(loo_b, loo_null)
+#&gt;          elpd_diff se_diff
+#&gt; fit_b      0.0       0.0
+#&gt; fit_null  -22.4      6.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what changed. The null model (intercept only) has 22.4 fewer elpd units than <code>fit_b</code> with an SE of 6.1; the ratio is <code>22.4 / 6.1 = 3.7</code>, just under our 4-SE threshold. The signal is strong: <code>fit_b</code> is much better at predicting new data than the null model.</p>
+
+<p>This is the kind of comparison where you can confidently report that the regression model substantially outperforms the no-predictor baseline. Reporting the ratio alongside the elpd_diff itself makes the decision auditable.</p>
+
+<p><img src="screenshots/Compare-Bayesian-Models-in-R-criteria.webp" alt="Bayesian model comparison criteria" class="img-responsive img-zoomable" loading="lazy" width="1034" height="986" /></p>
+
+<p><em>Figure 2: Three model-comparison criteria. AIC uses an MLE point and is wrong for Bayesian fits. WAIC uses the full posterior in closed form. LOO-CV is the modern recommended default with honest SE and a built-in reliability diagnostic.</em></p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>elpd_diff &gt; 0</code> is impossible by construction.</strong> The best model always has 0; everything else is below. Newcomers sometimes look for a positive elpd_diff and conclude something is wrong; that is just the convention.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute <code>loo_compare()</code> on <code>fit_b</code> and <code>fit_null</code> (the intercept-only model from above). Report the ratio <code>|elpd_diff| / se_diff</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute the ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute the ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use loo_compare(loo_b, loo_null) and pull elpd_diff and se_diff for fit_null
+# Compute abs(elpd_diff) / se_diff</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Ratio solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ratio solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cmp &lt;- loo_compare(loo_b, loo_null)
+cmp
+#&gt;          elpd_diff se_diff
+#&gt; fit_b      0.0       0.0
+#&gt; fit_null  -22.4      6.1
+abs(cmp[&quot;fit_null&quot;, &quot;elpd_diff&quot;]) / cmp[&quot;fit_null&quot;, &quot;se_diff&quot;]
+#&gt; [1] 3.672</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ratio is 3.67, strong evidence that <code>fit_b</code> predicts better. By the 4-SE rule the comparison is borderline definitive; by the more common 2-SE threshold it is solidly definitive. Either way, the regression model is much better than the null.</p>
+
+</details>
+</section>
+
+<h2>What does WAIC do, and when is it different from LOO?</h2>
+
+<p>WAIC (Widely Applicable Information Criterion) is a closed-form estimate of elpd that uses every posterior draw plus a complexity penalty. It does not need importance sampling and has no Pareto k diagnostic. It is faster than LOO when the dataset is large or the importance-sampling step in LOO struggles.</p>
+
+<p>For most well-fitting models, WAIC and LOO agree. The two differ when:</p>
+
+<ol>
+
+<li>The model has heavy-tailed posteriors that cause Pareto k warnings in LOO.</li>
+
+<li>Some observations are highly influential (outliers, or important leverage points).</li>
+
+<li>The dataset is very large and importance sampling becomes numerically tricky.</li>
+
+</ol>
+
+<p>LOO is generally preferred because it has the diagnostic; WAIC silently fails when the elpd approximation is bad. Running both as a cross-check is a 30-second workflow addition.</p>
+
+<div class="webr-container" data-block-title="WAIC vs LOO on the same fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">WAIC vs LOO on the same fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">waic_b &lt;- waic(fit_b)
+waic_b
+#&gt; Computed from 4000 by 32 log-likelihood matrix.
+#&gt;           Estimate   SE
+#&gt; elpd_waic    -78.7  4.2
+#&gt; p_waic         4.2  1.1
+#&gt; waic        157.5  8.5
+
+loo_compare(loo_b, waic_b)
+#&gt;           elpd_diff se_diff
+#&gt; waic_b     0.0       0.0
+#&gt; loo_b     -0.0       0.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. <code>waic_b</code> returned essentially the same <code>elpd_waic</code> (-78.7) as <code>loo_b</code> returned for <code>elpd_loo</code> (-78.7), and the same SE (4.2 vs 4.2). The LOO and WAIC comparisons differ by 0.0; for this fit they agree exactly.</p>
+
+<p>When they disagree, it is often a sign of <a class="auto-link" href="Posterior-Predictive-Checks-in-R.html" title="Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model">model misspecification</a>. WAIC understates uncertainty in the presence of <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">influential observations</a>; LOO over-corrects. If the two differ by more than 1 elpd unit, look at the LOO Pareto k values and rerun with <code>reloo</code> (next section) for the bad observations.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>loo()</code> by default, run <code>waic()</code> as a cross-check on important comparisons.</strong> When the two agree (within 1 elpd unit), you can trust either. When they disagree, the model has unusual structure and the LOO Pareto k diagnostic will tell you which observations are the source.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute <code>waic()</code> for the three mtcars models from earlier and confirm the ranking matches the LOO ranking.</p>
+<div class="webr-container" data-block-title="Your turn: WAIC ranking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: WAIC ranking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Compute waic_a, waic_b, waic_c and pass to loo_compare()
+# Compare to the loo_compare(loo_a, loo_b, loo_c) ranking</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="WAIC ranking solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">WAIC ranking solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">waic_a &lt;- waic(fit_a)
+waic_b &lt;- waic(fit_b)
+waic_c &lt;- waic(fit_c)
+loo_compare(waic_a, waic_b, waic_c)
+#&gt;        elpd_diff se_diff
+#&gt; fit_c   0.0       0.0
+#&gt; fit_b  -1.6       2.1
+#&gt; fit_a  -3.0       3.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>WAIC ranking matches the LOO ranking exactly (<code>fit_c</code> > <code>fit_b</code> > <code>fit_a</code>), with the same elpd differences and standard errors. For this dataset the two methods agree, which is the common case. When they disagree, look at LOO's Pareto k diagnostic.</p>
+
+</details>
+</section>
+
+<h2>When does LOO break (Pareto-k warnings) and what do you do?</h2>
+
+<p>LOO's importance sampling assumes that for each held-out observation, the full-data posterior is similar to the leave-one-out posterior. When that assumption breaks (an influential observation, an outlier, a model that is highly sensitive to one point), LOO returns a Pareto k value above 0.7 for that observation and prints a warning.</p>
+
+<p>The fix has two paths.</p>
+
+<p>The first is <code>reloo</code>. Refit the model with each high-k observation actually held out, and use the refit's predictive density for that observation instead of the importance-sampling estimate. brms wraps this as <code>loo(fit, moment_match = FALSE, reloo = TRUE)</code>. The cost is one full refit per high-k observation.</p>
+
+<p>The second is <em><a class="auto-link" href="Method-of-Moments-in-R.html" title="Method of Moments in R: Fit Distributions Without Calculus">moment matching</a></em>. A cheaper approximation that adjusts the posterior moments instead of refitting. Use <code>loo(fit, moment_match = TRUE)</code>. Often this is enough.</p>
+
+<div class="webr-container" data-block-title="Demonstrate Pareto k warnings on a sensitive model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Demonstrate Pareto k warnings on a sensitive model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_extreme &lt;- rbind(
+  mtcars,
+  data.frame(
+    mpg = 60, cyl = 4, disp = 50, hp = 30, drat = 4.0, wt = 1.5,
+    qsec = 25.0, vs = 1, am = 1, gear = 4, carb = 1,
+    row.names = &quot;Hypercar&quot;
+  )
+)
+
+fit_x &lt;- brm(mpg ~ wt + hp, data = mtcars_extreme,
+             chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_x &lt;- loo(fit_x)
+loo_x
+#&gt; Computed from 4000 by 33 log-likelihood matrix.
+#&gt;          Estimate   SE
+#&gt; elpd_loo    -88.2  6.7
+#&gt;
+#&gt; Pareto k diagnostic values:
+#&gt;                         Count Pct.
+#&gt; (-Inf, 0.5]   (good)      31  93.9%
+#&gt;  (0.5, 0.7]   (ok)         1   3.0%
+#&gt;    (0.7, 1]   (bad)        1   3.0%
+#&gt;    (1, Inf)   (very bad)   0   0.0%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the warning. The summary now shows the Pareto k breakdown. 31 of 33 observations are good (k < 0.5). One is borderline (0.5 < k < 0.7). One is bad (k > 0.7), almost certainly the Hypercar we added.</p>
+
+<p>A bad k means the LOO estimate for that observation is unreliable. Acting on the LOO comparison without addressing the bad observation could produce a misleading conclusion.</p>
+
+<div class="webr-container" data-block-title="Refit without the bad observation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit without the bad observation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">loo_x_refit &lt;- loo(fit_x, moment_match = FALSE, reloo = TRUE)
+loo_x_refit
+#&gt; Computed from 4000 by 33 log-likelihood matrix.
+#&gt;          Estimate   SE
+#&gt; elpd_loo    -89.5  6.4
+#&gt; All Pareto k estimates are good (k &lt; 0.7).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what <code>reloo = TRUE</code> did. brms identified the high-k observation, refit the model with it held out, and used the refit's predictive density for that observation. The result has all Pareto k below 0.7 (good across the board) and the elpd estimate has shifted slightly to -89.5 from the importance-sampling -88.2.</p>
+
+<p>The shift is small here because the influential observation is mildly bad, not catastrophic. For very bad observations (k > 1), the importance-sampling estimate can be wildly off; <code>reloo</code> fixes it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never publish LOO comparisons with unaddressed Pareto k > 0.7.</strong> The whole point of LOO is honest predictive accuracy estimates with valid standard errors. Bad Pareto k means both the estimate and the SE are unreliable. Either run <code>reloo</code>, or report the full-data fit only without LOO.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Identify the observation in <code>mtcars_extreme</code> with the highest Pareto k by examining <code>loo_x$diagnostics$pareto_k</code>. Confirm it is the Hypercar.</p>
+<div class="webr-container" data-block-title="Your turn: find the worst observation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the worst observation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># bad_idx &lt;- which.max(loo_x$diagnostics$pareto_k)
+# rownames(mtcars_extreme)[bad_idx]
+#&gt; Expected: &quot;Hypercar&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Find-bad-observation solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find-bad-observation solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_idx &lt;- which.max(loo_x$diagnostics$pareto_k)
+data.frame(
+  car      = rownames(mtcars_extreme)[bad_idx],
+  pareto_k = round(loo_x$diagnostics$pareto_k[bad_idx], 2),
+  observed = mtcars_extreme$mpg[bad_idx]
+)
+#&gt;        car pareto_k observed
+#&gt; 1 Hypercar     0.83       60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Hypercar is the highest-k observation with Pareto k = 0.83. That matches what we expect: a 60-mpg car with low weight and low horsepower is far outside the rest of the data, so the model fitted with it included produces a posterior different from the model fitted without it. LOO's importance sampling cannot bridge that gap reliably.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Pick a family with LOO</h3>
+
+<p>Generate <code>y &lt;- c(rnorm(40), 8, 9, -8, -9)</code> (heavy-tailed). Fit <code>brm(y ~ 1)</code> with default Normal and <code>family = student()</code>. Compare elpd_loo and conclude which family is preferred.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fit two models and run loo_compare()
+# Read the elpd_diff and ratio elpd_diff / se_diff</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2026)
+y_h  &lt;- c(rnorm(40), 8, 9, -8, -9)
+df_h &lt;- data.frame(y = y_h)
+
+fit_n &lt;- brm(y ~ 1, df_h, chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_t &lt;- brm(y ~ 1, df_h, family = student(),
+             chains = 4, iter = 2000, seed = 1, silent = 2)
+
+loo_compare(loo(fit_n), loo(fit_t))
+#&gt;          elpd_diff se_diff
+#&gt; fit_t     0.0       0.0
+#&gt; fit_n   -10.4       3.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Student-t wins by 10.4 elpd units with SE 3.8 (ratio 2.7). That is well above the 2-SE soft threshold and approaching the 4-SE definitive threshold. Switching from Normal to Student-t gives a measurable predictive accuracy gain when the data has heavy tails.</p>
+
+</details>
+
+<h3>Exercise 2: Compare a hierarchical and non-hierarchical model</h3>
+
+<p>For <code>mtcars</code> with <code>cyl</code> as factor, compare <code>mpg ~ wt</code> and <code>mpg ~ wt + (1 | cyl)</code> via LOO.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mtcars$cyl &lt;- factor(mtcars$cyl)
+# Fit both, run loo_compare</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2     &lt;- mtcars
+mtcars2$cyl &lt;- factor(mtcars2$cyl)
+
+fit_simple &lt;- brm(mpg ~ wt,             mtcars2, chains = 4, iter = 2000, seed = 1, silent = 2)
+fit_hier   &lt;- brm(mpg ~ wt + (1 | cyl), mtcars2, chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_compare(loo(fit_simple), loo(fit_hier))
+#&gt;             elpd_diff se_diff
+#&gt; fit_hier      0.0       0.0
+#&gt; fit_simple   -1.7       1.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The hierarchical model is preferred by 1.7 elpd units with SE 1.3 (ratio 1.3, just above the 1-SE threshold). Weak preference for the hierarchical model. With more groups or a dataset where group structure matters more, the gap would widen.</p>
+
+</details>
+
+<h3>Exercise 3: Address a Pareto k warning</h3>
+
+<p>Use the <code>mtcars_extreme</code> setup from earlier. Fit the model, run <code>loo()</code>, identify the bad-k observation, and use <code>reloo</code> to refit. Compare elpd_loo before and after.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Build mtcars_extreme as in section 6
+# loo_full &lt;- loo(fit_x)
+# loo_reloo &lt;- loo(fit_x, moment_match = FALSE, reloo = TRUE)
+# Compare elpd_loo from both</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_x &lt;- rbind(
+  mtcars,
+  data.frame(mpg = 60, cyl = 4, disp = 50, hp = 30, drat = 4.0,
+             wt = 1.5, qsec = 25.0, vs = 1, am = 1, gear = 4, carb = 1,
+             row.names = &quot;Hypercar&quot;)
+)
+fit_x     &lt;- brm(mpg ~ wt + hp, mtcars_x, chains = 4, iter = 2000, seed = 1, silent = 2)
+loo_full  &lt;- loo(fit_x)
+loo_reloo &lt;- loo(fit_x, moment_match = FALSE, reloo = TRUE)
+data.frame(
+  method      = c(&quot;import sampling&quot;, &quot;reloo&quot;),
+  elpd_loo    = c(loo_full$estimates[&quot;elpd_loo&quot;, &quot;Estimate&quot;],
+                  loo_reloo$estimates[&quot;elpd_loo&quot;, &quot;Estimate&quot;]),
+  bad_k_count = c(sum(loo_full$diagnostics$pareto_k &gt; 0.7),
+                  sum(loo_reloo$diagnostics$pareto_k &gt; 0.7))
+)
+#&gt;            method elpd_loo bad_k_count
+#&gt; 1 import sampling   -88.21           1
+#&gt; 2           reloo   -89.52           0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Importance sampling gave -88.2 with one bad k. After <code>reloo</code>, the elpd_loo dropped slightly to -89.5 and zero bad k values remain. The shift is small here, but on more pathological models the difference can be several elpd units.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>LOO-CV is the modern Bayesian replacement for AIC. It estimates expected log predictive density on new data using only the posterior, without refitting, and reports both the estimate and a proper standard error.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Fit each candidate model</td>
+<td><code>brm(...)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Compute LOO for each</td>
+<td><code>loo(fit)</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Compare them</td>
+<td><code>loo_compare(loo_a, loo_b, ...)</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Read elpd_diff and se_diff</td>
+<td>Apply the 2-SE or 4-SE rule</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Check Pareto k diagnostic</td>
+<td><code>loo$diagnostics$pareto_k</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>If bad k, run reloo</td>
+<td><code>loo(fit, reloo = TRUE)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>For an honest published comparison, always include the elpd difference <em>and</em> its standard error. Running WAIC as a cross-check against LOO is a 30-second sanity step. Never report a comparison that includes Pareto k > 0.7 without having addressed it.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Vehtari, A., Gelman, A., Gabry, J. "Practical Bayesian model evaluation using leave-one-out cross-validation and WAIC." <em>Statistics and Computing</em> 27 (2017). The methodology paper.</li>
+
+<li>Vehtari, A., Simpson, D., Gelman, A., Yao, Y., Gabry, J. "Pareto smoothed importance sampling." arXiv:1507.02646. The PSIS algorithm behind LOO.</li>
+
+<li>Vehtari, A., Gabry, J., Yao, Y., Gelman, A. <em>loo: Efficient Leave-One-Out Cross-Validation and WAIC for Bayesian Models</em>. <a href="https://mc-stan.org/loo/">mc-stan.org/loo</a>. The R package documentation.</li>
+
+<li>Bürkner, P. <em>brms documentation: loo</em>. <a href="https://paulbuerkner.com/brms/reference/loo.brmsfit.html">paulbuerkner.com/brms/reference/loo.brmsfit.html</a>.</li>
+
+<li>Yao, Y., Vehtari, A., Simpson, D., Gelman, A. "Using stacking to average Bayesian predictive distributions." <em>Bayesian Analysis</em> 13 (2018). The model-averaging extension when no single model wins.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Posterior-Predictive-Checks-in-R.html">Posterior Predictive Checks in R</a>, the previous post. PPC tells you whether one model fits; LOO tells you which of several models fits best.</li>
+
+<li><a href="brms-in-R.html">brms in R</a>, the package powering <code>loo()</code> for brms fits.</li>
+
+<li><a href="Bayesian-Statistics-in-R.html">Bayesian Statistics in R</a>, the section opener.</li>
+
+</ul>
