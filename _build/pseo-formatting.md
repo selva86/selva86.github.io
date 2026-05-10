@@ -18,7 +18,9 @@ This is the canonical formatting bar for every PSEO post. Both `/write-pseo-v2` 
 - Example: `**select() is a column subsetter.** You pass a data frame and a list of columns...`
 - Skim-readers should grasp the post by reading only bolded leads + headings.
 
-## 3. Callouts (mandatory: 2 to 4 per post)
+## 3. Callouts (mandatory: 2 to 4 per post; counts authored callouts only)
+
+The auto-injected `[Run live]` callout (rule 3c) and the dedicated `[QUICK ANSWER]` (3a) and `[DECISION TREE]` (3b) blocks are NOT counted toward the 2-to-4 callout density rule. They are separate block types, not in the TIP/WARNING/NOTE/KEY-INSIGHT family.
 
 - Use the 4-callout system: `[TIP]`, `[WARNING]`, `[NOTE]`, `[KEY INSIGHT]`.
 - Format each as a single paragraph (md2html.py terminates at first blank line):
@@ -33,6 +35,56 @@ This is the canonical formatting bar for every PSEO post. Both `/write-pseo-v2` 
   - NOTE: version notes, alternatives, side notes
   - KEY INSIGHT: the "aha" mental model that ties code to understanding (max 1 per section)
 - Don't place 2 callouts within 3 paragraphs of each other.
+
+## 3a. Quick Answer block (mandatory for function-deep PSEO; recommended for cookbook-recipe and chart-type)
+
+Place ONE `[QUICK ANSWER]` block directly after the lead paragraph. Renders as an amber-bordered card with a dark code box containing 5 to 8 single-line answers, each with an inline `# label` comment.
+
+Markdown syntax:
+
+```
+[QUICK ANSWER]
+filter(df, mpg > 20)                # single condition
+filter(df, mpg > 20, cyl == 4)      # AND
+filter(df, mpg > 20 | cyl == 4)     # OR
+filter(df, cyl %in% c(4, 6))        # set membership
+filter(df, between(hp, 100, 200))   # range
+filter(df, !is.na(x), x > 5)        # NA-safe
+filter(df, x == max(x), .by = grp)  # by group
+```
+
+Rules:
+- Each line: one functional pattern + one inline comment label
+- 5 to 8 lines (more clutters; fewer leaves common cases out)
+- Use realistic placeholder names (`df`, `mpg`, `x`) so the snippet is copy-paste ready
+- No prose inside the block; the card auto-appends "Need explanation? Read on for examples and pitfalls."
+
+## 3b. Decision Tree block (recommended for function-deep PSEO with branching usage)
+
+Place ONE `[DECISION TREE: <title>]` block after the Quick Answer. Renders as inline SVG with a vertical trunk and labeled horizontal branches to code boxes.
+
+Markdown syntax:
+
+```
+[DECISION TREE: Which form do I need?]
+- one: filter(df, x > 5)
+- AND: filter(df, x > 5, y < 10)
+- OR: filter(df, x > 5 | y < 10)
+- in set: filter(df, x %in% c(1, 2, 3))
+- range: filter(df, between(x, 1, 10))
+- NA-safe: filter(df, !is.na(x), x > 5)
+- by group: filter(df, x == max(x), .by = grp)
+```
+
+Rules:
+- 4 to 8 branches (fewer = no branching; more = visual clutter)
+- Branch labels short (1 to 2 words)
+- Code lines must fit in ~70 characters (the box width)
+- Skip the block if the function has no meaningful branching choice (e.g., `glimpse()`)
+
+## 3c. Run-live callout (auto-injected, do not write manually)
+
+For PSEO posts, build.py automatically injects a green "Run live, no install needed" callout above the first WebR code block. Authors do NOT write this; it appears once per post. Opt-out via frontmatter `runlive_callout: false` if a post should not advertise the runtime (rare).
 
 ## 4. Lists
 

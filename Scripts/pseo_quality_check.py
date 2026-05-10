@@ -212,6 +212,32 @@ def check_no_nested_deep(fm, body):
     return True, "no >1-level nesting"
 
 
+def check_quick_answer(fm, body):
+    """function-deep PSEO must have a [QUICK ANSWER] block. Other categories: optional."""
+    cat = (fm.get("category_id") or "").strip()
+    has_qa = "[QUICK ANSWER]" in body
+    if cat == "function-deep":
+        if has_qa:
+            return True, "[QUICK ANSWER] present"
+        return False, "function-deep PSEO must have a [QUICK ANSWER] block"
+    if cat in ("cookbook-recipe", "chart-type"):
+        if has_qa:
+            return True, "[QUICK ANSWER] present (recommended)"
+        return True, "no [QUICK ANSWER] (optional for this category)"
+    return True, "n/a for this category"
+
+
+def check_decision_tree(fm, body):
+    """Decision tree is recommended for function-deep PSEO with branching usage."""
+    cat = (fm.get("category_id") or "").strip()
+    has_dt = re.search(r"\[DECISION TREE:", body) is not None
+    if cat == "function-deep":
+        if has_dt:
+            return True, "[DECISION TREE] present"
+        return True, "no [DECISION TREE] (recommended but not required)"
+    return True, "n/a for this category"
+
+
 def check_auto_link_safety(fm, body):
     """Lightweight check: warn if any auto_link_term is a 2-3 letter all-caps abbrev with case_sensitive=false."""
     case_sensitive = (fm.get("auto_link_case_sensitive", "false").lower() == "true")
@@ -238,6 +264,8 @@ CHECKS = [
     ("13 bold_leads",            check_bold_leads),
     ("14 no_deep_nesting",       check_no_nested_deep),
     ("15 auto_link_safety",      check_auto_link_safety),
+    ("16 quick_answer_block",    check_quick_answer),
+    ("17 decision_tree_block",   check_decision_tree),
 ]
 
 

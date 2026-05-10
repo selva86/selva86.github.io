@@ -1152,6 +1152,29 @@ def build_post(
         content = content[:end] + '\n' + byline_html + content[end:]
     elif '</h1>' in content:
         content = content.replace('</h1>', '</h1>\n' + byline_html, 1)
+
+    # PSEO posts: auto-inject "Run live, no install" callout above the first
+    # WebR code block. One-time, makes the silent moat visible. Skipped if the
+    # post explicitly opts out via frontmatter `runlive_callout: false` or if
+    # there is no WebR block.
+    if (meta.get('post_type', '').strip() == 'PSEO'
+            and meta.get('runlive_callout', 'true').lower() != 'false'
+            and '<div class="webr-container"' in content):
+        runlive_html = (
+            '<div class="callout callout-runlive">'
+            '<div class="callout-label">Run live</div>'
+            '<div class="callout-body">'
+            '<strong>Run live, no install needed.</strong> Every R block on this page runs in your browser. '
+            'Click Run, edit the code, re-run instantly. No setup.'
+            '</div>'
+            '</div>'
+        )
+        # Insert immediately before the first webr-container
+        content = content.replace(
+            '<div class="webr-container"',
+            runlive_html + '\n<div class="webr-container"',
+            1,
+        )
     content_with_breadcrumb = breadcrumb_html + '\n' + content
     content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
     if related_html:

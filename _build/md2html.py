@@ -284,6 +284,107 @@ def convert(md_text):
             out.append('<section class="tryit-block">\n' + '\n'.join(pieces) + '\n</section>')
             continue
 
+        # PSEO Quick Answer block: [QUICK ANSWER] followed by code lines until blank line.
+        # Each line becomes one row in the dark code box. Inline `# comment` text gets
+        # styled as muted comment via .qa-cmt span.
+        if line.strip() == '[QUICK ANSWER]':
+            i += 1
+            qa_lines = []
+            while i < len(lines) and lines[i].strip() != '':
+                qa_lines.append(lines[i])
+                i += 1
+            # Build the <pre> body, escape HTML and split inline comments
+            qa_pre_lines = []
+            for raw in qa_lines:
+                # Find first ' #' that's not inside parens (best-effort: split on first '  #' or trailing tabs+#)
+                m = re.match(r'^(.*?)(\s+#\s.*)$', raw)
+                if m:
+                    code_part = escape_html(m.group(1).rstrip())
+                    cmt_part = escape_html(m.group(2))
+                    qa_pre_lines.append(f'{code_part}<span class="qa-cmt">{cmt_part}</span>')
+                else:
+                    qa_pre_lines.append(escape_html(raw))
+            pre_body = '\n'.join(qa_pre_lines)
+            out.append(
+                '<div class="quick-answer">'
+                '<div class="qa-label">⚡ Quick Answer</div>'
+                f'<pre>{pre_body}</pre>'
+                '<p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p>'
+                '</div>'
+            )
+            continue
+
+        # PSEO Decision Tree block:
+        #   [DECISION TREE: Which form do I need?]
+        #   - label1: code line 1
+        #   - label2: code line 2
+        #   ...
+        # Renders as inline SVG with vertical-trunk layout (one START at top,
+        # N horizontal arrows fanning right to N code boxes).
+        dt_match = re.match(r'^\[DECISION TREE:\s*(.+?)\]\s*$', line.strip())
+        if dt_match:
+            dt_title = dt_match.group(1).strip()
+            i += 1
+            rows = []  # list of (label, code) tuples
+            while i < len(lines) and lines[i].strip() != '':
+                row_match = re.match(r'^-\s*([^:]+):\s*(.+)$', lines[i].strip())
+                if row_match:
+                    rows.append((row_match.group(1).strip(), row_match.group(2).strip()))
+                i += 1
+            if rows:
+                # Geometry. Designed so labels NEVER overlap lines or other rows.
+                # Per-row layout (within the row's "slot" of height = row_pitch):
+                #   label baseline at row_y - 20 (text occupies row_y-31..row_y-18)
+                #   horizontal line at row_y           (1.5px stroke)
+                #   code box from row_y-13 to row_y+15 (height 28)
+                # Vertical gaps:
+                #   START bottom (y=48) to row 0 label top (y=59) = 11px
+                #   Row N box bottom (y=row_y+15) to row N+1 label top (y=row_y_next-31) = 10px
+                # All gaps >= 10px so any reasonable font-rendering variation stays clear.
+                row_pitch = 56
+                row_start_y = 90
+                trunk_top = 50
+                trunk_bottom = row_start_y + (len(rows) - 1) * row_pitch
+                vb_h = trunk_bottom + 35
+                vb_w = 720
+                box_x = 210
+                box_w = vb_w - box_x - 20
+                svg_parts = [
+                    f'<svg class="dt-svg" viewBox="0 0 {vb_w} {vb_h}" xmlns="http://www.w3.org/2000/svg">',
+                    '<style>'
+                    '.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}'
+                    '.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}'
+                    '.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}'
+                    '.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}'
+                    '.code{font:13px \'JetBrains Mono\',Consolas,monospace;fill:#1e293b}'
+                    '.branch{stroke:#0284c7;stroke-width:1.5;fill:none}'
+                    '.arrow-fill{fill:#0284c7}'
+                    '</style>',
+                    '<defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs>',
+                    f'<line class="branch" x1="100" y1="{trunk_top}" x2="100" y2="{trunk_bottom}"/>',
+                    '<rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/>',
+                    '<text x="100" y="38" text-anchor="middle" class="label-start">START</text>',
+                ]
+                for idx, (label, code) in enumerate(rows):
+                    row_y = row_start_y + idx * row_pitch
+                    label_y = row_y - 20  # 20px above the line; clear gap from row above
+                    box_y = row_y - 13     # box top
+                    label_safe = escape_html(label)
+                    code_safe = escape_html(code)
+                    svg_parts.append(f'<text x="125" y="{label_y}" class="branch-label">{label_safe}</text>')
+                    svg_parts.append(f'<line class="branch" x1="100" y1="{row_y}" x2="200" y2="{row_y}" marker-end="url(#dt-arrow)"/>')
+                    svg_parts.append(f'<rect class="node-code" x="{box_x}" y="{box_y}" width="{box_w}" height="28" rx="5"/>')
+                    svg_parts.append(f'<text x="{box_x + 12}" y="{row_y + 5}" class="code">{code_safe}</text>')
+                svg_parts.append('</svg>')
+                svg_html = ''.join(svg_parts)
+                out.append(
+                    '<div class="decision-tree">'
+                    f'<div class="dt-label">\U0001F4CA {escape_html(dt_title)}</div>'
+                    f'{svg_html}'
+                    '</div>'
+                )
+            continue
+
         # Callout boxes: [TIP], [WARNING], [NOTE], [KEY INSIGHT]
         callout_match = re.match(r'^\[(TIP|WARNING|NOTE|KEY INSIGHT)\]\s*$', line.strip())
         if callout_match:
