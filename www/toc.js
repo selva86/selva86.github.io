@@ -4,7 +4,11 @@ function slugify(text) {
 }
 
 document.querySelectorAll('#content h2, #content h4, #content h5').forEach(function(h) {
-  h.id = slugify(h.textContent);
+  // Only set an id if the heading doesn't already have one. The build pipeline
+  // (build.py) pre-assigns ids to H2s for PSEO posts so the auto-injected
+  // jump-chip strip can target them. Overwriting here would change the casing
+  // (e.g. "what-filter-does..." -> "What-filter-does...") and break those anchors.
+  if (!h.id) h.id = slugify(h.textContent);
 });
 
 var toc = document.getElementById('toc');
