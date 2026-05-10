@@ -1,0 +1,405 @@
+---
+title: "dplyr bind_rows() and bind_cols() in R: Combine Tables"
+description: "Use dplyr bind_rows() and bind_cols() to combine data frames vertically or horizontally in R. Covers .id origin, missing columns, and 6 worked examples."
+keywords: "dplyr bind_rows, bind_cols dplyr, combine data frames R, bind_rows vs rbind, R stack data frames, dplyr concatenate tables"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bind_rows()|bind_cols()|dplyr bind_rows|dplyr::bind_rows()|combine data frames"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr bind_rows() and bind_cols() in R: Combine Tables</h1>
+
+<p class="lead">The <code>bind_rows()</code> and <code>bind_cols()</code> functions in dplyr stack data frames vertically (more rows) or horizontally (more columns). Unlike base R <code>rbind()</code> and <code>cbind()</code>, they handle column-name mismatches gracefully and return a tibble.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bind_rows(df1, df2)<span class="qa-cmt">                       # stack vertically</span>
+bind_rows(df1, df2, df3)<span class="qa-cmt">                  # multiple data frames</span>
+bind_rows(list_of_dfs)<span class="qa-cmt">                    # from a list</span>
+bind_rows(df1, df2, .id = &quot;source&quot;)<span class="qa-cmt">       # add origin column</span>
+bind_cols(df1, df2)<span class="qa-cmt">                       # stack horizontally (must match nrows)</span>
+bind_rows(df1, df2)<span class="qa-cmt">                       # missing cols filled with NA</span>
+do.call(bind_rows, list_of_dfs)<span class="qa-cmt">           # equivalent to bind_rows(list)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bind_rows() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">stack vertically (same cols)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bind_rows(df1, df2)</text><text x="125" y="126" class="branch-label">stack horizontally (same rows)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">bind_cols(df1, df2)</text><text x="125" y="182" class="branch-label">match by key (joins)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">left_join, <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">inner_join</a>, full_join</text><text x="125" y="238" class="branch-label">add new column to existing df</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mutate(df, new = ...)</text><text x="125" y="294" class="branch-label">combine list of dfs from <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bind_rows(list_of_dfs)</text><text x="125" y="350" class="branch-label">stack with origin tracking</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">bind_rows(df1, df2, .id = &quot;source&quot;)</text><text x="125" y="406" class="branch-label">merge with type coercion</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">full_join (handles different schemas)</text></svg></div>
+
+<h2>What bind_rows() and bind_cols() do in one sentence</h2>
+
+<p><strong><code>bind_rows()</code> stacks data frames VERTICALLY (more rows); <code>bind_cols()</code> stacks them HORIZONTALLY (more columns).</strong> They are pipe-friendly replacements for base R <code>rbind()</code> and <code>cbind()</code>, with smarter handling of mismatched columns and consistent tibble output.</p>
+
+<p><code>bind_rows()</code> is forgiving: missing columns in one input become NA in the output. <code>bind_cols()</code> is strict: the inputs must have the same number of rows.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>Both functions accept any number of data frames as separate arguments OR a single list of data frames.</strong> <code>.id</code> adds a column tracking which input each row came from.</p>
+
+<div class="webr-container" data-block-title="Load dplyr and create two small data frames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load dplyr and create two small data frames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+q1 &lt;- tibble(month = c(&quot;Jan&quot;,&quot;Feb&quot;,&quot;Mar&quot;), sales = c(100, 120, 130))
+q2 &lt;- tibble(month = c(&quot;Apr&quot;,&quot;May&quot;,&quot;Jun&quot;), sales = c(150, 140, 160))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signatures:</p>
+
+<pre><code>bind_rows(..., .id = NULL)
+bind_cols(..., .name_repair = c(&quot;unique&quot;,&quot;universal&quot;,&quot;check_unique&quot;,&quot;minimal&quot;))</code></pre>
+
+<p><code>...</code> accepts any number of data frames (or a single list of them). <code>.id</code> (bind_rows only) creates an origin tracking column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>bind_rows(list_of_dfs)</code> accepts a list, no <code>do.call</code> needed.</strong> <code>purrr::map(files, read_csv) |&gt; bind_rows()</code> is the standard idiom for combining many files into one data frame.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Stack vertically with bind_rows</h3>
+
+<div class="webr-container" data-block-title="Combine two quarters of sales data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine two quarters of sales data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bind_rows(q1, q2)
+#&gt; # A tibble: 6 x 2
+#&gt;   month sales
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Jan     100
+#&gt; 2 Feb     120
+#&gt; 3 Mar     130
+#&gt; 4 Apr     150
+#&gt; 5 May     140
+#&gt; 6 Jun     160</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two data frames share columns; the result has the union of all rows.</p>
+
+<h3>2. Track origin with .id</h3>
+
+<div class="webr-container" data-block-title="Add a column showing which df each row came from">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a column showing which df each row came from</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bind_rows(q1 = q1, q2 = q2, .id = &quot;quarter&quot;)
+#&gt; # A tibble: 6 x 3
+#&gt;   quarter month sales
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 q1      Jan     100
+#&gt; 2 q1      Feb     120
+#&gt; 3 q1      Mar     130
+#&gt; 4 q2      Apr     150
+#&gt; 5 q2      May     140
+#&gt; 6 q2      Jun     160</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When inputs are NAMED arguments, <code>.id = &quot;quarter&quot;</code> creates a column with the name of each input.</p>
+
+<h3>3. Stack horizontally with bind_cols</h3>
+
+<div class="webr-container" data-block-title="Add metadata columns to existing rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add metadata columns to existing rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- tibble(month = c(&quot;Jan&quot;,&quot;Feb&quot;,&quot;Mar&quot;), sales = c(100, 120, 130))
+metadata &lt;- tibble(year = c(2024, 2024, 2024), region = c(&quot;US&quot;,&quot;US&quot;,&quot;US&quot;))
+
+bind_cols(sales, metadata)
+#&gt; # A tibble: 3 x 4
+#&gt;   month sales  year region
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Jan     100  2024 US
+#&gt; 2 Feb     120  2024 US
+#&gt; 3 Mar     130  2024 US</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>bind_cols()</code> requires the same number of rows. It does NOT match by key; it concatenates positionally (row 1 with row 1, etc.).</p>
+
+<h3>4. Mismatched columns get NA</h3>
+
+<div class="webr-container" data-block-title="bind_rows fills missing columns with NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">bind_rows fills missing columns with NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df1 &lt;- tibble(a = 1:3, b = c(&quot;x&quot;,&quot;y&quot;,&quot;z&quot;))
+df2 &lt;- tibble(a = 4:5, c = c(&quot;p&quot;,&quot;q&quot;))
+
+bind_rows(df1, df2)
+#&gt; # A tibble: 5 x 3
+#&gt;       a b     c
+#&gt;   &lt;int&gt; &lt;chr&gt; &lt;chr&gt;
+#&gt; 1     1 x     NA
+#&gt; 2     2 y     NA
+#&gt; 3     3 z     NA
+#&gt; 4     4 NA    p
+#&gt; 5     5 NA    q</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>b</code> exists in df1 but not df2; <code>c</code> exists in df2 but not df1. The bound result has both columns; <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are NA.</p>
+
+<h3>5. Stack a list of data frames</h3>
+
+<div class="webr-container" data-block-title="Read several CSVs and combine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read several CSVs and combine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Suppose files &lt;- list.files(&quot;data/&quot;, &quot;*.csv&quot;, full.names = TRUE)
+# dfs &lt;- lapply(files, read.csv)
+# combined &lt;- bind_rows(dfs)
+
+# Demo with built-in data:
+dfs &lt;- list(
+  tibble(x = 1:3),
+  tibble(x = 4:6),
+  tibble(x = 7:9)
+)
+bind_rows(dfs)
+#&gt; # A tibble: 9 x 1
+#&gt;       x
+#&gt;   &lt;int&gt;
+#&gt; 1     1
+#&gt; 2     2
+#&gt; 3     3
+#&gt; 4     4
+#&gt; 5     5
+#&gt; 6     6
+#&gt; 7     7
+#&gt; 8     8
+#&gt; 9     9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A common pattern: read N files via <code>lapply()</code>/<code>map()</code>, combine via <code>bind_rows()</code>.</p>
+
+<h3>6. bind_cols with name conflict handling</h3>
+
+<div class="webr-container" data-block-title="When both data frames have same column name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When both data frames have same column name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- tibble(id = 1:3, value = c(10, 20, 30))
+b &lt;- tibble(id = 1:3, value = c(100, 200, 300))
+
+bind_cols(a, b, .name_repair = &quot;universal&quot;)
+#&gt; New names:
+#&gt; * `id` -&gt; `id...1`
+#&gt; * `value` -&gt; `value...2`
+#&gt; * `id` -&gt; `id...3`
+#&gt; * `value` -&gt; `value...4`
+#&gt; # A tibble: 3 x 4
+#&gt;   id...1 value...2 id...3 value...4
+#&gt;    &lt;int&gt;     &lt;dbl&gt;  &lt;int&gt;     &lt;dbl&gt;
+#&gt; 1      1        10      1       100
+#&gt; 2      2        20      2       200
+#&gt; 3      3        30      3       300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When columns conflict, <code>.name_repair = &quot;universal&quot;</code> appends position numbers to make names unique. Default is <code>&quot;unique&quot;</code> which prepends a position prefix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use <code>bind_cols()</code> ONLY when row order is meaningful and you trust the alignment.</strong> It zips rows positionally with no matching by key. If you have an id column and want to combine by matching, use <code>left_join()</code> instead. <code>bind_cols()</code> is dangerous when row counts match by coincidence rather than design.</div></div>
+
+<h2>bind_rows() / bind_cols() vs base R</h2>
+
+<p><strong>Base R <code>rbind()</code> and <code>cbind()</code> behave similarly but are stricter about column-name matches and convert to data.frame (not tibble).</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>dplyr</th>
+<th>Base R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stack rows</td>
+<td><code>bind_rows(df1, df2)</code></td>
+<td><code>rbind(df1, df2)</code></td>
+</tr>
+<tr>
+<td>Stack rows, mismatched cols</td>
+<td><code>bind_rows()</code> (NA fills missing)</td>
+<td><code>rbind()</code> errors</td>
+</tr>
+<tr>
+<td>Stack rows, list input</td>
+<td><code>bind_rows(list_of_dfs)</code></td>
+<td><code>do.call(rbind, list_of_dfs)</code></td>
+</tr>
+<tr>
+<td>Track origin</td>
+<td><code>bind_rows(.id=&quot;src&quot;)</code></td>
+<td>(manual: add column before binding)</td>
+</tr>
+<tr>
+<td>Stack cols</td>
+<td><code>bind_cols(df1, df2)</code></td>
+<td><code>cbind(df1, df2)</code></td>
+</tr>
+<tr>
+<td>Output type</td>
+<td>tibble</td>
+<td>data.frame</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>bind_rows()</code> when columns might differ between inputs.</li>
+
+<li>Use <code>rbind()</code> when columns are guaranteed identical and you want zero dependencies.</li>
+
+<li>Use <code>bind_cols()</code> for tibble output; <code>cbind()</code> for base data.frame.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: bind_cols silently aligns by row position, not key.</strong> If you have <code>customer_data</code> and <code>order_data</code> both with 1000 rows but different orders, <code>bind_cols()</code> returns garbage. Use <code>left_join()</code> to match by key.</p>
+
+<p><strong>Pitfall 2: type coercion with bind_rows.</strong> If column <code>x</code> is integer in df1 and character in df2, the bound result coerces to character (the more permissive type). This <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">silent coercion</a> can change downstream behavior.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>bind_cols()</code> requires EXACT row counts. <code>bind_rows()</code> does not require matching column counts.</strong> Mixing these up causes confusing errors. Remember: rows = vertical (more rows ok), cols = horizontal (must align rows).</div></div>
+
+<p><strong>Pitfall 3: factor columns may bind weirdly.</strong> Two factor columns with different levels get coerced to character or to the union of levels (depending on dplyr version). For predictable results, convert factors to character before binding, or use <code>forcats::fct_unify()</code> first.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Combine these two tibbles with <code>bind_rows()</code> and add a column tracking which one each row came from.</p>
+<div class="webr-container" data-block-title="Your turn: bind with origin tracking">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bind with origin tracking</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">storeA &lt;- tibble(item = c(&quot;apple&quot;,&quot;bread&quot;), price = c(1.0, 2.5))
+storeB &lt;- tibble(item = c(&quot;milk&quot;,&quot;eggs&quot;), price = c(3.0, 4.0))
+
+# Try it: combine + track origin
+ex_combined &lt;- # your code here
+
+ex_combined
+#&gt; Expected: 4 rows, 3 cols (origin, item, price)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_combined &lt;- bind_rows(A = storeA, B = storeB, .id = &quot;origin&quot;)
+ex_combined
+#&gt; # A tibble: 4 x 3
+#&gt;   origin item  price
+#&gt;   &lt;chr&gt;  &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 A      apple   1
+#&gt; 2 A      bread   2.5
+#&gt; 3 B      milk    3
+#&gt; 4 B      eggs    4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Naming the inputs (<code>A = storeA</code>, <code>B = storeB</code>) lets <code>.id = &quot;origin&quot;</code> use those names as the origin column values. Without naming, <code>.id</code> would use position numbers ("1", "2") instead.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering <code>bind_rows()</code> and <code>bind_cols()</code>, look at:</p>
+
+<ul>
+
+<li><code>left_join()</code>, <code>inner_join()</code>, <code>full_join()</code>: combine by KEY (not position)</li>
+
+<li><code>rows_insert()</code>, <code>rows_update()</code>, <code>rows_upsert()</code>: surgical row updates by key</li>
+
+<li>Base R <code>rbind()</code>, <code>cbind()</code>: zero-dependency alternatives</li>
+
+<li><code>purrr::list_rbind()</code>, <code>list_cbind()</code>: variants for purrr workflows</li>
+
+<li><code>do.call(rbind, list_of_dfs)</code>: pre-dplyr idiom, still works</li>
+
+</ul>
+
+<p>For most data combination tasks, <code>bind_rows()</code> is the right choice. Reach for <code>bind_cols()</code> only when you really mean positional column-stacking (rare).</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between bind_rows and rbind in R?</strong></p>
+
+<p><code>bind_rows()</code> is from dplyr; <code>rbind()</code> is base R. Both stack data frames vertically. Differences: <code>bind_rows()</code> handles mismatched columns by filling NA (rbind errors), accepts lists directly, and returns a tibble. <code>rbind()</code> is faster on identically-shaped inputs and zero-dependency.</p>
+
+<p><strong>How do I combine multiple data frames in dplyr?</strong></p>
+
+<p>For VERTICAL stacking: <code>bind_rows(df1, df2, df3)</code> or <code>bind_rows(list_of_dfs)</code>. For HORIZONTAL stacking: <code>bind_cols(df1, df2)</code> (rows must match). For COMBINING BY KEY: <code>left_join()</code> or other join verbs.</p>
+
+<p><strong>What is the difference between bind_cols and cbind?</strong></p>
+
+<p><code>bind_cols()</code> is from dplyr; <code>cbind()</code> is base R. Both stack horizontally. <code>bind_cols()</code> returns a tibble and uses <code>.name_repair</code> for column-name conflict handling. <code>cbind()</code> returns a data.frame and may error or recycle on mismatched row counts.</p>
+
+<p><strong>How do I track the source of each row when binding?</strong></p>
+
+<p>Use <code>.id</code> with named inputs: <code>bind_rows(a = df1, b = df2, .id = &quot;source&quot;)</code>. The result has a <code>source</code> column with values "a" and "b" indicating where each row came from.</p>
+
+<p><strong>Can I bind data frames with different columns in dplyr?</strong></p>
+
+<p>Yes, with <code>bind_rows()</code>. Missing columns are filled with NA. <code>bind_rows(df1, df2)</code> where df1 has columns (a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a> and df2 has columns (a, c) returns a data frame with columns (a, b, c) and NAs in the missing cells.</p>

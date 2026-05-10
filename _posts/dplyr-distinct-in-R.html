@@ -1,0 +1,360 @@
+---
+title: "dplyr distinct() in R: Remove Duplicate Rows"
+description: "Use dplyr distinct() to remove duplicate rows from a data frame in R. Covers .keep_all flag, multi-column dedup, NA handling, and 6 worked code examples."
+keywords: "dplyr distinct, remove duplicates R, R unique rows, dplyr distinct keep_all, dedupe data frame R, dplyr drop duplicates"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "distinct()|dplyr distinct|dplyr::distinct()|remove duplicates|deduplicate rows"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr distinct() in R: Remove Duplicate Rows</h1>
+
+<p class="lead">The <code>distinct()</code> function in dplyr removes duplicate rows from a data frame. Without arguments it dedupes on all columns; with column names it dedupes on those columns only. Use <code>.keep_all = TRUE</code> to keep the rest of the row.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>distinct(df)<span class="qa-cmt">                              # all columns must match</span>
+distinct(df, cyl)<span class="qa-cmt">                         # unique cyl values, returns 1 col</span>
+distinct(df, cyl, .keep_all = TRUE)<span class="qa-cmt">       # unique by cyl, keep first row</span>
+distinct(df, cyl, gear)<span class="qa-cmt">                   # unique combinations, returns 2 cols</span>
+distinct(df, cyl, gear, .keep_all = TRUE)<span class="qa-cmt"> # unique by cyl+gear, keep all cols</span>
+n_distinct(df$cyl)<span class="qa-cmt">                        # count unique values</span>
+df |&gt; count(cyl) |&gt; filter(n &gt; 1)<span class="qa-cmt">         # find duplicates</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is distinct() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">remove duplicate rows (all cols)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">distinct(df)</text><text x="125" y="126" class="branch-label">unique values in one column</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">distinct(df, x)</text><text x="125" y="182" class="branch-label">unique combinations, keep other cols</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">distinct(df, x, y, .keep_all = TRUE)</text><text x="125" y="238" class="branch-label">count distinct values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>(df, n = n_distinct(x))</text><text x="125" y="294" class="branch-label">find duplicate rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">df |&gt; count(x) |&gt; filter(n &gt; 1)</text><text x="125" y="350" class="branch-label">first occurrence per group</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">slice(df, 1, .by = g)</text><text x="125" y="406" class="branch-label">keep highest version per group</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">slice_max</a>(df, version, n = 1, .by = id)</text></svg></div>
+
+<h2>What distinct() does in one sentence</h2>
+
+<p><strong><code>distinct()</code> returns rows where the specified columns form a unique combination.</strong> Without arguments, it considers ALL columns. With column names, only those columns determine uniqueness. By default, it returns ONLY the deduplicating columns; use <code>.keep_all = TRUE</code> to keep every column of the first matching row.</p>
+
+<p>Unlike base R <code>unique()</code>, distinct integrates into pipelines, supports <code>.keep_all</code> semantics, and works on grouped data frames. It is also faster than <code>unique()</code> for large data frames.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>distinct()</code> takes a data frame plus optional dedup columns plus <code>.keep_all</code> flag.</strong> Empty arguments dedup on all columns; named arguments dedup on those only.</p>
+
+<div class="webr-container" data-block-title="Load dplyr and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load dplyr and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+nrow(mtcars)
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature:</p>
+
+<pre><code>distinct(.data, ..., .keep_all = FALSE)</code></pre>
+
+<p><code>...</code> is zero or more columns to dedup on. <code>.keep_all = FALSE</code> (default) returns only the dedup columns; <code>TRUE</code> returns the first occurrence of each unique combination with all columns.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default <code>.keep_all = FALSE</code> returns only the dedup columns.</strong> <code>distinct(mtcars, cyl)</code> returns a 3-row, 1-column tibble (the unique cyl values). To keep the full row of the first occurrence, set <code>.keep_all = TRUE</code>.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Dedup on all columns</h3>
+
+<div class="webr-container" data-block-title="Remove rows that are duplicates of an entire row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remove rows that are duplicates of an entire row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(a = c(1, 1, 2, 3), b = c(&quot;x&quot;, &quot;x&quot;, &quot;y&quot;, &quot;z&quot;))
+df |&gt; distinct()
+#&gt; # A tibble: 3 x 2
+#&gt;       a b
+#&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     1 x
+#&gt; 2     2 y
+#&gt; 3     3 z</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two identical <code>(1, &quot;x&quot;)</code> rows collapse to one. Rows must match on EVERY column to be considered duplicates.</p>
+
+<h3>2. Unique values in one column</h3>
+
+<div class="webr-container" data-block-title="Distinct cyl values in mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Distinct cyl values in mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; distinct(cyl)
+#&gt;   cyl
+#&gt; 1   6
+#&gt; 2   4
+#&gt; 3   8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the dedup column is returned. Result is a 1-column data frame, not a vector.</p>
+
+<h3>3. Unique combinations of multiple columns</h3>
+
+<div class="webr-container" data-block-title="Distinct cyl and gear pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Distinct cyl and gear pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; distinct(cyl, gear)
+#&gt;   cyl gear
+#&gt; 1   6    4
+#&gt; 2   4    4
+#&gt; 3   8    3
+#&gt; 4   6    3
+#&gt; 5   4    3
+#&gt; 6   4    5
+#&gt; 7   8    5
+#&gt; 8   6    5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result has one row per UNIQUE COMBINATION of the listed columns.</p>
+
+<h3>4. Keep first occurrence with all columns (.keep_all = TRUE)</h3>
+
+<div class="webr-container" data-block-title="One row per cyl with all original columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One row per cyl with all original columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; distinct(cyl, .keep_all = TRUE)
+#&gt;                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#&gt; Mazda RX4     21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4
+#&gt; Datsun 710    22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
+#&gt; Hornet Sport. 18.7   8 360.0 175 3.15 3.440 17.02  0  0    3    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The FIRST occurrence of each unique cyl value is kept, with all other columns intact.</p>
+
+<h3>5. Count duplicates instead of removing them</h3>
+
+<div class="webr-container" data-block-title="Find rows that appear more than once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find rows that appear more than once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(a = c(1, 1, 2, 3, 1), b = c(&quot;x&quot;,&quot;x&quot;,&quot;y&quot;,&quot;z&quot;,&quot;x&quot;))
+df |&gt; count(a, b) |&gt; filter(n &gt; 1)
+#&gt; # A tibble: 1 x 3
+#&gt;       a b         n
+#&gt;   &lt;dbl&gt; &lt;chr&gt; &lt;int&gt;
+#&gt; 1     1 x         3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sometimes you want to KNOW which rows are duplicated before deciding what to do. <code>count()</code> plus <code>filter(n &gt; 1)</code> lists every duplicate group.</p>
+
+<h3>6. Distinct within groups</h3>
+
+<div class="webr-container" data-block-title="One distinct row per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One distinct row per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- tibble(
+  group = c(&quot;A&quot;,&quot;A&quot;,&quot;A&quot;,&quot;B&quot;,&quot;B&quot;),
+  value = c(1, 2, 1, 3, 3)
+)
+df |&gt;
+  distinct(value, .keep_all = TRUE)
+#&gt; # A tibble: 3 x 2
+#&gt;   group value
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 A         1
+#&gt; 2 A         2
+#&gt; 3 B         3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Globally distinct on <code>value</code>. The <code>(A, 1)</code> and <code>(B, 3)</code> are kept once each (first occurrence), and the duplicate <code>(A, 1)</code> is dropped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>distinct(df, x)</code> and <code>distinct(df, x, .keep_all = TRUE)</code> look similar but return DIFFERENT widths.</strong> Without <code>.keep_all</code>, you get only column x. With <code>.keep_all</code>, you get every column. Pick based on what the next step in your pipeline needs.</div></div>
+
+<h2>distinct() vs base R unique()</h2>
+
+<p><strong>Base R <code>unique()</code> works on vectors and matrices and data frames; distinct() is data-frame specific but more powerful.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>dplyr</th>
+<th>Base R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dedup full data frame</td>
+<td><code>distinct(df)</code></td>
+<td><code>unique(df)</code></td>
+</tr>
+<tr>
+<td>Unique values, one column</td>
+<td><code>distinct(df, x)</code></td>
+<td><code>unique(df$x)</code> (returns vector)</td>
+</tr>
+<tr>
+<td>Unique by column, keep all</td>
+<td><code>distinct(df, x, .keep_all=TRUE)</code></td>
+<td>(multi-step: <code>df[!duplicated(df$x), ]</code>)</td>
+</tr>
+<tr>
+<td>Multi-col unique combinations</td>
+<td><code>distinct(df, x, y)</code></td>
+<td><code>unique(df[, c(&quot;x&quot;,&quot;y&quot;)])</code></td>
+</tr>
+<tr>
+<td>Pipeline-friendly</td>
+<td>Yes</td>
+<td>Awkward</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>distinct()</code> inside any dplyr pipeline.</li>
+
+<li>Use <code>unique()</code> for vectors and outside the tidyverse.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>.keep_all = TRUE</code>.</strong> <code>distinct(mtcars, cyl)</code> returns a 3-row, 1-column tibble. If you wanted "one row per cyl with all columns", you need <code>.keep_all = TRUE</code>. New users frequently miss this and end up with surprisingly skinny output.</p>
+
+<p><strong>Pitfall 2: distinct does not sort.</strong> The result keeps rows in their FIRST-OCCURRENCE order, not alphabetical or numeric order. To sort the result, chain <code>arrange()</code> after.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>distinct()</code> treats <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> as identical.</strong> Two rows with <code>x = NA</code> are considered duplicates and only one is kept. This matches <code>unique()</code> behavior. If you want NA rows treated as distinct, you need a workaround (e.g., add a row index column, dedup, then drop the index).</div></div>
+
+<p><strong>Pitfall 3: distinct on a grouped frame may behave unexpectedly.</strong> <code>group_by(df, g) |&gt; distinct(x)</code> deduplicates WITHIN each group. The result is unique x values per group, not globally unique. Usually <code>.by = g</code> inside distinct is clearer if you need this.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From <code>mtcars</code>, find the unique combinations of <code>cyl</code> and <code>am</code> (transmission). Save to <code>ex_combos</code>.</p>
+<div class="webr-container" data-block-title="Your turn: unique cyl and am pairs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: unique cyl and am pairs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: distinct combinations
+ex_combos &lt;- # your code here
+
+ex_combos
+#&gt; Expected: tibble with 6 rows showing cyl and am pairs</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_combos &lt;- mtcars |&gt; distinct(cyl, am)
+ex_combos
+#&gt;   cyl am
+#&gt; 1   6  1
+#&gt; 2   4  1
+#&gt; 3   8  0
+#&gt; 4   6  0
+#&gt; 5   4  0
+#&gt; 6   8  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>distinct(cyl, am)</code> returns one row per unique combination of <code>cyl</code> and <code>am</code>. There are 6 combinations (4 cyl manual, 4 cyl auto, 6 cyl manual, 6 cyl auto, 8 cyl manual, 8 cyl auto). The order matches first-occurrence in the data.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering <code>distinct()</code>, look at:</p>
+
+<ul>
+
+<li><code>n_distinct()</code>: count unique values without returning them</li>
+
+<li><code>count()</code>: count rows per group, useful for finding duplicates</li>
+
+<li><code>slice()</code>: explicit row selection by position; <code>slice(1, .by = g)</code> keeps first per group</li>
+
+<li><code>slice_max()</code> / <code>slice_min()</code>: keep top per group by some value (better than distinct for "latest version" cases)</li>
+
+<li>Base R <code>unique()</code>, <code>duplicated()</code>: vector-level dedup helpers</li>
+
+</ul>
+
+<p>For "keep the latest record per id", reach for <code>slice_max(df, version, n = 1, by = id)</code> instead of distinct, since you usually want the highest version, not just the first.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I remove duplicate rows in dplyr?</strong></p>
+
+<p><code>distinct(df)</code> removes rows that are duplicates across ALL columns. <code>distinct(df, x)</code> deduplicates by column x only and returns just that column. <code>distinct(df, x, .keep_all = TRUE)</code> deduplicates by x but keeps every column from the first occurrence.</p>
+
+<p><strong>What is the difference between distinct and unique in R?</strong></p>
+
+<p><code>unique()</code> is base R; works on vectors, matrices, and data frames. <code>distinct()</code> is dplyr; data-frame specific but supports <code>.keep_all</code>, integrates with pipelines, and is faster on large data. For a vector, both return the same unique values.</p>
+
+<p><strong>How do I count distinct values in dplyr?</strong></p>
+
+<p>Use <code>n_distinct(x)</code> inside <code>summarise()</code>: <code>summarise(df, n = n_distinct(x))</code> returns the count of unique values. For per-group counts: <code>summarise(df, n = n_distinct(x), .by = g)</code>.</p>
+
+<p><strong>What does .keep_all do in distinct?</strong></p>
+
+<p><code>.keep_all = TRUE</code> keeps EVERY column of the first matching row, not just the dedup columns. <code>.keep_all = FALSE</code> (default) returns only the columns named in the dedup arguments. The flag matters when you dedup by some columns but want to retain others.</p>
+
+<p><strong>How do I find rows that are duplicated (not remove them)?</strong></p>
+
+<p><code>df |&gt; count(x, y) |&gt; filter(n &gt; 1)</code> lists every (x, y) combination that appears more than once. To get the actual duplicate ROWS: <code>df |&gt; group_by(x, y) |&gt; filter(n() &gt; 1)</code> or <code>df[duplicated(df[, c(&quot;x&quot;,&quot;y&quot;)]) | duplicated(df[, c(&quot;x&quot;,&quot;y&quot;)], fromLast = TRUE), ]</code> in base R.</p>

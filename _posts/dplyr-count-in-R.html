@@ -1,0 +1,355 @@
+---
+title: "dplyr count() in R: Count Rows and Frequencies"
+description: "Use dplyr count(), n(), tally(), and add_count() to count rows and frequencies in R. Covers grouped counts, sort flag, weighted, and 6 worked examples."
+keywords: "dplyr count, count rows in R, dplyr n(), dplyr tally, R frequency table, dplyr add_count, weighted count dplyr"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "count()|dplyr count|dplyr::count()|n()|tally()|frequency table"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr count() in R: Count Rows and Frequencies</h1>
+
+<p class="lead">The <code>count()</code> function in dplyr counts the rows in a data frame, optionally grouped by one or more columns. It is shorthand for <code>group_by()</code> + <code>summarise(n = n())</code> and the most common way to build frequency tables.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>count(df)<span class="qa-cmt">                              # total rows: returns n</span>
+count(df, cyl)<span class="qa-cmt">                         # rows per cyl</span>
+count(df, cyl, gear)<span class="qa-cmt">                   # rows per (cyl, gear) combination</span>
+count(df, cyl, sort = TRUE)<span class="qa-cmt">            # sorted desc by count</span>
+count(df, cyl, name = &quot;n_cars&quot;)<span class="qa-cmt">        # custom column name</span>
+count(df, cyl, wt = hp)<span class="qa-cmt">                # weighted (sum of hp per cyl)</span>
+add_count(df, cyl)<span class="qa-cmt">                     # add count col without collapsing</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is count() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">count rows per group</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">count(df, g)</text><text x="125" y="126" class="branch-label">count and add to original rows</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">add_count(df, g)</text><text x="125" y="182" class="branch-label">compute one summary per group (not just count)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a>(df, .by = g, ...)</text><text x="125" y="238" class="branch-label">count distinct values in column</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">summarise(df, n = n_distinct(x))</text><text x="125" y="294" class="branch-label">frequency table with percentages</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">count() |&gt; mutate(pct = n / sum(n))</text><text x="125" y="350" class="branch-label">find duplicates</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">count(df, x, y) |&gt; filter(n &gt; 1)</text><text x="125" y="406" class="branch-label">weighted count by another column</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">count(df, g, wt = weight_col)</text></svg></div>
+
+<h2>What count() does in one sentence</h2>
+
+<p><strong><code>count()</code> returns the number of rows per unique combination of grouping columns.</strong> Without arguments, it returns the total row count. With column names, it returns one row per unique combination with a column <code>n</code> for the count.</p>
+
+<p><code>count(df, x)</code> is sugar for <code>summarise(df, n = n(), .by = x)</code>. The shortcut form is more readable for the common "frequency table" use case.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>count()</code> takes a data frame plus optional grouping columns plus options.</strong> Add <code>sort = TRUE</code> to sort by count descending. Add <code>wt = column</code> for weighted counts.</p>
+
+<div class="webr-container" data-block-title="Load dplyr and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load dplyr and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+nrow(mtcars)
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature:</p>
+
+<pre><code>count(x, ..., wt = NULL, sort = FALSE, name = NULL)</code></pre>
+
+<p><code>x</code> is the data frame. <code>...</code> are grouping columns. <code>wt</code> is an optional weighting column (sums values instead of counting rows). <code>sort = TRUE</code> orders the result by <code>n</code> descending. <code>name</code> overrides the default count column name <code>n</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>count()</code> is the shortcut for the most common summarise pattern.</strong> <code>count(df, x)</code> produces the same result as <code>summarise(df, n = n(), .by = x)</code>. Use <code>count()</code> when the only summary you want is row count; use <code>summarise()</code> when you want multiple statistics or non-count aggregations.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Total row count</h3>
+
+<div class="webr-container" data-block-title="Just count all rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Just count all rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; count()
+#&gt;    n
+#&gt; 1 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No grouping argument means the total count of rows in the data frame.</p>
+
+<h3>2. Count by one group</h3>
+
+<div class="webr-container" data-block-title="Cars per cylinder count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cars per cylinder count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; count(cyl)
+#&gt;   cyl  n
+#&gt; 1   4 11
+#&gt; 2   6  7
+#&gt; 3   8 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result has one row per unique <code>cyl</code> value, with column <code>n</code> showing the count.</p>
+
+<h3>3. Multi-column counts</h3>
+
+<div class="webr-container" data-block-title="Cars per (cyl, gear) combination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cars per (cyl, gear) combination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; count(cyl, gear)
+#&gt;   cyl gear  n
+#&gt; 1   4    3  1
+#&gt; 2   4    4  8
+#&gt; 3   4    5  2
+#&gt; 4   6    3  2
+#&gt; 5   6    4  4
+#&gt; 6   6    5  1
+#&gt; 7   8    3 12
+#&gt; 8   8    5  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One row per UNIQUE COMBINATION of cyl and gear.</p>
+
+<h3>4. Sort by count</h3>
+
+<div class="webr-container" data-block-title="Sorted descending by count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sorted descending by count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; count(cyl, sort = TRUE)
+#&gt;   cyl  n
+#&gt; 1   8 14
+#&gt; 2   4 11
+#&gt; 3   6  7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sort = TRUE</code> is shorthand for chaining <code>arrange(desc(n))</code> after count.</p>
+
+<h3>5. Weighted count</h3>
+
+<div class="webr-container" data-block-title="Total hp per cylinder count (sum, not row count)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Total hp per cylinder count (sum, not row count)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt; count(cyl, wt = hp)
+#&gt;   cyl    n
+#&gt; 1   4  909
+#&gt; 2   6  856
+#&gt; 3   8 2929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>wt = hp</code> sums the <code>hp</code> column for each cyl group instead of counting rows. The column is still named <code>n</code> by default; use <code>name = &quot;total_hp&quot;</code> to rename.</p>
+
+<h3>6. add_count: add count column without collapsing</h3>
+
+<div class="webr-container" data-block-title="Add a count column to every row, no rollup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a count column to every row, no rollup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  add_count(cyl) |&gt;
+  select(cyl, mpg, n) |&gt;
+  head(4)
+#&gt;                 cyl  mpg  n
+#&gt; Mazda RX4         6 21.0  7
+#&gt; Mazda RX4 Wag     6 21.0  7
+#&gt; Datsun 710        4 22.8 11
+#&gt; Hornet 4 Drive    6 21.4  7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>add_count()</code> keeps every original row and adds a column <code>n</code> showing the size of each row's group. Useful for filtering ("keep only rows where group has at least 5 members").</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>count()</code> collapses; <code>add_count()</code> preserves.</strong> <code>count(df, x)</code> reduces a 100-row data frame to maybe 10 rows (one per unique x). <code>add_count(df, x)</code> keeps all 100 rows but adds a column <code>n</code> showing each row's group size. Pick based on whether you want a frequency table or an annotated row-level data frame.</div></div>
+
+<h2>count() vs base R alternatives</h2>
+
+<p><strong>Base R uses <code>table()</code> for frequency counts; dplyr uses <code>count()</code>. The major difference is output format: <code>table()</code> returns a named array; <code>count()</code> returns a tibble.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th>dplyr</th>
+<th>Base R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frequency by one col</td>
+<td><code>count(df, x)</code></td>
+<td><code>table(df$x)</code></td>
+</tr>
+<tr>
+<td><a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">Cross-tabulation</a></td>
+<td><code>count(df, x, y)</code></td>
+<td><code>table(df$x, df$y)</code></td>
+</tr>
+<tr>
+<td>Sorted descending</td>
+<td><code>count(df, x, sort=TRUE)</code></td>
+<td><code>sort(table(df$x), decreasing=TRUE)</code></td>
+</tr>
+<tr>
+<td>Weighted</td>
+<td><code>count(df, x, wt=w)</code></td>
+<td><code>xtabs(w ~ x, data=df)</code></td>
+</tr>
+<tr>
+<td>Add count to rows</td>
+<td><code>add_count(df, x)</code></td>
+<td>(multi-step: ave + assign)</td>
+</tr>
+<tr>
+<td>Output type</td>
+<td>tibble</td>
+<td>array (table object)</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>count()</code> for any analysis that continues in dplyr (output is a regular tibble).</li>
+
+<li>Use <code>table()</code> for quick interactive exploration; the named-array format is compact in print.</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing <code>count()</code> and <code>n()</code>.</strong> <code>count(df, x)</code> is a verb that returns a new data frame. <code>n()</code> is a context-only function that returns the size of the current group inside <code>summarise()</code> or <code>mutate()</code>. They are related but not interchangeable.</p>
+
+<p><strong>Pitfall 2: forgetting that <code>count()</code> collapses rows.</strong> After <code>count(df, x)</code>, the original row-level data is gone; you have a frequency table. To preserve every row AND add count info, use <code>add_count(df, x)</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>wt</code> argument is for SUMMING, not for filtering.</strong> <code>count(df, x, wt = w)</code> returns sum of <code>w</code> per group, not a count of rows where <code>w &gt; 0</code>. To filter then count, use <code>filter(df, w &gt; 0) |&gt; count(x)</code>.</div></div>
+
+<p><strong>Pitfall 3: NA in grouping column creates an NA row.</strong> <code>count(df, x)</code> with NAs in x returns one row with <code>x = NA</code> and the count of those NA rows. To exclude: <code>filter(df, !is.na(x)) |&gt; count(x)</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Count cars per <code>gear</code> value in <code>mtcars</code>, sorted descending by count. Save to <code>ex_gears</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count gears sorted desc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count gears sorted desc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: gears with counts, descending
+ex_gears &lt;- # your code here
+
+ex_gears
+#&gt; Expected: 3 rows; gear=3 has 15, gear=4 has 12, gear=5 has 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_gears &lt;- mtcars |&gt; count(gear, sort = TRUE)
+ex_gears
+#&gt;   gear  n
+#&gt; 1    3 15
+#&gt; 2    4 12
+#&gt; 3    5  5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>count(gear, sort = TRUE)</code> groups by gear, counts rows in each group, then sorts the result by <code>n</code> descending. The <code>sort = TRUE</code> flag is shorthand for chaining <code>arrange(desc(n))</code> after a regular count.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering <code>count()</code>, look at:</p>
+
+<ul>
+
+<li><code>n()</code>: row count helper used inside <code>summarise()</code> and <code>mutate()</code></li>
+
+<li><code>n_distinct(x)</code>: count unique values of x (not rows)</li>
+
+<li><code>tally()</code>: count without grouping; nearly synonymous with <code>count()</code> no-args</li>
+
+<li><code>add_count()</code>: add count column to row-level data without collapsing</li>
+
+<li><code>add_tally()</code>: add the tally column without collapsing</li>
+
+<li><code>summarise(.by = g, n = n(), other_stat = ...)</code>: when you need count plus other stats</li>
+
+</ul>
+
+<p>For percentages and proportions, chain <code>mutate(pct = n / sum(n))</code> after count.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between count and n() in dplyr?</strong></p>
+
+<p><code>count()</code> is a verb returning a frequency table: <code>count(df, x)</code> returns one row per unique x value with column <code>n</code> for the count. <code>n()</code> is a HELPER used inside <code>summarise()</code> or <code>mutate()</code> that returns the size of the current group: <code>summarise(df, num = n(), .by = x)</code>.</p>
+
+<p><strong>How do I count rows per group in dplyr?</strong></p>
+
+<p><code>count(df, group_col)</code> returns one row per unique group with column <code>n</code> showing the count. For multiple group columns: <code>count(df, col1, col2)</code>. To sort by count descending: add <code>sort = TRUE</code>.</p>
+
+<p><strong>What is the difference between count and tally in dplyr?</strong></p>
+
+<p>They are nearly identical. <code>tally()</code> does not group on its own; it counts whatever is currently grouped. <code>count()</code> is shorthand for <code>group_by() |&gt; tally() |&gt; ungroup()</code>. For most uses, just use <code>count()</code>.</p>
+
+<p><strong>How do I count distinct values in a column with dplyr?</strong></p>
+
+<p>Use <code>n_distinct(col)</code> inside <code>summarise()</code>: <code>summarise(df, n_unique = n_distinct(col))</code>. This is different from <code>count()</code>, which counts ROWS per group, not unique values.</p>
+
+<p><strong>How do I get a frequency table with percentages?</strong></p>
+
+<p><code>count(df, x) |&gt; mutate(pct = n / sum(n) * 100)</code>. The <code>mutate()</code> adds a <code>pct</code> column showing each group's percentage of the total. Chain <code>arrange(desc(pct))</code> for sorted output.</p>
