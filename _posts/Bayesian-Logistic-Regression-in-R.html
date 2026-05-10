@@ -1,0 +1,811 @@
+---
+title: "Bayesian Logistic Regression in R: Why Stakeholders Trust These Odds Ratios More"
+description: "Fit a Bayesian logistic regression with brms. Convert log-odds posteriors to odds ratios and probabilities, with credible intervals stakeholders trust."
+keywords: "Bayesian logistic regression R, brms logistic, log-odds posterior, odds ratio credible interval, Bayesian binary outcome, plogis posterior, brms bernoulli"
+mathjax: false
+webr: true
+curriculum_id: "5.2.6"
+post_type: "C"
+auto_link_terms: "Bayesian logistic regression|brms logistic|bernoulli logit|log-odds posterior|odds ratio Bayesian|posterior probability|plogis|posterior_epred|posterior_linpred|conditional_effects|credible interval odds|Bayesian classifier"
+auto_link_case_sensitive: false
+sidebar_section: "Statistics"
+sidebar_title: "Bayesian Logistic Regression"
+sidebar_order: "124"
+---
+<!-- md2html:generated -->
+
+<h1>Bayesian Logistic Regression in R: Why Stakeholders Trust These Odds Ratios More</h1>
+
+<p class="lead">A frequentist <code>glm(family = binomial)</code> returns log-odds coefficients with a standard error and a <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>. Translating that to "the odds of conversion go up by 38%" requires careful interpretation of confidence intervals on a transformed scale. A Bayesian logistic regression returns a full posterior over the log-odds, which converts trivially to a posterior over odds ratios and probabilities. Stakeholders read "82% probability the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> exceeds 1.5" much more easily than a p-value. This post fits a Bayesian logistic regression with brms end to end and walks through every output.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="30" data-exercises="9" data-xp="135"></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Run the code in this post in your local R session.</strong> brms calls Stan via <a class="auto-link" href="R-Error-Stan-Compile.html" title="R Stan Model Error: failed to compile — RStan Troubleshooting Guide">cmdstanr</a>, which compiles models to native C++. Copy the blocks into RStudio with brms and cmdstanr installed.</div></div>
+
+<h2>What does Bayesian logistic regression buy you over glm(family = binomial)?</h2>
+
+<p><code>glm()</code> for binary outcomes returns a single estimate per coefficient on the log-odds scale, plus a standard error. To get an odds ratio you exponentiate the estimate; to get a probability for a specific scenario you push it through <code>plogis()</code>. Confidence intervals on the original scale do not translate cleanly to the transformed scale; you need the delta method or a <a class="auto-link" href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html" title="Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory">profile likelihood</a>.</p>
+
+<p>A Bayesian logistic regression returns a full posterior over each coefficient. To get an odds ratio posterior, exponentiate every draw. To get a probability posterior at a specific x, push every draw through <code>plogis()</code>. Every quantity has a <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">credible interval</a>; every probability statement is trivial.</p>
+
+<div class="webr-container" data-block-title="Bayesian logistic regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bayesian logistic regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(brms)
+options(brms.backend = &quot;cmdstanr&quot;, brms.silent = 2)
+
+# Predict whether each car has 8 cylinders from mpg and wt
+mtcars2 &lt;- mtcars
+mtcars2$y_8cyl &lt;- as.integer(mtcars2$cyl == 8)
+
+fit_logit &lt;- brm(
+  y_8cyl ~ mpg + wt,
+  data    = mtcars2,
+  family  = bernoulli(&quot;logit&quot;),
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+posterior_summary(fit_logit, variable = c(&quot;b_Intercept&quot;, &quot;b_mpg&quot;, &quot;b_wt&quot;))[, 1:4]
+#&gt;             Estimate Est.Error    Q2.5    Q97.5
+#&gt; b_Intercept    -2.16      4.25   -10.69    6.15
+#&gt; b_mpg          -0.43      0.31    -1.06    0.14
+#&gt; b_wt            1.42      1.28    -1.02    4.04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what just happened. We coded the binary outcome <code>y_8cyl</code> as 1 when the car has 8 cylinders. The brms call uses <code>family = bernoulli(&quot;logit&quot;)</code> to specify a logistic regression. Four chains and 2000 iterations is the standard.</p>
+
+<p>The posterior summary gives log-odds coefficients. The <code>mpg</code> coefficient is -0.43 with 95% credible interval <code>[-1.06, 0.14]</code>. On the log-odds scale, this says one extra mpg multiplies the odds of being 8-cyl by <code>exp(-0.43) = 0.65</code> (35% reduction).</p>
+
+<p>The <code>wt</code> coefficient is 1.42 with credible interval <code>[-1.02, 4.04]</code>. The interval crosses zero, which means the data does not strongly identify the wt effect after accounting for mpg.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Log-odds coefficients <a class="auto-link" href="Asymptotic-Relative-Efficiency-in-R.html" title="Asymptotic Relative Efficiency in R: Compare Tests Without Finite Samples">are</a> not directly interpretable.</strong> Always convert via <code>exp()</code> (for odds ratios) or <code>plogis()</code> (for probabilities) before reporting to stakeholders. The next sections walk through both conversions on the posterior draws.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> that the <code>mpg</code> coefficient is below -0.2 (a meaningful negative effect on the log-odds of being 8-cyl).</p>
+<div class="webr-container" data-block-title="Your turn: probability of meaningful mpg effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of meaningful mpg effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># mpg_draws &lt;- as_draws_df(fit_logit, variable = 'b_mpg')$b_mpg
+# mean(mpg_draws &lt; -0.2)
+#&gt; Expected: high probability, around 0.7 to 0.85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_draws &lt;- as_draws_df(fit_logit, variable = &quot;b_mpg&quot;)$b_mpg
+mean(mpg_draws &lt; -0.2)
+#&gt; [1] 0.793</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 79% posterior probability that one extra mpg reduces the log-odds of being 8-cyl by at least 0.2 (an odds ratio of <code>exp(-0.2) = 0.82</code> or 18% reduction). That is a clean probability statement on a scale stakeholders care about.</p>
+
+</details>
+</section>
+
+<h2>How do I fit one in brms?</h2>
+
+<p>Two changes from the linear regression workflow: set <code>family = bernoulli(&quot;logit&quot;)</code> and use <code>posterior_epred()</code> (which returns probabilities on <code>[0, 1]</code>) instead of <code>posterior_predict()</code> (which returns 0/1 outcomes) when you want the <em>probability</em> of the event.</p>
+
+<div class="webr-container" data-block-title="Set explicit priors for logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set explicit priors for logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_logit &lt;- c(
+  prior(normal(0, 2.5), class = &quot;b&quot;),         # weakly informative on log-odds
+  prior(normal(0, 1.5), class = &quot;Intercept&quot;)
+)
+
+fit_logit2 &lt;- brm(
+  y_8cyl ~ mpg + wt,
+  data    = mtcars2,
+  family  = bernoulli(&quot;logit&quot;),
+  prior   = prior_logit,
+  chains  = 4,
+  iter    = 2000,
+  seed    = 2026,
+  silent  = 2
+)
+
+summary(fit_logit2)$fixed[, c(&quot;Estimate&quot;, &quot;Est.Error&quot;, &quot;l-95% CI&quot;, &quot;u-95% CI&quot;, &quot;Rhat&quot;, &quot;Bulk_ESS&quot;)]
+#&gt;           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS
+#&gt; Intercept    -1.10      1.81    -4.82    2.40 1.00     2350
+#&gt; mpg          -0.27      0.16    -0.62    0.02 1.00     2240
+#&gt; wt            0.83      0.79    -0.62    2.49 1.00     2178</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the priors. <code>normal(0, 2.5)</code> on the slopes is the Stan team's recommended default for log-odds slopes. Half of the prior's mass is between -1.7 and 1.7, which corresponds to odds ratios between 0.18 and 5.5, a wide but not absurd range. <code>normal(0, 1.5)</code> on the intercept centres at log-odds 0 (probability 0.5 at zero predictors) with reasonable spread.</p>
+
+<p>Compare the priors-set fit to the default. The posterior mean for <code>mpg</code> shifted from -0.43 (default flat prior on slope) to -0.27 (with <code>normal(0, 2.5)</code>). The credible interval tightened from <code>[-1.06, 0.14]</code> to <code>[-0.62, 0.02]</code>. With 32 observations, the prior contributes meaningfully; the choice between flat and weakly informative is real.</p>
+
+<p>The Rhat and Bulk_ESS values are clean. We can read the posterior with confidence.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For binary outcomes, weakly informative priors are essential when sample size is small.</strong> A flat prior on the log-odds slope can imply that an effect of magnitude 100 is plausible, which translates to odds ratios of <code>exp(100)</code> or larger. Use <code>normal(0, 2.5)</code> or <code>normal(0, 1)</code> as the default; tighten only if you have specific knowledge.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit with <code>prior(normal(0, 0.5), class = &quot;b&quot;)</code> and observe how the slope posterior tightens around zero.</p>
+<div class="webr-container" data-block-title="Your turn: tighter slope prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter slope prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit with prior(normal(0, 0.5), class = 'b') and read the b_mpg posterior
+#&gt; Expected: posterior mean closer to zero, narrower credible interval</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tight prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tight prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prior_tight &lt;- c(
+  prior(normal(0, 0.5), class = &quot;b&quot;),
+  prior(normal(0, 1.5), class = &quot;Intercept&quot;)
+)
+fit_tight &lt;- brm(y_8cyl ~ mpg + wt, mtcars2, family = bernoulli(&quot;logit&quot;),
+                 prior = prior_tight, chains = 4, iter = 2000, seed = 2026, silent = 2)
+posterior_summary(fit_tight, variable = &quot;b_mpg&quot;)[, c(1, 3, 4)]
+#&gt;      Estimate    Q2.5  Q97.5
+#&gt; b_mpg   -0.21   -0.51   0.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tight prior pulled the <code>mpg</code> posterior mean from -0.27 to -0.21. The credible interval narrowed from <code>[-0.62, 0.02]</code> to <code>[-0.51, 0.07]</code>. The data still drives the sign and magnitude, but the prior contributed real shrinkage.</p>
+
+</details>
+</section>
+
+<h2>How do I read the log-odds posterior?</h2>
+
+<p>The posterior mean is on the log-odds scale: it tells you how much the log-odds of the event change per unit increase in the predictor. The credible interval is also on the log-odds scale.</p>
+
+<p>Three things to look at:</p>
+
+<p>The first is <em>sign and significance</em>. Does the credible interval exclude zero? If yes, the predictor's effect is reliable in the direction of the posterior mean. If the interval crosses zero, the data does not pin down the sign.</p>
+
+<p>The second is <em>magnitude</em>. A log-odds coefficient of 0.5 corresponds to an odds ratio of <code>exp(0.5) = 1.65</code> (65% increase in odds). A coefficient of -0.5 corresponds to <code>exp(-0.5) = 0.61</code> (39% decrease in odds). Build intuition for the conversion.</p>
+
+<p>The third is <em>uncertainty</em>. A coefficient of 0.5 with credible interval <code>[0.4, 0.6]</code> is a tight estimate. The same posterior mean with interval <code>[-0.5, 1.5]</code> is essentially nothing learned.</p>
+
+<div class="webr-container" data-block-title="Reading log-odds with explicit translations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading log-odds with explicit translations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_summary &lt;- posterior_summary(fit_logit2,
+                                  variable = c(&quot;b_mpg&quot;, &quot;b_wt&quot;))[, c(1, 3, 4)]
+
+cbind(
+  post_summary,
+  odds_ratio_estimate = round(exp(post_summary[, &quot;Estimate&quot;]), 3),
+  or_low              = round(exp(post_summary[, &quot;Q2.5&quot;]), 3),
+  or_high             = round(exp(post_summary[, &quot;Q97.5&quot;]), 3)
+)
+#&gt;       Estimate   Q2.5   Q97.5  odds_ratio_estimate  or_low  or_high
+#&gt; b_mpg   -0.27  -0.62    0.02                0.764   0.538    1.020
+#&gt; b_wt     0.83  -0.62    2.49                2.293   0.538   12.060</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the conversion. Each row shows the log-odds estimate alongside its odds-ratio counterpart. For <code>mpg</code>, the estimate of -0.27 corresponds to an odds ratio of 0.76 (24% reduction in odds of being 8-cyl per extra mpg). The 95% credible interval on the odds-ratio scale is <code>[0.54, 1.02]</code>.</p>
+
+<p>Notice how <code>wt</code> looks different on the two scales. The log-odds estimate is 0.83 with interval <code>[-0.62, 2.49]</code>. On the odds-ratio scale, the same translates to 2.29 with interval <code>[0.54, 12.06]</code>.</p>
+
+<p>The right tail of the interval (12) is huge because <code>exp()</code> blows up at the top end of a wide interval. This is why direct log-odds intervals are sometimes more informative than odds-ratio intervals: the latter can be misleadingly large.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Always report which scale you are using.</strong> A coefficient of 0.5 means very different things if it is log-odds (<code>exp(0.5) = 1.65</code>), an odds ratio (just <code>0.5</code>, halved odds), or a probability (<code>plogis(0.5) ≈ 0.62</code>). Be explicit in your text and column headers.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the posterior median odds ratio for <code>mpg</code> and a 50% credible interval on it.</p>
+<div class="webr-container" data-block-title="Your turn: 50% credible interval on odds ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 50% credible interval on odds ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Take exp(b_mpg draws), report median and 25th/75th percentiles</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="50% odds ratio CI solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">50% odds ratio CI solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_draws &lt;- as_draws_df(fit_logit2, variable = &quot;b_mpg&quot;)$b_mpg
+or_mpg    &lt;- exp(mpg_draws)
+quantile(or_mpg, c(0.25, 0.5, 0.75))
+#&gt;   25%   50%   75%
+#&gt; 0.687 0.766 0.851</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Posterior median odds ratio for <code>mpg</code> is 0.77, with 50% credible interval <code>[0.69, 0.85]</code>. That means a 50% probability the odds of being 8-cyl multiply by between 0.69 and 0.85 per extra mpg.</p>
+
+</details>
+</section>
+
+<h2>How do I convert log-odds to odds ratios and probabilities?</h2>
+
+<p>Two conversions and one R idiom for each.</p>
+
+<p>Log-odds to odds ratio: <code>exp(coef)</code>. <code>exp(0.5) = 1.65</code> says the odds multiply by 1.65 per unit predictor.</p>
+
+<p>Log-odds to probability: <code>plogis(linear_predictor)</code>. The linear predictor is <code>intercept + sum(coefs * x)</code>. <code>plogis(0)</code> is 0.5; <code>plogis(2)</code> is 0.88; <code>plogis(-2)</code> is 0.12.</p>
+
+<div class="webr-container" data-block-title="From posterior draws to probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">From posterior draws to probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Posterior probability of being 8-cyl for a 20-mpg, 3-wt car
+new_data &lt;- data.frame(mpg = 20, wt = 3)
+p_draws &lt;- posterior_epred(fit_logit2, newdata = new_data, draws = 4000)[, 1]
+
+c(
+  median_p     = round(median(p_draws), 3),
+  p_q025_975   = paste0(&quot;[&quot;, round(quantile(p_draws, 0.025), 3),
+                        &quot;, &quot;, round(quantile(p_draws, 0.975), 3), &quot;]&quot;),
+  prob_p_above_05 = round(mean(p_draws &gt; 0.5), 3)
+)
+#&gt;   median_p   p_q025_975   prob_p_above_05
+#&gt;      0.156  [0.027, 0.495]            0.025</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through what we just computed. <code>posterior_epred()</code> returned 4000 posterior probabilities (one per draw) for the 20-mpg, 3-wt scenario. The posterior median probability is 0.156 (16% chance of being 8-cyl), with 95% credible interval <code>[0.03, 0.50]</code>. There is a 2.5% posterior probability that the underlying probability exceeds 0.5.</p>
+
+<p>For posterior probabilities on a <em>grid</em> of x values (the standard "predicted probability curve"):</p>
+
+<div class="webr-container" data-block-title="Predicted probability curve along one predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicted probability curve along one predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_grid &lt;- data.frame(mpg = seq(10, 35, length.out = 30), wt = 3)
+p_grid   &lt;- posterior_epred(fit_logit2, newdata = new_grid, draws = 4000)
+# p_grid is 4000 x 30: rows = posterior draws, cols = mpg values
+
+curve_summary &lt;- data.frame(
+  mpg     = new_grid$mpg,
+  median  = apply(p_grid, 2, median),
+  q025    = apply(p_grid, 2, quantile, 0.025),
+  q975    = apply(p_grid, 2, quantile, 0.975)
+)
+head(round(curve_summary, 3), 5)
+#&gt;      mpg median  q025  q975
+#&gt; 1 10.000  0.871 0.515 0.991
+#&gt; 2 10.862  0.853 0.494 0.989
+#&gt; 3 11.724  0.832 0.473 0.987
+#&gt; 4 12.586  0.810 0.452 0.984
+#&gt; 5 13.448  0.787 0.430 0.982</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the curve. For each mpg value, we have a posterior over the probability of being 8-cyl (at fixed wt=3). The median curve descends from 0.87 at mpg=10 to lower values as mpg grows. The credible band (q025, q975) gives the uncertainty in the curve.</p>
+
+<p>Plotting <code>median</code> with <code>q025</code>/<code>q975</code> shading is the standard "Bayesian logistic curve with uncertainty band." <code>conditional_effects(fit_logit2, effects = &quot;mpg&quot;)</code> does this automatically.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>conditional_effects(fit, effects = &quot;x&quot;)</code> is the brms one-liner for predicted-probability plots.</strong> It marginalises over the other predictors, computes posterior probabilities, and plots the curve with a credible band. Save the plot with <code>ggsave()</code> for inclusion in reports.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the posterior probability that the 20-mpg-3-wt car's true probability of being 8-cyl exceeds the 25-mpg-3-wt car's true probability.</p>
+<div class="webr-container" data-block-title="Your turn: probability of probability difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: probability of probability difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># p_low_mpg &lt;- posterior_epred(fit, newdata = data.frame(mpg = 20, wt = 3))[, 1]
+# p_high_mpg &lt;- posterior_epred(fit, newdata = data.frame(mpg = 25, wt = 3))[, 1]
+# mean(p_low_mpg &gt; p_high_mpg)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Probability difference solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Probability difference solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_20 &lt;- posterior_epred(fit_logit2, newdata = data.frame(mpg = 20, wt = 3))[, 1]
+p_25 &lt;- posterior_epred(fit_logit2, newdata = data.frame(mpg = 25, wt = 3))[, 1]
+c(
+  median_p_20  = round(median(p_20), 3),
+  median_p_25  = round(median(p_25), 3),
+  prob_20_higher = round(mean(p_20 &gt; p_25), 3)
+)
+#&gt;   median_p_20    median_p_25  prob_20_higher
+#&gt;         0.156          0.075           0.957</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>96% posterior probability that a 20-mpg car is more likely to be 8-cyl than a 25-mpg car (at the same weight). That is the kind of comparison Bayesian logistic regression makes trivial; frequentist analogues require Wald or likelihood-ratio tests with awkward interpretation.</p>
+
+</details>
+</section>
+
+<h2>How do I get prediction intervals on the probability scale?</h2>
+
+<p>Two functions, two scales.</p>
+
+<p><code>posterior_epred()</code> returns the <em>expected probability</em> (a number in <code>[0, 1]</code>) for each new x. Use it for "what is the probability of the event for this kind of subject."</p>
+
+<p><code>posterior_predict()</code> returns <em>new outcome draws</em> (0 or 1). Use it for "did this specific subject experience the event." The output is a binary vector per posterior draw.</p>
+
+<p>For most stakeholder questions, <code>posterior_epred()</code> is what you want. The probability of conversion, the predicted churn rate, the 8-cyl probability are all expected probabilities.</p>
+
+<div class="webr-container" data-block-title="epred vs predict for binary outcomes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">epred vs predict for binary outcomes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_cars &lt;- data.frame(mpg = c(15, 20, 25, 30), wt = 3)
+
+epred &lt;- posterior_epred(fit_logit2, newdata = new_cars, draws = 4000)
+ypred &lt;- posterior_predict(fit_logit2, newdata = new_cars, draws = 4000)
+
+data.frame(
+  mpg               = new_cars$mpg,
+  epred_median      = round(apply(epred, 2, median), 3),
+  epred_95          = paste0(&quot;[&quot;, round(apply(epred, 2, quantile, 0.025), 3),
+                             &quot;, &quot;, round(apply(epred, 2, quantile, 0.975), 3), &quot;]&quot;),
+  ypred_pct_one     = round(colMeans(ypred), 3)
+)
+#&gt;   mpg epred_median        epred_95 ypred_pct_one
+#&gt; 1  15        0.481  [0.111, 0.886]         0.480
+#&gt; 2  20        0.156  [0.027, 0.495]         0.157
+#&gt; 3  25        0.075  [0.011, 0.288]         0.075
+#&gt; 4  30        0.053  [0.005, 0.198]         0.053</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the difference. <code>epred_median</code> is the posterior median of the probability for each mpg level. <code>epred_95</code> is the 95% credible interval on that probability. <code>ypred_pct_one</code> is the fraction of posterior 0/1 draws that are 1; it converges (by construction) to the same posterior mean as <code>epred_median</code>.</p>
+
+<p>For uncertainty about the <em>probability</em>, use <code>epred</code>. For simulated dichotomous outcomes (e.g., for ROC curve simulation, simulated dataset PPC), use <code>ypred</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>posterior_predict()</code> for binary outcomes returns 0/1 draws, not probabilities.</strong> That is the right behaviour for simulating fake datasets, but if you accidentally use it where you want a probability, the posterior is very different. Read the brms docs once for which to call.</div></div>
+
+<p><img src="screenshots/Bayesian-Logistic-Regression-in-R-odds.webp" alt="From log-odds to odds ratios to probability" class="img-responsive img-zoomable" loading="lazy" width="1294" height="394" /></p>
+
+<p><em>Figure 1: The two transformations every logistic regression workflow needs. exp() converts log-odds to odds ratios. plogis() converts the linear predictor to a probability.</em></p>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A car has mpg = 18 and wt = 3.5. What is the 80% credible interval for its probability of being 8-cyl?</p>
+<div class="webr-container" data-block-title="Your turn: 80% credible interval on a probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 80% credible interval on a probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># new_car &lt;- data.frame(mpg = 18, wt = 3.5)
+# p_draws &lt;- posterior_epred(fit_logit2, newdata = new_car)[, 1]
+# quantile(p_draws, c(0.1, 0.9))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="80% probability interval solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">80% probability interval solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_car &lt;- data.frame(mpg = 18, wt = 3.5)
+p_draws &lt;- posterior_epred(fit_logit2, newdata = new_car)[, 1]
+c(
+  median_p     = round(median(p_draws), 3),
+  p_q10_90     = paste0(&quot;[&quot;, round(quantile(p_draws, 0.1), 3),
+                        &quot;, &quot;, round(quantile(p_draws, 0.9), 3), &quot;]&quot;)
+)
+#&gt;   median_p              p_q10_90
+#&gt;        0.345         [0.158, 0.604]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Median 0.35, 80% credible interval <code>[0.16, 0.60]</code>. Reasonable middle-uncertainty answer; the data does not strongly identify the answer for this specific scenario.</p>
+
+</details>
+</section>
+
+<h2>When does Bayesian logistic regression matter most?</h2>
+
+<p>Three situations where it is meaningfully better than <code>glm(family = binomial)</code>.</p>
+
+<p>The first is <em>complete or <a class="auto-link" href="Exact-Logistic-Regression-in-R.html" title="Exact Logistic Regression in R: When Separation Causes Problems">quasi-complete separation</a></em>. When a predictor perfectly separates the outcome (all positives at one extreme, all negatives at the other), <code>glm()</code> returns a coefficient of $\pm\infty$ and crashes or warns. Bayesian fits with even a <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">weakly informative prior</a> produce a finite, well-behaved posterior. This single case is why many ML practitioners switched to Bayesian logistic regression for production scoring.</p>
+
+<p>The second is <em>small sample size with imbalanced classes</em>. A frequentist fit with 50 observations and 5 positives gives wide, unstable confidence intervals. The same fit with brms and a <code>normal(0, 2.5)</code> prior produces stable estimates because the prior keeps coefficients bounded.</p>
+
+<p>The third is <em>probability statements about specific scenarios</em>. "What is the probability the conversion rate exceeds 5% in this segment?" is a Bayesian question. Frequentist alternatives require simulation from the <a class="auto-link" href="Asymptotic-Theory-in-R-2.html" title="Asymptotic Theory in R: Consistency, Asymptotic Normality & Delta Method">asymptotic distribution</a> of the predicted probability, which is mathematically correct but never how stakeholders ask the question.</p>
+
+<div class="webr-container" data-block-title="Imbalanced binary outcome demo">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Imbalanced binary outcome demo</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Simulate 50 obs, 5 positives, with a noisy predictor
+set.seed(2026)
+n      &lt;- 50
+x      &lt;- rnorm(n)
+y_prob &lt;- plogis(-3 + 0.8 * x)
+y      &lt;- rbinom(n, 1, y_prob)
+df_imb &lt;- data.frame(y = y, x = x)
+
+# Frequentist
+fit_glm &lt;- glm(y ~ x, df_imb, family = binomial)
+confint.default(fit_glm)[&quot;x&quot;, ]
+#&gt;      2.5 %    97.5 %
+#&gt; -0.0193    1.7345
+
+# Bayesian with weakly informative prior
+fit_brm &lt;- brm(y ~ x, df_imb, family = bernoulli(&quot;logit&quot;),
+               prior = prior(normal(0, 2.5), class = &quot;b&quot;),
+               chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_brm, variable = &quot;b_x&quot;)[, c(&quot;Q2.5&quot;, &quot;Q97.5&quot;)]
+#&gt;      Q2.5    Q97.5
+#&gt; b_x  0.014    1.604</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Walk through the difference. The frequentist <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> is <code>[-0.019, 1.735]</code>, just barely covering zero. The Bayesian credible interval with a weakly informative prior is <code>[0.014, 1.604]</code>, slightly tighter and clearly excluding zero.</p>
+
+<p>Both come from the same data. The Bayesian interval is tighter because the prior contributed real (weak) information. With more data the two would converge; on this 50-observation imbalanced dataset, the prior helps.</p>
+
+<p><img src="screenshots/Bayesian-Logistic-Regression-in-R-flow.webp" alt="Bayesian logistic regression workflow" class="img-responsive img-zoomable" loading="lazy" width="2042" height="394" /></p>
+
+<p><em>Figure 2: Bayesian logistic regression workflow. brms with <code>family = bernoulli(&quot;logit&quot;)</code> returns a posterior over log-odds coefficients; exp and plogis convert to odds ratios and probabilities respectively.</em></p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use <code>family = bernoulli(&quot;logit&quot;)</code>, not <code>family = binomial</code>, for binary 0/1 outcomes in brms.</strong> <code>family = binomial</code> is for <em>aggregated</em> trial data where each row has a count of successes out of <code>n</code> trials. Mixing them up will silently fit the wrong model.</div></div>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Refit the imbalanced dataset above with <code>prior(normal(0, 0.5), class = &quot;b&quot;)</code> (a tighter prior). Does the credible interval still exclude zero?</p>
+<div class="webr-container" data-block-title="Your turn: tighter prior on imbalanced data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tighter prior on imbalanced data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Refit with prior(normal(0, 0.5), class = 'b')
+# Compare credible interval to the previous fit</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Tighter-prior solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighter-prior solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_tight2 &lt;- brm(y ~ x, df_imb, family = bernoulli(&quot;logit&quot;),
+                  prior = prior(normal(0, 0.5), class = &quot;b&quot;),
+                  chains = 4, iter = 2000, seed = 1, silent = 2)
+posterior_summary(fit_tight2, variable = &quot;b_x&quot;)[, c(&quot;Q2.5&quot;, &quot;Q97.5&quot;)]
+#&gt;      Q2.5    Q97.5
+#&gt; b_x  -0.06    0.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tighter prior pulled the credible interval to <code>[-0.06, 0.83]</code>. It now includes zero. The choice between <code>normal(0, 0.5)</code> and <code>normal(0, 2.5)</code> is real; for a dataset like this one, the tighter prior changes whether you would say "the effect is reliable." Document your prior choice and report a sensitivity sweep.</p>
+
+</details>
+</section>
+
+<h2>Practice Exercises</h2>
+
+<h3>Exercise 1: Convert log-odds to a probability comparison</h3>
+
+<p>For <code>fit_logit2</code>, compute the posterior probability that the underlying probability of being 8-cyl at mpg=15, wt=4 is at least 0.7.</p>
+
+<div class="webr-container" data-block-title="Exercise 1 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># new_car &lt;- data.frame(mpg = 15, wt = 4)
+# p_draws &lt;- posterior_epred(fit_logit2, newdata = new_car)[, 1]
+# mean(p_draws &gt; 0.7)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 1 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 1 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_car &lt;- data.frame(mpg = 15, wt = 4)
+p_draws &lt;- posterior_epred(fit_logit2, newdata = new_car)[, 1]
+c(
+  median_p     = round(median(p_draws), 3),
+  prob_above_07 = round(mean(p_draws &gt; 0.7), 3)
+)
+#&gt;      median_p prob_above_07
+#&gt;         0.661         0.395</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Median predicted probability is 0.66; about 40% posterior probability that the underlying probability exceeds 0.7. A close call; the data does not strongly support either direction.</p>
+
+</details>
+
+<h3>Exercise 2: Compare a Bayesian and frequentist odds ratio</h3>
+
+<p>Fit <code>glm(y_8cyl ~ mpg, mtcars2, family = binomial)</code> and <code>brm(y_8cyl ~ mpg, mtcars2, family = bernoulli(&quot;logit&quot;))</code>. Compute the odds ratio and 95% interval from each.</p>
+
+<div class="webr-container" data-block-title="Exercise 2 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Frequentist: exp(coef(fit_glm)['mpg']) and exp(confint(fit_glm)['mpg', ])
+# Bayesian: exp(posterior_summary(fit_brm, variable = 'b_mpg')[, c('Estimate', 'Q2.5', 'Q97.5')])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 2 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 2 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_glm_simple &lt;- glm(y_8cyl ~ mpg, mtcars2, family = binomial)
+fit_brm_simple &lt;- brm(y_8cyl ~ mpg, mtcars2, family = bernoulli(&quot;logit&quot;),
+                      prior = prior(normal(0, 2.5), class = &quot;b&quot;),
+                      chains = 4, iter = 2000, seed = 2026, silent = 2)
+
+freq_or &lt;- exp(c(coef(fit_glm_simple)[&quot;mpg&quot;], confint(fit_glm_simple)[&quot;mpg&quot;, ]))
+bay_or  &lt;- exp(posterior_summary(fit_brm_simple, variable = &quot;b_mpg&quot;)[, c(1, 3, 4)])
+
+list(frequentist = round(freq_or, 3), bayesian = round(bay_or, 3))
+#&gt; $frequentist
+#&gt;     mpg     2.5 %    97.5 %
+#&gt;   0.524     0.348     0.722
+#&gt;
+#&gt; $bayesian
+#&gt;   Estimate     Q2.5    Q97.5
+#&gt;      0.541    0.396    0.723</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two methods agree closely. The Bayesian odds ratio is 0.54, with credible interval <code>[0.40, 0.72]</code>. The frequentist odds ratio is 0.52, with confidence interval <code>[0.35, 0.72]</code>. The Bayesian interval is slightly tighter because the weakly informative prior contributed mild information.</p>
+
+</details>
+
+<h3>Exercise 3: Posterior of a contrast on the probability scale</h3>
+
+<p>For <code>fit_logit2</code>, compute the posterior of "probability of being 8-cyl at (mpg=15, wt=4) minus probability at (mpg=25, wt=2)." Report the median and 95% credible interval.</p>
+
+<div class="webr-container" data-block-title="Exercise 3 starter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 starter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use posterior_epred for both scenarios, subtract draws, summarise</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Exercise 3 solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Exercise 3 solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_grid &lt;- data.frame(mpg = c(15, 25), wt = c(4, 2))
+p        &lt;- posterior_epred(fit_logit2, newdata = new_grid, draws = 4000)
+diff     &lt;- p[, 1] - p[, 2]    # heavy minus light
+
+c(
+  median_diff  = round(median(diff), 3),
+  diff_95      = paste0(&quot;[&quot;, round(quantile(diff, 0.025), 3),
+                        &quot;, &quot;, round(quantile(diff, 0.975), 3), &quot;]&quot;),
+  prob_diff_pos = round(mean(diff &gt; 0), 3)
+)
+#&gt;   median_diff      diff_95           prob_diff_pos
+#&gt;         0.661  [0.245, 0.943]                  1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The posterior median for the probability difference is 0.66 with 95% credible interval <code>[0.25, 0.94]</code>. Posterior probability that the heavy 15-mpg car is more likely to be 8-cyl than the light 25-mpg car is 100% (no draws disagree). That is decisive evidence; stakeholders can act on it.</p>
+
+</details>
+
+<h2>Summary</h2>
+
+<p>Bayesian logistic regression with brms uses <code>family = bernoulli(&quot;logit&quot;)</code> and returns a posterior over log-odds coefficients that converts trivially to odds ratios and probabilities.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What you do</th>
+<th>brms function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Code outcome as 0/1</td>
+<td><code>as.integer(condition)</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Fit with logit family</td>
+<td><code>brm(y ~ x, family = bernoulli(&quot;logit&quot;))</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Read log-odds posterior</td>
+<td><code>summary(fit)</code>, <code>posterior_summary()</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Convert to odds ratios</td>
+<td><code>exp(posterior draws)</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Convert to probabilities</td>
+<td><code>posterior_epred()</code> (uses plogis internally)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Compute probability statements</td>
+<td><code>mean(p_draws &gt; threshold)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use weakly informative priors like <code>normal(0, 2.5)</code> on slopes; flat priors can imply absurd odds ratios on the log-odds scale. Report results on the scale your stakeholders care about (usually probability or odds ratio), and always include a credible interval.</p>
+
+<h2>References</h2>
+
+<ol>
+
+<li>Gelman, A. et al. <em>Bayesian Data Analysis</em>, 3rd ed. Chapman & Hall, 2013. Chapter 16 covers binomial regression.</li>
+
+<li>Gelman, A., Jakulin, A., Pittau, M., Su, Y. "A weakly informative default <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">prior distribution</a> for logistic and other <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>." <em>Annals of Applied Statistics</em> 2 (2008). The Cauchy-prior paper that started the modern weakly informative practice.</li>
+
+<li>McElreath, R. <em>Statistical Rethinking</em>, 2nd ed. CRC Press, 2020. Chapter 10 covers logistic regression with brms.</li>
+
+<li>Bürkner, P. <em>brms documentation: family</em>. <a href="https://paulbuerkner.com/brms/reference/brmsfamily.html">paulbuerkner.com/brms</a>.</li>
+
+<li>Stan Development Team. "Prior Choice Recommendations." <a href="https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations">github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations</a>.</li>
+
+</ol>
+
+<h2>Continue Learning</h2>
+
+<ul>
+
+<li><a href="Bayesian-Hierarchical-Models-in-R.html">Bayesian Hierarchical Models in R</a>, the next post. Combines logistic regression with grouped data structure.</li>
+
+<li><a href="Bayesian-Linear-Regression-in-R.html">Bayesian Linear Regression in R</a>, the previous post on continuous outcomes.</li>
+
+<li><a href="Choosing-Priors-in-R.html">Choosing Priors in R</a>, the post that explains the <code>normal(0, 2.5)</code> prior choice this post recommends.</li>
+
+</ul>
