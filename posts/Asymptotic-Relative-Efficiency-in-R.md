@@ -3,7 +3,7 @@ title: "Asymptotic Relative Efficiency in R: Compare Tests Without Finite Sample
 slug: Asymptotic-Relative-Efficiency-in-R
 description: "Master asymptotic relative efficiency (ARE) in R with simulations for mean vs median, Wilcoxon vs t-test, and sample-size planning under any distribution."
 keywords: "asymptotic relative efficiency, ARE R, Pitman efficiency, relative efficiency R, mean vs median efficiency, Wilcoxon t-test ARE, sample size efficiency"
-auto_link_terms: "asymptotic relative efficiency|Pitman efficiency|relative efficiency|sample-size planning|asymptotic efficiency|ARE"
+auto_link_terms: "asymptotic relative efficiency|Pitman efficiency|relative efficiency|sample-size planning|asymptotic efficiency"
 auto_link_case_sensitive: false
 mathjax: true
 webr: true
