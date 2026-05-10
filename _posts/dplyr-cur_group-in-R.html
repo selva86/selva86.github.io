@@ -1,0 +1,384 @@
+---
+title: "dplyr cur_group() in R: Access Current Group Inside Verbs"
+description: "Use dplyr cur_group() and friends to access the current group inside summarise or mutate in R. Covers cur_group, cur_group_id, cur_group_rows, 5 examples."
+keywords: "dplyr cur_group, R cur_group_id, cur_group_rows, dplyr group introspection, current group dplyr, group context"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cur_group()|cur_group_id()|cur_group_rows()|dplyr cur_group|current group context"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr cur_group() in R: Access Current Group Inside Verbs</h1>
+
+<p class="lead">The <code>cur_group()</code> family in dplyr (<code>cur_group()</code>, <code>cur_group_id()</code>, <code>cur_group_rows()</code>) gives access to the CURRENT group's identity inside <code>summarise()</code> or <code>mutate()</code> on a grouped tibble.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; group_by(g) |&gt; summarise(grp_id = cur_group_id())
+df |&gt; group_by(g) |&gt; mutate(grp_label = cur_group()$g)
+df |&gt; group_by(g) |&gt; summarise(idx = list(cur_group_rows()))
+df |&gt; group_by(g) |&gt; mutate(grp_n = length(cur_group_rows()))
+n_distinct(...)<span class="qa-cmt">                          # different: not group identity</span>
+cur_data() |&gt; some_fn()<span class="qa-cmt">                  # deprecated: use pick(everything())</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cur_group() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">get the current group's column values</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cur_group()</text><text x="125" y="126" class="branch-label">get a unique INTEGER per group</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cur_group_id()</text><text x="125" y="182" class="branch-label">get row indices in the current group</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cur_group_rows()</text><text x="125" y="238" class="branch-label">get the group's data frame (deprecated)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pick(everything())</text><text x="125" y="294" class="branch-label">access ALL columns inside <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pick(everything())</text></svg></div>
+
+<h2>What cur_group() does in one sentence</h2>
+
+<p><strong><code>cur_group()</code> returns a 1-row tibble with the values of the grouping columns FOR THE CURRENT GROUP, when called inside a dplyr verb on a grouped tibble.</strong> Useful when you need to know which group you're in (e.g., for printing diagnostics, building per-group filenames).</p>
+
+<p>The full family:</p>
+
+<ul>
+
+<li><code>cur_group()</code>: 1-row tibble of grouping values.</li>
+
+<li><code>cur_group_id()</code>: unique integer 1..n_groups identifying the current group.</li>
+
+<li><code>cur_group_rows()</code>: integer vector of row indices in the original frame.</li>
+
+</ul>
+
+<h2>Syntax</h2>
+
+<p><strong>No arguments. Must be called inside dplyr verbs (<code>summarise</code>, <code>mutate</code>, <code>filter</code>) on a grouped tibble.</strong></p>
+
+<div class="webr-container" data-block-title="Get current group identity inside summarise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get current group identity inside summarise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(grp_id = cur_group_id(),
+            grp    = cur_group()$cyl)
+#&gt; # A tibble: 3 x 3
+#&gt;     cyl grp_id   grp
+#&gt;     4      1     4
+#&gt;     6      2     6
+#&gt;     8      3     8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>cur_group_id()</code> is the simplest and most useful: it gives a unique integer per group.</strong> Use it for color-coding, logging, or building per-group identifiers.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Unique integer per group</h3>
+
+<div class="webr-container" data-block-title="cur_group_id for stable group numbering">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">cur_group_id for stable group numbering</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(grp_id = cur_group_id())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each cyl group gets a unique integer ID. Useful for downstream group-aware analysis or color schemes.</p>
+
+<h3>2. Print diagnostics per group</h3>
+
+<div class="webr-container" data-block-title="Inside mutate or summarise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inside mutate or summarise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    n      = n(),
+    avg    = mean(mpg),
+    note   = paste(&quot;group:&quot;, cur_group()$cyl, &quot;n=&quot;, n())
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Row indices per group</h3>
+
+<div class="webr-container" data-block-title="Original-frame indices for each group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Original-frame indices for each group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(rows = list(cur_group_rows()))
+#&gt; # A tibble: 3 x 2
+#&gt;     cyl rows
+#&gt;     4   &lt;int [11]&gt;
+#&gt;     6   &lt;int [7]&gt;
+#&gt;     8   &lt;int [14]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cur_group_rows()</code> returns the indices of rows in the CURRENT group within the ORIGINAL frame.</p>
+
+<h3>4. Per-group file output</h3>
+
+<div class="webr-container" data-block-title="Save each group as separate CSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save each group as separate CSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  group_walk(~ write_csv(.x, paste0(&quot;cyl_&quot;, .y$cyl, &quot;.csv&quot;)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>group_walk</code> is a higher-level alternative; for in-summary file naming, cur_group() works.</p>
+
+<h3>5. Group-specific reference data</h3>
+
+<div class="webr-container" data-block-title="Pick from a lookup keyed by current group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick from a lookup keyed by current group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lookup &lt;- tibble(cyl = c(4, 6, 8), label = c(&quot;eco&quot;,&quot;mid&quot;,&quot;big&quot;))
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(label = lookup$label[match(cur_group()$cyl, lookup$cyl)])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>cur_group_id()</code> is the most-used member of this family: it gives a stable per-group integer ID.</strong> <code>cur_group()</code> returns the actual values; <code>cur_group_rows()</code> returns indices. They're rarely needed in everyday work but valuable for advanced per-<a class="auto-link" href="dplyr-group_by-in-R.html" title="dplyr group_by() in R: Grouped Operations Made Easy">group operations</a>.</div></div>
+
+<h2>cur_group() vs cur_group_id() vs cur_group_rows()</h2>
+
+<p><strong>Three group-introspection functions.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cur_group()</code></td>
+<td>1-row tibble of grouping values</td>
+<td>"What group am I in?"</td>
+</tr>
+<tr>
+<td><code>cur_group_id()</code></td>
+<td>Single integer</td>
+<td>Unique per-group ID</td>
+</tr>
+<tr>
+<td><code>cur_group_rows()</code></td>
+<td>Integer vector</td>
+<td>Row indices in original frame</td>
+</tr>
+<tr>
+<td><code>cur_data()</code></td>
+<td>Deprecated</td>
+<td>Use pick(everything())</td>
+</tr>
+<tr>
+<td><code>cur_data_all()</code></td>
+<td>Deprecated</td>
+<td>Use pick(everything())</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>cur_group_id</code> for stable per-group integer IDs.</li>
+
+<li><code>cur_group</code> for the actual grouping column values.</li>
+
+<li><code>cur_group_rows</code> for accessing the original frame's row indices.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "per-group file output" or "per-group named element" pattern uses cur_group.</strong></p>
+
+<div class="webr-container" data-block-title="Per-group output paths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group output paths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_per_cyl &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    avg_mpg  = mean(mpg),
+    plot_path = paste0(&quot;plots/cyl_&quot;, cur_group()$cyl, &quot;.png&quot;)
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Build per-group output paths or labels.</p>
+
+<p>For unique integer IDs in joins:</p>
+
+<div class="webr-container" data-block-title="Stable per-group integer IDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stable per-group integer IDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_with_group_id &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(group_id = cur_group_id()) |&gt;
+  ungroup()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>group_id</code> is now stable; can be joined or used for downstream identification.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: calling outside dplyr verbs.</strong> <code>mtcars |&gt; cur_group()</code> errors. cur_group must be inside <code>summarise</code>, <code>mutate</code>, or <code>filter</code> on a grouped tibble.</p>
+
+<p><strong>Pitfall 2: cur_data() is deprecated.</strong> It returned the current group's data frame. Use <code>pick(everything())</code> in modern code.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>cur_group_id()</code> returns SEQUENTIAL integers based on the GROUPED ORDER, not the original group_by argument values.</strong> If you <code>group_by(category)</code> and category has values "B", "A", "C", cur_group_id may not be 1=A, 2=B, 3=C. It depends on how dplyr orders groups internally.</div></div>
+
+<h2>Why cur_group_id is the most useful member</h2>
+
+<p><strong>Of the cur_group family, cur_group_id is the one that comes up most often in real pipelines.</strong> It returns a stable integer per group, which is perfect for feeding into joins, color palettes, or as an alternative to factor codes. cur_group itself is rarely needed because the grouping columns are usually accessible via the result tibble. cur_group_rows is even more niche. If you find yourself reaching for cur_data(), switch to pick(everything()) instead, same result, cleaner intent, future-proof.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a unique <code>group_id</code> column to mtcars based on cyl group. Save to <code>ex_ids</code>.</p>
+<div class="webr-container" data-block-title="Your turn: group integer IDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: group integer IDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ids &lt;- mtcars |&gt;
+  # your code here
+
+head(ex_ids[, c(&quot;mpg&quot;,&quot;cyl&quot;,&quot;group_id&quot;)])
+#&gt; Expected: group_id 1, 2, or 3 per row depending on cyl</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ids &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  mutate(group_id = cur_group_id()) |&gt;
+  ungroup()
+
+head(ex_ids[, c(&quot;mpg&quot;,&quot;cyl&quot;,&quot;group_id&quot;)])
+#&gt;                    mpg cyl group_id
+#&gt; Mazda RX4         21.0   6        2
+#&gt; Mazda RX4 Wag     21.0   6        2
+#&gt; Datsun 710        22.8   4        1
+#&gt; Hornet 4 Drive    21.4   6        2
+#&gt; Hornet Sportabout 18.7   8        3
+#&gt; Valiant           18.1   6        2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cur_group_id()</code> returns a unique integer per cyl group: 1 for cyl=4, 2 for cyl=6, 3 for cyl=8.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering cur_group, look at:</p>
+
+<ul>
+
+<li><code>group_by()</code> / <code>ungroup()</code>: standard grouping</li>
+
+<li><code>pick(everything())</code>: replaces deprecated cur_data()</li>
+
+<li><code>n()</code>: count rows in current group</li>
+
+<li><code>groups()</code>: list of grouping columns (top-level)</li>
+
+<li><code>group_walk()</code> / <code>group_map()</code>: apply function per group</li>
+
+<li><code>dplyr::group_split()</code>: split grouped df into list</li>
+
+</ul>
+
+<p>For "apply function per group with side effects", <code>group_walk()</code> is more convenient than cur_group inside summarise.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does cur_group do in dplyr?</strong></p>
+
+<p><code>cur_group()</code> returns a 1-row tibble of the current group's grouping column values, when called inside a dplyr verb on a grouped tibble.</p>
+
+<p><strong>What is the difference between cur_group and cur_group_id?</strong></p>
+
+<p>cur_group returns a 1-row tibble of column values. cur_group_id returns a single integer (stable per-group ID).</p>
+
+<p><strong>What does cur_group_rows return?</strong></p>
+
+<p>It returns an integer vector of row indices in the ORIGINAL data frame that belong to the current group. Useful for advanced per-group operations.</p>
+
+<p><strong>Is cur_data deprecated?</strong></p>
+
+<p>Yes, since dplyr 1.1. Use <code>pick(everything())</code> instead, which returns the current group's data as a tibble.</p>
+
+<p><strong>Can I use cur_group_id outside summarise / mutate?</strong></p>
+
+<p>No. The cur_group family must be called inside dplyr verbs on a grouped tibble. Outside that context, they error.</p>

@@ -1,0 +1,353 @@
+---
+title: "dplyr reframe() in R: Summarise With Variable Output Length"
+description: "Use dplyr reframe() to summarise per group when the output has a variable number of rows in R. Covers reframe vs summarise, quantile, 5 examples."
+keywords: "dplyr reframe, R reframe vs summarise, dplyr 1.1 reframe, summarise variable rows, reframe quantile, dplyr per-group multi-row"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "reframe()|dplyr reframe|reframe vs summarise|variable output rows|reframe quantile"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr reframe() in R: Summarise With Variable Output Length</h1>
+
+<p class="lead">The <code>reframe()</code> function in dplyr 1.1 generalizes <code>summarise()</code> to allow variable output rows per group. Where summarise enforces "one row per group" (or n equal rows), reframe permits any number of output rows per group.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; group_by(g) |&gt; reframe(q = quantile(x, c(.25,.5,.75)))
+df |&gt; reframe(top = head(sort(x, decreasing = TRUE), 3))
+df |&gt; group_by(g) |&gt; reframe(seq = seq(min(x), max(x)))
+df |&gt; group_by(g) |&gt; summarise(mean = mean(x))<span class="qa-cmt">   # 1 row per group (sum)</span>
+df |&gt; group_by(g) |&gt; reframe(out = some_fn(x))<span class="qa-cmt">    # any rows (multi)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is reframe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one row per group output</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a></text><text x="125" y="126" class="branch-label">multi-row output per group</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">reframe()</text><text x="125" y="182" class="branch-label">per-group quantiles (multiple values)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">reframe()</text><text x="125" y="238" class="branch-label">per-group sequences / lists</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">reframe()</text><text x="125" y="294" class="branch-label">per-group ranking + filter to top n</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">slice_max()</a> (cleaner)</text><text x="125" y="350" class="branch-label">list column output</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">summarise + list() (alternative)</text></svg></div>
+
+<h2>What reframe() does in one sentence</h2>
+
+<p><strong><code>reframe(.data, ...)</code> works like <code>summarise()</code> but does NOT enforce that each expression returns one value per group; output rows expand to match the largest expression.</strong> Per-group output can have arbitrarily many rows.</p>
+
+<p>reframe was introduced in dplyr 1.1 because summarise's "1 row per group" rule was too restrictive for common patterns like "per-group quantiles" or "per-group top-N".</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>reframe(.data, ...)</code>. Same syntax as summarise; relaxed output-length rule.</strong></p>
+
+<div class="webr-container" data-block-title="Per-group quantiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group quantiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(
+    quantile = c(0.25, 0.5, 0.75),
+    mpg_q    = quantile(mpg, c(0.25, 0.5, 0.75))
+  )
+#&gt; # A tibble: 9 x 3
+#&gt;     cyl quantile mpg_q
+#&gt;     4     0.25   22.8
+#&gt;     4     0.50   26.0
+#&gt;     4     0.75   30.4
+#&gt;     6     0.25   18.7
+#&gt;     6     0.50   19.7
+#&gt;     6     0.75   21.0
+#&gt;     8     0.25   14.4
+#&gt;     8     0.50   15.2
+#&gt;     8     0.75   16.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3 quantiles per cyl group = 9 rows. summarise would error because each row produces 3 values.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>reframe</code> when each group's output has multiple rows or a variable count.</strong> For "exactly 1 row per group", <code>summarise</code> is still the right tool.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Per-group quantiles</h3>
+
+<div class="webr-container" data-block-title="Multiple quantiles per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiple quantiles per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(
+    q = c(&quot;q25&quot;,&quot;q50&quot;,&quot;q75&quot;),
+    val = quantile(mpg, c(0.25, 0.5, 0.75))
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Top n per group (alternative)</h3>
+
+<div class="webr-container" data-block-title="Top 3 rows per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top 3 rows per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(top_mpg = head(sort(mpg, decreasing = TRUE), 3))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For top-n, <code>slice_max(mpg, n = 3, by = cyl)</code> is cleaner because it returns the WHOLE row, not just the values.</p>
+
+<h3>3. Generated sequences per group</h3>
+
+<div class="webr-container" data-block-title="Sequence from min to max per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sequence from min to max per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(seq_val = seq(min(mpg), max(mpg)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each cyl group produces a different number of seq values.</p>
+
+<h3>4. Multi-stat output</h3>
+
+<div class="webr-container" data-block-title="Several stats with named row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Several stats with named row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(
+    stat = c(&quot;mean&quot;,&quot;sd&quot;,&quot;min&quot;,&quot;max&quot;),
+    val  = c(mean(mpg), sd(mpg), min(mpg), max(mpg))
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>4 rows per cyl group, one per stat.</p>
+
+<h3>5. summarise vs reframe demonstration</h3>
+
+<div class="webr-container" data-block-title="When summarise errors and reframe doesn&#x27;t">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When summarise errors and reframe doesn&#x27;t</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># summarise: errors
+# mtcars |&gt; group_by(cyl) |&gt; summarise(q = quantile(mpg, c(.25,.5,.75)))
+# Error: must return 1 row per group
+
+# reframe: works
+mtcars |&gt; group_by(cyl) |&gt; reframe(q = quantile(mpg, c(.25,.5,.75)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>reframe is summarise WITHOUT the "1 row per group" rule.</strong> This is why it was added: many useful per-group computations naturally produce multiple rows (quantiles, ranks, sequences). Pre-1.1, you had to use a list column workaround.</div></div>
+
+<h2>reframe() vs summarise() vs slice_max()</h2>
+
+<p><strong>Three approaches to "per-group output with multiple rows".</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output rows per group</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summarise()</code></td>
+<td>Exactly 1 (or n equal)</td>
+<td>Aggregations</td>
+</tr>
+<tr>
+<td><code>reframe()</code></td>
+<td>Any number</td>
+<td>Multi-row aggregations like quantiles</td>
+</tr>
+<tr>
+<td><code>slice_max(col, n)</code></td>
+<td>Up to n</td>
+<td>Top n by column</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>summarise</code> for aggregation: mean, sd, n.</li>
+
+<li><code>reframe</code> for variable-row output like quantiles or sequences.</li>
+
+<li><code>slice_max</code> / <code>slice_min</code> for "top n by column" specifically.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "per-group quantile table" pattern is reframe's killer use case.</strong></p>
+
+<div class="webr-container" data-block-title="Per-category percentile table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-category percentile table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices |&gt;
+  group_by(category) |&gt;
+  reframe(
+    quantile = c(&quot;p10&quot;,&quot;p25&quot;,&quot;p50&quot;,&quot;p75&quot;,&quot;p90&quot;),
+    price    = quantile(price, c(0.10, 0.25, 0.50, 0.75, 0.90))
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-category, returns 5 rows (one per percentile). Useful for distribution comparison across categories.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: reframe is dplyr 1.1+.</strong> Older dplyr versions don't have reframe. Workaround: list-column + tidyr::unnest.</p>
+
+<p><strong>Pitfall 2: forgetting that summarise still has the 1-row rule.</strong> If your code "used to work" with summarise but now errors, you may have changed the function output length. Switch to reframe.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>reframe</code> doesn't enforce output-length consistency across expressions.</strong> If one expression returns 3 values and another returns 5, reframe expands to the max (5) and shorter ones are recycled or error. Be careful.</div></div>
+
+<h2>Why reframe was added in dplyr 1.1</h2>
+
+<p><strong>Pre-1.1, the only way to produce variable-length per-group output was to wrap results in a list and unnest them.</strong> This was verbose and slow on big data. The dplyr team added reframe specifically for cases like quantiles, ranks, and per-group sequences where each group naturally produces multiple values. The decision reflects an explicit recognition that summarise's "1 row per group" rule, while useful for safety, was too restrictive for several common analytical patterns. The split between summarise (strict) and reframe (flexible) lets each function communicate clear intent: "I expect one row per group" or "I expect possibly many".</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the 25th, 50th, and 75th percentile of <code>mpg</code> per cyl group using reframe. Save to <code>ex_quartiles</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-cyl quartiles">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-cyl quartiles</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quartiles &lt;- mtcars |&gt;
+  # your code here
+
+ex_quartiles
+#&gt; Expected: 9 rows (3 quartiles x 3 cyl groups)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quartiles &lt;- mtcars |&gt;
+  group_by(cyl) |&gt;
+  reframe(
+    quartile = c(0.25, 0.5, 0.75),
+    mpg      = quantile(mpg, c(0.25, 0.5, 0.75))
+  )
+
+ex_quartiles
+#&gt; # A tibble: 9 x 3
+#&gt;     cyl quartile  mpg
+#&gt;     4      0.25  22.8
+#&gt;     4      0.50  26
+#&gt;     4      0.75  30.4
+#&gt;     6      0.25  18.65
+#&gt;     ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> reframe allows 3 rows per cyl group (one per quartile). summarise would error on this.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering reframe, look at:</p>
+
+<ul>
+
+<li><code>summarise()</code>: 1 row per group</li>
+
+<li><code>slice_max()</code> / <code>slice_min()</code>: top/bottom n by column</li>
+
+<li><code>tidyr::unnest()</code>: flatten list columns</li>
+
+<li><code>quantile()</code>: percentile values</li>
+
+<li><code>cur_data_all()</code>: alternative for older dplyr</li>
+
+<li><code>pick()</code>: <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> inside reframe / summarise</li>
+
+</ul>
+
+<p>For older dplyr (<1.1), the equivalent pattern is <code>summarise(out = list(quantile(x, ...))) |&gt; tidyr::unnest(out)</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does reframe do in dplyr?</strong></p>
+
+<p><code>reframe(.data, ...)</code> is like <code>summarise()</code> but allows expressions to return any number of rows per group, not just 1.</p>
+
+<p><strong>What is the difference between reframe and summarise?</strong></p>
+
+<p>summarise enforces "1 row per group" (or n equal rows across expressions). reframe allows variable-length output. For multi-row per-group computations like quantiles, use reframe.</p>
+
+<p><strong>When was reframe introduced?</strong></p>
+
+<p>In dplyr 1.1.0 (Jan 2023). Older versions used <code>summarise(x = list(...)) |&gt; tidyr::unnest(x)</code> as a workaround.</p>
+
+<p><strong>Can I mix summarise and reframe in a pipeline?</strong></p>
+
+<p>Yes. Use summarise for fixed-output aggregations and reframe for variable-output ones. They have the same syntax otherwise.</p>
+
+<p><strong>Why does my summarise error with "must return 1 row per group"?</strong></p>
+
+<p>Because the expression returns multiple values per group (e.g., quantile returns 3 values for 3 probs). Switch to reframe to allow this.</p>
