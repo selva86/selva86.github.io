@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty scenario-based dplyr exercises: light on warm-ups, heavy on intermediate problems where you have to combine 2-3 verbs to land the answer. Solutions are hidden behind reveal toggles so you actually try first.</p>
 
-| Section | Topic | Problems | Difficulty mix |
-|---|---|---|---|
-| 1 | Filter & select | 10 | beginner to intermediate |
-| 2 | Mutate & transform | 10 | mostly intermediate |
-| 3 | Summarise & group_by | 11 | intermediate, some advanced |
-| 4 | Joins | 9 | intermediate |
-| 5 | Window functions | 7 | intermediate to advanced |
-| 6 | Multi-step wrap-up | 3 | advanced |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(tibble)

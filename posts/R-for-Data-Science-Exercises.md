@@ -21,16 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty practice problems mapped to R for Data Science topics: visualize, transform, tidy, import, strings, dates, iteration, models. Hidden solutions.</p>
 
-| Section | R4DS topic | Problems |
-|---|---|---|
-| 1 | Visualize | 8 |
-| 2 | Transform | 8 |
-| 3 | Tidy | 8 |
-| 4 | Import & wrangle | 6 |
-| 5 | Strings & dates | 6 |
-| 6 | Iteration & functions | 8 |
-| 7 | Models | 6 |
-
 ```r title="Run this once before any exercise"
 library(tidyverse)
 ```

@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty practice problems on tidyr: pivot longer/wider, separate, unite, fill, complete, nest, unnest, and helpers. Hidden solutions, runnable code.</p>
 
-| Section | Topic | Problems |
-|---|---|---|
-| 1 | Pivots | 10 |
-| 2 | Separate & unite | 8 |
-| 3 | Missing values | 6 |
-| 4 | Nest & unnest | 10 |
-| 5 | Helper functions | 8 |
-| 6 | Real workflows | 8 |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(tidyr)

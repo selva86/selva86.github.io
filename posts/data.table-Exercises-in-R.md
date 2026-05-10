@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty practice problems on data.table: the i/j/by syntax, in-place modification with `:=`, joins, special symbols, and performance idioms. Real scenarios with hidden solutions.</p>
 
-| Section | Topic | Problems | Difficulty mix |
-|---|---|---|---|
-| 1 | i, j, by basics | 8 | beginner to intermediate |
-| 2 | Modify in place with := | 8 | mostly intermediate |
-| 3 | Joins | 8 | intermediate |
-| 4 | Special symbols & functions | 8 | intermediate to advanced |
-| 5 | Performance patterns | 8 | intermediate to advanced |
-| 6 | Advanced & dplyr migration | 10 | advanced |
-
 ```r title="Run this once before any exercise"
 library(data.table)
 mt <- as.data.table(mtcars, keep.rownames = "car")

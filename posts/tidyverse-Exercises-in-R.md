@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty cross-package practice problems combining dplyr, tidyr, stringr, lubridate, and purrr on real-world workflows. The intermediate sweet spot where you have to pick the right verb from the right package and chain them. Hidden solutions.</p>
 
-| Section | Topic | Problems | Packages |
-|---|---|---|---|
-| 1 | Reshape & wrangle | 8 | dplyr + tidyr |
-| 2 | Strings & dates | 8 | stringr + lubridate |
-| 3 | Iteration & purrr | 8 | purrr |
-| 4 | Group-and-iterate | 8 | dplyr + purrr |
-| 5 | End-to-end pipelines | 10 | all |
-| 6 | Advanced multi-package | 8 | all |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(tidyr)

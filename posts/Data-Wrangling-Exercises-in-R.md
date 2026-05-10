@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty practice problems covering the data wrangling lifecycle in R: import, inspect, clean, reshape, combine, aggregate, and ETL pipelines. Real-world scenarios with hidden solutions.</p>
 
-| Section | Topic | Problems | Difficulty mix |
-|---|---|---|---|
-| 1 | Import & inspection | 8 | beginner-heavy |
-| 2 | Cleaning | 10 | mostly intermediate |
-| 3 | Reshape | 8 | mostly intermediate |
-| 4 | Combine (joins, bind) | 8 | mostly intermediate |
-| 5 | Aggregate & summarise | 8 | intermediate |
-| 6 | End-to-end ETL | 8 | advanced |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(tidyr)

@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty exploratory data analysis exercises spanning inspection, distributions, missing values, outliers, relationships, and full EDA workflows. Hidden solutions, runnable code.</p>
 
-| Section | Topic | Problems |
-|---|---|---|
-| 1 | Data inspection | 8 |
-| 2 | Distributions | 10 |
-| 3 | Missing data | 6 |
-| 4 | Outliers | 6 |
-| 5 | Relationships | 10 |
-| 6 | End-to-end EDA | 10 |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(tidyr)

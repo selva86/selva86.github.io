@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty practice problems on machine learning in R: workflow basics, classification, regression, tuning, feature engineering, and end-to-end pipelines. Hidden solutions, runnable code.</p>
 
-| Section | Topic | Problems | Difficulty mix |
-|---|---|---|---|
-| 1 | Workflow basics | 8 | beginner to intermediate |
-| 2 | Classification | 10 | mostly intermediate |
-| 3 | Regression ML | 8 | intermediate |
-| 4 | Tuning & validation | 8 | intermediate to advanced |
-| 5 | Feature engineering | 8 | intermediate |
-| 6 | End-to-end ML pipelines | 8 | advanced |
-
 ```r title="Run this once before any exercise"
 library(dplyr)
 library(rpart)

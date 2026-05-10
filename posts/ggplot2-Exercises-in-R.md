@@ -21,15 +21,6 @@ difficulty: "Intermediate"
 
 <p class="lead">Fifty scenario-based ggplot2 exercises spanning geoms, aesthetics, scales, facets, themes, and multi-layer compositions. Solutions hidden behind reveal toggles so you actually build the plot first.</p>
 
-| Section | Topic | Problems | Difficulty mix |
-|---|---|---|---|
-| 1 | Basic geoms | 8 | beginner to intermediate |
-| 2 | Aesthetics & mapping | 8 | mostly intermediate |
-| 3 | Scales & coordinates | 10 | mostly intermediate |
-| 4 | Faceting | 6 | intermediate |
-| 5 | Themes & customization | 10 | mostly intermediate |
-| 6 | Annotations & publication-ready | 8 | intermediate to advanced |
-
 ```r title="Run this once before any exercise"
 library(ggplot2)
 library(dplyr)
