@@ -1,0 +1,345 @@
+---
+title: "dplyr transmute() in R: Mutate and Drop Old Columns"
+description: "Use dplyr transmute() to create new columns and drop unspecified ones in R. Covers transmute vs mutate(.keep=none), superseded status, and 5 examples."
+keywords: "dplyr transmute, R transmute, transmute vs mutate, mutate keep none, dplyr transmute superseded, R drop columns transmute"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "transmute()|dplyr transmute|transmute vs mutate|mutate keep none|drop columns transmute"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr transmute() in R: Mutate and Drop Old Columns</h1>
+
+<p class="lead">The <code>transmute()</code> function in dplyr is like <code>mutate()</code> but DROPS all columns not mentioned. As of dplyr 1.1, it is superseded by <code>mutate(.keep = "none")</code>, which is preferred in new code.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>transmute(df, kpm = mpg * 1.609)<span class="qa-cmt">              # only kpm column survives</span>
+transmute(df, mpg, kpm = mpg * 1.609)<span class="qa-cmt">         # mpg + kpm; rest dropped</span>
+mutate(df, kpm = mpg * 1.609, .keep = &quot;none&quot;)<span class="qa-cmt"> # modern equivalent</span>
+mutate(df, kpm = mpg * 1.609, .keep = &quot;used&quot;)<span class="qa-cmt"> # mpg + kpm; rest dropped</span>
+mutate(df, .keep = &quot;all&quot;)<span class="qa-cmt">                     # all columns; default</span>
+df |&gt; select(mpg) |&gt; mutate(kpm = mpg * 1.609)# explicit alternative</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 transmute, mutate, or .keep?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">modern code, drop unmentioned columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mutate(.keep = &quot;none&quot;)</text><text x="125" y="126" class="branch-label">modern code, keep mentioned + new</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mutate(.keep = &quot;used&quot;)</text><text x="125" y="182" class="branch-label">legacy code or quick interactive use</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">transmute()</text><text x="125" y="238" class="branch-label">keep ALL columns + new ones</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">mutate()</a> (default)</text><text x="125" y="294" class="branch-label">explicit projection</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select()</a> then mutate()</text><text x="125" y="350" class="branch-label">rename only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rename() (not transmute)</text></svg></div>
+
+<h2>What transmute() does in one sentence</h2>
+
+<p><strong><code>transmute(df, ...)</code> evaluates each <code>...</code> expression to create new columns, then drops EVERY column not named in the call.</strong> It is <code>mutate()</code> plus a <code>select()</code> to keep only the new (and explicitly mentioned) columns.</p>
+
+<p><code>transmute()</code> is "superseded" in dplyr 1.1: still works, but <code>mutate(.keep = ...)</code> is the recommended replacement. The old function remains for backward compatibility.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>transmute(.data, ...)</code>. Same expression syntax as mutate; output keeps only mentioned columns.</strong></p>
+
+<div class="webr-container" data-block-title="Convert mpg to kilometres per litre">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert mpg to kilometres per litre</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  transmute(kpl = mpg * 0.425) |&gt;
+  head(3)
+#&gt;                       kpl
+#&gt; Mazda RX4          8.925
+#&gt; Mazda RX4 Wag      8.925
+#&gt; Datsun 710         9.690</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For new code, prefer <code>mutate(.keep = &quot;none&quot;)</code> over <code>transmute()</code>.</strong> Same result, modern API, easier to discover via <code>mutate</code> docs.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Single derived column</h3>
+
+<div class="webr-container" data-block-title="Drop everything else, keep only the new column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop everything else, keep only the new column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  transmute(kpl = mpg * 0.425) |&gt;
+  head(3)
+#&gt;                       kpl
+#&gt; Mazda RX4          8.925</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Keep some original columns</h3>
+
+<div class="webr-container" data-block-title="Carry mpg forward, add kpl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Carry mpg forward, add kpl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  transmute(mpg, kpl = mpg * 0.425) |&gt;
+  head(3)
+#&gt;                    mpg   kpl
+#&gt; Mazda RX4         21.0 8.925</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bare column names mean "keep this column unchanged".</p>
+
+<h3>3. Multiple new columns</h3>
+
+<div class="webr-container" data-block-title="Create several at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create several at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  transmute(
+    kpl    = mpg * 0.425,
+    weight_kg = wt * 453.6,
+    power_kg  = hp / weight_kg
+  ) |&gt;
+  head(3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Just like mutate, all references in the right side resolve against the input frame.</p>
+
+<h3>4. Rename via transmute</h3>
+
+<div class="webr-container" data-block-title="Rename columns by mentioning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename columns by mentioning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  transmute(
+    miles_per_gal = mpg,
+    cylinders     = cyl
+  ) |&gt;
+  head(3)
+#&gt;                    miles_per_gal cylinders
+#&gt; Mazda RX4                   21.0         6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For rename-only, <code>rename()</code> is clearer; transmute happens to support it as a side effect.</p>
+
+<h3>5. Modern equivalent with mutate(.keep)</h3>
+
+<div class="webr-container" data-block-title="dplyr 1.1+ recommended form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">dplyr 1.1+ recommended form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  mutate(kpl = mpg * 0.425, .keep = &quot;none&quot;) |&gt;
+  head(3)
+#&gt;                       kpl
+#&gt; Mazda RX4          8.925</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.keep = &quot;none&quot;</code> drops all input columns. <code>.keep = &quot;used&quot;</code> keeps only those referenced in the right-hand side.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>mutate(.keep = ...)</code> covers four cases that previously required transmute, mutate, or select+mutate.</strong> Options: <code>&quot;all&quot;</code> (default, keeps everything), <code>&quot;used&quot;</code> (keeps used + new), <code>&quot;unused&quot;</code> (keeps unused + new), <code>&quot;none&quot;</code> (keeps only new). One verb, four behaviors.</div></div>
+
+<h2>transmute() vs mutate() vs select+mutate</h2>
+
+<p><strong>Three ways to "compute new columns and drop the rest" in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Style</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>transmute(df, x = ...)</code></td>
+<td>Old</td>
+<td>Superseded (still works)</td>
+</tr>
+<tr>
+<td><code>mutate(df, x = ..., .keep = &quot;none&quot;)</code></td>
+<td>Modern</td>
+<td>Recommended</td>
+</tr>
+<tr>
+<td>`select(df, kept_cols)</td>
+<td>> mutate(x = ...)`</td>
+<td>Explicit</td>
+<td>Always clear</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>mutate(.keep = &quot;none&quot;)</code> for new code.</li>
+
+<li><code>transmute()</code> if you encounter it in legacy code (no need to rewrite).</li>
+
+<li><code>select() |&gt; mutate()</code> when you want fine-grained column control before computation.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The most common transmute pattern is "convert units" or "extract derived metrics" with no need to keep the source columns.</strong></p>
+
+<p>Examples:</p>
+
+<ul>
+
+<li>Unit conversion: <code>transmute(kpl = mpg * 0.425, kg = wt * 453.6)</code></li>
+
+<li>Index calculation: <code>transmute(id, total = price * qty, margin = (price - cost) / price)</code></li>
+
+<li>Z-score normalization: <code>transmute(across(everything(), ~ (.x - mean(.x)) / sd(.x)))</code></li>
+
+</ul>
+
+<p>When the source columns are no longer needed downstream (and you don't want to clutter), transmute (or <code>mutate(.keep = &quot;none&quot;)</code>) is the cleanest pattern.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgot to keep needed columns.</strong> <code>transmute(kpl = mpg * 0.425)</code> drops <code>mpg</code>, <code>cyl</code>, etc. If downstream code needs them, list them explicitly: <code>transmute(mpg, cyl, kpl = mpg * 0.425)</code>.</p>
+
+<p><strong>Pitfall 2: doesn't preserve grouping vars unless mentioned.</strong> A grouped tibble's grouping columns ARE kept by transmute (dplyr 1.0+); but if you ungroup AND transmute, expect them to be dropped.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>transmute()</code> is "superseded" in dplyr 1.1: <code>mutate(.keep = ...)</code> is preferred.</strong> Superseded means "still works, no plans to remove, but new code should use the alternative". You don't need to rewrite existing transmute calls.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From <code>mtcars</code>, create a result with ONLY two columns: <code>mpg_per_cyl = mpg / cyl</code> and <code>power_to_weight = hp / wt</code>. Save to <code>ex_metrics</code>.</p>
+<div class="webr-container" data-block-title="Your turn: derived metrics only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: derived metrics only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_metrics &lt;- mtcars |&gt;
+  # your code here
+
+head(ex_metrics)
+#&gt; Expected: just 2 columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_metrics &lt;- mtcars |&gt;
+  transmute(
+    mpg_per_cyl     = mpg / cyl,
+    power_to_weight = hp / wt
+  )
+
+head(ex_metrics, 3)
+#&gt;                    mpg_per_cyl power_to_weight
+#&gt; Mazda RX4              3.500000        42.05607
+#&gt; Mazda RX4 Wag          3.500000        38.25714
+#&gt; Datsun 710             5.700000        62.93706
+
+# Modern equivalent:
+ex_metrics_modern &lt;- mtcars |&gt;
+  mutate(
+    mpg_per_cyl     = mpg / cyl,
+    power_to_weight = hp / wt,
+    .keep = &quot;none&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>transmute()</code> (or <code>mutate(.keep = &quot;none&quot;)</code>) creates the two new columns and drops all originals. Result: 32 rows × 2 columns.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering transmute, look at:</p>
+
+<ul>
+
+<li><code>mutate(.keep = ...)</code>: modern replacement</li>
+
+<li><code>mutate()</code>: keep all columns + new ones</li>
+
+<li><code>select()</code>: pick specific columns (no computation)</li>
+
+<li><code>rename()</code>: rename without computing</li>
+
+<li><code>summarise()</code>: collapse rows (transmute keeps row count)</li>
+
+<li><code>mutate(across(...))</code>: apply same transformation <a class="auto-link" href="dplyr-across-in-R.html" title="dplyr across() in R: Apply Functions to Many Columns">across columns</a></li>
+
+</ul>
+
+<p>For computing new columns ALONGSIDE all originals, just use <code>mutate()</code> (default <code>.keep = &quot;all&quot;</code>).</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between transmute and mutate in dplyr?</strong></p>
+
+<p><code>mutate()</code> keeps ALL columns and adds the new ones. <code>transmute()</code> keeps ONLY the columns you mention (new or explicitly named originals); everything else is dropped.</p>
+
+<p><strong>Is transmute deprecated in dplyr?</strong></p>
+
+<p>Superseded, not deprecated. As of dplyr 1.1, <code>mutate(.keep = &quot;none&quot;)</code> is the preferred replacement. transmute() still works and is not slated for removal.</p>
+
+<p><strong>How do I keep some original columns with transmute?</strong></p>
+
+<p>Mention them by bare name: <code>transmute(df, mpg, kpl = mpg * 0.425)</code> keeps <code>mpg</code> and the new <code>kpl</code>; drops everything else.</p>
+
+<p><strong>What is mutate(.keep = "none") in dplyr?</strong></p>
+
+<p><code>.keep = &quot;none&quot;</code> is an argument to <code>mutate()</code> that drops all input columns, keeping only the new ones. It is the modern equivalent of <code>transmute()</code>.</p>
+
+<p><strong>Does transmute respect <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a>?</strong></p>
+
+<p>Yes. On a grouped tibble, transmute computes per-group expressions and keeps the grouping columns automatically (dplyr 1.0+).</p>

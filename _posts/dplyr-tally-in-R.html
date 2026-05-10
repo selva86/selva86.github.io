@@ -1,0 +1,359 @@
+---
+title: "dplyr tally() in R: Count Rows Quickly After group_by"
+description: "Use dplyr tally() to count rows per group as a shortcut for summarise(n = n()) in R. Covers tally vs count, weighted tally, sort, and 5 worked examples."
+keywords: "dplyr tally, R count rows per group, tally vs count dplyr, dplyr summarise n n, tally sort, weighted tally R, dplyr row count"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tally()|dplyr tally|count rows|tally vs count|summarise n"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr tally() in R: Count Rows Quickly After group_by</h1>
+
+<p class="lead">The <code>tally()</code> function in dplyr is a shortcut for <code>summarise(n = n())</code>. On a grouped tibble it returns one row per group with the count; ungrouped, it returns a single row with the total.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>df |&gt; group_by(g) |&gt; tally()<span class="qa-cmt">                 # n per group</span>
+df |&gt; tally()<span class="qa-cmt">                                 # total row count</span>
+df |&gt; group_by(g) |&gt; tally(sort = TRUE)<span class="qa-cmt">       # sort desc by n</span>
+df |&gt; group_by(g) |&gt; tally(name = &quot;rows&quot;)<span class="qa-cmt">     # rename count column</span>
+df |&gt; group_by(g) |&gt; tally(wt = price)<span class="qa-cmt">        # weighted: sum(price)</span>
+df |&gt; count(g)<span class="qa-cmt">                                # equivalent: shorter</span>
+df |&gt; summarise(n = n())<span class="qa-cmt">                      # explicit form</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 tally vs count vs summarise?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">already grouped, need a count</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tally()</text><text x="125" y="126" class="branch-label">not grouped yet, count by columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-count-in-R.html" title="dplyr count() in R: Count Rows and Frequencies">count()</a></text><text x="125" y="182" class="branch-label">want a custom aggregation (mean, sum)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise()</a></text><text x="125" y="238" class="branch-label">weighted count</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tally(wt = w) or count(wt = w)</text><text x="125" y="294" class="branch-label">sorted by frequency</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tally(sort = TRUE) or count(sort = TRUE)</text><text x="125" y="350" class="branch-label">multiple aggregations</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">summarise(n = <a class="auto-link" href="https://r-statistics.co/dplyr-count-in-R.html" title="dplyr count(), n(), and tally() in R: Count Rows and Frequencies">n()</a>, avg = mean(x), ...)</text></svg></div>
+
+<h2>What tally() does in one sentence</h2>
+
+<p><strong><code>tally(x)</code> counts the rows of a (possibly grouped) data frame and returns the count as a column named <code>n</code>.</strong> It is purely a shortcut for <code>summarise(n = n())</code>.</p>
+
+<p><code>tally</code> and <code>count</code> are sister functions. The difference: <code>count</code> does the grouping for you (<code>count(df, g)</code> ≈ <code>group_by(df, g) |&gt; tally()</code>). For already-grouped data, tally is the cleaner choice.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tally(x, wt = NULL, sort = FALSE, name = NULL)</code>. Operates on a data frame, possibly grouped.</strong></p>
+
+<div class="webr-container" data-block-title="Count cars per cylinder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count cars per cylinder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  tally()
+#&gt;     cyl     n
+#&gt;     4    11
+#&gt;     6     7
+#&gt;     8    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>count(df, cyl)</code> for one-step counting; use <code>tally()</code> only when the data is ALREADY grouped.</strong> For the common case of "count by columns", <code>count</code> saves a <code>group_by</code> line.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Count per group</h3>
+
+<div class="webr-container" data-block-title="One row per group with count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One row per group with count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  tally()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Total count (ungrouped)</h3>
+
+<div class="webr-container" data-block-title="Just the row count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Just the row count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tally()
+#&gt;    n
+#&gt; 1 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returns a 1-row tibble. For a scalar, use <code>nrow(mtcars)</code>.</p>
+
+<h3>3. Sort by frequency</h3>
+
+<div class="webr-container" data-block-title="Most-frequent group first">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most-frequent group first</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  tally(sort = TRUE)
+#&gt;     cyl     n
+#&gt;     8    14
+#&gt;     4    11
+#&gt;     6     7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Weighted tally</h3>
+
+<div class="webr-container" data-block-title="Sum of weights per group, not row count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum of weights per group, not row count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  tally(wt = wt)
+#&gt;     cyl     n
+#&gt;     4    25.143
+#&gt;     6    21.820
+#&gt;     8    55.989</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>wt = wt</code> returns <code>sum(wt)</code> per group (the column name happens to be wt; coincidence).</p>
+
+<h3>5. Custom name</h3>
+
+<div class="webr-container" data-block-title="Rename the count column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename the count column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  group_by(cyl) |&gt;
+  tally(name = &quot;n_cars&quot;)
+#&gt;     cyl  n_cars
+#&gt;     4      11
+#&gt;     6       7
+#&gt;     8      14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>tally(wt = col)</code> is <code>summarise(n = sum(col))</code>, NOT a count.</strong> It is a weighted SUM. The arg name <code>wt</code> is shorthand for "weight". Use it when you have pre-aggregated counts (e.g., a row-per-event table with a <code>count</code> column) and want to roll them up by group.</div></div>
+
+<h2>tally() vs count() vs summarise(n = n())</h2>
+
+<p><strong>Three ways to count rows in dplyr; pick by what you have already.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When to use</th>
+<th>Equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tally()</code></td>
+<td>Data already grouped</td>
+<td><code>summarise(n = n())</code></td>
+</tr>
+<tr>
+<td><code>count(g)</code></td>
+<td>Need to group AND count in one step</td>
+<td>`group_by(g)</td>
+<td>> tally()`</td>
+</tr>
+<tr>
+<td><code>summarise(n = n())</code></td>
+<td>Explicit form, more control</td>
+<td>(the canonical version)</td>
+</tr>
+<tr>
+<td><code>add_tally()</code></td>
+<td>Add count without summarising</td>
+<td><code>mutate(n = n())</code></td>
+</tr>
+<tr>
+<td><code>add_count(g)</code></td>
+<td>Add per-group count without summarising</td>
+<td>`group_by(g)</td>
+<td>> mutate(n = n())`</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>count(g)</code> for "count by column": most common pattern.</li>
+
+<li><code>tally()</code> after an existing <code>group_by()</code>.</li>
+
+<li><code>summarise(n = n(), avg = mean(x))</code> when you also need other aggregates.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Most "<a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">frequency table</a>" tasks in dplyr use <code>count()</code> (or <code>tally()</code> after group_by).</strong> Standard pattern:</p>
+
+<div class="webr-container" data-block-title="Top categories by frequency">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top categories by frequency</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt; count(category, sort = TRUE) |&gt; head(10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This gives the top 10 categories by frequency in one line. For grouped pipelines that already aggregate other things, swap in tally:</p>
+
+<div class="webr-container" data-block-title="Tally inside summarise pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tally inside summarise pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df |&gt;
+  group_by(category) |&gt;
+  summarise(avg = mean(value), tally(.))   # one of many aggregates</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <code>tally()</code> collapses rows, mutate-style alternatives don't.</strong> If you want to ADD a count column without losing rows, use <code>add_tally()</code> or <code>add_count()</code> (mutate-style: keeps all rows, adds <code>n</code>).</p>
+
+<p><strong>Pitfall 2: <code>wt</code> is a SUM, not a count.</strong> <code>tally(wt = price)</code> returns sum(price) per group, not the row count. Easy to misread.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>tally()</code> on an ungrouped data frame returns a 1-row tibble, not a scalar.</strong> Use <code>nrow(df)</code> if you want a single integer; reserve <code>tally()</code> for grouped contexts where it actually adds value.</div></div>
+
+<h2>Why tally and count exist as separate functions</h2>
+
+<p><strong>Two patterns dominate counting in dplyr: count-by-column and tally-after-grouping.</strong> They could be the same function, but separating them keeps each call site short. <code>count(df, g)</code> is a one-liner that does the most common task. <code>tally()</code> is for the case when grouping has already happened (perhaps multi-step) and you only need to add the count step. Splitting the work like this avoids forcing one function to handle both shapes. Both share the same underlying machinery: <code>tally</code> wraps <code>summarise(n = n())</code>; <code>count</code> wraps <code>group_by + tally + ungroup</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find which <code>gear</code> value has the most cars in <code>mtcars</code>. Save the count to <code>ex_top_gear</code>.</p>
+<div class="webr-container" data-block-title="Your turn: most-frequent gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: most-frequent gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top_gear &lt;- mtcars |&gt;
+  # your code here
+
+ex_top_gear
+#&gt; Expected: 1 row showing the gear with the highest count</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_top_gear &lt;- mtcars |&gt;
+  count(gear, sort = TRUE) |&gt;
+  slice_head(n = 1)
+
+ex_top_gear
+#&gt;   gear  n
+#&gt; 1    3 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>count(gear, sort = TRUE)</code> returns gear values sorted by frequency descending. <code>slice_head(n = 1)</code> takes the top.</p>
+
+</details>
+</section>
+
+<h2>Related count functions</h2>
+
+<p>After mastering tally, look at:</p>
+
+<ul>
+
+<li><code>count()</code>: count + group in one step</li>
+
+<li><code>add_tally()</code> / <code>add_count()</code>: mutate-style; keep all rows</li>
+
+<li><code>summarise(n = n())</code>: explicit <a class="auto-link" href="Exponential-Family-Distributions-in-R.html" title="Exponential Family Distributions in R: Sufficient Statistics & Canonical Form">canonical form</a></li>
+
+<li><code>n()</code>: per-group row count, used inside summarise/mutate</li>
+
+<li><code>n_distinct()</code>: count unique values</li>
+
+<li><code>nrow()</code>: scalar row count (base R)</li>
+
+</ul>
+
+<p>For frequency tables across multiple columns, <code>count(df, col1, col2)</code> is the standard idiom.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between tally and count in dplyr?</strong></p>
+
+<p><code>count(df, g)</code> does both grouping and counting in one call. <code>tally()</code> only counts; the data must already be grouped. So <code>count(df, g)</code> is <code>group_by(df, g) |&gt; tally()</code> in one step.</p>
+
+<p><strong>How do I count rows per group in dplyr?</strong></p>
+
+<p><code>df |&gt; count(group_col)</code> is the simplest form. Or <code>df |&gt; group_by(group_col) |&gt; tally()</code>.</p>
+
+<p><strong>What does the wt argument do in tally?</strong></p>
+
+<p><code>tally(wt = col)</code> returns <code>sum(col)</code> per group instead of the row count. Useful when rows already represent counts and you want to roll them up.</p>
+
+<p><strong>How do I sort tally output by frequency?</strong></p>
+
+<p>Pass <code>sort = TRUE</code>: <code>tally(sort = TRUE)</code> (or <code>count(sort = TRUE)</code>). Sorts by descending count.</p>
+
+<p><strong>What is the difference between tally and add_tally?</strong></p>
+
+<p><code>tally</code> SUMMARISES (collapses to one row per group). <code>add_tally</code> MUTATES (keeps all rows; adds an <code>n</code> column). Use add_tally when you need the count alongside the original rows.</p>

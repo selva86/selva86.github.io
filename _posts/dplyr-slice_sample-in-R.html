@@ -1,0 +1,322 @@
+---
+title: "dplyr slice_sample() in R: Random Rows From a Tibble"
+description: "Use dplyr slice_sample() to pull a random sample of n rows or a fraction from a tibble (or per group) in R. Covers replace, weight_by, .by, 5 examples."
+keywords: "dplyr slice_sample, R random sample rows, slice_sample per group, dplyr sample_n, slice_sample replace, weighted sample R, slice_sample vs sample_n"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "slice_sample()|dplyr slice_sample|random sample rows|sample n rows|stratified sample"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr slice_sample() in R: Random Rows From a Tibble</h1>
+
+<p class="lead">The <code>slice_sample()</code> function in dplyr returns a random sample of n rows (or a fraction) from a data frame, optionally per group, with or without replacement. It supersedes the older <code>sample_n()</code> and <code>sample_frac()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>slice_sample(df, n = 5)<span class="qa-cmt">                       # 5 random rows</span>
+slice_sample(df, prop = 0.1)<span class="qa-cmt">                  # 10% of rows</span>
+slice_sample(df, n = 3, by = cyl)<span class="qa-cmt">             # 3 per group (stratified)</span>
+slice_sample(df, n = 5, replace = TRUE)<span class="qa-cmt">       # bootstrap</span>
+slice_sample(df, n = 5, weight_by = w)<span class="qa-cmt">        # weighted sample</span>
+df |&gt; group_by(g) |&gt; slice_sample(n = 3)<span class="qa-cmt">      # equivalent grouped form</span>
+set.seed(42); slice_sample(df, n = 5)<span class="qa-cmt">         # reproducible</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="dplyr-slice-in-R.html" title="dplyr slice() in R: Select Rows by Position">slice_sample()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">random n rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">slice_sample(n = N)</text><text x="125" y="126" class="branch-label">random fraction</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">slice_sample(prop = 0.1)</text><text x="125" y="182" class="branch-label">stratified random per group</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">slice_sample(n, by = g)</text><text x="125" y="238" class="branch-label">bootstrap (sample with replacement)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">slice_sample(n, replace = TRUE)</text><text x="125" y="294" class="branch-label">weighted random</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">slice_sample(n, weight_by = w)</text><text x="125" y="350" class="branch-label">specific positional rows</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">slice(c(1,3,5))</text><text x="125" y="406" class="branch-label">top n by value</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">slice_max()</a> / slice_min()</text></svg></div>
+
+<h2>What slice_sample() does in one sentence</h2>
+
+<p><strong><code>slice_sample(.data, n)</code> returns a random sample of <code>n</code> rows; <code>slice_sample(.data, prop = 0.1)</code> returns 10% of the rows.</strong> On a grouped tibble (or with <code>by = g</code>), the sampling happens within each group.</p>
+
+<p>This is the modern, group-aware random sampler. For new code, prefer it over <code>sample_n()</code> (deprecated).</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>slice_sample(.data, n = NULL, prop = NULL, weight_by = NULL, replace = FALSE, by = NULL)</code>. Pass <code>n</code> OR <code>prop</code>, not both.</strong></p>
+
+<div class="webr-container" data-block-title="5 random cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">5 random cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+set.seed(42)
+
+mtcars |&gt;
+  slice_sample(n = 5)
+#&gt;             mpg cyl ...
+#&gt; Datsun 710 22.8   4
+#&gt; Camaro Z28 13.3   8
+#&gt; ... (5 random rows; depends on seed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>set.seed()</code> before sampling for reproducibility.</strong> Random samples without a seed differ across runs, which makes debugging and report regeneration harder.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Random n rows</h3>
+
+<div class="webr-container" data-block-title="Pick 10 at random">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick 10 at random</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+mtcars |&gt;
+  slice_sample(n = 10)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Random fraction</h3>
+
+<div class="webr-container" data-block-title="20% sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">20% sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_sample(prop = 0.2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>20% of 32 = ~6 rows.</p>
+
+<h3>3. Stratified sample (per group)</h3>
+
+<div class="webr-container" data-block-title="Equal n per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equal n per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  slice_sample(n = 3, by = cyl)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>3 random cars per cylinder group, regardless of group size.</p>
+
+<h3>4. Bootstrap (with replacement)</h3>
+
+<div class="webr-container" data-block-title="Resample 32 rows with replacement">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Resample 32 rows with replacement</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+mtcars |&gt;
+  slice_sample(n = nrow(mtcars), replace = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Standard bootstrap: same row count as original, with duplicates allowed.</p>
+
+<h3>5. Weighted sample</h3>
+
+<div class="webr-container" data-block-title="Bias toward higher mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bias toward higher mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+mtcars |&gt;
+  slice_sample(n = 5, weight_by = mpg)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rows with higher <code>mpg</code> are more likely to be picked. Useful for importance sampling.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>slice_sample()</code> replaces TWO older functions: <code>sample_n()</code> (n random rows) and <code>sample_frac()</code> (fraction).</strong> Both are deprecated since dplyr 1.0. The new function unifies them and adds <code>by</code> for stratified sampling.</div></div>
+
+<h2>slice_sample() vs sample_n() vs sample()</h2>
+
+<p><strong>Three sampling functions in R, with different scope.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Per group</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>slice_sample(n)</code></td>
+<td>dplyr</td>
+<td>Yes</td>
+<td>Recommended</td>
+</tr>
+<tr>
+<td><code>sample_n(n)</code></td>
+<td>dplyr</td>
+<td>Yes</td>
+<td>Deprecated since 1.0</td>
+</tr>
+<tr>
+<td><code>base::sample(x, size)</code></td>
+<td>base</td>
+<td>No</td>
+<td>Vector sampling, not data frames</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>slice_sample</code> for data frames in dplyr pipelines.</li>
+
+<li><code>sample</code> for sampling from vectors or generating random indices.</li>
+
+<li>Avoid <code>sample_n</code> in new code.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "stratified sample" pattern is the most common slice_sample use case.</strong> Examples:</p>
+
+<ul>
+
+<li>Train/test split with balanced classes: <code>slice_sample(prop = 0.8, by = class)</code></li>
+
+<li>Sample customers per region equally: <code>slice_sample(n = 100, by = region)</code></li>
+
+<li>Bootstrap CI estimation: loop <code>slice_sample(n = nrow(df), replace = TRUE)</code> 1,000 times</li>
+
+</ul>
+
+<p>For one-off samples, <code>slice_sample(n = 5)</code> is the quick interactive tool. For production analysis, set the seed and document the sample size.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to set seed.</strong> <code>slice_sample</code> is non-deterministic. Reports / tests / docs should <code>set.seed(42)</code> (or any fixed integer) right before to get reproducible output.</p>
+
+<p><strong>Pitfall 2: per-group surprise.</strong> On a grouped tibble, <code>slice_sample(n = 5)</code> returns 5 rows PER GROUP. Often what you want for stratification, sometimes not. Use <code>ungroup()</code> first if you mean a global sample.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>slice_sample(n = X)</code> errors if any group has fewer than X rows AND <code>replace = FALSE</code>.</strong> A group with only 2 rows fails for <code>n = 5</code>. Either set <code>replace = TRUE</code> or filter groups by size first.</div></div>
+
+<h2>Reproducibility and seeds</h2>
+
+<p><strong>Random samples are only useful if they are reproducible across runs.</strong> Always call <code>set.seed(N)</code> immediately before <code>slice_sample()</code> when the result will be used in a report, plot, or test. Different code paths that need DIFFERENT samples should use different seeds (e.g., <code>set.seed(1)</code> for train, <code>set.seed(2)</code> for test) so the splits are reproducible AND independent. R's RNG state is global, so any operation between <code>set.seed()</code> and <code>slice_sample()</code> that consumes randomness will desync the result. Keep them adjacent.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take a stratified random sample of 2 rows per <code>cyl</code> group from <code>mtcars</code>. Set seed 42 for reproducibility. Save to <code>ex_strat</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stratified sample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified sample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+
+ex_strat &lt;- mtcars |&gt;
+  # your code here
+
+ex_strat
+#&gt; Expected: 6 rows (2 per cyl group)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_strat &lt;- mtcars |&gt;
+  slice_sample(n = 2, by = cyl)
+ex_strat
+#&gt; 6 rows total: 2 per cyl group, randomly chosen</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>slice_sample(n = 2, by = cyl)</code> picks 2 random rows per cyl group. Equal-count stratified sample.</p>
+
+</details>
+</section>
+
+<h2>Related slice functions</h2>
+
+<p>After mastering slice_sample, look at:</p>
+
+<ul>
+
+<li><code>slice_head()</code> / <code>slice_tail()</code>: positional first/last n</li>
+
+<li><code>slice_max()</code> / <code>slice_min()</code>: top/bottom n by value</li>
+
+<li><code>slice()</code>: specific row indexes</li>
+
+<li><code>sample_n()</code> / <code>sample_frac()</code>: deprecated; do not use</li>
+
+<li><code>rsample</code> package: train/test splits with class balance, k-fold CV</li>
+
+<li><code>base::sample()</code>: vector sampling</li>
+
+</ul>
+
+<p>For machine-learning splits, the <code>rsample</code> package builds on slice_sample with <code>initial_split()</code> and <code>vfold_cv()</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between slice_sample and sample_n?</strong></p>
+
+<p><code>sample_n()</code> is deprecated since dplyr 1.0. <code>slice_sample()</code> is the replacement: clearer name, supports <code>prop</code>, <code>weight_by</code>, and <code>by</code> arguments, group-aware.</p>
+
+<p><strong>How do I do a reproducible random sample in R?</strong></p>
+
+<p>Call <code>set.seed(42)</code> (or any fixed integer) immediately before <code>slice_sample()</code>. The same seed always returns the same rows.</p>
+
+<p><strong>How do I sample with replacement (bootstrap) in dplyr?</strong></p>
+
+<p>Pass <code>replace = TRUE</code>: <code>slice_sample(df, n = nrow(df), replace = TRUE)</code>. The size matches the original; rows can repeat.</p>
+
+<p><strong>How do I do a weighted random sample?</strong></p>
+
+<p>Pass <code>weight_by = column</code>: <code>slice_sample(df, n = 5, weight_by = price)</code> makes rows with higher <code>price</code> more likely to be picked.</p>
+
+<p><strong>How do I do a stratified sample per group?</strong></p>
+
+<p><code>slice_sample(df, n = 3, by = group_col)</code> returns 3 random rows per group. For a fraction per group, use <code>prop = 0.1</code> instead of <code>n</code>.</p>
