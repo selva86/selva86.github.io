@@ -96,7 +96,7 @@ def main() -> int:
 
     p_mark = sub.add_parser("mark", help="record one event")
     p_mark.add_argument("event", help="event label, e.g. step3_write")
-    p_mark.add_argument("--phase", required=True, choices=["write", "publish", "orchestrator"])
+    p_mark.add_argument("--phase", required=True, choices=["write", "publish", "orchestrator", "pseo"])
     p_mark.add_argument("--start-run", action="store_true", help="generate fresh run_id")
     p_mark.add_argument("--end-run", action="store_true", help="delete sidecar after this event")
     p_mark.set_defaults(func=cmd_mark)
