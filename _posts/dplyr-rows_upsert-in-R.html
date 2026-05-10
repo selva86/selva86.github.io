@@ -1,0 +1,382 @@
+---
+title: "dplyr rows_upsert() in R: Insert New OR Update Existing"
+description: "Use dplyr rows_upsert() to insert new rows or update existing rows by key in R. Covers rows_upsert vs rows_insert and rows_update, sync, 5 examples."
+keywords: "dplyr rows_upsert, R upsert, rows_upsert vs rows_insert, dplyr sql upsert, rows_upsert by, R sync table"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rows_upsert()|dplyr rows_upsert|upsert table|insert or update|rows_upsert vs rows_insert"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr rows_upsert() in R: Insert New OR Update Existing</h1>
+
+<p class="lead">The <code>rows_upsert()</code> function in dplyr is the SQL-style UPSERT: rows from y replace matching rows in x by key, and rows in y with new keys are appended. It is "insert or update" in one verb.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rows_upsert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # insert new + update existing</span>
+rows_insert(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # insert only; error on dup</span>
+rows_update(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # update only; error on new</span>
+rows_patch(x, y, by = &quot;id&quot;)<span class="qa-cmt">               # update only NA cells</span>
+bind_rows(x, y) |&gt; distinct(id, .keep_all = TRUE)<span class="qa-cmt"> # rough alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rows_upsert() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sync from a source</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">insert new + update existing: rows_upsert()</text><text x="125" y="126" class="branch-label">insert only (error on dup)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rows_insert()</text><text x="125" y="182" class="branch-label">update only (error on new)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rows_update()</text><text x="125" y="238" class="branch-label">update only NA</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rows_patch()</text><text x="125" y="294" class="branch-label">delete by key</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rows_delete()</text><text x="125" y="350" class="branch-label">append blindly</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_rows()</a></text></svg></div>
+
+<h2>What rows_upsert() does in one sentence</h2>
+
+<p><strong><code>rows_upsert(x, y, by)</code> returns x with: existing rows whose key matches y replaced by y's values, AND new rows from y (whose keys aren't in x) appended.</strong> It is "insert or update".</p>
+
+<p>This is the standard incremental-sync operation: take a fresh batch, merge it with the master, end up with the union of both.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rows_upsert(x, y, by = NULL, in_place = FALSE)</code>. Combines rows_insert + rows_update.</strong></p>
+
+<div class="webr-container" data-block-title="Sync master with batch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sync master with batch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- data.frame(id = 1:3, val = c(10, 20, 30))
+y &lt;- data.frame(id = c(2, 4), val = c(99, 40))
+
+rows_upsert(x, y, by = &quot;id&quot;)
+#&gt;   id val
+#&gt; 1  1  10
+#&gt; 2  2  99   &lt;-- updated
+#&gt; 3  3  30
+#&gt; 4  4  40   &lt;-- inserted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>rows_upsert</code> is the dplyr equivalent of SQL <code>INSERT ... ON CONFLICT (key) DO UPDATE</code>.</strong> It is the standard sync verb when y might contain a mix of new and updated records.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Standard upsert</h3>
+
+<div class="webr-container" data-block-title="Sync master with batch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sync master with batch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master &lt;- data.frame(id = 1:3, status = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;))
+batch  &lt;- data.frame(id = c(2, 4), status = c(&quot;X&quot;,&quot;Z&quot;))
+
+rows_upsert(master, batch, by = &quot;id&quot;)
+#&gt; 4 rows: id=1, 2 (updated), 3, 4 (inserted)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Multi-column update</h3>
+
+<div class="webr-container" data-block-title="Update multiple fields">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update multiple fields</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master &lt;- data.frame(id=1:3, name=c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), score=c(10,20,30))
+batch  &lt;- data.frame(id=c(1,4), name=c(&quot;ALICE&quot;,&quot;D&quot;), score=c(15, 40))
+
+rows_upsert(master, batch, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All non-key columns in batch overwrite (or extend) master's columns.</p>
+
+<h3>3. Composite key</h3>
+
+<div class="webr-container" data-block-title="Upsert on multi-column key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Upsert on multi-column key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master &lt;- data.frame(region=c(&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;), qty=c(100, 50))
+batch  &lt;- data.frame(region=c(&quot;NA&quot;,&quot;AS&quot;), product=c(&quot;X&quot;,&quot;Z&quot;), qty=c(99, 30))
+
+rows_upsert(master, batch, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt; 3 rows: (NA,X) updated, (EU,Y) unchanged, (AS,Z) inserted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Subset of columns updated</h3>
+
+<div class="webr-container" data-block-title="Update only some fields">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update only some fields</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master &lt;- data.frame(id=1:3, name=c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), score=c(10,20,30))
+batch_score_only &lt;- data.frame(id=c(1,2), score=c(99, 88))
+
+rows_upsert(master, batch_score_only, by = &quot;id&quot;)
+#&gt;   id name score
+#&gt; 1  1    a    99
+#&gt; 2  2    b    88
+#&gt; 3  3    c    30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>batch_score_only has no <code>name</code> column, so master's <code>name</code> is preserved.</p>
+
+<h3>5. Idempotent batch</h3>
+
+<div class="webr-container" data-block-title="Re-running upsert is safe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Re-running upsert is safe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master_v1 &lt;- rows_upsert(master, batch, by = &quot;id&quot;)
+master_v2 &lt;- rows_upsert(master_v1, batch, by = &quot;id&quot;)
+identical(master_v1, master_v2)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>upsert is idempotent: applying the same batch twice gives the same result.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>rows_upsert</code> is "merge with replacement".</strong> Existing rows are OVERWRITTEN by their match in y; new rows are APPENDED. The semantics match SQL <code>MERGE</code> and Postgres <code>INSERT ON CONFLICT DO UPDATE</code>. Use it for incremental sync where the batch is the source of truth for the keys it contains.</div></div>
+
+<h2>rows_upsert() vs rows_insert() vs rows_update() vs bind_rows()</h2>
+
+<p><strong>Four "merge x and y" strategies in dplyr.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Updates?</th>
+<th>Inserts?</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows_insert</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>On duplicate key</td>
+</tr>
+<tr>
+<td><code>rows_update</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>On new key in y</td>
+</tr>
+<tr>
+<td><code>rows_upsert</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Never (in normal usage)</td>
+</tr>
+<tr>
+<td><code>bind_rows</code></td>
+<td>No</td>
+<td>Appends all</td>
+<td>Never (no key)</td>
+</tr>
+<tr>
+<td><code>rows_patch</code></td>
+<td>Only NA cells</td>
+<td>No</td>
+<td>On new key in y</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>rows_upsert</code> for incremental sync.</li>
+
+<li><code>rows_insert</code> when duplicates indicate a bug.</li>
+
+<li><code>rows_update</code> for corrections-only.</li>
+
+<li><code>bind_rows</code> when keys don't matter.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>The "incremental ETL load" pattern uses rows_upsert.</strong></p>
+
+<div class="webr-container" data-block-title="Daily ETL upsert">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Daily ETL upsert</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+master &lt;- read_csv(&quot;master.csv&quot;)
+daily  &lt;- read_csv(&quot;today.csv&quot;)
+
+master_v2 &lt;- master |&gt;
+  rows_upsert(daily, by = &quot;id&quot;)
+
+write_csv(master_v2, &quot;master.csv&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each day's load merges with the master. New keys append; existing keys update. No row count surprises; idempotent.</p>
+
+<p>For audit logging, capture diffs first:</p>
+
+<div class="webr-container" data-block-title="Audit upsert diffs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Audit upsert diffs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_keys      &lt;- daily |&gt; anti_join(master, by = &quot;id&quot;) |&gt; pull(id)
+updated_keys  &lt;- daily |&gt; semi_join(master, by = &quot;id&quot;) |&gt; pull(id)
+
+cat(&quot;Inserted:&quot;, length(new_keys), &quot; Updated:&quot;, length(updated_keys), &quot;\n&quot;)
+master_v2 &lt;- rows_upsert(master, daily, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: column order matters when types differ.</strong> y's columns must match x's types. A type mismatch errors at the call site.</p>
+
+<p><strong>Pitfall 2: NAs in batch overwrite good data.</strong> If batch has NA in a column, the corresponding master row gets NA. Use <code>rows_patch</code> if you only want to fill NAs in master.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rows_upsert</code> is NOT in-place by default.</strong> It returns a new data frame. For data.tables with <code>in_place = TRUE</code>, modification can be in place; for tibbles always assign the result.</div></div>
+
+<h2>Idempotency makes upsert pipelines safe</h2>
+
+<p><strong>Idempotency means applying the same operation twice produces the same result as applying it once.</strong> rows_upsert is idempotent: re-running yesterday's batch on an already-updated master leaves the master unchanged. This property is enormously useful for ETL pipelines that may retry on failure or be re-run after manual fixes. Without idempotency, retries can multiply rows or corrupt data; with it, retries are safe by construction. The same property holds for rows_update and rows_patch, but not for rows_insert (which errors on retry due to duplicate keys) or bind_rows (which appends every time).</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Apply a batch update + insert to a small master table. Save to <code>ex_synced</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sync master with batch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sync master with batch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master &lt;- data.frame(id = 1:3, mpg = c(21, 22, 18))
+batch  &lt;- data.frame(id = c(2, 4), mpg = c(99, 40))
+
+ex_synced &lt;- master |&gt;
+  # your code here
+
+ex_synced
+#&gt; Expected: 4 rows; id=2 updated, id=4 inserted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_synced &lt;- master |&gt;
+  rows_upsert(batch, by = &quot;id&quot;)
+
+ex_synced
+#&gt;   id mpg
+#&gt; 1  1  21
+#&gt; 2  2  99
+#&gt; 3  3  18
+#&gt; 4  4  40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> rows_upsert updates id=2 with the batch value and appends id=4 as a new row.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering rows_upsert, look at:</p>
+
+<ul>
+
+<li><code>rows_insert()</code>: insert only</li>
+
+<li><code>rows_update()</code>: update only</li>
+
+<li><code>rows_patch()</code>: only <a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> cells</li>
+
+<li><code>rows_delete()</code>: remove by key</li>
+
+<li><code>rows_append()</code>: bind_rows alias (dplyr 1.1+)</li>
+
+<li><code>mutate()</code>: modify without key matching</li>
+
+</ul>
+
+<p>For point-in-time data versioning (preserve history), tools like <code>dplyr::rows_*</code> aren't sufficient: you need a proper SCD-2 pattern with effective dates.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rows_upsert do in dplyr?</strong></p>
+
+<p><code>rows_upsert(x, y, by)</code> updates rows of x whose keys match y, AND inserts y's rows whose keys aren't in x. The "insert or update" verb.</p>
+
+<p><strong>What is the difference between rows_upsert and rows_insert?</strong></p>
+
+<p>rows_insert errors if any of y's keys already exist. rows_upsert overwrites the existing rows AND inserts new ones. Use upsert for sync; insert for strict no-duplicates.</p>
+
+<p><strong>Is rows_upsert idempotent?</strong></p>
+
+<p>Yes. Applying the same batch twice produces the same result. Useful for retry-safe pipelines.</p>
+
+<p><strong>Does rows_upsert overwrite NAs?</strong></p>
+
+<p>Yes. If y has NA in a column, the corresponding x row gets NA. Use rows_patch to fill ONLY x's existing NAs without overwriting non-<a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>.</p>
+
+<p><strong>Can rows_upsert handle composite keys?</strong></p>
+
+<p>Yes: <code>rows_upsert(x, y, by = c(&quot;col1&quot;,&quot;col2&quot;))</code>. Tuple matching applies.</p>

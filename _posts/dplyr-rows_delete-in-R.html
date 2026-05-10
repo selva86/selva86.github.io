@@ -1,0 +1,350 @@
+---
+title: "dplyr rows_delete() in R: Remove Rows by Key"
+description: "Use dplyr rows_delete() to remove rows from a tibble matched by key in R. Covers rows_delete vs filter and anti_join, unmatched arg, 5 worked examples."
+keywords: "dplyr rows_delete, R delete rows by key, rows_delete vs filter, dplyr remove rows, rows_delete unmatched, R sql delete"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rows_delete()|dplyr rows_delete|delete rows by key|rows_delete vs filter|sql delete"
+auto_link_case_sensitive: true
+fr_parent: "Data-Wrangling-With-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>dplyr rows_delete() in R: Remove Rows by Key</h1>
+
+<p class="lead">The <code>rows_delete()</code> function in dplyr removes rows from x whose keys appear in y. It is the SQL <code>DELETE</code> equivalent: precise key-based removal in a dplyr-friendly verb.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rows_delete(x, y, by = &quot;id&quot;)<span class="qa-cmt">              # remove rows matching y's keys</span>
+rows_delete(x, y, by = &quot;id&quot;, unmatched = &quot;ignore&quot;)<span class="qa-cmt"> # tolerate y keys not in x</span>
+filter(x, !id %in% y$id)<span class="qa-cmt">                  # base alternative for one-col key</span>
+anti_join(x, y, by = &quot;id&quot;)<span class="qa-cmt">                # equivalent (idiomatic alternative)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rows_delete() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">delete x rows whose key is in y</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rows_delete()</text><text x="125" y="126" class="branch-label">single-col key, simple filter</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">filter(x, !col %in% y$col)</text><text x="125" y="182" class="branch-label">equivalent semantically</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">anti_join</a>(x, y, by = ...)</text><text x="125" y="238" class="branch-label">delete by condition (not key)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">filter()</a></text><text x="125" y="294" class="branch-label">delete duplicates</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="dplyr-distinct-in-R.html" title="dplyr distinct() in R: Remove Duplicate Rows">distinct()</a> (different)</text><text x="125" y="350" class="branch-label">update existing</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rows_update()</text></svg></div>
+
+<h2>What rows_delete() does in one sentence</h2>
+
+<p><strong><code>rows_delete(x, y, by)</code> returns x with the rows whose <code>by</code> key appears in y removed; errors if y has keys not present in x (use <code>unmatched = &quot;ignore&quot;</code> to tolerate).</strong> Equivalent to <code>anti_join(x, y, by)</code> but expressed as a row-mutation operation.</p>
+
+<p>Part of the rows_* family (rows_insert, rows_update, rows_upsert, rows_delete, rows_patch).</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rows_delete(x, y, by = NULL, unmatched = &quot;error&quot;, in_place = FALSE)</code>. <code>unmatched = &quot;ignore&quot;</code> skips y rows whose keys aren't in x.</strong></p>
+
+<div class="webr-container" data-block-title="Delete two records by key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delete two records by key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+x &lt;- data.frame(id = 1:5, val = c(10, 20, 30, 40, 50))
+y &lt;- data.frame(id = c(2, 4))
+
+rows_delete(x, y, by = &quot;id&quot;)
+#&gt;   id val
+#&gt; 1  1  10
+#&gt; 2  3  30
+#&gt; 3  5  50
+#&gt; (id 2 and 4 removed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>rows_delete</code> and <code>anti_join</code> produce the same result for one-table-key deletion.</strong> Pick the one that fits your pipeline's style. rows_delete emphasizes the mutation semantics; anti_join emphasizes the filtering semantics.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Delete by single key</h3>
+
+<div class="webr-container" data-block-title="Remove rows whose id is in y">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remove rows whose id is in y</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:5, name = letters[1:5])
+y &lt;- data.frame(id = c(2, 4))
+
+rows_delete(x, y, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Error on unmatched (default)</h3>
+
+<div class="webr-container" data-block-title="If y has key not in x, error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">If y has key not in x, error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(id = 1:3, val = c(10, 20, 30))
+y &lt;- data.frame(id = c(2, 99))
+
+rows_delete(x, y, by = &quot;id&quot;)
+#&gt; Error: y has 1 row with a key not in x (id = 99)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Ignore unmatched</h3>
+
+<div class="webr-container" data-block-title="Skip y rows whose keys aren&#x27;t in x">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip y rows whose keys aren&#x27;t in x</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rows_delete(x, y, by = &quot;id&quot;, unmatched = &quot;ignore&quot;)
+#&gt;   id val
+#&gt; 1  1  10
+#&gt; 2  3  30
+#&gt; (id 2 deleted; id 99 in y silently ignored)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Composite key</h3>
+
+<div class="webr-container" data-block-title="Delete by multi-column key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delete by multi-column key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.frame(region=c(&quot;NA&quot;,&quot;NA&quot;,&quot;EU&quot;), product=c(&quot;X&quot;,&quot;Y&quot;,&quot;X&quot;), qty=c(100, 200, 50))
+y &lt;- data.frame(region=c(&quot;NA&quot;), product=c(&quot;Y&quot;))
+
+rows_delete(x, y, by = c(&quot;region&quot;,&quot;product&quot;))
+#&gt; 2 rows: (NA,X) and (EU,X) survive; (NA,Y) deleted</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Equivalent anti_join</h3>
+
+<div class="webr-container" data-block-title="Same result, different verb">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same result, different verb</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">identical(
+  rows_delete(x, y, by = c(&quot;region&quot;,&quot;product&quot;)),
+  anti_join(x, y, by = c(&quot;region&quot;,&quot;product&quot;))
+)
+#&gt; [1] TRUE  (modulo column types)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">**<code>rows_delete</code> and <code>anti_join</code> are functionally equivalent.<em>* Both keep x rows whose key is NOT in y. Choose based on framing: rows_delete reads as "I am removing"; anti_join reads as "I am filtering". Within the rows_</em> family, rows_delete fits the SQL CRUD vocabulary.</div></div>
+
+<h2>rows_delete() vs anti_join() vs filter()</h2>
+
+<p><strong>Three ways to remove rows by key.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Multi-key</th>
+<th>Errors on bad key</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rows_delete(x, y, by)</code></td>
+<td>Yes</td>
+<td>Default yes (validates)</td>
+<td>SQL-style mutation</td>
+</tr>
+<tr>
+<td><code>anti_join(x, y, by)</code></td>
+<td>Yes</td>
+<td>No</td>
+<td>Filtering pipelines</td>
+</tr>
+<tr>
+<td><code>filter(x, !col %in% y$col)</code></td>
+<td>One col only</td>
+<td>No</td>
+<td>Quick scripts</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li><code>rows_delete</code> for SQL-style row mutations + validation.</li>
+
+<li><code>anti_join</code> for tidy filtering.</li>
+
+<li><code>filter</code> for one-column negation.</li>
+
+</ul>
+
+<h2>A practical workflow</h2>
+
+<p><strong>Use rows_delete in audit-validated deletion pipelines.</strong></p>
+
+<div class="webr-container" data-block-title="Validated deletion pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Validated deletion pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master       &lt;- read_csv(&quot;master.csv&quot;)
+to_remove    &lt;- read_csv(&quot;deletions.csv&quot;)
+
+# Validate every deletion key exists in master, then remove:
+master_v2 &lt;- master |&gt; rows_delete(to_remove, by = &quot;id&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If deletions.csv has stray IDs, the call errors. This catches bugs where the deletion list doesn't match the master.</p>
+
+<p>For tolerance-needed cases (e.g., re-running a deletion that has already partially applied):</p>
+
+<div class="webr-container" data-block-title="Tolerant rerun">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tolerant rerun</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">master_v2 &lt;- master |&gt; rows_delete(to_remove, by = &quot;id&quot;, unmatched = &quot;ignore&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: errors on unmatched in y by default.</strong> A single stray key in y crashes the call. Use <code>unmatched = &quot;ignore&quot;</code> for resilience.</p>
+
+<p><strong>Pitfall 2: rows_delete returns a NEW data frame.</strong> It doesn't modify x in place (unless <code>in_place = TRUE</code> for data.tables). Always assign the result.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>rows_delete</code> does NOT count duplicates.</strong> A single match in y is enough to remove an x row. If x has duplicates with the same key, ALL are deleted. For exact-row deletion, use <code>setdiff()</code> (full-row matching).</div></div>
+
+<h2>Why validate-then-delete matters</h2>
+
+<p><strong>The default <code>unmatched = &quot;error&quot;</code> for rows_delete is a feature, not an annoyance.</strong> It catches bugs where your deletion list references IDs that don't exist in the master, which usually means the deletion list is from a stale source or has typos. Erroring out forces you to investigate before silently corrupting your data. For repeatable / retry-able pipelines, switch to <code>unmatched = &quot;ignore&quot;</code> once you've confirmed the deletion list is clean. This pattern (validate first, then ignore for production retries) is common in ETL pipelines.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Remove cars from a small <code>mtcars_top</code> (first 5 rows of mtcars) whose names appear in a <code>to_drop</code> list. Save to <code>ex_kept</code>.</p>
+<div class="webr-container" data-block-title="Your turn: delete by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: delete by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars_top &lt;- mtcars[1:5, ] |&gt; tibble::rownames_to_column(&quot;car&quot;)
+to_drop    &lt;- data.frame(car = c(&quot;Mazda RX4&quot;, &quot;Datsun 710&quot;))
+
+ex_kept &lt;- mtcars_top |&gt;
+  # your code here
+
+nrow(ex_kept)
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_kept &lt;- mtcars_top |&gt;
+  rows_delete(to_drop, by = &quot;car&quot;)
+
+nrow(ex_kept)
+#&gt; [1] 3
+
+# Equivalent anti_join:
+ex_kept2 &lt;- mtcars_top |&gt; anti_join(to_drop, by = &quot;car&quot;)
+identical(ex_kept, ex_kept2)
+#&gt; [1] TRUE (when columns line up)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> rows_delete removes the 2 cars whose names match to_drop, leaving 3.</p>
+
+</details>
+</section>
+
+<h2>Related dplyr functions</h2>
+
+<p>After mastering rows_delete, look at:</p>
+
+<ul>
+
+<li><code>anti_join()</code>: filter-style alternative</li>
+
+<li><code>rows_insert()</code> / <code>rows_update()</code> / <code>rows_upsert()</code> / <code>rows_patch()</code>: companion CRUD verbs</li>
+
+<li><code>filter()</code>: arbitrary condition</li>
+
+<li><code>distinct()</code>: drop duplicates</li>
+
+<li><code>setdiff()</code>: full-row set difference</li>
+
+</ul>
+
+<p>For "delete by complex condition" (not just key), use <code>filter()</code> directly.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rows_delete do in dplyr?</strong></p>
+
+<p><code>rows_delete(x, y, by)</code> removes rows from x whose <code>by</code> key appears in y. Errors by default if y has keys not in x.</p>
+
+<p><strong>What is the difference between rows_delete and anti_join?</strong></p>
+
+<p>Functionally equivalent. rows_delete is part of the rows_* SQL-style family; anti_join is part of the join family. Choose based on framing.</p>
+
+<p><strong>What is the unmatched argument?</strong></p>
+
+<p><code>unmatched = &quot;error&quot;</code> (default) errors if y has keys not in x. <code>unmatched = &quot;ignore&quot;</code> silently skips. Use ignore when y may legitimately have extra IDs.</p>
+
+<p><strong>Does rows_delete handle composite keys?</strong></p>
+
+<p>Yes: <code>rows_delete(x, y, by = c(&quot;col1&quot;,&quot;col2&quot;))</code>. Tuple matching applies.</p>
+
+<p><strong>How do I delete by condition instead of key?</strong></p>
+
+<p>Use <code>filter()</code>: <code>filter(x, !condition)</code>. rows_delete is for KEY-based deletion only.</p>
