@@ -360,6 +360,30 @@ def main():
             write_status(status)
             log(f"  DONE: {slug}")
 
+            # Mop up post-publish auto-link drift so the next iteration's
+            # check_git_clean() doesn't abort.
+            drift = subprocess.run(
+                ["git", "status", "--porcelain"],
+                capture_output=True, text=True, cwd=str(REPO_ROOT)
+            )
+            tracked_dirty = [
+                ln for ln in drift.stdout.splitlines()
+                if ln and not ln.startswith("?? ")
+            ]
+            if tracked_dirty:
+                log(f"  Post-publish drift: {len(tracked_dirty)} tracked files modified; mopping up")
+                subprocess.run(["git", "add", "-u"],
+                               capture_output=True, cwd=str(REPO_ROOT))
+                subprocess.run(
+                    ["git", "commit", "-m", f"Post-publish auto-link drift after {slug}"],
+                    capture_output=True, cwd=str(REPO_ROOT)
+                )
+                subprocess.run(
+                    ["git", "push", "origin", "master"],
+                    capture_output=True, cwd=str(REPO_ROOT)
+                )
+                log(f"  Drift committed and pushed")
+
     finally:
         release_lock()
 
