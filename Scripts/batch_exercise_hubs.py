@@ -144,13 +144,19 @@ def move_to_failed(slug: str):
 
 
 def check_git_clean() -> bool:
+    """Check that no TRACKED files have unstaged/staged changes.
+
+    Untracked files (?? prefix) are ignored — they don't interfere with
+    md2html, build, commit, push. Only flag modified/staged tracked files.
+    """
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True, text=True, cwd=str(REPO_ROOT)
     )
-    # Allow the status file and failed/ dir to be dirty
     dirty = []
     for line in result.stdout.splitlines():
+        if line.startswith("?? "):
+            continue   # untracked: harmless
         path = line[3:].strip()
         if path in ("exercise-hub-status.json", "Scripts/batch_exercise.log"):
             continue
