@@ -181,8 +181,11 @@ def check_exercise_titles(fm, body, ctx):
     return True, f"all {len(ctx['exercises'])} exercise titles descriptive"
 
 
-SCENARIO_RE = re.compile(r"\*\*Scenario:\*\*\s*(.+?)(?:\n\n|\*\*Difficulty)", re.DOTALL)
+TASK_RE = re.compile(r"\*\*Task:\*\*\s*(.+?)(?:\n\n|\*\*Dataset|\*\*Difficulty)", re.DOTALL)
+DATASET_RE = re.compile(r"\*\*Dataset:\*\*\s*(.+?)(?:\n\n|\*\*Expected|\*\*Difficulty)", re.DOTALL)
+EXPECTED_RE = re.compile(r"\*\*Expected result:\*\*\s*(.+?)(?:\n\n|\*\*Difficulty)", re.DOTALL)
 DIFFICULTY_RE = re.compile(r"\*\*Difficulty:\*\*\s*(\w+)")
+SAVE_TO_RE = re.compile(r"`ex_\d+(?:_\d+)?`|save.{0,40}to\s+`?\w+`?", re.IGNORECASE)
 
 
 def parse_difficulty(text):
@@ -190,31 +193,95 @@ def parse_difficulty(text):
     return m.group(1) if m else None
 
 
-def check_scenarios(fm, body, ctx):
-    """Each non-Beginner exercise needs Scenario >= 12 words."""
-    if "scenario_required" in ctx["exempt"]:
+def check_task(fm, body, ctx):
+    """Every exercise needs **Task:** line, >=20 words, with save-to variable."""
+    if "task_required" in ctx["exempt"]:
         return True, "skipped (exempt)"
     weak = []
     missing = []
+    no_save = []
     for i, ex in enumerate(ctx["exercises"], 1):
-        diff = parse_difficulty(ex["raw"]) or ""
-        if diff.lower() == "beginner":
-            continue
-        sm = SCENARIO_RE.search(ex["raw"])
-        if not sm:
+        m = TASK_RE.search(ex["raw"])
+        if not m:
             missing.append(i)
             continue
-        n = len(sm.group(1).split())
-        if n < 12:
+        text = m.group(1).strip()
+        n = len(text.split())
+        if n < 20:
             weak.append((i, n))
-    if missing or weak:
-        msg_parts = []
-        if missing:
-            msg_parts.append(f"missing scenario in {len(missing)} non-Beginner: {missing[:5]}")
-        if weak:
-            msg_parts.append(f"weak (<12 words) in {len(weak)}: {weak[:3]}")
-        return False, "; ".join(msg_parts)
-    return True, "all non-Beginner exercises have scenarios >= 12 words"
+            continue
+        if not SAVE_TO_RE.search(text):
+            no_save.append(i)
+    parts = []
+    if missing:
+        parts.append(f"no **Task:** in {len(missing)}: {missing[:5]}")
+    if weak:
+        parts.append(f"**Task:** <20 words in {len(weak)}: {weak[:3]}")
+    if no_save:
+        parts.append(f"no save-to var in {len(no_save)}: {no_save[:3]}")
+    if parts:
+        return False, "; ".join(parts)
+    return True, f"all {len(ctx['exercises'])} Task lines >= 20 words with save-to"
+
+
+# Built-in dataset allowlist that may be referenced in Dataset lines
+_DATASET_ALLOW = {
+    "mtcars", "iris", "diamonds", "economics", "faithful", "ChickWeight",
+    "airquality", "sleepstudy", "lung", "txhousing", "mpg", "AirPassengers",
+    "USArrests", "Titanic", "Orange", "ToothGrowth", "PlantGrowth",
+    "warpbreaks", "Loblolly", "trees", "Nile", "EuStockMarkets", "co2",
+    "WWWusage",
+}
+
+
+def check_dataset(fm, body, ctx):
+    """Every exercise needs **Dataset:** line referencing allowlist or inline data."""
+    if "dataset_required" in ctx["exempt"]:
+        return True, "skipped (exempt)"
+    missing = []
+    no_ref = []
+    for i, ex in enumerate(ctx["exercises"], 1):
+        m = DATASET_RE.search(ex["raw"])
+        if not m:
+            missing.append(i)
+            continue
+        text = m.group(1).strip().lower()
+        # Accept if names allowlist dataset OR uses 'inline'/'tibble('/'data.frame('
+        hit = any(d.lower() in text for d in _DATASET_ALLOW)
+        if not hit and not any(k in text for k in ("inline", "tibble(", "data.frame(", "custom")):
+            no_ref.append(i)
+    parts = []
+    if missing:
+        parts.append(f"no **Dataset:** in {len(missing)}: {missing[:5]}")
+    if no_ref:
+        parts.append(f"**Dataset:** lacks built-in/inline reference in {len(no_ref)}: {no_ref[:3]}")
+    if parts:
+        return False, "; ".join(parts)
+    return True, f"all {len(ctx['exercises'])} Dataset lines valid"
+
+
+def check_expected_result(fm, body, ctx):
+    """Every exercise needs **Expected result:** line, >=10 words."""
+    if "expected_required" in ctx["exempt"]:
+        return True, "skipped (exempt)"
+    missing = []
+    weak = []
+    for i, ex in enumerate(ctx["exercises"], 1):
+        m = EXPECTED_RE.search(ex["raw"])
+        if not m:
+            missing.append(i)
+            continue
+        n = len(m.group(1).split())
+        if n < 10:
+            weak.append((i, n))
+    parts = []
+    if missing:
+        parts.append(f"no **Expected result:** in {len(missing)}: {missing[:5]}")
+    if weak:
+        parts.append(f"**Expected result:** <10 words in {len(weak)}: {weak[:3]}")
+    if parts:
+        return False, "; ".join(parts)
+    return True, f"all {len(ctx['exercises'])} Expected result lines >= 10 words"
 
 
 def check_difficulty_markers(fm, body, ctx):
@@ -255,8 +322,7 @@ def check_solution_blocks(fm, body, ctx):
 
 
 def check_explanations(fm, body, ctx):
-    """Solutions need real explanations. Threshold: at least 15 words, with up
-    to 10% tolerance for terse cases on simple exercises."""
+    """Solutions need real explanations. Threshold: 25 words, 5% tolerance."""
     if "explanation_required" in ctx["exempt"]:
         return True, "skipped (exempt)"
     weak = []
@@ -269,14 +335,14 @@ def check_explanations(fm, body, ctx):
         prose = re.sub(r"```.*?```", "", inside, flags=re.DOTALL)
         prose = re.sub(r"<[^>]+>", "", prose)
         words = len(prose.split())
-        if words < 15:
+        if words < 25:
             weak.append((i, words))
-    tolerance = max(2, total // 10)  # 10% tolerance, min 2
+    tolerance = max(1, total // 20)  # 5% tolerance, min 1
     if len(weak) > tolerance:
-        return False, f"explanations < 15 words in {len(weak)}/{total} (tolerance {tolerance}): {weak[:3]}"
+        return False, f"explanations < 25 words in {len(weak)}/{total} (tolerance {tolerance}): {weak[:3]}"
     if weak:
         return True, f"{len(weak)} terse explanations within tolerance"
-    return True, f"all {total} explanations >= 15 words"
+    return True, f"all {total} explanations >= 25 words"
 
 
 def check_no_em_dash(fm, body, ctx):
@@ -330,15 +396,17 @@ CHECKS = [
     ("05 setup_block",            check_setup_block),
     ("06 exercise_count",         check_exercise_count),
     ("07 exercise_titles",        check_exercise_titles),
-    ("08 scenarios",              check_scenarios),
-    ("09 difficulty_markers",     check_difficulty_markers),
-    ("10 difficulty_mix",         check_difficulty_mix),
-    ("11 solution_blocks",        check_solution_blocks),
-    ("12 explanations",           check_explanations),
-    ("13 no_em_dash",             check_no_em_dash),
-    ("14 no_webr_mention",        check_no_webr_mention),
-    ("15 libraries_loaded",       check_libraries_loaded),
-    ("16 what_to_do_next",        check_what_to_do_next),
+    ("08 task_line",              check_task),
+    ("09 dataset_line",           check_dataset),
+    ("10 expected_result",        check_expected_result),
+    ("11 difficulty_markers",     check_difficulty_markers),
+    ("12 difficulty_mix",         check_difficulty_mix),
+    ("13 solution_blocks",        check_solution_blocks),
+    ("14 explanations",           check_explanations),
+    ("15 no_em_dash",             check_no_em_dash),
+    ("16 no_webr_mention",        check_no_webr_mention),
+    ("17 libraries_loaded",       check_libraries_loaded),
+    ("18 what_to_do_next",        check_what_to_do_next),
 ]
 
 
