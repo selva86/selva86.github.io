@@ -181,9 +181,12 @@ def check_exercise_titles(fm, body, ctx):
     return True, f"all {len(ctx['exercises'])} exercise titles descriptive"
 
 
-TASK_RE = re.compile(r"\*\*Task:\*\*\s*(.+?)(?:\n\n|\*\*Dataset|\*\*Difficulty)", re.DOTALL)
-DATASET_RE = re.compile(r"\*\*Dataset:\*\*\s*(.+?)(?:\n\n|\*\*Expected|\*\*Difficulty)", re.DOTALL)
-EXPECTED_RE = re.compile(r"\*\*Expected result:\*\*\s*(.+?)(?:\n\n|\*\*Difficulty)", re.DOTALL)
+TASK_RE = re.compile(r"\*\*Task:\*\*\s*(.+?)(?:\n\n|\*\*Expected|\*\*Difficulty)", re.DOTALL)
+# Expected result must be followed (within a few lines) by a fenced code block
+EXPECTED_BLOCK_RE = re.compile(
+    r"\*\*Expected result:\*\*\s*\n+\s*```[^\n]*\n(.*?)\n\s*```",
+    re.DOTALL,
+)
 DIFFICULTY_RE = re.compile(r"\*\*Difficulty:\*\*\s*(\w+)")
 SAVE_TO_RE = re.compile(r"`ex_\d+(?:_\d+)?`|save.{0,40}to\s+`?\w+`?", re.IGNORECASE)
 
@@ -224,64 +227,29 @@ def check_task(fm, body, ctx):
     return True, f"all {len(ctx['exercises'])} Task lines >= 20 words with save-to"
 
 
-# Built-in dataset allowlist that may be referenced in Dataset lines
-_DATASET_ALLOW = {
-    "mtcars", "iris", "diamonds", "economics", "faithful", "ChickWeight",
-    "airquality", "sleepstudy", "lung", "txhousing", "mpg", "AirPassengers",
-    "USArrests", "Titanic", "Orange", "ToothGrowth", "PlantGrowth",
-    "warpbreaks", "Loblolly", "trees", "Nile", "EuStockMarkets", "co2",
-    "WWWusage",
-}
-
-
-def check_dataset(fm, body, ctx):
-    """Every exercise needs **Dataset:** line referencing allowlist or inline data."""
-    if "dataset_required" in ctx["exempt"]:
-        return True, "skipped (exempt)"
-    missing = []
-    no_ref = []
-    for i, ex in enumerate(ctx["exercises"], 1):
-        m = DATASET_RE.search(ex["raw"])
-        if not m:
-            missing.append(i)
-            continue
-        text = m.group(1).strip().lower()
-        # Accept if names allowlist dataset OR uses 'inline'/'tibble('/'data.frame('
-        hit = any(d.lower() in text for d in _DATASET_ALLOW)
-        if not hit and not any(k in text for k in ("inline", "tibble(", "data.frame(", "custom")):
-            no_ref.append(i)
-    parts = []
-    if missing:
-        parts.append(f"no **Dataset:** in {len(missing)}: {missing[:5]}")
-    if no_ref:
-        parts.append(f"**Dataset:** lacks built-in/inline reference in {len(no_ref)}: {no_ref[:3]}")
-    if parts:
-        return False, "; ".join(parts)
-    return True, f"all {len(ctx['exercises'])} Dataset lines valid"
-
-
 def check_expected_result(fm, body, ctx):
-    """Every exercise needs **Expected result:** line, >=10 words."""
+    """Every exercise needs **Expected result:** followed by a fenced code block
+    with at least 10 characters of content."""
     if "expected_required" in ctx["exempt"]:
         return True, "skipped (exempt)"
     missing = []
-    weak = []
+    empty = []
     for i, ex in enumerate(ctx["exercises"], 1):
-        m = EXPECTED_RE.search(ex["raw"])
+        m = EXPECTED_BLOCK_RE.search(ex["raw"])
         if not m:
             missing.append(i)
             continue
-        n = len(m.group(1).split())
-        if n < 10:
-            weak.append((i, n))
+        content = m.group(1).strip()
+        if len(content) < 10:
+            empty.append((i, len(content)))
     parts = []
     if missing:
-        parts.append(f"no **Expected result:** in {len(missing)}: {missing[:5]}")
-    if weak:
-        parts.append(f"**Expected result:** <10 words in {len(weak)}: {weak[:3]}")
+        parts.append(f"no **Expected result:** code block in {len(missing)}: {missing[:5]}")
+    if empty:
+        parts.append(f"**Expected result:** block too short in {len(empty)}: {empty[:3]}")
     if parts:
         return False, "; ".join(parts)
-    return True, f"all {len(ctx['exercises'])} Expected result lines >= 10 words"
+    return True, f"all {len(ctx['exercises'])} Expected result code blocks present"
 
 
 def check_difficulty_markers(fm, body, ctx):
@@ -397,16 +365,15 @@ CHECKS = [
     ("06 exercise_count",         check_exercise_count),
     ("07 exercise_titles",        check_exercise_titles),
     ("08 task_line",              check_task),
-    ("09 dataset_line",           check_dataset),
-    ("10 expected_result",        check_expected_result),
-    ("11 difficulty_markers",     check_difficulty_markers),
-    ("12 difficulty_mix",         check_difficulty_mix),
-    ("13 solution_blocks",        check_solution_blocks),
-    ("14 explanations",           check_explanations),
-    ("15 no_em_dash",             check_no_em_dash),
-    ("16 no_webr_mention",        check_no_webr_mention),
-    ("17 libraries_loaded",       check_libraries_loaded),
-    ("18 what_to_do_next",        check_what_to_do_next),
+    ("09 expected_result",        check_expected_result),
+    ("10 difficulty_markers",     check_difficulty_markers),
+    ("11 difficulty_mix",         check_difficulty_mix),
+    ("12 solution_blocks",        check_solution_blocks),
+    ("13 explanations",           check_explanations),
+    ("14 no_em_dash",             check_no_em_dash),
+    ("15 no_webr_mention",        check_no_webr_mention),
+    ("16 libraries_loaded",       check_libraries_loaded),
+    ("17 what_to_do_next",        check_what_to_do_next),
 ]
 
 
