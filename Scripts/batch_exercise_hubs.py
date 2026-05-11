@@ -41,8 +41,8 @@ FAILED_DIR = POSTS_DIR / "_failed"
 LOG_FILE = REPO_ROOT / "Scripts" / "batch_exercise.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "batch_exercise.lock"
 
-WRITE_TIMEOUT = 2400   # 40 min per write
-PUBLISH_TIMEOUT = 900  # 15 min per publish
+WRITE_TIMEOUT = 2400    # 40 min per write
+PUBLISH_TIMEOUT = 1500  # 25 min per publish (auto-link on 700+ pages can take >15 min)
 MAX_ATTEMPTS = 2
 
 
