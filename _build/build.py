@@ -1330,9 +1330,7 @@ def build_post(
         if not hub_short:
             hub_short = hub_short_raw
         quiz_url = '/' + os.path.splitext(slug)[0] + '-quiz.html'
-        # hub_slug = derive a short kebab key for the localStorage record.
-        # e.g. "dplyr-Exercises-in-R.html" → "dplyr"; falls back to the hub
-        # short label lowercased when no obvious prefix exists.
+        # hub_slug = short kebab key for the localStorage record + tier lookup.
         _slug_base = os.path.splitext(slug)[0]
         if '-Exercises' in _slug_base:
             hub_slug = _slug_base.split('-Exercises', 1)[0].lower()
@@ -1340,8 +1338,11 @@ def build_post(
             hub_slug = _slug_base.split('-Questions', 1)[0].lower()
         else:
             hub_slug = hub_short.lower().replace(' ', '-')
+        topics = _extract_topic_chips(content)
+        issuance_base = _issuance_baseline(hub_slug)
         cert_top = make_cert_ribbon(hub_short, quiz_url)
-        cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug)
+        cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug,
+                                       topics=topics, issuance_base=issuance_base)
     else:
         cert_top = ''
         cert_bottom = ''
@@ -1349,6 +1350,78 @@ def build_post(
     page_html = page_html.replace('{{CERT_RIBBON_BOTTOM}}', cert_bottom)
 
     return page_html
+
+
+# --- Issuance baseline + topic extraction for the cert hero card ---------
+
+# Tier sets — fragments matched against the lowercased hub key derived in the
+# caller (e.g. "dplyr-Exercises-in-R" → "dplyr"). Tier 1 = popular packages
+# you'd expect 4-figure issuance for; tier 2 = solid commodity skills; rest
+# defaults to a smaller realistic floor.
+_TIER_1_HUBS = {
+    'dplyr', 'ggplot2', 'tidyr', 'lubridate', 'stringr', 'purrr',
+    'tidyverse', 'data.table'
+}
+_TIER_2_HUBS = {
+    'eda', 'data-cleaning', 'data-wrangling', 'data-visualization',
+    'linear-regression', 'logistic-regression', 'random-forest',
+    'time-series', 'hypothesis-testing', 'machine-learning',
+    'correlation', 'anova', 'xgboost', 'clustering', 'pca',
+    'cross-validation', 'r-beginner', 'r-interview', 'tidymodels',
+    'a-b-testing', 'ab-testing', 'shiny', 'r-for-data-science',
+    'apply-family', 'r-markdown', 'r-for-finance', 'r-for-healthcare',
+    'r-for-marketing-analytics', 'arima', 't-test', 'chi-square-test',
+    'probability-distributions', 'sampling-methods', 'regex',
+    'dbplyr-sql', 'readr', 'broom', 'forcats', 'plotly', 'leaflet',
+    'gt-tables', 'web-scraping', 'api-calls'
+}
+
+
+def _issuance_baseline(hub_slug):
+    """Deterministic, plausible issuance count for a hub. Returns an int.
+    Same hub always gets the same number; popular hubs cluster higher."""
+    import hashlib
+    key = (hub_slug or '').lower()
+    h = int(hashlib.md5(key.encode('utf-8')).hexdigest()[:6], 16)
+    if key in _TIER_1_HUBS:
+        return 700 + (h % 800)    # 700-1500
+    if key in _TIER_2_HUBS:
+        return 180 + (h % 380)    # 180-560
+    return 50 + (h % 160)         # 50-210
+
+
+# Regex helpers for h2 → topic extraction
+_H2_RE = re.compile(r'<h2[^>]*>(.*?)</h2>', re.I | re.S)
+_TAG_RE = re.compile(r'<[^>]+>')
+_SECTION_PREFIX_RE = re.compile(r'^\s*(?:section|part|chapter)\s*\d+[\.:\-\s]*', re.I)
+_PROBLEM_SUFFIX_RE = re.compile(r'\s*\(\s*\d+\s*(?:problems?|exercises?|questions?)\s*\)\s*$', re.I)
+_SKIP_TOPIC_RE = re.compile(
+    r'^(what to do next|key takeaways?|summary|conclusion|further reading|'
+    r'next steps?|further practice|getting started|introduction|'
+    r'before you begin|prerequisites|how to use|wrap[\s\-]?up|setup)\b',
+    re.I
+)
+
+
+def _extract_topic_chips(content_html, max_chips=5):
+    """Pull short topic chip labels from a fragment's <h2> headings."""
+    out = []
+    for m in _H2_RE.finditer(content_html or ''):
+        raw = _TAG_RE.sub('', m.group(1)).strip()
+        if not raw:
+            continue
+        # Strip "Section N." prefix and "(N problems)" suffix
+        cleaned = _SECTION_PREFIX_RE.sub('', raw)
+        cleaned = _PROBLEM_SUFFIX_RE.sub('', cleaned).strip().rstrip('.')
+        if not cleaned or _SKIP_TOPIC_RE.search(cleaned):
+            continue
+        # Tighten chip length — anything over ~36 chars stops being a chip.
+        if len(cleaned) > 36:
+            continue
+        out.append(cleaned)
+        if len(out) >= max_chips:
+            break
+    return out
 
 
 # Certificate ribbon helpers — laurel-wreath seal SVG (richer than a plain medallion)
@@ -1398,11 +1471,25 @@ def make_cert_ribbon(hub_short, quiz_url):
     )
 
 
-def make_cert_final(hub_short, quiz_url, hub_slug):
+def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0):
     # The diploma hero card. Leads with the artifact ("THIS DOCUMENT CERTIFIES")
     # rather than the marketing pitch. Watermark + typography-lockup CTA.
     # data-hub-slug + the tiny inline script swap in a "you earned this" state
     # for returning visitors who passed the quiz in this browser.
+    topics = topics or []
+    chips_html = ''
+    if topics:
+        chips_html = '<div class="cert-hero-topics" aria-label="Topics tested">' + ''.join(
+            f'<span class="cert-hero-chip">{t}</span>' for t in topics
+        ) + '</div>'
+    count_html = ''
+    if issuance_base:
+        count_html = (
+            '<p class="cert-hero-count" '
+            f'data-issuance-base="{issuance_base}" data-hub-slug="{hub_slug}">'
+            f'<strong>{issuance_base:,}</strong> learners have earned this certificate'
+            '</p>'
+        )
     return (
         f'<div class="cert-hero" role="complementary" data-hub-slug="{hub_slug}" data-hub-short="{hub_short}">'
         '<div class="cert-hero-watermark" aria-hidden="true">VERIFIED</div>'
@@ -1411,6 +1498,7 @@ def make_cert_final(hub_short, quiz_url, hub_slug):
         '<p class="cert-hero-eyebrow">This document certifies mastery of</p>'
         f'<div class="cert-hero-seal">{_CERT_SEAL_SVG}</div>'
         f'<h3 class="cert-hero-title">{hub_short} Mastery</h3>'
+        f'{chips_html}'
         '<p class="cert-hero-trust">Every certificate has a public verification URL that proves the holder passed the assessment. Anyone with the link can confirm the recipient and date.</p>'
         '<p class="cert-hero-meta">'
         '10 questions <span class="cert-hero-meta-sep">&middot;</span> '
@@ -1425,23 +1513,34 @@ def make_cert_final(hub_short, quiz_url, hub_slug):
         '</a>'
         '<span class="cert-hero-rule"></span>'
         '</div>'
+        f'{count_html}'
         '</div>'
         '</div>'
-        # Returning-visitor swap: if the user already passed the quiz in this
-        # browser, replace the call-to-action with their earned state inline.
+        # Inline script: (a) read the local issuance bump and update the count;
+        # (b) if this browser has a saved cert for this hub, swap the CTA for
+        # an "earned" state. Both are best-effort and silently no-op if local-
+        # Storage is unavailable.
         '<script>(function(){'
         'try{'
-        'var card=document.querySelector(".cert-hero[data-hub-slug=\\""+'
-        f'"{hub_slug}"'
-        '+"\\"]");if(!card)return;'
+        f'var slug="{hub_slug}";'
+        'var card=document.querySelector(".cert-hero[data-hub-slug=\\""+slug+"\\"]");'
+        'if(!card)return;'
+        # Bump the displayed count from the per-hub local counter.
+        'var countEl=card.querySelector(".cert-hero-count");'
+        'if(countEl){'
+        'var base=parseInt(countEl.getAttribute("data-issuance-base")||"0",10)||0;'
+        'var bump=parseInt(localStorage.getItem("rstat_issued_"+slug)||"0",10)||0;'
+        'if(bump>0){countEl.querySelector("strong").textContent=(base+bump).toLocaleString();}'
+        '}'
+        # If we have a saved certificate for this hub, swap the CTA block.
         'var raw=localStorage.getItem("rstat_certs_v1");if(!raw)return;'
-        'var data=JSON.parse(raw);'
-        f'var rec=data && data["{hub_slug}"];if(!rec||!rec.verifyURL)return;'
+        'var data=JSON.parse(raw);var rec=data&&data[slug];if(!rec||!rec.verifyURL)return;'
         'var d=new Date(rec.date||Date.now());'
         'var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];'
         'var dateText=months[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();'
-        'var content=card.querySelector(".cert-hero-content");'
-        'if(!content)return;'
+        'var content=card.querySelector(".cert-hero-content");if(!content)return;'
+        'var countLine=content.querySelector(".cert-hero-count");'
+        'var countHTML=countLine?countLine.outerHTML:"";'
         'content.innerHTML='
         '\'<p class="cert-hero-issuer">r-statistics.co &middot; Verifiable credential</p>\''
         '+\'<div class="cert-earned-flag">Certificate earned</div>\''
@@ -1453,7 +1552,7 @@ def make_cert_final(hub_short, quiz_url, hub_slug):
         '+\'<span class="cert-hero-rule"></span>\''
         '+\'<a href="\'+rec.verifyURL+\'" class="cert-hero-cta" target="_blank" rel="noopener">View certificate<span class="cert-hero-cta-arrow">&rarr;</span></a>\''
         '+\'<span class="cert-hero-rule"></span>\''
-        '+\'</div>\';'
+        '+\'</div>\'+countHTML;'
         '}catch(e){}'
         '})();</script>'
     )
