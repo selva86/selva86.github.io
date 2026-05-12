@@ -2605,7 +2605,7 @@ def main():
     # build should emit zero warnings.
     leftover = 0
     for p in sorted(post_files):
-        with open(p, encoding='utf-8') as f:
+        with open(os.path.join(POSTS_DIR, p), encoding='utf-8') as f:
             body = f.read()
         if heal_fragment(body) != body:
             leftover += 1
