@@ -1341,13 +1341,33 @@ def build_post(
     return page_html
 
 
-# Certificate ribbon helpers
+# Certificate ribbon helpers — laurel-wreath seal SVG (richer than a plain medallion)
 _CERT_SEAL_SVG = (
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-    'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" '
+    '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" '
+    'stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" '
     'aria-hidden="true">'
-    '<circle cx="12" cy="9.5" r="5.5"/>'
-    '<path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/>'
+    # Center medallion (the verifiable mark)
+    '<circle cx="24" cy="20" r="8.5" stroke-width="1.4"/>'
+    '<circle cx="24" cy="20" r="5.5" stroke-dasharray="1.5 2"/>'
+    # Inner checkmark
+    '<path d="M21 20.5l2 2 4-4" stroke-width="1.6"/>'
+    # Left laurel branch — main curve
+    '<path d="M14 14c-3.5 3.5-3.5 9.5 0 13.5"/>'
+    # Left laurel leaves (5 small teardrop strokes)
+    '<path d="M12.5 14.5c-1.5-.5-3-.3-4 .5"/>'
+    '<path d="M11.5 17.5c-1.5-.3-3 .2-4 1"/>'
+    '<path d="M11 20.5c-1.5 0-3 .5-4 1.5"/>'
+    '<path d="M11.5 23.5c-1.5.3-2.8 1-3.7 2"/>'
+    '<path d="M13 26.5c-1.3.6-2.4 1.5-3.2 2.7"/>'
+    # Right laurel branch — mirror
+    '<path d="M34 14c3.5 3.5 3.5 9.5 0 13.5"/>'
+    '<path d="M35.5 14.5c1.5-.5 3-.3 4 .5"/>'
+    '<path d="M36.5 17.5c1.5-.3 3 .2 4 1"/>'
+    '<path d="M37 20.5c1.5 0 3 .5 4 1.5"/>'
+    '<path d="M36.5 23.5c1.5.3 2.8 1 3.7 2"/>'
+    '<path d="M35 26.5c1.3.6 2.4 1.5 3.2 2.7"/>'
+    # Ribbons hanging below the wreath
+    '<path d="M18 30l-3 14 5-3 4 3 4-3 5 3-3-14"/>'
     '</svg>'
 )
 
@@ -1358,7 +1378,8 @@ def make_cert_ribbon(hub_short, quiz_url):
         f'<div class="cert-ribbon-left">'
         f'<div class="cert-ribbon-icon">{_CERT_SEAL_SVG}</div>'
         f'<div class="cert-ribbon-text">'
-        f'<p class="cert-ribbon-title">Earn the {hub_short} Certificate</p>'
+        f'<p class="cert-ribbon-eyebrow">Verified Certificate</p>'
+        f'<p class="cert-ribbon-title">{hub_short} Mastery Certificate</p>'
         f'<p class="cert-ribbon-sub">Practice the exercises below. When you feel ready, attempt the quiz to earn a verifiable certificate you can share on LinkedIn.</p>'
         f'</div></div>'
         f'<a href="{quiz_url}" class="cert-ribbon-cta">'
@@ -1370,12 +1391,22 @@ def make_cert_ribbon(hub_short, quiz_url):
 def make_cert_final(hub_short, quiz_url):
     return (
         '<div class="cert-final">'
+        f'<p class="cert-final-eyebrow">Verified Certificate</p>'
         f'<div class="cert-final-icon">{_CERT_SEAL_SVG}</div>'
-        f'<h3 class="cert-final-title">Ready to earn the {hub_short} Certificate?</h3>'
-        f'<p class="cert-final-sub">The quiz is concept-based and respects your time: pass it once and your verifiable certificate is yours to share on LinkedIn, your resume, or your portfolio. Take it when you feel comfortable with the material.</p>'
+        f'<h3 class="cert-final-title">Earn your {hub_short} Mastery Certificate</h3>'
+        f'<p class="cert-final-sub">The quiz is concept-based and respects your time. Pass it once and your verifiable certificate is yours to share on LinkedIn, your resume, or your portfolio. Take it when you feel comfortable with the material.</p>'
+        '<div class="cert-final-meta">'
+        '<span>Concept-based</span>'
+        '<span class="cert-final-meta-dot"></span>'
+        '<span>7-question quiz</span>'
+        '<span class="cert-final-meta-dot"></span>'
+        '<span>LinkedIn-shareable</span>'
+        '</div>'
         f'<a href="{quiz_url}" class="cert-ribbon-cta">'
         f'Attempt the quiz<span class="cert-ribbon-cta-arrow">&rarr;</span>'
-        f'</a></div>'
+        f'</a>'
+        f'<p class="cert-final-issued">Issued by r-statistics.co &middot; Verifiable on a public URL</p>'
+        f'</div>'
     )
 
 
