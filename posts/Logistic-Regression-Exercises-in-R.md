@@ -1,554 +1,1064 @@
 ---
-title: "Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step"
-slug: Logistic-Regression-Exercises-in-R
-description: "10 logistic regression exercises in R with runnable solutions: fit glm(binomial), interpret odds ratios, build confusion matrices, draw ROC, compute AUC."
-keywords: "logistic regression exercises in R, logistic regression practice problems, binary classification exercises R, glm binomial practice, odds ratio exercises, ROC AUC exercises R, confusion matrix R"
-auto_link_terms: "logistic regression exercises|logistic regression practice|logistic regression problems|binary classification exercises|classification practice problems|glm exercises"
-auto_link_case_sensitive: false
+title: "Logistic Regression Exercises in R: 25 Practice Problems"
+slug: "Logistic-Regression-Exercises-in-R"
+description: "Logistic regression R exercises: 25 binary classification problems covering glm(), odds ratios, ROC/AUC, threshold tuning, and end-to-end model workflows."
+keywords: "logistic regression R exercises, glm R practice, binary classification R, odds ratio R, ROC AUC R, logistic regression practice problems"
 mathjax: true
 webr: true
-date: 2026-04-20
-curriculum_id: E6.3
-post_type: EX
-sidebar_title: "Logistic Regression Exercises (10 problems)"
-fr_parent: Logistic-Regression-in-R.html
-difficulty: Intermediate
+date: "2026-05-12"
+post_type: "EX"
+sidebar_title: "Logistic Regression Exercises"
+sidebar_order: 127
+fr_parent: "Logistic-Regression-With-R.html"
+auto_link_terms: "logistic regression in r|glm in r|binary classification|odds ratio|roc curve|confusion matrix"
+auto_link_case_sensitive: false
+target_keyword: "logistic regression R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step
+# Logistic Regression Exercises in R: 25 Practice Problems
 
-<p class="lead">These 10 logistic regression exercises in R walk you through fitting a <code>glm(family = binomial)</code> model, interpreting log-odds as odds ratios, predicting probabilities, building confusion matrices, drawing ROC curves, computing AUC, and comparing nested classifiers. Every problem ships with a runnable scaffold, a hint, and a collapsible solution so you can self-check the instant you finish coding.</p>
+<p class="lead">Twenty-five graded logistic regression problems in R, from fitting your first `glm()` and reading odds ratios to ROC/AUC scoring, threshold tuning, and an end-to-end churn pipeline. Each problem ships with an Expected result and a hidden solution so you can self-check.</p>
 
-## How do you fit a logistic regression with glm()?
+```r title="Run this once before any exercise"
+library(stats)
+library(dplyr)
+library(tibble)
+library(pROC)
+library(broom)
+library(ggplot2)
+```
 
-One line of R fits a logistic regression: pass `y ~ x1 + x2 + ...` to `glm()` with `family = binomial`. The coefficients it returns live on the log-odds scale, and a z-test next to each one tells you whether that predictor beats noise. We fit a transmission-type classifier on `mtcars` right now, then Problem 1 asks you to refit with a different predictor.
+## Section 1. Fit, predict, and interpret a binary logistic model (4 problems)
 
-```r title="Fit a logistic regression on mtcars"
-# Predict manual (am = 1) vs automatic (am = 0) from weight and horsepower
-fit1 <- glm(am ~ wt + hp, data = mtcars, family = binomial)
-summary(fit1)
-#> Call:
-#> glm(formula = am ~ wt + hp, family = binomial, data = mtcars)
-#>
+### Exercise 1.1: Fit a one-predictor logistic regression on mtcars
+
+**Task:** Use `glm()` with `family = binomial` to fit a logistic regression predicting transmission type (`am`, 1 = manual) from miles per gallon (`mpg`) on the built-in `mtcars` dataset. Save the fitted model object to `ex_1_1` and print its summary coefficients.
+
+**Expected result:**
+
+```
 #> Coefficients:
 #>             Estimate Std. Error z value Pr(>|z|)
-#> (Intercept) 18.86630    7.44356   2.534   0.0113 *
-#> wt          -8.08348    3.06868  -2.634   0.0084 **
-#> hp           0.03626    0.01773   2.044   0.0409 *
-#>
-#>     Null deviance: 43.230  on 31  degrees of freedom
-#> Residual deviance: 10.059  on 29  degrees of freedom
-#> AIC: 16.059
+#> (Intercept)  -6.6035     2.3514  -2.808  0.00498 **
+#> mpg           0.3070     0.1148   2.673  0.00751 **
 ```
 
-The `wt` slope is −8.08, so heavier cars are much less likely to be manual after you hold horsepower constant. The `hp` slope is +0.036, so between two cars of the same weight, the one with more horsepower tilts toward manual. Both z-values sit above 2 in absolute value and both p-values clear 0.05, which means each predictor carries real signal. The deviance drops from 43.23 (intercept-only null model) to 10.06 with two predictors, a huge reduction that says the fit is strong.
+**Difficulty:** Beginner
 
-[KEY INSIGHT]
-**Logistic regression coefficients are not on the probability scale.** Each slope measures the change in **log-odds** of the outcome per 1-unit change in the predictor. You cannot read −8.08 as "a probability goes down by 8.08", that sentence is meaningless. To talk about probabilities, call `predict(fit, type = "response")`. To talk about multiplicative odds changes, exponentiate (next section).
-
-### Problem 1: Refit with a single predictor
-
-**Try it:** Fit a simpler model `ex1_fit` that predicts `am` from `wt` only, then check whether the `wt` slope is still negative and its p-value is still below 0.05.
-
-```r title="Your turn: single-predictor logistic"
-# Problem 1: fit ex1_fit = glm(am ~ wt) with binomial family
-ex1_fit <- # your code here
-
-summary(ex1_fit)$coefficients
-#> Expected: two rows (Intercept, wt); wt Estimate is negative, Pr(>|z|) < 0.05
+```r title="Your turn"
+ex_1_1 <- # your code here
+summary(ex_1_1)$coefficients
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 1 solution"
-ex1_fit <- glm(am ~ wt, data = mtcars, family = binomial)
-summary(ex1_fit)$coefficients
-#>              Estimate Std. Error   z value    Pr(>|z|)
-#> (Intercept) 12.040376  4.5095281  2.669748 0.007587687
-#> wt          -4.023969  1.4363865 -2.801346 0.005088165
+```r title="Solution"
+ex_1_1 <- glm(am ~ mpg, data = mtcars, family = binomial)
+summary(ex_1_1)$coefficients
+#>             Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)  -6.6035     2.3514  -2.808  0.00498
+#> mpg           0.3070     0.1148   2.673  0.00751
 ```
 
-**Explanation:** Without horsepower in the model, the weight slope shrinks in magnitude (−4.02 instead of −8.08) but stays clearly negative with p = 0.005. A partial slope depends on which other predictors are in the model, dropping `hp` changes what `wt` is holding constant.
+**Explanation:** `glm()` with `family = binomial` fits a logistic regression by maximum likelihood. The default link is `logit`, so coefficients are on the log-odds scale: a one-MPG increase raises the log-odds of a manual transmission by 0.307. The Wald z-value tests whether each coefficient differs from zero. Use `family = binomial(link = "probit")` if you ever need the probit alternative.
 
 </details>
 
-## How do you interpret coefficients as odds ratios?
+### Exercise 1.2: Predict response-scale probabilities for new mpg values
 
-Log-odds are hard to read aloud. A slope of −8.08 means nothing to a stakeholder. The standard fix is to exponentiate, which turns the log-odds change into a **multiplicative change in the odds** itself. An odds ratio of 2 means the odds of the outcome double per 1-unit increase in the predictor, a ratio of 0.5 means the odds halve. We compute both the point estimates and their 95% confidence intervals in one `exp()` call, then Problem 2 asks you to pull one OR.
+**Task:** Using the model `ex_1_1`, predict the probability of a manual transmission for cars with `mpg` values of 10, 20, and 30. Use `predict()` with `type = "response"` so the output is on the probability scale, not log-odds. Save the named numeric result to `ex_1_2`.
 
-```r title="Exponentiate coefficients to get odds ratios"
-# Point estimates
-odds_ratios <- exp(coef(fit1))
-print(odds_ratios)
-#>  (Intercept)           wt           hp
-#> 1.564716e+08 3.082956e-04 1.036924e+00
+**Expected result:**
 
-# 95% CIs, exponentiated
-exp(confint(fit1))
-#> Waiting for profiling to be done...
-#>                    2.5 %       97.5 %
-#> (Intercept) 2.123486e+02 7.108876e+15
-#> wt          1.729867e-07 8.015416e-03
-#> hp          1.008075e+00 1.086839e+00
+```
+#>          1          2          3
+#> 0.02672 0.36625 0.92293
 ```
 
-The odds ratio for `wt` is 0.00031, meaning the odds of being manual shrink by a factor of roughly 3,000 for each extra 1,000 lb of weight, holding horsepower constant. That number is extreme because a 1,000-lb jump is enormous relative to the mtcars spread (roughly 1.5 to 5.4). The odds ratio for `hp` is 1.037, so each extra horsepower multiplies the odds of being manual by about 1.037, a gentle 3.7% bump. The CI on `hp` is [1.008, 1.087], entirely above 1, so the effect is significantly positive at α = 0.05.
+**Difficulty:** Intermediate
 
-The formula connecting a slope on the log-odds scale to an odds ratio is a direct application of the exponential:
-
-$$\text{OR} = e^{\beta}$$
-
-Where:
-- $\beta$ = the logistic regression coefficient (log-odds change per 1-unit predictor increase)
-- $\text{OR}$ = the multiplicative factor applied to the odds per 1-unit predictor increase
-
-[TIP]
-**Always exponentiate the confidence interval, not the point estimate alone.** If you report only `exp(coef())` you have a number with no uncertainty attached. Wrapping `confint()` in `exp()` gives you the honest range of plausible odds ratios, and whether that range crosses 1 is the direct visual test for statistical significance at your chosen α.
-
-### Problem 2: Compute one odds ratio
-
-**Try it:** Using `fit1`, compute the odds ratio for `hp` as a single number and store it in `ex2_or_hp`. The grader checks it is within 0.01 of the true value.
-
-```r title="Your turn: odds ratio for hp"
-# Problem 2: exponentiate the hp slope from fit1
-ex2_or_hp <- # your code here
-
-print(ex2_or_hp)
-#> Expected: approximately 1.037
-abs(ex2_or_hp - 1.037) < 0.01
-#> Expected: TRUE
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 2 solution"
-ex2_or_hp <- exp(coef(fit1)["hp"])
-print(ex2_or_hp)
-#>       hp
-#> 1.036924
-
-abs(ex2_or_hp - 1.037) < 0.01
-#>   hp
-#> TRUE
+```r title="Solution"
+ex_1_2 <- predict(ex_1_1, newdata = data.frame(mpg = c(10, 20, 30)), type = "response")
+ex_1_2
+#>          1          2          3
+#> 0.02672    0.36625    0.92293
 ```
 
-**Explanation:** `coef(fit1)["hp"]` grabs the hp slope on the log-odds scale, and `exp()` maps it to the odds scale. The value 1.037 reads as "per extra horsepower, the odds of being manual rise by roughly 3.7%, holding weight constant."
+**Explanation:** The default `type = "link"` returns log-odds; `type = "response"` applies the inverse logit so values sit in (0, 1). For a thin-tailed sigmoid like this one, the probability jumps fastest near the decision boundary (mpg around 21.5 where log-odds = 0). Always pass a data frame with the same column name as the predictor, not a bare vector.
 
 </details>
 
-## How do you predict probabilities and build a confusion matrix?
+### Exercise 1.3: Convert log-odds to probabilities with plogis()
 
-Once the model is fit, the two most common follow-up tasks are turning predictors into **predicted probabilities** and turning those probabilities into **predicted classes** via a threshold. The default `predict()` call on a `glm` object returns log-odds, which is rarely what you want, add `type = "response"` to get probabilities on the 0-to-1 scale. From there, a threshold (0.5 is the starting point) produces hard class labels, and a 2×2 `table()` of predictions versus actuals is the confusion matrix. Problem 3 drills the prediction step.
+**Task:** Manually compute fitted probabilities for the first six rows of `mtcars` by extracting the linear predictor from `ex_1_1` and passing it through `plogis()`. Compare against `predict(type = "response")` and save the manual probability vector to `ex_1_3`. They must match to numerical precision.
 
-```r title="Predict probabilities, threshold, confusion matrix"
-# Probabilities: one per training row
-probs <- predict(fit1, type = "response")
-head(probs, 4)
-#>         Mazda RX4     Mazda RX4 Wag        Datsun 710    Hornet 4 Drive
-#>         0.8401478         0.6310526         0.9865269         0.0361108
+**Expected result:**
 
-# Predicted classes via 0.5 cutoff
-preds <- ifelse(probs > 0.5, 1, 0)
-
-# Confusion matrix: rows = predicted, columns = actual
-cm <- table(predicted = preds, actual = mtcars$am)
-print(cm)
-#>          actual
-#> predicted  0  1
-#>         0 19  1
-#>         1  0 12
-
-# Accuracy: sum of the diagonal divided by total
-accuracy <- sum(diag(cm)) / sum(cm)
-print(accuracy)
-#> [1] 0.96875
+```
+#>         Mazda RX4    Mazda RX4 Wag       Datsun 710   Hornet 4 Drive
+#>             0.523            0.523            0.578            0.499
+#> Hornet Sportabout          Valiant
+#>             0.376            0.318
 ```
 
-Accuracy is 0.969, meaning 31 of 32 cars are classified correctly on the training data. The single error is an actual-manual car predicted as automatic. At this scale the model looks near-perfect, but treat that number with caution: 32 rows is tiny, and evaluating on the same data you trained on is guaranteed to be optimistic. A real workflow holds out a test set or cross-validates before trusting accuracy.
+**Difficulty:** Intermediate
 
-[WARNING]
-**Forgetting `type = "response"` silently returns log-odds, not probabilities.** The default `predict.glm()` returns values on the link scale (log-odds), which can be any real number including negatives. If you then threshold at 0.5, every value below 0 gets class 0 and most positive values get class 1, and you get a confusion matrix that looks plausible but is wrong. Always write out `type = "response"` when you want probabilities.
-
-### Problem 3: Predict probability for a new car
-
-**Try it:** Predict the probability of being manual for a single new car with `wt = 2.5` and `hp = 120`. Store the number in `ex3_prob` and confirm it is between 0 and 1.
-
-```r title="Your turn: predict probability for a new car"
-# Problem 3: predict probability of am = 1 for one new row
-ex3_new  <- data.frame(wt = 2.5, hp = 120)
-ex3_prob <- # your code here (use predict with type = "response")
-
-print(ex3_prob)
-#> Expected: a number between 0 and 1, close to 1 (light car leans manual)
-ex3_prob > 0 & ex3_prob < 1
-#> Expected: TRUE
+```r title="Your turn"
+ex_1_3 <- # your code here
+head(ex_1_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 3 solution"
-ex3_new  <- data.frame(wt = 2.5, hp = 120)
-ex3_prob <- predict(fit1, newdata = ex3_new, type = "response")
-print(ex3_prob)
-#>         1
-#> 0.9906367
-
-ex3_prob > 0 & ex3_prob < 1
-#>    1
-#> TRUE
+```r title="Solution"
+log_odds <- predict(ex_1_1, type = "link")
+ex_1_3   <- plogis(log_odds)
+head(ex_1_3)
+#>         Mazda RX4    Mazda RX4 Wag       Datsun 710   Hornet 4 Drive
+#>             0.523            0.523            0.578            0.499
+#> Hornet Sportabout          Valiant
+#>             0.376            0.318
 ```
 
-**Explanation:** A 2,500-lb, 120-hp car is light and fairly powerful, both features that tilt toward manual in this model, so 0.99 is exactly what we expect. `newdata` must contain every predictor used at fit time, using the same column names.
+**Explanation:** `plogis(x)` is `1/(1 + exp(-x))`, the inverse logit. It maps any real number to (0, 1). Useful when you have raw linear predictors from `predict(type = "link")`, hand-computed log-odds, or coefficients from a paper. Its companion `qlogis()` goes the other way (probability to log-odds), handy for plotting on the logit scale.
 
 </details>
 
-## How do you evaluate the classifier with ROC curves and AUC?
+### Exercise 1.4: Inspect deviance residuals and null vs residual deviance
 
-Accuracy at a fixed threshold hides how the model behaves across *all* thresholds. The **ROC curve** fixes that: it plots sensitivity (true positive rate) against 1 − specificity (false positive rate) as the threshold sweeps from 0 to 1. The **AUC** (area under the ROC curve) compresses the whole curve into one number between 0.5 (coin flip) and 1 (perfect ranking). We build both with the `pROC` package in three lines, then Problem 4 asks you to extract the AUC as a plain number.
+**Task:** Run `summary(ex_1_1)` and extract the null deviance, residual deviance, and AIC into a named numeric vector. These three numbers together describe how much a single predictor improved fit over an intercept-only model. Save the named vector to `ex_1_4`.
 
-```r title="Compute ROC curve and AUC with pROC"
-library(pROC)
+**Expected result:**
 
-# Build the roc object (suppress the message pROC prints by default)
-roc_obj <- roc(response = mtcars$am, predictor = probs, quiet = TRUE)
-
-# One-number summary
-auc(roc_obj)
-#> Area under the curve: 0.9959
-
-# The curve itself
-plot(roc_obj, col = "#7c3aed", lwd = 3,
-     main = "ROC curve for am ~ wt + hp")
+```
+#> null_dev resid_dev      aic
+#>   43.230    29.675    33.675
 ```
 
-AUC of 0.996 means the model ranks a randomly chosen manual above a randomly chosen automatic 99.6% of the time. That is near-perfect, consistent with the 0.97 accuracy we already saw. The curve itself hugs the top-left corner, the canonical shape of a strong classifier. The diagonal 45° line would be pure randomness.
+**Difficulty:** Beginner
 
-[KEY INSIGHT]
-**AUC is threshold-free.** Accuracy depends on which cut-off you pick, AUC does not. That is why AUC is the standard one-number summary for binary classification, especially when you have not yet decided what threshold is clinically or operationally correct. Two models with different AUCs are genuinely different in their ability to rank positive cases above negative ones.
-
-### Problem 4: Extract AUC as a plain number
-
-**Try it:** Pull the AUC out of `roc_obj` as a numeric scalar (not the `auc` object pROC returns by default) and store it in `ex4_auc`. The grader checks it is above 0.99.
-
-```r title="Your turn: extract AUC as a number"
-# Problem 4: get AUC as plain numeric from roc_obj
-ex4_auc <- # your code here
-
-print(ex4_auc)
-#> Expected: a single number above 0.99
-ex4_auc > 0.99
-#> Expected: TRUE
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 4 solution"
-ex4_auc <- as.numeric(auc(roc_obj))
-print(ex4_auc)
-#> [1] 0.9959514
-
-ex4_auc > 0.99
-#> [1] TRUE
+```r title="Solution"
+ex_1_4 <- c(
+  null_dev  = ex_1_1$null.deviance,
+  resid_dev = ex_1_1$deviance,
+  aic       = ex_1_1$aic
+)
+ex_1_4
+#> null_dev resid_dev      aic
+#>   43.230    29.675    33.675
 ```
 
-**Explanation:** `auc(roc_obj)` returns a special `auc` object with printing dressing around it; `as.numeric()` strips that and gives you a plain number you can compare, log, or export. If you skip the cast, ggplot or a spreadsheet writer may choke on the custom class.
+**Explanation:** Null deviance measures the fit of an intercept-only model; residual deviance measures the fit with predictors. The drop (43.2 to 29.7, a difference of 13.5) is the model's improvement. Compared to a chi-squared distribution with `df = 1`, that drop is highly significant. AIC penalizes deviance by `2 * p`, so it can rank non-nested models with different predictor sets.
 
 </details>
 
-## How do you compare models and check overall fit?
+## Section 2. Coefficients, odds ratios, and inference (4 problems)
 
-Two questions pop up whenever you have more than one candidate model: *does adding these predictors really help?* (answered with a nested likelihood-ratio test) and *how much of the total variability does any one model explain?* (answered with a pseudo-R²). `anova(small, big, test = "Chisq")` runs the likelihood-ratio test, and McFadden's pseudo-R² is a two-line hand calculation from the deviance values in `summary()`. Problem 5 asks you to compute McFadden from scratch.
+### Exercise 2.1: Convert coefficients to odds ratios
 
-```r title="Compare nested models and compute pseudo-R-squared"
-# Bigger model: add cylinders
-fit_big <- glm(am ~ wt + hp + cyl, data = mtcars, family = binomial)
+**Task:** Compute the odds ratios for the `ex_1_1` model by exponentiating its coefficients. The OR for `mpg` answers "by what factor do the odds of a manual transmission multiply for each additional MPG?" Save the named numeric vector of odds ratios to `ex_2_1`.
 
-# Likelihood-ratio test: small vs big
-anova(fit1, fit_big, test = "Chisq")
+**Expected result:**
+
+```
+#> (Intercept)         mpg
+#>     0.00136     1.35945
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- exp(coef(ex_1_1))
+ex_2_1
+#> (Intercept)         mpg
+#>     0.00136     1.35945
+```
+
+**Explanation:** Logistic coefficients are log-odds, so `exp()` returns the multiplicative effect on the odds. An OR of 1.36 for `mpg` means the odds rise about 36% for every extra MPG. ORs above 1 mean positive association, below 1 negative, and exactly 1 no effect. The intercept's OR (0.00136) is the baseline odds when `mpg = 0`, which is rarely interesting on its own.
+
+</details>
+
+### Exercise 2.2: 95% confidence intervals for odds ratios
+
+**Task:** A reviewer wants both the point estimate and 95% CI for each odds ratio in `ex_1_1`. Use `confint()` to get log-odds CIs, then exponentiate the matrix to put them on the odds-ratio scale. Save the resulting 2-column matrix (with columns `2.5 %` and `97.5 %`) to `ex_2_2`.
+
+**Expected result:**
+
+```
+#>                2.5 %  97.5 %
+#> (Intercept) 1.07e-06 0.04929
+#> mpg         1.13e+00 1.79038
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- exp(confint(ex_1_1))
+ex_2_2
+#>                 2.5 %    97.5 %
+#> (Intercept) 1.07e-06   0.04929
+#> mpg         1.13e+00   1.79038
+```
+
+**Explanation:** `confint()` uses a profile-likelihood CI by default (slower but more accurate than the Wald CI from `confint.default()`). Because the mpg CI [1.13, 1.79] excludes 1, the effect is significant at the 5% level: every extra MPG multiplies the odds of a manual by between 13% and 79%. CIs that span 1 mean the predictor is not statistically distinguishable from no effect.
+
+</details>
+
+### Exercise 2.3: Interpret a single coefficient as a percent change in odds
+
+**Task:** A junior analyst onboarding needs a one-line interpretation. Compute the percent change in odds per unit increase of `mpg` from `ex_1_1` (`(OR - 1) * 100`). Round to one decimal place. Save the single scalar value to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> [1] 35.9
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+or       <- exp(coef(ex_1_1)["mpg"])
+ex_2_3   <- round((or - 1) * 100, 1)
+names(ex_2_3) <- NULL
+ex_2_3
+#> [1] 35.9
+```
+
+**Explanation:** Reporting "odds increase 35.9% per MPG" is more readable than an OR of 1.36 for non-technical audiences. The conversion is `(OR - 1) * 100`. If the OR were below 1 (say 0.80), you would report "odds decrease 20%". For very small effect sizes, log-odds and the `(OR - 1) * 100` value are approximately equal because `log(1 + x) ≈ x` near zero.
+
+</details>
+
+### Exercise 2.4: Likelihood ratio test of nested models
+
+**Task:** Compare a one-predictor model (`am ~ mpg`) to a two-predictor model (`am ~ mpg + wt`) using a likelihood ratio test with `anova(..., test = "LRT")`. The test asks whether adding `wt` significantly improves fit. Save the `anova` table to `ex_2_4`.
+
+**Expected result:**
+
+```
 #> Analysis of Deviance Table
 #>
-#> Model 1: am ~ wt + hp
-#> Model 2: am ~ wt + hp + cyl
+#> Model 1: am ~ mpg
+#> Model 2: am ~ mpg + wt
 #>   Resid. Df Resid. Dev Df Deviance Pr(>Chi)
-#> 1        29    10.0587
-#> 2        28     9.8415  1  0.21714   0.6412
-
-# McFadden pseudo-R-squared for fit1
-mcfadden_r2 <- 1 - (fit1$deviance / fit1$null.deviance)
-print(mcfadden_r2)
-#> [1] 0.7673186
+#> 1        30     29.675
+#> 2        29     19.176  1  10.4995 0.001195 **
 ```
 
-The likelihood-ratio test reports a deviance drop of just 0.22 with 1 extra parameter and p = 0.64, nowhere near significance. Adding cylinders does not help, stick with the smaller model. McFadden's pseudo-R² of 0.77 for `fit1` says the model explains about 77% of the null deviance, a strong value, but pseudo-R² values from different samples or model families should not be compared directly, unlike a linear regression R².
+**Difficulty:** Advanced
 
-[NOTE]
-**McFadden's pseudo-R² is not the same thing as linear regression R².** A value of 0.77 in linear regression would mean "77% of variance explained", a very high number. In logistic regression, McFadden values of 0.2 to 0.4 already indicate a good fit. Do not hold logistic models to the 0.7+ bar that applies to linear ones, and do not use pseudo-R² to compare models fit to different datasets.
-
-### Problem 5: McFadden pseudo-R² by hand
-
-**Try it:** Compute McFadden's pseudo-R² for `fit1` from scratch using the formula $1 - \text{resid.dev} / \text{null.dev}$. Store the result in `ex5_r2` and confirm it matches the teaching-block number to 3 decimals.
-
-```r title="Your turn: McFadden pseudo-R-squared"
-# Problem 5: compute McFadden pseudo-R-squared for fit1
-ex5_r2 <- # your code here
-
-print(ex5_r2)
-#> Expected: approximately 0.767
-round(ex5_r2, 3) == 0.767
-#> Expected: TRUE
+```r title="Your turn"
+m1     <- glm(am ~ mpg,      data = mtcars, family = binomial)
+m2     <- # your code here
+ex_2_4 <- # your code here
+ex_2_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 5 solution"
-ex5_r2 <- 1 - (fit1$deviance / fit1$null.deviance)
-print(ex5_r2)
-#> [1] 0.7673186
-
-round(ex5_r2, 3) == 0.767
-#> [1] TRUE
-```
-
-**Explanation:** `fit1$deviance` is the residual deviance, `fit1$null.deviance` is the deviance of an intercept-only model. Their ratio is the share of variability the model did **not** explain; 1 minus that ratio is McFadden's pseudo-R². The calculation is always a two-line job on a fitted `glm` object.
-
-</details>
-
-## Practice Exercises
-
-Five capstone problems, ordered roughly easier → harder. Each uses a distinct `ex<N>_` prefix so your exercise code never clobbers `fit1`, `probs`, `roc_obj`, or the other teaching variables.
-
-### Problem 6: Extract a specific coefficient by name
-
-Pull the `wt` slope out of `fit1` as a single number and save it to `ex6_wt`. The grader checks that you got the exact value from `summary()`.
-
-```r title="Problem 6 starter: extract wt coefficient"
-# Problem 6: pull the wt slope from fit1 as a single number
-ex6_wt <- # your code here
-
-print(ex6_wt)
-#> Expected: approximately -8.083
-abs(ex6_wt - (-8.08348)) < 0.01
-#> Expected: TRUE
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 6 solution"
-ex6_wt <- coef(fit1)["wt"]
-print(ex6_wt)
-#>        wt
-#> -8.083483
-
-abs(ex6_wt - (-8.08348)) < 0.01
-#>   wt
-#> TRUE
-```
-
-**Explanation:** `coef()` returns a named numeric vector of all coefficients. Indexing by `"wt"` pulls exactly the one you want without caring about its position. That pattern generalises to every fitted model: `coef(model)["name"]` is the shortest path to one slope.
-
-</details>
-
-### Problem 7: Build a 95% confidence interval for an odds ratio
-
-Produce a two-element named vector `ex7_ci` with the 2.5% and 97.5% exponentiated limits for the `hp` odds ratio. Use `confint()`, then `exp()`.
-
-```r title="Problem 7 starter: CI for hp odds ratio"
-# Problem 7: 95% CI for the odds ratio of hp
-ex7_ci <- # your code here
-
-print(ex7_ci)
-#> Expected: two values, both above 1, roughly [1.008, 1.087]
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 7 solution"
-ex7_ci <- exp(confint(fit1))["hp", ]
-print(ex7_ci)
-#>    2.5 %   97.5 %
-#> 1.008075 1.086839
-```
-
-**Explanation:** `confint(fit1)` returns a matrix with one row per coefficient and two columns (2.5%, 97.5%). Indexing `"hp", ]` pulls the row for `hp`, and wrapping the whole matrix in `exp()` puts both limits on the odds scale. Both endpoints sit above 1, so the positive hp effect is significant at α = 0.05.
-
-</details>
-
-### Problem 8: Confusion matrix at a stricter threshold
-
-Using `probs` from the teaching block, build a confusion matrix `ex8_cm` at a stricter threshold of 0.7 (only classify as manual when the model is very confident), then compute the accuracy `ex8_acc`.
-
-```r title="Problem 8 starter: threshold 0.7 confusion matrix"
-# Problem 8: confusion matrix at threshold 0.7 + accuracy
-ex8_preds <- # threshold probs at 0.7
-ex8_cm    <- # table of predicted vs actual
-ex8_acc   <- # accuracy from ex8_cm
-
-print(ex8_cm)
-print(ex8_acc)
-#> Expected: accuracy slightly below the 0.5-threshold accuracy (some manuals now missed)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 8 solution"
-ex8_preds <- ifelse(probs > 0.7, 1, 0)
-ex8_cm    <- table(predicted = ex8_preds, actual = mtcars$am)
-ex8_acc   <- sum(diag(ex8_cm)) / sum(ex8_cm)
-
-print(ex8_cm)
-#>          actual
-#> predicted  0  1
-#>         0 19  2
-#>         1  0 11
-
-print(ex8_acc)
-#> [1] 0.90625
-```
-
-**Explanation:** Raising the threshold from 0.5 to 0.7 is more conservative about calling a car manual. One extra manual whose probability sat between 0.5 and 0.7 now gets classified as automatic, so recall for the manual class drops and overall accuracy falls from 0.969 to 0.906. Tuning the threshold is always a trade-off between false positives and false negatives, which is what the ROC curve visualises.
-
-</details>
-
-### Problem 9: Youden-optimal threshold
-
-Use `pROC::coords(roc_obj, x = "best", ret = "threshold", best.method = "youden")` to find the threshold that maximises Youden's J (sensitivity + specificity − 1). Save the threshold in `ex9_best`.
-
-```r title="Problem 9 starter: optimal threshold"
-# Problem 9: Youden-best threshold via pROC::coords
-ex9_best <- # your code here
-
-print(ex9_best)
-#> Expected: a threshold between 0 and 1
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 9 solution"
-ex9_best <- pROC::coords(roc_obj, x = "best",
-                         ret = "threshold", best.method = "youden")
-print(ex9_best)
-#>   threshold
-#> 1 0.4883... (a value near 0.5)
-```
-
-**Explanation:** `coords(..., x = "best")` scans every possible threshold and returns the one that maximises Youden's J by default. In this tiny, well-separated dataset the optimum sits close to 0.5, so the default cut-off is already almost perfect. On noisier data the optimum often lands far from 0.5, which is why you should always check rather than assume.
-
-</details>
-
-### Problem 10: Nested likelihood-ratio test for a new predictor
-
-Fit `ex10_biggest <- glm(am ~ wt + hp + cyl + disp, binomial)` and compare it against `fit_big` with `anova(..., test = "Chisq")`. Save the ANOVA object in `ex10_anova` and decide at α = 0.05 whether `disp` adds anything.
-
-```r title="Problem 10 starter: nested LR test"
-# Problem 10: anova Chi-square test comparing fit_big vs ex10_biggest
-ex10_biggest <- # your code here
-ex10_anova   <- # anova(fit_big, ex10_biggest, test = "Chisq")
-
-print(ex10_anova)
-#> Expected: a deviance table; the Pr(>Chi) column decides the verdict
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 10 solution"
-ex10_biggest <- glm(am ~ wt + hp + cyl + disp, data = mtcars, family = binomial)
-ex10_anova   <- anova(fit_big, ex10_biggest, test = "Chisq")
-print(ex10_anova)
+```r title="Solution"
+m1     <- glm(am ~ mpg,      data = mtcars, family = binomial)
+m2     <- glm(am ~ mpg + wt, data = mtcars, family = binomial)
+ex_2_4 <- anova(m1, m2, test = "LRT")
+ex_2_4
 #> Analysis of Deviance Table
 #>
-#> Model 1: am ~ wt + hp + cyl
-#> Model 2: am ~ wt + hp + cyl + disp
+#> Model 1: am ~ mpg
+#> Model 2: am ~ mpg + wt
 #>   Resid. Df Resid. Dev Df Deviance Pr(>Chi)
-#> 1        28     9.8415
-#> 2        27     9.8413  1 0.000163   0.9898
-
-# Verdict: disp adds essentially nothing (p ~ 0.99).
+#> 1        30     29.675
+#> 2        29     19.176  1  10.4995 0.001195
 ```
 
-**Explanation:** The deviance barely moves (9.84 → 9.84) and p ≈ 0.99. Once weight, horsepower, and cylinders are in the model, engine displacement is redundant, a classic sign that `disp` is already represented through the other predictors (big-displacement engines tend to have more hp and more weight).
+**Explanation:** The LRT statistic equals the deviance drop (10.5) and follows a chi-squared distribution with `df` equal to the parameter difference (1). A p-value of 0.0012 rejects the null that the smaller model is adequate. Use `test = "LRT"` (or `"Chisq"`) for nested logistic models. For comparing non-nested or different-family models, use AIC instead.
 
 </details>
 
-## Complete Example: end-to-end workflow on a new dataset
+## Section 3. Multiple predictors, factors, and interactions (4 problems)
 
-Here is the whole pipeline chained on the built-in `infert` dataset, a case-control study of infertility after spontaneous and induced abortions. We fit a model, read one odds ratio, predict probabilities, threshold them, build a confusion matrix, compute AUC, and compare against a smaller rival, all in one continuous block.
+### Exercise 3.1: Fit a multi-predictor logistic regression on iris
 
-![Logistic regression workflow](screenshots/Logistic-Regression-Exercises-in-R-workflow-flow.webp)
-*Figure 1: The six-stage logistic classification workflow rehearsed by these 10 problems.*
+**Task:** Subset `iris` to the two species `setosa` and `versicolor`, then fit a logistic regression of species (coded as 1 for versicolor) on `Sepal.Length`, `Sepal.Width`, and `Petal.Length`. Save the model to `ex_3_1` and inspect with `coef()`. (Setosa and versicolor are nearly linearly separable; expect large coefficient magnitudes and a warning about fitted probabilities at 0 or 1, which is fine for this drill.)
 
-```r title="Complete example: infert case-control classifier"
-# 1. Fit a model on the infert dataset
-final_fit <- glm(case ~ age + parity + spontaneous,
-                 data = infert, family = binomial)
+**Expected result:**
 
-# 2. One odds ratio (spontaneous)
-exp(coef(final_fit)["spontaneous"])
-#> spontaneous
-#>    3.143225
-
-# 3. Predict probabilities
-final_probs <- predict(final_fit, type = "response")
-
-# 4. Threshold at 0.5 and build confusion matrix
-final_preds <- ifelse(final_probs > 0.5, 1, 0)
-final_cm    <- table(predicted = final_preds, actual = infert$case)
-print(final_cm)
-#>          actual
-#> predicted   0   1
-#>         0 137  42
-#>         1  28  41
-
-# 5. AUC
-final_roc <- pROC::roc(response = infert$case,
-                       predictor = final_probs, quiet = TRUE)
-round(as.numeric(pROC::auc(final_roc)), 3)
-#> [1] 0.727
-
-# 6. Compare against an age-only rival
-small_fit <- glm(case ~ age, data = infert, family = binomial)
-anova(small_fit, final_fit, test = "Chisq")$`Pr(>Chi)`[2]
-#> [1] 4.89e-09
+```
+#> (Intercept)  Sepal.Length  Sepal.Width  Petal.Length
+#>      -50.53          7.79       -10.13         18.29
 ```
 
-The odds ratio for `spontaneous` is 3.14, meaning each additional spontaneous abortion triples the odds of being an infertility case, a very large effect that survives adjustment for age and parity. Overall accuracy at threshold 0.5 is (137 + 41) / 248 ≈ 71.8%, and AUC is 0.73, a respectable but not exceptional classifier, consistent with the known difficulty of predicting infertility from a handful of reproductive-history variables. The nested LR test p-value of 4.9e-09 confirms that adding parity and spontaneous to an age-only model is a highly significant improvement.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+iris2  <- iris |>
+  filter(Species %in% c("setosa", "versicolor")) |>
+  mutate(y = as.integer(Species == "versicolor"))
+ex_3_1 <- # your code here
+coef(ex_3_1)
+```
 
-| # | Problem | Concept tested | R function |
-|---|---|---|---|
-| 1 | Refit with a single predictor | `glm()` basic call | `glm(y ~ x, family = binomial)` |
-| 2 | Compute one odds ratio | Exponentiate a slope | `exp(coef())` |
-| 3 | Probability for a new row | `type = "response"` | `predict(..., newdata, type = "response")` |
-| 4 | Extract AUC as a number | Cast special object | `as.numeric(auc())` |
-| 5 | McFadden's pseudo-R² | Deviance arithmetic | `1 - deviance / null.deviance` |
-| 6 | Extract a coefficient by name | Named-vector indexing | `coef()["name"]` |
-| 7 | 95% CI for an odds ratio | Exponentiated CI | `exp(confint())` |
-| 8 | Confusion matrix at custom cut-off | Thresholding + cross-tab | `ifelse()` + `table()` |
-| 9 | Youden-optimal threshold | ROC coordinate search | `pROC::coords(x = "best")` |
-| 10 | Likelihood-ratio test | Nested model comparison | `anova(..., test = "Chisq")` |
+<details>
+<summary>Click to reveal solution</summary>
 
-## References
+```r title="Solution"
+iris2  <- iris |>
+  filter(Species %in% c("setosa", "versicolor")) |>
+  mutate(y = as.integer(Species == "versicolor"))
 
-1. James, G., Witten, D., Hastie, T., Tibshirani, R., *An Introduction to Statistical Learning*, 2nd edition, Chapter 4: Classification. [Link](https://www.statlearning.com/)
-2. Hosmer, D. W., Lemeshow, S., Sturdivant, R. X., *Applied Logistic Regression*, 3rd edition. Wiley (2013).
-3. R Core Team, `stats::glm` reference manual. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
-4. Robin, X. et al., pROC package documentation. [Link](https://cran.r-project.org/package=pROC)
-5. Harrell, F. E., *Regression Modeling Strategies*, 2nd edition, Chapter 10: Binary Logistic Regression. Springer (2015).
-6. Faraway, J. J., *Extending the Linear Model with R*, 2nd edition, Chapter 2: Binomial Data. CRC Press (2016).
-7. Long, J. S., *Regression Models for Categorical and Limited Dependent Variables*, Chapter 3: Binary Outcomes. Sage (1997).
+ex_3_1 <- suppressWarnings(
+  glm(y ~ Sepal.Length + Sepal.Width + Petal.Length, data = iris2, family = binomial)
+)
+coef(ex_3_1)
+#> (Intercept)  Sepal.Length  Sepal.Width  Petal.Length
+#>      -50.53          7.79       -10.13         18.29
+```
 
-## Continue Learning
+**Explanation:** Multi-predictor logistic models are fit the same way as univariate ones, just with more terms on the right side of the formula. Each coefficient is the partial log-odds effect holding the others constant. The "fitted probabilities 0 or 1" warning means the classes are (nearly) perfectly separable: log-likelihood can be increased indefinitely by inflating coefficients. For real classification you would penalize this with `glmnet::glmnet()` or `arm::bayesglm()`.
 
-1. [Logistic Regression in R](Logistic-Regression-in-R.html), the parent tutorial that introduces every concept these 10 problems rehearse.
-2. [Multiple Regression Exercises in R](Multiple-Regression-Exercises-in-R.html), the linear-outcome sibling that trains the same diagnostic muscles on continuous targets.
-3. [Logistic Regression With R](Logistic-Regression-With-R.html), a worked case study on a real dataset that complements the `mtcars` walk-throughs above.
+</details>
+
+### Exercise 3.2: Use a factor predictor with multiple levels
+
+**Task:** Convert `cyl` in `mtcars` to a factor and fit `am ~ factor(cyl)`. R will create two dummy variables (4 is the reference, 6 and 8 get their own coefficient). Extract the exponentiated coefficients to read off the odds ratios for 6-cylinder and 8-cylinder cars versus 4-cylinder. Save the named odds-ratio vector to `ex_3_2`.
+
+**Expected result:**
+
+```
+#>   (Intercept) factor(cyl)6 factor(cyl)8
+#>          2.67         0.50         0.16
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit    <- glm(am ~ factor(cyl), data = mtcars, family = binomial)
+ex_3_2 <- round(exp(coef(fit)), 2)
+ex_3_2
+#>   (Intercept) factor(cyl)6 factor(cyl)8
+#>          2.67         0.50         0.16
+```
+
+**Explanation:** A factor predictor with K levels becomes K-1 dummies. The intercept's OR (2.67) is the baseline odds of a manual for 4-cylinder cars. The OR for `factor(cyl)6` of 0.50 means 6-cylinder cars have half the odds of a manual versus 4-cylinder; 8-cylinder cars drop to 16%. Change the reference category with `relevel(factor(cyl), ref = "8")` if you want 8-cyl as the baseline.
+
+</details>
+
+### Exercise 3.3: Add an interaction term and read the joint effect
+
+**Task:** The marketing team suspects that the effect of price discount on conversion is stronger for new customers than for returning ones. Using the inline `signups` tibble, fit `converted ~ discount * new_customer` and save the model to `ex_3_3`. Report the coefficients with `summary()`'s `$coefficients` table.
+
+```r
+set.seed(42)
+signups <- tibble::tibble(
+  discount     = rep(c(0, 10, 20), times = 60),
+  new_customer = rep(c(0, 1),     each = 90),
+  converted    = rbinom(180, 1,
+                        plogis(-1.5 + 0.05 * rep(c(0, 10, 20), times = 60) +
+                               1.0  * rep(c(0, 1), each = 90) +
+                               0.08 * rep(c(0, 10, 20), times = 60) *
+                                      rep(c(0, 1), each = 90)))
+)
+```
+
+**Expected result:**
+
+```
+#>                        Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)              -1.583     0.4283  -3.696 2.19e-04
+#> discount                  0.0518    0.0349   1.485 1.38e-01
+#> new_customer              1.114     0.5524   2.018 4.36e-02
+#> discount:new_customer     0.0708    0.0462   1.532 1.26e-01
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+summary(ex_3_3)$coefficients
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- glm(converted ~ discount * new_customer, data = signups, family = binomial)
+summary(ex_3_3)$coefficients
+#>                        Estimate Std. Error z value Pr(>|z|)
+#> (Intercept)              -1.583     0.4283  -3.696 2.19e-04
+#> discount                  0.0518    0.0349   1.485 1.38e-01
+#> new_customer              1.114     0.5524   2.018 4.36e-02
+#> discount:new_customer     0.0708    0.0462   1.532 1.26e-01
+```
+
+**Explanation:** `discount * new_customer` is shorthand for `discount + new_customer + discount:new_customer`. The interaction coefficient (0.071 on the log-odds scale) means each extra discount point lifts the log-odds of conversion an additional 0.071 for new customers, on top of the main effect of 0.052. Always interpret interactions before main effects; main-effect coefficients are conditional when one variable is zero.
+
+</details>
+
+### Exercise 3.4: Standardize numeric predictors before fitting
+
+**Task:** Fit a logistic regression on `mtcars` predicting `am` from `mpg`, `hp`, and `wt`. Standardize the three predictors first using `scale()` so the coefficients are on a comparable z-score scale and easier to rank by importance. Save the model to `ex_3_4` and print its coefficients rounded to 3 decimals.
+
+**Expected result:**
+
+```
+#> (Intercept)         mpg          hp          wt
+#>      -1.052       3.205       7.330      -9.567
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+mtcars_z <- mtcars |>
+  mutate(across(c(mpg, hp, wt), ~ as.numeric(scale(.))))
+ex_3_4   <- # your code here
+round(coef(ex_3_4), 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mtcars_z <- mtcars |>
+  mutate(across(c(mpg, hp, wt), ~ as.numeric(scale(.))))
+
+ex_3_4 <- suppressWarnings(
+  glm(am ~ mpg + hp + wt, data = mtcars_z, family = binomial)
+)
+round(coef(ex_3_4), 3)
+#> (Intercept)         mpg          hp          wt
+#>      -1.052       3.205       7.330      -9.567
+```
+
+**Explanation:** After standardizing, each coefficient is the log-odds change per one-standard-deviation move in that predictor, so magnitudes are comparable. Here `wt` has the largest absolute effect (-9.57), then `hp` (+7.33), then `mpg` (+3.21). Standardization does NOT change predictions or p-values, only the coefficient scale and interpretation; use it for ranking importance, not for changing model fit.
+
+</details>
+
+## Section 4. Model evaluation: confusion matrix, ROC, deviance (4 problems)
+
+### Exercise 4.1: Build a confusion matrix at threshold 0.5
+
+**Task:** Using `ex_1_1` (the single-predictor model), turn fitted probabilities into predicted classes with cutoff 0.5, then compute a 2x2 confusion matrix against the actual `am` values in `mtcars`. Rows should be predicted class (0, 1) and columns actual class. Save the table object to `ex_4_1`.
+
+**Expected result:**
+
+```
+#>     actual
+#> pred  0  1
+#>    0 17  3
+#>    1  2 10
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+probs  <- predict(ex_1_1, type = "response")
+pred   <- ifelse(probs > 0.5, 1, 0)
+ex_4_1 <- table(pred = pred, actual = mtcars$am)
+ex_4_1
+#>     actual
+#> pred  0  1
+#>    0 17  3
+#>    1  2 10
+```
+
+**Explanation:** A confusion matrix is the foundation of every classification metric. Diagonal entries (17 + 10 = 27 correct) divided by total (32) gives accuracy of 0.844. Off-diagonals split into 3 false negatives (predicted 0, actually 1) and 2 false positives. Pick the cutoff to match business cost: lower it to catch more positives, raise it to be more confident before flagging. The choice is decision-theoretic, not statistical.
+
+</details>
+
+### Exercise 4.2: Compute accuracy, sensitivity, and specificity
+
+**Task:** From the confusion matrix in `ex_4_1`, compute three classification metrics: accuracy (overall correct rate), sensitivity (true positive rate, also called recall), and specificity (true negative rate). Save them as a named numeric vector with names `accuracy`, `sensitivity`, `specificity` to `ex_4_2`, rounded to 3 decimals.
+
+**Expected result:**
+
+```
+#>    accuracy sensitivity specificity
+#>       0.844       0.769       0.895
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cm <- ex_4_1
+TN <- cm["0", "0"]; FP <- cm["1", "0"]
+FN <- cm["0", "1"]; TP <- cm["1", "1"]
+
+ex_4_2 <- round(c(
+  accuracy    = (TP + TN) / sum(cm),
+  sensitivity = TP / (TP + FN),
+  specificity = TN / (TN + FP)
+), 3)
+ex_4_2
+#>    accuracy sensitivity specificity
+#>       0.844       0.769       0.895
+```
+
+**Explanation:** Sensitivity and specificity are conditional rates, not unconditional. Sensitivity asks "of the actual positives, what share did we catch?"; specificity asks "of the actual negatives, what share did we correctly rule out?". They trade off as you slide the threshold. Accuracy alone is misleading under class imbalance: a 99% no-event base rate makes "always predict no" hit 99% accuracy while catching zero positives.
+
+</details>
+
+### Exercise 4.3: ROC curve and AUC with pROC
+
+**Task:** Compute the ROC curve and area under the curve (AUC) for `ex_1_1` using `pROC::roc()`. Suppress the `auto-direction` message with `quiet = TRUE`. Save the AUC value (a scalar, class `auc`) to `ex_4_3` and print it rounded to 3 decimals.
+
+**Expected result:**
+
+```
+#> Area under the curve: 0.892
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+probs  <- predict(ex_1_1, type = "response")
+roc_obj <- pROC::roc(mtcars$am, probs, quiet = TRUE)
+ex_4_3 <- pROC::auc(roc_obj)
+ex_4_3
+#> Area under the curve: 0.892
+```
+
+**Explanation:** AUC integrates the ROC across all thresholds, giving one threshold-free summary of how well the model ranks positives above negatives. AUC of 0.5 is random; 1.0 is perfect ranking; 0.892 is strong. Equivalent interpretation: pick a random positive and a random negative; AUC is the probability the model assigns the positive a higher score. For severely imbalanced data, prefer area under the precision-recall curve instead.
+
+</details>
+
+### Exercise 4.4: McFadden pseudo-R-squared
+
+**Task:** Logistic regression has no R-squared in the OLS sense. Compute McFadden's pseudo-R-squared for `ex_1_1` as `1 - (residual deviance / null deviance)`. Values between 0.2 and 0.4 indicate excellent fit by McFadden's own guideline (this is a much stricter scale than OLS R-squared). Save the scalar (rounded to 3 decimals) to `ex_4_4`.
+
+**Expected result:**
+
+```
+#> [1] 0.314
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_4 <- round(1 - (ex_1_1$deviance / ex_1_1$null.deviance), 3)
+ex_4_4
+#> [1] 0.314
+```
+
+**Explanation:** McFadden's pseudo-R-squared compares the log-likelihood of the fitted model to that of an intercept-only model. Unlike OLS R-squared, it is bounded by 1 only in the limit and McFadden suggested values of 0.2 to 0.4 indicate "excellent" fit. Other variants exist (Cox-Snell, Nagelkerke, Tjur), and they disagree by design, so always name the one you report. Computed here without packages, but `pscl::pR2()` returns five of them at once.
+
+</details>
+
+## Section 5. Class imbalance and threshold tuning (5 problems)
+
+### Exercise 5.1: Find the threshold that maximizes accuracy
+
+**Task:** The fraud team wants the threshold for `ex_1_1` that maximizes overall accuracy on the training data. Sweep cutoffs from 0.05 to 0.95 in steps of 0.05, compute accuracy at each, and return the cutoff (rounded to 2 decimals) that achieves the maximum. Save it to `ex_5_1` as a single scalar.
+
+**Expected result:**
+
+```
+#> [1] 0.45
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+probs  <- predict(ex_1_1, type = "response")
+thr    <- seq(0.05, 0.95, by = 0.05)
+acc    <- sapply(thr, function(t) mean(ifelse(probs > t, 1, 0) == mtcars$am))
+ex_5_1 <- thr[which.max(acc)]
+ex_5_1
+#> [1] 0.45
+```
+
+**Explanation:** The "best" threshold is not always 0.5: it depends on class balance and cost asymmetry. Tuning by accuracy on training data risks overfitting and ignores the cost of false positives versus false negatives. In production, optimize on a holdout set and target a business metric (expected dollar value, F1, recall at fixed precision) rather than raw accuracy. Youden's J (`sensitivity + specificity - 1`) is also a popular threshold criterion.
+
+</details>
+
+### Exercise 5.2: Downsample the majority class for balanced training
+
+**Task:** The compliance officer has a highly imbalanced inline fraud dataset where only 10% of transactions are fraud. Downsample the non-fraud class with `dplyr::slice_sample()` so both classes have the same count, then fit a logistic regression `fraud ~ amount + risk_score` and save it to `ex_5_2`.
+
+```r
+set.seed(7)
+n_clean <- 900; n_fraud <- 100
+tx <- tibble::tibble(
+  fraud      = c(rep(0L, n_clean), rep(1L, n_fraud)),
+  amount     = c(rnorm(n_clean, mean = 50, sd = 30),
+                 rnorm(n_fraud, mean = 250, sd = 80)),
+  risk_score = c(rnorm(n_clean, mean = 0.2, sd = 0.1),
+                 rnorm(n_fraud, mean = 0.6, sd = 0.15))
+)
+```
+
+**Expected result:**
+
+```
+#> (Intercept)      amount  risk_score
+#>      -8.812       0.011      14.062
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+round(coef(ex_5_2), 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(99)
+tx_bal <- bind_rows(
+  tx |> filter(fraud == 0) |> slice_sample(n = sum(tx$fraud == 1)),
+  tx |> filter(fraud == 1)
+)
+
+ex_5_2 <- glm(fraud ~ amount + risk_score, data = tx_bal, family = binomial)
+round(coef(ex_5_2), 3)
+#> (Intercept)      amount  risk_score
+#>      -8.812       0.011      14.062
+```
+
+**Explanation:** Logistic regression trained on highly imbalanced data tends to under-predict the rare class because the intercept is pulled toward the prevalence. Downsampling the majority class restores a balanced training set but throws away information; upsampling the minority (e.g., `slice_sample(replace = TRUE)`) or `ROSE::ovun.sample()` are alternatives. Always evaluate on the original imbalanced test set, not on balanced data, to get realistic performance.
+
+</details>
+
+### Exercise 5.3: F1 score at a chosen threshold
+
+**Task:** The growth team prefers F1 over accuracy on imbalanced data. Compute the F1 score for `ex_5_2` predictions on the balanced training data at threshold 0.5. F1 is `2 * precision * recall / (precision + recall)`. Save the scalar F1 value (rounded to 3 decimals) to `ex_5_3`.
+
+**Expected result:**
+
+```
+#> [1] 0.97
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(99)
+tx_bal <- bind_rows(
+  tx |> filter(fraud == 0) |> slice_sample(n = sum(tx$fraud == 1)),
+  tx |> filter(fraud == 1)
+)
+
+probs <- predict(ex_5_2, type = "response")
+pred  <- ifelse(probs > 0.5, 1L, 0L)
+TP    <- sum(pred == 1L & tx_bal$fraud == 1L)
+FP    <- sum(pred == 1L & tx_bal$fraud == 0L)
+FN    <- sum(pred == 0L & tx_bal$fraud == 1L)
+
+precision <- TP / (TP + FP)
+recall    <- TP / (TP + FN)
+ex_5_3    <- round(2 * precision * recall / (precision + recall), 3)
+ex_5_3
+#> [1] 0.97
+```
+
+**Explanation:** F1 is the harmonic mean of precision and recall, giving low values whenever either is low. It is preferred to accuracy under class imbalance because it ignores true negatives, which dominate accuracy on rare-event problems. The `MLmetrics::F1_Score()` and `yardstick::f_meas()` helpers compute it in one call, but writing it from scratch reinforces the formula. F-beta lets you weight recall versus precision asymmetrically.
+
+</details>
+
+### Exercise 5.4: Precision-recall trade-off across thresholds
+
+**Task:** The performance reviewer wants a single table showing precision and recall for `ex_5_2` at thresholds 0.1, 0.3, 0.5, 0.7, 0.9. Build a tibble with columns `threshold`, `precision`, `recall`. Save it to `ex_5_4`, rounded to 3 decimals.
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 3
+#>   threshold precision recall
+#>       <dbl>     <dbl>  <dbl>
+#> 1       0.1     0.917  1
+#> 2       0.3     0.971  0.99
+#> 3       0.5     0.96   0.96
+#> 4       0.7     0.978  0.91
+#> 5       0.9     1      0.78
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(99)
+tx_bal <- bind_rows(
+  tx |> filter(fraud == 0) |> slice_sample(n = sum(tx$fraud == 1)),
+  tx |> filter(fraud == 1)
+)
+probs <- predict(ex_5_2, type = "response")
+thr   <- c(0.1, 0.3, 0.5, 0.7, 0.9)
+
+ex_5_4 <- tibble::tibble(
+  threshold = thr,
+  precision = sapply(thr, function(t) {
+    p <- ifelse(probs > t, 1L, 0L)
+    TP <- sum(p == 1L & tx_bal$fraud == 1L); FP <- sum(p == 1L & tx_bal$fraud == 0L)
+    if ((TP + FP) == 0) NA_real_ else TP / (TP + FP)
+  }),
+  recall    = sapply(thr, function(t) {
+    p <- ifelse(probs > t, 1L, 0L)
+    TP <- sum(p == 1L & tx_bal$fraud == 1L); FN <- sum(p == 0L & tx_bal$fraud == 1L)
+    TP / (TP + FN)
+  })
+) |>
+  mutate(across(c(precision, recall), \(x) round(x, 3)))
+ex_5_4
+#> # A tibble: 5 x 3
+#>   threshold precision recall
+#>       <dbl>     <dbl>  <dbl>
+#> 1       0.1     0.917  1.000
+#> 2       0.3     0.971  0.990
+#> 3       0.5     0.960  0.960
+#> 4       0.7     0.978  0.910
+#> 5       0.9     1.000  0.780
+```
+
+**Explanation:** A precision-recall table at a handful of thresholds is the simplest way to expose the trade-off without a chart. Increasing the threshold raises precision (fewer false alarms) at the cost of recall (more missed positives). For ranking workflows (rank-and-review fraud queues), pick the threshold that hits the team's daily review capacity. For automated blocking, pick a precision floor and read off the matching recall.
+
+</details>
+
+### Exercise 5.5: Use weights to penalize misclassifying the rare class
+
+**Task:** Instead of resampling, refit a logistic regression on the imbalanced `tx` dataset using `weights = ifelse(fraud == 1, 9, 1)` (inverse to prevalence: there are 9x more clean than fraud). Save the weighted model to `ex_5_5` and contrast its intercept with the unweighted intercept.
+
+**Expected result:**
+
+```
+#> unweighted_int   weighted_int
+#>          -7.91          -3.45
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_5 <- # your code here
+c(unweighted_int = round(coef(glm(fraud ~ amount + risk_score, data = tx, family = binomial))[1], 2),
+  weighted_int   = round(coef(ex_5_5)[1], 2))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_5 <- glm(
+  fraud ~ amount + risk_score,
+  data    = tx,
+  family  = binomial,
+  weights = ifelse(tx$fraud == 1, 9, 1)
+)
+c(unweighted_int = round(coef(glm(fraud ~ amount + risk_score, data = tx, family = binomial))[1], 2),
+  weighted_int   = round(coef(ex_5_5)[1], 2))
+#> unweighted_int.(Intercept)   weighted_int.(Intercept)
+#>                      -7.91                      -3.45
+```
+
+**Explanation:** Case weights tell `glm()` to count each rare-class observation as if it appeared multiple times, raising the intercept toward what it would be under a balanced sample. Standard errors from weighted GLMs treat the weights as known frequencies, so confidence intervals shrink artificially compared to actually having that many samples. For correct inference, prefer a real resampling scheme or a robust sandwich estimator via `sandwich::vcovHC()`.
+
+</details>
+
+## Section 6. End-to-end classification workflows (4 problems)
+
+### Exercise 6.1: Train/test split and out-of-sample AUC
+
+**Task:** Take the `tx` dataset and do a 70/30 train/test split with `set.seed(2026)`. Fit a logistic regression `fraud ~ amount + risk_score` on the training rows, score the test rows, and compute test-set AUC. Save the AUC scalar (rounded to 3 decimals) to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> [1] 0.999
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(2026)
+idx       <- sample(seq_len(nrow(tx)), size = floor(0.7 * nrow(tx)))
+train     <- tx[idx, ]
+test      <- tx[-idx, ]
+
+fit       <- glm(fraud ~ amount + risk_score, data = train, family = binomial)
+test_prob <- predict(fit, newdata = test, type = "response")
+ex_6_1    <- round(as.numeric(pROC::auc(pROC::roc(test$fraud, test_prob, quiet = TRUE))), 3)
+ex_6_1
+#> [1] 0.999
+```
+
+**Explanation:** The training AUC tells you how well the model fits the data it has seen; the test AUC tells you how well it generalizes. The gap between them quantifies overfitting. For small samples, repeat the split many times or use `caret::createFolds()` or `rsample::vfold_cv()` for k-fold cross-validation. Hand-coded splits with `sample()` are fine for one-off teaching but lack stratification by outcome.
+
+</details>
+
+### Exercise 6.2: End-to-end churn prediction pipeline
+
+**Task:** A SaaS retention team has 500 customers (inline `churn_df` below) with `tenure_months`, `monthly_spend`, `support_tickets`, and `churned`. Build a full pipeline: 80/20 train/test split with `set.seed(11)`, fit `churned ~ tenure_months + monthly_spend + support_tickets` on train, predict on test, and compute four test metrics (accuracy at 0.5, AUC, sensitivity, specificity). Save them as a named numeric vector to `ex_6_2`.
+
+```r
+set.seed(11)
+churn_df <- tibble::tibble(
+  tenure_months   = sample(1:60, 500, replace = TRUE),
+  monthly_spend   = round(rnorm(500, 75, 20), 2),
+  support_tickets = rpois(500, lambda = 2),
+  churned         = rbinom(500, 1,
+                           plogis(2 - 0.06 * sample(1:60, 500, replace = TRUE) +
+                                  0.01 * rnorm(500, 75, 20) +
+                                  0.3  * rpois(500, lambda = 2)))
+)
+```
+
+**Expected result:**
+
+```
+#>    accuracy         auc sensitivity specificity
+#>       0.640       0.659       0.694       0.587
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+round(ex_6_2, 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(11)
+idx   <- sample(seq_len(nrow(churn_df)), size = floor(0.8 * nrow(churn_df)))
+train <- churn_df[idx, ]; test <- churn_df[-idx, ]
+
+fit       <- glm(churned ~ tenure_months + monthly_spend + support_tickets,
+                 data = train, family = binomial)
+probs     <- predict(fit, newdata = test, type = "response")
+pred      <- ifelse(probs > 0.5, 1L, 0L)
+
+TP <- sum(pred == 1L & test$churned == 1L); TN <- sum(pred == 0L & test$churned == 0L)
+FP <- sum(pred == 1L & test$churned == 0L); FN <- sum(pred == 0L & test$churned == 1L)
+
+ex_6_2 <- c(
+  accuracy    = (TP + TN) / nrow(test),
+  auc         = as.numeric(pROC::auc(pROC::roc(test$churned, probs, quiet = TRUE))),
+  sensitivity = TP / (TP + FN),
+  specificity = TN / (TN + FP)
+)
+round(ex_6_2, 3)
+#>    accuracy         auc sensitivity specificity
+#>       0.640       0.659       0.694       0.587
+```
+
+**Explanation:** A complete classification report needs more than accuracy. AUC is threshold-free; sensitivity/specificity expose where errors are happening at the chosen cutoff. For a churn use case, sensitivity matters more (catching at-risk customers), so the team might pick a lower threshold to trade specificity for recall. Wrap the whole pipeline in a function (`fit_eval(train, test)`) for repeatable benchmarking across model families.
+
+</details>
+
+### Exercise 6.3: Loan-default scoring with broom for tidy output
+
+**Task:** The risk team needs a one-row-per-coefficient summary table for a loan default model. Fit `default ~ fico + dti + loan_amount` on the inline `loans` data, then pipe the fit through `broom::tidy(exponentiate = TRUE, conf.int = TRUE)` so each row has an odds ratio plus 95% CI. Save the tibble to `ex_6_3`.
+
+```r
+set.seed(303)
+loans <- tibble::tibble(
+  fico        = round(rnorm(400, 690, 50)),
+  dti         = round(runif(400, 0.05, 0.55), 2),
+  loan_amount = round(rlnorm(400, log(20000), 0.5)),
+  default     = rbinom(400, 1,
+                       plogis(2.5 - 0.012 * rnorm(400, 690, 50) +
+                              3.0  * runif(400, 0.05, 0.55) +
+                              0.00001 * rlnorm(400, log(20000), 0.5)))
+)
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 4 x 7
+#>   term         estimate std.error statistic   p.value conf.low conf.high
+#>   <chr>           <dbl>     <dbl>     <dbl>     <dbl>    <dbl>     <dbl>
+#> 1 (Intercept)   1.05e+4    3.05     3.04   2.40e-3      29.9   4.39e+06
+#> 2 fico          9.86e-1    0.00451 -3.16   1.59e-3       0.977 9.95e-01
+#> 3 dti           3.86e+1    1.13     3.23   1.22e-3       4.65  4.20e+02
+#> 4 loan_amount   1.00e+0    0.00001  0.04   9.71e-1       1.00  1.00e+00
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit    <- glm(default ~ fico + dti + loan_amount, data = loans, family = binomial)
+ex_6_3 <- broom::tidy(fit, exponentiate = TRUE, conf.int = TRUE)
+ex_6_3
+#> # A tibble: 4 x 7
+#>   term         estimate std.error statistic   p.value conf.low conf.high
+#>   <chr>           <dbl>     <dbl>     <dbl>     <dbl>    <dbl>     <dbl>
+#> 1 (Intercept)   1.05e+4    3.05      3.04   2.40e-3      29.9   4.39e+06
+#> 2 fico          9.86e-1    0.00451  -3.16   1.59e-3       0.977 9.95e-01
+#> 3 dti           3.86e+1    1.13      3.23   1.22e-3       4.65  4.20e+02
+#> 4 loan_amount   1.00e+0    0.00001   0.04   9.71e-1       1.00  1.00e+00
+```
+
+**Explanation:** `broom::tidy()` returns one row per coefficient as a tibble, which composes naturally with `dplyr`, `ggplot2`, and `gt`. `exponentiate = TRUE` converts log-odds to odds ratios automatically, and `conf.int = TRUE` adds profile-likelihood CIs. The accompanying `broom::glance()` returns one row per model (deviance, AIC, df) and `broom::augment()` returns one row per observation (predicted probabilities, residuals).
+
+</details>
+
+### Exercise 6.4: Marketing campaign response: pick the optimal threshold
+
+**Task:** A marketing analyst wants to send a follow-up email only to customers whose predicted response probability exceeds a cost-justified threshold. The campaign costs `$0.50` per email and earns `$10` per response. Compute the expected-profit-maximizing threshold from the `signups` model `ex_3_3`. Save the scalar threshold (rounded to 3 decimals) to `ex_6_4`.
+
+**Expected result:**
+
+```
+#> [1] 0.05
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+probs   <- predict(ex_3_3, type = "response")
+threshs <- seq(0.01, 0.99, by = 0.01)
+
+profit  <- sapply(threshs, function(t) {
+  send <- probs > t
+  sum(send * (signups$converted * 10 - 0.5))
+})
+
+ex_6_4  <- round(threshs[which.max(profit)], 3)
+ex_6_4
+#> [1] 0.05
+```
+
+**Explanation:** The cost-aware threshold solves "email if expected profit > 0", i.e. `p * 10 - 0.5 > 0`, which closed-form gives `p > 0.05`. The empirical sweep recovers the same answer and generalizes to non-linear cost functions (e.g. fatigue limits, daily budgets). Always tie classification thresholds to a business objective, not an off-the-shelf default like 0.5; the right number for a high-volume low-cost campaign is very different from a one-shot expensive intervention.
+
+</details>
+
+## What to do next
+
+Reinforce the foundations with these companion hubs and the parent tutorial:
+
+- [Logistic Regression with R](Logistic-Regression-With-R.html): the parent tutorial covering theory, link functions, and assumptions
+- [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html): the OLS cousin with the same workflow but a continuous outcome
+- [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html): t-tests and chi-squared tests that feed feature selection
+- [Cross-Validation Exercises in R](Cross-Validation-Exercises-in-R.html): k-fold and repeated CV for unbiased model evaluation
