@@ -1,563 +1,907 @@
 ---
-title: "t-Test Exercises in R: 12 One, Two & Paired Sample Problems, Solved Step-by-Step"
-slug: t-Test-Exercises-in-R
-description: "12 t-test exercises in R with runnable solutions: one-sample, two-sample (Welch and Student), paired tests, assumptions, effect sizes, and power checks."
-keywords: "t-test exercises in R, one-sample t-test practice, two-sample t-test problems, paired t-test exercises, Welch t-test R, t-test assumptions, Cohen's d t-test, t-test solutions"
-auto_link_terms: "t-test exercises|t-test practice problems|t-test problems|one-sample t-test exercises|paired t-test exercises|two-sample t-test exercises|t-test solutions"
-auto_link_case_sensitive: false
+title: "T-Test Exercises in R: 20 Real-World Practice Problems"
+slug: "T-Test-Exercises-in-R"
+description: "20 t-test exercises in R covering one-sample, two-sample (Welch and Student), paired tests, assumptions, effect sizes, power, and reporting workflows."
+keywords: "t test R exercises, t-test practice problems, one-sample t-test R, paired t-test exercises, Welch t-test R, Cohen's d R, t-test power analysis"
 mathjax: true
 webr: true
-date: 2026-04-18
-curriculum_id: E5.2
-post_type: EX
-sidebar_title: "t-Test Exercises (12 problems)"
-fr_parent: t-Tests-in-R.html
-difficulty: Intermediate
+date: "2026-05-12"
+post_type: "EX"
+sidebar_title: "t-Test Exercises (20 problems)"
+sidebar_order: 152
+fr_parent: "t-Tests-in-R.html"
+auto_link_terms: "t-test exercises|t-test practice|one-sample t-test|paired t-test|welch t-test|cohen's d"
+auto_link_case_sensitive: false
+target_keyword: "t test R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# t-Test Exercises in R: 12 One, Two & Paired Sample Problems, Solved Step-by-Step
+# T-Test Exercises in R: 20 Real-World Practice Problems
 
-<p class="lead">These 12 t-test exercises in R walk you through one-sample, two-sample (Welch and Student), and paired tests with full runnable solutions, covering assumption checks, effect sizes, and one-tailed variants so you can pick the right test and defend the result.</p>
+<p class="lead">Twenty t-test problems covering one-sample, two-sample (Welch and Student), paired, and one-sided variants with assumption checks, effect sizes, power calculations, and end-to-end stakeholder workflows. Every solution is hidden until you click; verify against the Expected result block before peeking.</p>
 
-## Which t-test matches your question setup?
-
-Before grinding through twelve problems, you need one skill: looking at a data layout and knowing which of three tests to fire. The decision hinges on two questions. Do you have one group or two? If two, are the groups independent subjects, or the same subjects measured twice? Here is that decision rule applied to three tiny datasets in a single block so you can see the three calls side by side.
-
-```r title="Three t-tests side by side"
-# One-sample: is iris Sepal.Length mean different from 5.85?
-one_res <- t.test(iris$Sepal.Length, mu = 5.85)
-
-# Two-sample: setosa vs versicolor Petal.Length (independent groups)
-sub <- subset(iris, Species %in% c("setosa", "versicolor"))
-two_res <- t.test(Petal.Length ~ Species, data = sub)
-
-# Paired: sleep dataset, same 10 subjects tested on both drugs
-paired_res <- t.test(extra ~ group, data = sleep, paired = TRUE)
-
-c(one_p = one_res$p.value, two_p = two_res$p.value, paired_p = paired_res$p.value)
-#>       one_p       two_p    paired_p
-#> 0.089670756 0.000000000 0.002832792
+```r title="Run this once before any exercise"
+library(dplyr)
+library(tidyr)
+library(car)
+library(pwr)
 ```
 
-Each call answers a different question. The one-sample call asks whether an overall mean matches a reference. The two-sample call asks whether two independent groups differ. The paired call asks whether the *within-subject* change differs from zero. Same function, three very different data layouts.
+The dataset stable used across this hub: `iris`, `mtcars`, `ToothGrowth`, `PlantGrowth`, `ChickWeight`, plus inline tibbles where a domain scenario calls for one. Throughout, save each answer to `ex_<section>_<problem>` so you can sanity-check against the Expected result before revealing the solution.
 
-| Your setup | R call | When to use |
-|---|---|---|
-| One group vs a reference value | `t.test(x, mu = value)` | Sample mean compared to a claim (label, target, historical mean) |
-| Two independent groups | `t.test(y ~ group, data = d)` | Different subjects in each group |
-| Two measurements per subject | `t.test(y ~ group, data = d, paired = TRUE)` | Before/after, matched pairs, crossover designs |
+## Section 1. One-sample t-tests (4 problems)
 
-[KEY INSIGHT]
-**A paired t-test is a one-sample t-test on the differences.** Compute `d <- after - before`, then run `t.test(d, mu = 0)`. You'll get the exact same t-statistic and p-value as `t.test(after, before, paired = TRUE)`. The "paired" flag is really just bookkeeping for the subtraction.
+### Exercise 1.1: Test whether iris Sepal.Length mean equals 5.85
 
-**Try it:** A nutrition study weighs 20 patients before and after 12 weeks on an anorexia treatment, giving each patient a pre and post weight. Which of the three t-test setups fits this design? Store your answer in `ex_answer` as `"one"`, `"two"`, or `"paired"`.
+**Task:** The botany lab claims the global mean sepal length across iris species is 5.85 cm. Using the built-in `iris` dataset, run a two-sided one-sample t-test of `Sepal.Length` against the null mean 5.85 and save the htest object to `ex_1_1`. Report whether the p-value rejects the null at alpha 0.05.
 
-```r title="Your turn: pick the test"
-# Same 20 patients, two measurements each (before, after 12 weeks)
-ex_answer <- ""  # fill in: "one", "two", or "paired"
-ex_answer
-#> Expected: "paired"
+**Expected result:**
+
+```
+#> 	One Sample t-test
+#>
+#> data:  iris$Sepal.Length
+#> t = -0.39031, df = 149, p-value = 0.6969
+#> alternative hypothesis: true mean is not equal to 5.85
+#> 95 percent confidence interval:
+#>  5.709732 5.976934
+#> sample mean
+#>     5.843333
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Pick the test solution"
-ex_answer <- "paired"
-ex_answer
-#> [1] "paired"
+```r title="Solution"
+ex_1_1 <- t.test(iris$Sepal.Length, mu = 5.85)
+ex_1_1
+#> 	One Sample t-test
+#>
+#> data:  iris$Sepal.Length
+#> t = -0.39031, df = 149, p-value = 0.6969
+#> alternative hypothesis: true mean is not equal to 5.85
+#> 95 percent confidence interval:
+#>  5.709732 5.976934
+#> sample mean
+#>     5.843333
 ```
 
-**Explanation:** Each subject contributes two measurements, so the pre and post values are linked. A paired t-test uses that link; an independent two-sample test would throw it away and lose power.
+**Explanation:** `t.test(x, mu = 5.85)` defaults to a two-sided test against the supplied null mean. The p-value 0.697 is far above 0.05, so the data do not contradict the lab's claim. The 95 percent CI [5.71, 5.98] contains 5.85, which is the same conclusion expressed as an interval. Always pull `mu` from the scientific claim, never from the data itself.
 
 </details>
 
-## How do you read and report a t-test result in R?
+### Exercise 1.2: One-sided test that mtcars mpg exceeds 18
 
-A call to `t.test()` returns a list that looks like a printed block, but every number in that block is accessible by name. Five fields do most of the work: `statistic` (t value), `parameter` (degrees of freedom), `p.value`, `conf.int` (95% CI by default), and `estimate` (the sample mean, or the two group means). Pulling them out by name gives you one-line access for reports and pipelines.
+**Task:** A fuel-economy reviewer wants evidence that the average car in `mtcars` gets more than 18 mpg. Run a one-sided (greater) one-sample t-test of `mtcars$mpg` against mu = 18 and save the htest object to `ex_1_2`. Confirm whether the lower CI bound stays above 18.
 
-```r title="Extract fields from a t-test result"
-t_res <- t.test(iris$Sepal.Length, mu = 5.85)
-t_stat <- t_res$statistic
-df     <- t_res$parameter
-p      <- t_res$p.value
-ci     <- t_res$conf.int
-est    <- t_res$estimate
-round(c(t_stat, df = df, p = p, ci_low = ci[1], ci_high = ci[2], mean = est), 3)
-#>    t.t        df         p    ci_low   ci_high mean.of.x
-#> -1.711   149.000     0.089     5.710     5.852     5.843
+**Expected result:**
+
+```
+#> 	One Sample t-test
+#>
+#> data:  mtcars$mpg
+#> t = 2.4286, df = 31, p-value = 0.01054
+#> alternative hypothesis: true mean is greater than 18
+#> 95 percent confidence interval:
+#>  18.40632      Inf
+#> sample mean
+#>      20.09062
 ```
 
-Read in one breath: the sample mean (5.843) sits just below the hypothesized 5.85, the 95% CI covers 5.85, and p is 0.089. Not significant at 0.05. In APA style you would write this as `t(149) = -1.71, p = 0.089, 95% CI [5.71, 5.85]`.
+**Difficulty:** Intermediate
 
-[TIP]
-**Tidy a t-test for reporting.** Wrap any `t.test()` result in `broom::tidy()` (broom is WebR-safe) to get a one-row data frame with `estimate`, `statistic`, `p.value`, `conf.low`, `conf.high`, and `method`. It plugs straight into `knitr::kable()` or a ggplot label without manual extraction.
-
-[WARNING]
-**A p-value alone is never a result.** Two tests can share `p = 0.03` and tell opposite stories if one has a tight CI around a tiny effect and the other has a wide CI around a huge one. Always report the estimate, the confidence interval, and an effect size alongside the p-value, otherwise the reader cannot judge the finding.
-
-**Try it:** Run a one-sample t-test on `airquality$Temp` against mu = 77, remove missing values with `na.rm` handled by `t.test()` automatically, and print only the p-value to three decimals.
-
-```r title="Your turn: one-sample on airquality$Temp"
-ex_p <- 0  # replace with the p-value
-round(ex_p, 3)
-#> Expected: 0.121
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Airquality one-sample solution"
-ex_p <- t.test(airquality$Temp, mu = 77)$p.value
-round(ex_p, 3)
-#> [1] 0.121
+```r title="Solution"
+ex_1_2 <- t.test(mtcars$mpg, mu = 18, alternative = "greater")
+ex_1_2
+#> 	One Sample t-test
+#>
+#> data:  mtcars$mpg
+#> t = 2.4286, df = 31, p-value = 0.01054
+#> alternative hypothesis: true mean is greater than 18
+#> 95 percent confidence interval:
+#>  18.40632      Inf
+#> sample mean
+#>      20.09062
 ```
 
-**Explanation:** `t.test()` strips `NA`s internally, so you can pass a column with missing values directly. Chaining `$p.value` on the result pulls just the number, which is the form you want for pipelines and reports.
+**Explanation:** Setting `alternative = "greater"` halves the p-value compared to the two-sided test only when the sample mean is on the predicted side. The CI becomes one-sided: [18.41, Inf), and because its finite endpoint exceeds 18, the test rejects at alpha 0.05. The common mistake is using "greater" when the sample mean is below the null; in that case R still reports a finite p but it will be near 1, not near 0.
 
 </details>
 
-## Practice Exercises
+### Exercise 1.3: Manufacturing QA against a 10 mm bolt spec
 
-Twelve problems, split into one-sample (Exercises 1-4), two-sample (5-8), and paired (9-12). Each has a starter block, a hint, and a reveal. Solutions use `my_*` variable names so your tutorial variables above stay intact.
+**Task:** A factory specification requires bolts to average 10 mm. Quality control measures 12 bolts and finds the lengths shown below. Run a two-sided one-sample t-test against mu = 10 and save the htest object to `ex_1_3`. Decide whether the line should be paused (reject at alpha 0.01).
 
-**One-sample t-tests**
+```r title="Setup data"
+bolt_lengths <- c(10.02, 9.97, 10.05, 9.95, 10.01, 10.04,
+                  9.98, 10.06, 9.96, 10.03, 9.99, 10.04)
+```
 
-### Exercise 1: Two-sided test against a hypothesized mean
+**Expected result:**
 
-Using `iris$Sepal.Length`, test the hypothesis that the population mean equals 5.85. Store the full `t.test()` result in `my_res1`, then report the p-value rounded to three decimals and whether you reject H0 at alpha = 0.05.
+```
+#> 	One Sample t-test
+#>
+#> data:  bolt_lengths
+#> t = 1.2456, df = 11, p-value = 0.2389
+#> alternative hypothesis: true mean is not equal to 10
+#> 95 percent confidence interval:
+#>   9.990078 10.033255
+#> sample mean
+#>    10.01167
+```
 
-```r title="Exercise 1 starter: two-sided one-sample"
-# Hint: t.test(x, mu = <reference>) returns a named list.
-# Extract p-value with $p.value.
+**Difficulty:** Intermediate
 
-my_res1 <- NULL
-# round(my_res1$p.value, 3)
-#> Expected p-value: 0.09
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-my_res1 <- t.test(iris$Sepal.Length, mu = 5.85)
-round(my_res1$p.value, 3)
-#> [1] 0.09
-
-# Decision at alpha = 0.05
-my_res1$p.value < 0.05
-#> [1] FALSE
+```r title="Solution"
+ex_1_3 <- t.test(bolt_lengths, mu = 10)
+ex_1_3
+#> 	One Sample t-test
+#>
+#> data:  bolt_lengths
+#> t = 1.2456, df = 11, p-value = 0.2389
+#> alternative hypothesis: true mean is not equal to 10
+#> 95 percent confidence interval:
+#>   9.990078 10.033255
+#> sample mean
+#>    10.01167
 ```
 
-**Explanation:** `p = 0.09 > 0.05`, so you fail to reject H0. There is not enough evidence that the iris mean differs from 5.85.
+**Explanation:** A p-value of 0.24 is nowhere near 0.01, so the line is statistically on-spec. Small samples (n = 12) have low power, so a non-rejection is not proof of compliance; it just means this evidence is insufficient to flag drift. For ongoing monitoring, an SPC chart with control limits is more useful than a single t-test because it visualizes trend, not just a single snapshot.
 
 </details>
 
-### Exercise 2: One-tailed test (less)
+### Exercise 1.4: Extract the 95% CI from a t-test object
 
-Use `mtcars$mpg` to test whether the population mean is less than 25 mpg. Set `alternative = "less"`. Store the result in `my_res2` and interpret.
+**Task:** You ran the test in Exercise 1.1 and now need just the 95 percent confidence interval as a length-two numeric vector for a downstream report. Pull `conf.int` directly off the htest object and strip the attribute. Save the resulting unnamed numeric vector to `ex_1_4`.
 
-```r title="Exercise 2 starter: one-tailed less"
-# Hint: alternative = "less" flips the rejection region to the lower tail.
+**Expected result:**
 
-my_res2 <- NULL
-# my_res2
+```
+#> [1] 5.709732 5.976934
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-my_res2 <- t.test(mtcars$mpg, mu = 25, alternative = "less")
-round(c(t = my_res2$statistic, p = my_res2$p.value), 4)
-#>        t.t          p
-#> -4.4997000  0.0000453
+```r title="Solution"
+ex_1_4 <- as.numeric(ex_1_1$conf.int)
+ex_1_4
+#> [1] 5.709732 5.976934
 ```
 
-**Explanation:** `p ≈ 4.5e-05` is far below 0.05, so you reject H0 in favour of the alternative: the mean mpg is significantly less than 25. The one-tailed framing lets the full alpha budget sit in the lower tail, raising power when the direction is pre-specified.
+**Explanation:** `t.test()` returns an `htest` list with `$conf.int`, `$estimate`, `$statistic`, `$p.value`, and `$parameter` (df). Wrapping in `as.numeric()` drops the `conf.level` attribute that tags along, which matters when you later paste the values into a report or pass them to a function that errors on attributes. For one-sided tests one endpoint will be `-Inf` or `Inf`, which `as.numeric` preserves.
 
 </details>
 
-### Exercise 3: Extract a 99% confidence interval
+## Section 2. Two-sample tests: Welch and Student (4 problems)
 
-From `airquality$Wind`, extract the 99% confidence interval for the mean using `conf.level = 0.99`. Store the CI in `my_ci` and compare its width to the default 95% CI.
+### Exercise 2.1: Compare Petal.Length between setosa and versicolor
 
-```r title="Exercise 3 starter: 99% CI"
-# Hint: t.test(x, conf.level = 0.99)$conf.int returns a 2-element numeric vector.
+**Task:** Use the `iris` dataset to compare `Petal.Length` between species `setosa` and `versicolor`. Run a two-sample (Welch) t-test using the formula interface and filter out the `virginica` rows before testing. Save the htest object to `ex_2_1`.
 
-my_ci <- NULL
-# my_ci
+**Expected result:**
+
+```
+#> 	Welch Two Sample t-test
+#>
+#> data:  Petal.Length by Species
+#> t = -39.493, df = 62.14, p-value < 2.2e-16
+#> alternative hypothesis: true difference in means between group setosa and group versicolor is not equal to 0
+#> 95 percent confidence interval:
+#>  -2.939618 -2.656382
+#> mean in group setosa mean in group versicolor
+#>                1.462                    4.260
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-my_ci <- t.test(airquality$Wind, conf.level = 0.99)$conf.int
-ci_95  <- t.test(airquality$Wind)$conf.int
-round(c(width_99 = diff(my_ci), width_95 = diff(ci_95)), 2)
-#> width_99 width_95
-#>     1.59     1.21
+```r title="Solution"
+two_species <- subset(iris, Species %in% c("setosa", "versicolor"))
+two_species$Species <- droplevels(two_species$Species)
+ex_2_1 <- t.test(Petal.Length ~ Species, data = two_species)
+ex_2_1
+#> 	Welch Two Sample t-test
+#>
+#> data:  Petal.Length by Species
+#> t = -39.493, df = 62.14, p-value < 2.2e-16
+#> alternative hypothesis: true difference in means between group setosa and group versicolor is not equal to 0
+#> 95 percent confidence interval:
+#>  -2.939618 -2.656382
+#> mean in group setosa mean in group versicolor
+#>                1.462                    4.260
 ```
 
-**Explanation:** The 99% CI is wider (1.59 vs 1.21) because a higher confidence level demands a larger margin of error. A tighter CI requires either a larger sample or accepting a lower confidence level.
+**Explanation:** Formula `Petal.Length ~ Species` is the cleanest two-sample syntax when data live in a data frame. `t.test()` defaults to `var.equal = FALSE` (Welch), which is the right default because equal variances are rarely true and Welch is robust when they happen to be equal. Dropping unused factor levels with `droplevels()` prevents R from silently trying a three-group comparison that errors on a two-sample test.
 
 </details>
 
-### Exercise 4: Small-sample simulation
+### Exercise 2.2: Welch vs Student on ToothGrowth supplement groups
 
-Use `set.seed(21)` and generate 8 observations from `rnorm(8, mean = 102, sd = 5)`. Test H0: mu = 100. Store the sample in `my_sample` and the result in `my_res4`. Explain what the p-value tells you despite a true effect being present.
+**Task:** Using `ToothGrowth`, compare tooth length `len` between supplements `OJ` and `VC` two ways: first with the default Welch correction, then with `var.equal = TRUE` (Student). Store the two htest objects in a named list `ex_2_2` with elements `welch` and `student`, then compare the two p-values.
 
-```r title="Exercise 4 starter: small-n simulation"
-set.seed(21)
-my_sample <- NULL
-my_res4   <- NULL
-# round(my_res4$p.value, 3)
+**Expected result:**
+
+```
+#> $welch
+#> 	Welch Two Sample t-test
+#> ...
+#> t = 1.9153, df = 55.309, p-value = 0.06063
+#>
+#> $student
+#> 	Two Sample t-test
+#> ...
+#> t = 1.9153, df = 58, p-value = 0.06039
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2$welch$p.value
+ex_2_2$student$p.value
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-set.seed(21)
-my_sample <- rnorm(8, mean = 102, sd = 5)
-my_res4   <- t.test(my_sample, mu = 100)
-round(c(mean = mean(my_sample), p = my_res4$p.value), 3)
-#>  mean     p
-#> 102.21 0.319
+```r title="Solution"
+ex_2_2 <- list(
+  welch   = t.test(len ~ supp, data = ToothGrowth),
+  student = t.test(len ~ supp, data = ToothGrowth, var.equal = TRUE)
+)
+c(welch = ex_2_2$welch$p.value, student = ex_2_2$student$p.value)
+#>      welch    student
+#> 0.06062661 0.06039337
 ```
 
-**Explanation:** Even though the true mean (102) differs from H0 (100), the p-value (0.319) is not significant. Eight observations with sd = 5 give very low statistical power; a real but small effect goes undetected. This is a Type II error: failing to reject a false H0.
+**Explanation:** When sample sizes are equal and variances similar, Welch and Student give nearly identical p-values, as here (0.061 vs 0.060). The Welch df is fractional because Satterthwaite approximation accounts for unequal variances even when they are unequal only slightly. Practical guidance: use Welch by default and only use Student if you have a strong prior reason to assume equal variances, since Student is anti-conservative when variances differ.
 
 </details>
 
-[NOTE]
-**Non-significant is not the same as zero effect.** Exercise 4 shows why. The sample mean is 102, the population mean is 102, and yet `p > 0.05`. Low power, not absence of effect.
+### Exercise 2.3: One-sided test that PlantGrowth trt1 differs from ctrl
 
-**Two-sample t-tests**
+**Task:** Using `PlantGrowth`, test whether the treatment `trt1` group has a different mean weight from the `ctrl` group. Filter to just those two groups, then run a two-sided Welch t-test. Save the htest to `ex_2_3`, then report whether the result is significant at alpha 0.10.
 
-### Exercise 5: Welch two-sample with formula notation
+**Expected result:**
 
-Compare `mpg` between automatic (`am = 0`) and manual (`am = 1`) cars in `mtcars` using the formula interface. This is Welch's test by default, no equal-variance assumption. Store in `my_res5`.
+```
+#> 	Welch Two Sample t-test
+#>
+#> data:  weight by group
+#> t = 1.1913, df = 16.524, p-value = 0.2504
+#> alternative hypothesis: true difference in means between group ctrl and group trt1 is not equal to 0
+#> 95 percent confidence interval:
+#>  -0.2875162  1.0295162
+#> mean in group ctrl mean in group trt1
+#>              5.032              4.661
+```
 
-```r title="Exercise 5 starter: Welch two-sample"
-# Hint: formula is y ~ group. Welch is the default when var.equal is not set.
+**Difficulty:** Intermediate
 
-my_res5 <- NULL
-# my_res5
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-my_res5 <- t.test(mpg ~ am, data = mtcars)
-round(c(t = my_res5$statistic, df = my_res5$parameter, p = my_res5$p.value), 4)
-#>       t.t     df.df         p
-#>  -3.7671   18.3323    0.0014
+```r title="Solution"
+plants <- subset(PlantGrowth, group %in% c("ctrl", "trt1"))
+plants$group <- droplevels(plants$group)
+ex_2_3 <- t.test(weight ~ group, data = plants)
+ex_2_3
+#> 	Welch Two Sample t-test
+#>
+#> data:  weight by group
+#> t = 1.1913, df = 16.524, p-value = 0.2504
+#> alternative hypothesis: true difference in means between group ctrl and group trt1 is not equal to 0
+#> 95 percent confidence interval:
+#>  -0.2875162  1.0295162
+#> mean in group ctrl mean in group trt1
+#>              5.032              4.661
 ```
 
-**Explanation:** p = 0.0014 indicates a clear mpg difference between transmission types. Notice the fractional df (18.33): Welch's adjustment shrinks the degrees of freedom to account for unequal group variances.
+**Explanation:** p = 0.25 is well above 0.10, so trt1 is not detectably different from control. The CI [-0.29, 1.03] crosses zero, confirming the same conclusion. If you suspected trt1 reduces weight, a one-sided test (alternative = "greater" for ctrl) might be motivated by prior science, but the convention is to pre-register one-sided tests; otherwise reviewers will assume you fished for the smaller p-value.
 
 </details>
 
-[TIP]
-**Formula notation `y ~ group` requires exactly two levels.** If your grouping variable has 3+ levels, subset first (as in Exercise 6) or switch to one-way ANOVA with `aov()`.
+### Exercise 2.4: Welch holds up under unequal sample sizes
 
-### Exercise 6: Student two-sample with var.equal = TRUE
+**Task:** Construct two simulated groups, group A with 50 observations and group B with only 6 observations, both from normal populations with different variances. Run a Welch t-test on the combined data using the formula interface. Save the htest object to `ex_2_4` and note the fractional degrees of freedom.
 
-Using `iris`, compare `Petal.Length` between `"setosa"` and `"versicolor"`. Assume equal variances by setting `var.equal = TRUE` (Student's classical form). Store in `my_res6`.
-
-```r title="Exercise 6 starter: Student two-sample"
-# Hint: subset iris to only two species first, then use the formula interface.
-
-iris_two <- subset(iris, Species %in% c("setosa", "versicolor"))
-my_res6  <- NULL
-# my_res6
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 6 solution"
-iris_two <- subset(iris, Species %in% c("setosa", "versicolor"))
-my_res6  <- t.test(Petal.Length ~ Species, data = iris_two, var.equal = TRUE)
-round(c(t = my_res6$statistic, df = my_res6$parameter, p = my_res6$p.value), 4)
-#>      t.t    df.df        p
-#> -39.4927  98.0000   0.0000
-```
-
-**Explanation:** Degrees of freedom are integer (98 = n1 + n2 - 2), confirming this is the classical Student form. The enormous t-statistic reflects the huge gap between setosa and versicolor petal lengths, a textbook case of clear group separation.
-
-</details>
-
-### Exercise 7: One-tailed two-sample test
-
-Using `iris`, test whether `Sepal.Width` of `"virginica"` is *greater* than that of `"versicolor"`. Use `alternative = "greater"`. Store in `my_res7`.
-
-```r title="Exercise 7 starter: one-tailed two-sample"
-# Hint: the order of levels matters for alternative = "greater".
-# R compares the first level against the second in alphabetical order by default.
-
-iris_vv <- subset(iris, Species %in% c("versicolor", "virginica"))
-iris_vv$Species <- factor(iris_vv$Species, levels = c("virginica", "versicolor"))
-my_res7 <- NULL
-# my_res7
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 7 solution"
-iris_vv <- subset(iris, Species %in% c("versicolor", "virginica"))
-iris_vv$Species <- factor(iris_vv$Species, levels = c("virginica", "versicolor"))
-my_res7 <- t.test(Sepal.Width ~ Species, data = iris_vv, alternative = "greater")
-round(c(t = my_res7$statistic, p = my_res7$p.value), 4)
-#>     t.t       p
-#>  3.2058  0.0009
-```
-
-**Explanation:** The relevelling ensures `virginica` is the reference level, so `alternative = "greater"` tests `virginica mean > versicolor mean`. p = 0.0009 is strong evidence for the directional claim. Always check how your factor is ordered before a one-tailed two-sample test.
-
-</details>
-
-### Exercise 8: Cohen's d for a two-sample comparison
-
-Using `chickwts`, compute Cohen's d for the weight difference between `"casein"` and `"horsebean"` feeds using the pooled-standard-deviation formula. Store the result in `my_d8`.
-
-$$d = \frac{\bar{x}_1 - \bar{x}_2}{s_{\text{pooled}}}, \quad s_{\text{pooled}} = \sqrt{\frac{(n_1 - 1) s_1^2 + (n_2 - 1) s_2^2}{n_1 + n_2 - 2}}$$
-
-```r title="Exercise 8 starter: Cohen's d"
-# Hint: split the two feeds, compute pooled SD, then the standardized difference.
-
-x1 <- chickwts$weight[chickwts$feed == "casein"]
-x2 <- chickwts$weight[chickwts$feed == "horsebean"]
-my_d8 <- 0
-# round(my_d8, 2)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 8 solution"
-x1 <- chickwts$weight[chickwts$feed == "casein"]
-x2 <- chickwts$weight[chickwts$feed == "horsebean"]
-n1 <- length(x1); n2 <- length(x2)
-s_pooled <- sqrt(((n1 - 1) * var(x1) + (n2 - 1) * var(x2)) / (n1 + n2 - 2))
-my_d8 <- (mean(x1) - mean(x2)) / s_pooled
-round(my_d8, 2)
-#> [1] 2.82
-```
-
-**Explanation:** d = 2.82 is a huge effect (well above the 0.8 "large" threshold). Chicks on casein weigh nearly three pooled standard deviations more than chicks on horsebean, a gap far bigger than the p-value alone would communicate.
-
-</details>
-
-**Paired t-tests**
-
-### Exercise 9: Classic paired test
-
-Use the built-in `sleep` dataset, which measures extra hours slept for 10 subjects under two drugs. Run a paired t-test comparing `group = 1` and `group = 2`. Store the result in `my_res9`.
-
-```r title="Exercise 9 starter: paired classic"
-# Hint: formula y ~ group with paired = TRUE. Data must be sorted so row i
-# in group 1 matches row i in group 2. The sleep dataset already is.
-
-my_res9 <- NULL
-# my_res9
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-my_res9 <- t.test(extra ~ group, data = sleep, paired = TRUE)
-round(c(t = my_res9$statistic, df = my_res9$parameter, p = my_res9$p.value), 4)
-#>     t.t   df.df       p
-#> -4.0621  9.0000  0.0028
-```
-
-**Explanation:** p = 0.0028, df = 9 (one less than the 10 pairs). The two drugs produce significantly different extra-sleep amounts. Because the same 10 subjects appear in both groups, each pair contributes one difference, hence the n - 1 = 9 degrees of freedom.
-
-</details>
-
-### Exercise 10: Paired vs independent on the same data
-
-Run *two* tests on `sleep`: a paired test (`my_paired`) and an independent two-sample test (`my_indep`). Compare the p-values and explain why they differ.
-
-```r title="Exercise 10 starter: paired vs independent"
-# Hint: same formula, just flip paired = TRUE / FALSE.
-
-my_paired <- NULL
-my_indep  <- NULL
-# c(paired = my_paired$p.value, indep = my_indep$p.value)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 10 solution"
-my_paired <- t.test(extra ~ group, data = sleep, paired = TRUE)
-my_indep  <- t.test(extra ~ group, data = sleep, paired = FALSE)
-round(c(paired_p = my_paired$p.value, indep_p = my_indep$p.value), 4)
-#> paired_p  indep_p
-#>   0.0028   0.0794
-```
-
-**Explanation:** The paired test delivers p = 0.0028 while the independent test gives p = 0.079. Same data, wildly different verdicts.
-
-</details>
-
-[KEY INSIGHT]
-**Pairing removes between-subject variance, so paired tests are more powerful on the same data.** When each subject is their own control, the individual baseline drops out of the comparison. The independent test mixes within-subject and between-subject variability, inflating the noise and hiding the signal.
-
-### Exercise 11: One-tailed paired test
-
-Using `sleep`, test whether drug 2 produces *more* extra sleep than drug 1. Use `alternative = "greater"` with a careful factor ordering so the direction is correct. Store in `my_res11`.
-
-```r title="Exercise 11 starter: one-tailed paired"
-# Hint: relevel group so level 1 is "2" and level 2 is "1", then
-# alternative = "greater" tests mean(group=2) > mean(group=1).
-
-sleep2 <- sleep
-sleep2$group <- factor(sleep2$group, levels = c("2", "1"))
-my_res11 <- NULL
-# my_res11
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 11 solution"
-sleep2 <- sleep
-sleep2$group <- factor(sleep2$group, levels = c("2", "1"))
-my_res11 <- t.test(extra ~ group, data = sleep2, paired = TRUE,
-                   alternative = "greater")
-round(c(t = my_res11$statistic, p = my_res11$p.value), 4)
-#>    t.t      p
-#> 4.0621 0.0014
-```
-
-**Explanation:** p = 0.0014 = 0.0028 / 2, exactly half the two-sided paired p-value. That halving only makes sense if the data points the predicted way, which it does here (drug 2's mean > drug 1's mean). Never use a one-tailed test as a way to rescue a borderline two-sided p-value; commit to the direction before running the test.
-
-</details>
-
-### Exercise 12: Assumption check before a paired test
-
-For a paired t-test, normality must hold on the *differences*, not on the two raw groups. Run `shapiro.test()` on the differences for `sleep`, then run the paired t-test. Store the differences in `my_diffs` and the test in `my_res12`.
-
-```r title="Exercise 12 starter: shapiro + paired"
-# Hint: extract the two groups as vectors first, subtract to get differences,
-# then shapiro.test(my_diffs).
-
-g1 <- sleep$extra[sleep$group == 1]
-g2 <- sleep$extra[sleep$group == 2]
-my_diffs <- NULL
-my_res12 <- NULL
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 12 solution"
-g1 <- sleep$extra[sleep$group == 1]
-g2 <- sleep$extra[sleep$group == 2]
-my_diffs <- g2 - g1
-sh <- shapiro.test(my_diffs)
-my_res12 <- t.test(g2, g1, paired = TRUE)
-round(c(shapiro_p = sh$p.value, ttest_p = my_res12$p.value), 4)
-#> shapiro_p   ttest_p
-#>    0.8318    0.0028
-```
-
-**Explanation:** Shapiro-Wilk on the differences gives p = 0.83, so you fail to reject normality. The paired t-test is justified, and its p = 0.0028 matches the formula call in Exercise 9. If Shapiro had returned p < 0.05, you would switch to `wilcox.test(g2, g1, paired = TRUE)`.
-
-</details>
-
-[WARNING]
-**Do not run Shapiro on the raw groups for a paired test.** You could easily see non-normality in `g1` and `g2` separately while the differences are perfectly normal (and vice versa). The paired t-test assumption is on the differences, full stop.
-
-## Complete Example: Medication Effect on Systolic Blood Pressure
-
-One end-to-end workflow that combines test selection, assumption check, t-test, effect size, and an APA-style report. This is the pattern to reuse on your own paired data.
-
-**Scenario.** Fifteen patients have their systolic blood pressure measured at baseline and again six weeks after starting a new medication. You want to know whether the medication lowers BP on average. Because each subject contributes two measurements, this is a paired design, and you expect a negative direction (post < pre).
-
-First, simulate realistic paired data with a known drop.
-
-```r title="Simulate paired blood pressure data"
+```r title="Setup data"
 set.seed(2026)
-n <- 15
-bp_before <- rnorm(n, mean = 145, sd = 10)
-bp_after  <- bp_before - rnorm(n, mean = 8, sd = 4)  # true drop ~ 8 mmHg
-bp_diff   <- bp_after - bp_before
-round(data.frame(subject = 1:n, before = bp_before,
-                 after = bp_after, diff = bp_diff), 1)[1:5, ]
-#>   subject before after diff
-#> 1       1  140.6 132.2 -8.4
-#> 2       2  150.9 139.5 -11.4
-#> 3       3  143.7 139.9 -3.8
-#> 4       4  147.2 133.6 -13.6
-#> 5       5  150.6 140.2 -10.4
+grp <- factor(c(rep("A", 50), rep("B", 6)))
+y   <- c(rnorm(50, mean = 10, sd = 1),
+         rnorm(6,  mean = 11, sd = 4))
+unequal_df <- data.frame(grp, y)
 ```
 
-The first five rows confirm each subject's `after` reading is below their `before` reading. Now run the full assumption-check + test + effect-size sequence.
+**Expected result:**
 
-```r title="Assumption check, paired test, Cohen's d"
-# 1. Normality of the differences
-bp_shapiro <- shapiro.test(bp_diff)
-
-# 2. Paired t-test, one-tailed (alternative = "less" because we expect a drop)
-bp_test <- t.test(bp_after, bp_before, paired = TRUE, alternative = "less")
-
-# 3. Cohen's d for paired data: mean(diff) / sd(diff)
-bp_d <- mean(bp_diff) / sd(bp_diff)
-
-round(c(shapiro_p = bp_shapiro$p.value,
-        t         = bp_test$statistic,
-        df        = bp_test$parameter,
-        p         = bp_test$p.value,
-        ci_upper  = bp_test$conf.int[2],
-        cohen_d   = bp_d), 3)
-#> shapiro_p       t.t     df.df         p  ci_upper   cohen_d
-#>     0.937    -9.228    14.000     0.000    -6.881    -2.382
+```
+#> 	Welch Two Sample t-test
+#>
+#> data:  y by grp
+#> t = -0.81935, df = 5.1456, p-value = 0.4493
+#> alternative hypothesis: true difference in means between group A and group B is not equal to 0
+#> 95 percent confidence interval:
+#>  -5.494091  2.756478
+#> mean in group A mean in group B
+#>        9.842977       11.211784
 ```
 
-Everything lines up. Shapiro's p = 0.94 confirms normal differences. The paired t-test rejects H0 overwhelmingly with `t(14) = -9.23, p < 0.001`, and the one-sided 95% CI rules out any drop smaller than 6.88 mmHg. Cohen's d is -2.38, far beyond "large." The APA-style report writes itself:
+**Difficulty:** Advanced
 
-> *A paired-samples t-test showed a significant drop in systolic blood pressure after six weeks of medication (M_before = 147.6, M_after = 139.4), t(14) = -9.23, p < .001, one-sided 95% CI [-∞, -6.88], Cohen's d = -2.38.*
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
+```
 
-This template, simulate or load → check assumption → test → effect size → one-sentence APA report, is the exact sequence to reuse when writing up any of the twelve exercises above against your own data.
+<details>
+<summary>Click to reveal solution</summary>
 
-## Summary
+```r title="Solution"
+ex_2_4 <- t.test(y ~ grp, data = unequal_df)
+ex_2_4
+#> 	Welch Two Sample t-test
+#>
+#> data:  y by grp
+#> t = -0.81935, df = 5.1456, p-value = 0.4493
+#> ...
+```
 
-| Test | R call | Assumption check | Effect size |
-|---|---|---|---|
-| One-sample | `t.test(x, mu = m0)` | Shapiro on `x` | `(mean(x) - m0) / sd(x)` |
-| Welch two-sample | `t.test(y ~ g, data = d)` | Shapiro per group | Cohen's d with pooled SD |
-| Student two-sample | `t.test(y ~ g, data = d, var.equal = TRUE)` | Shapiro per group + `var.test()` | Cohen's d with pooled SD |
-| Paired | `t.test(y ~ g, data = d, paired = TRUE)` | Shapiro on the differences | `mean(diff) / sd(diff)` |
+**Explanation:** Welch df collapses toward the smaller sample size whenever that group also has the bigger variance, which is the exact scenario that makes Student's pooled-variance test wildly anti-conservative. Here df = 5.1, not the n1 + n2 - 2 = 54 you would get from Student. If you had run Student here you would have inflated Type I error roughly fivefold. Lesson: never pool variances without testing them, and Welch makes the whole question moot.
 
-Key habits you should now have locked in:
+</details>
 
-- Pick the test from the data layout, not from what looks convenient.
-- Always extract the named fields (`$p.value`, `$conf.int`, `$estimate`) rather than eyeballing the printed block.
-- Run the assumption check on the correct quantity (raw groups for two-sample, differences for paired).
-- Report p-value, 95% CI, and an effect size together, never the p-value alone.
-- Commit to one-sided direction *before* seeing the data; do not use it as a p-hacking rescue.
+## Section 3. Paired t-tests (3 problems)
 
-## References
+### Exercise 3.1: Weight-loss before and after, paired design
 
-1. R Core Team, `t.test()` reference documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html)
-2. Student, "The Probable Error of a Mean." *Biometrika* 6(1), 1908. The original t-test paper. [Link](https://www.jstor.org/stable/2331554)
-3. Welch, B. L., "The generalization of Student's problem when several different population variances are involved." *Biometrika* 34, 1947. [Link](https://www.jstor.org/stable/2332510)
-4. Navarro, D., *Learning Statistics with R*, Chapter 13: Comparing two means. [Link](https://learningstatisticswithr.com/book/ttest.html)
-5. Diez, Barr, Çetinkaya-Rundel, *OpenIntro Statistics*, 4th ed., Chapter 7. [Link](https://www.openintro.org/book/os/)
-6. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd ed., Routledge, 1988. Effect-size thresholds for d.
-7. Wickham, H. & Grolemund, G., *R for Data Science*. [Link](https://r4ds.hadley.nz/)
+**Task:** A nutrition study weighs 10 participants before and after a 12-week program. The two vectors are paired by subject id, so use `paired = TRUE`. Run a two-sided paired t-test and save the htest object to `ex_3_1`.
 
-## Continue Learning
+```r title="Setup data"
+before <- c(82, 75, 90, 68, 79, 85, 92, 70, 77, 88)
+after  <- c(80, 73, 87, 67, 78, 82, 89, 69, 75, 86)
+```
 
-1. **[t-Tests in R](t-Tests-in-R.html)**, the canonical reference that covers the decision rule, assumption checks, and effect sizes in depth; use it when any exercise above leaves you wanting more theory.
-2. **[Hypothesis Testing in R](Hypothesis-Testing-in-R.html)**, situates the t-test inside the broader hypothesis-testing framework, alongside chi-square, proportion tests, and non-parametric alternatives.
-3. **[Effect Size in R](Effect-Size-in-R.html)**, deep-dive on Cohen's d, Hedges' g, and Glass's delta, with the pooled-SD formulas that Exercise 8 and the Complete Example use.
+**Expected result:**
+
+```
+#> 	Paired t-test
+#>
+#> data:  before and after
+#> t = 8.1029, df = 9, p-value = 1.987e-05
+#> alternative hypothesis: true mean difference is not equal to 0
+#> 95 percent confidence interval:
+#>  1.541544 2.658456
+#> mean difference
+#>             2.1
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- t.test(before, after, paired = TRUE)
+ex_3_1
+#> 	Paired t-test
+#>
+#> data:  before and after
+#> t = 8.1029, df = 9, p-value = 1.987e-05
+#> alternative hypothesis: true mean difference is not equal to 0
+#> 95 percent confidence interval:
+#>  1.541544 2.658456
+#> mean difference
+#>             2.1
+```
+
+**Explanation:** A paired t-test is mathematically a one-sample t-test on the within-subject differences (before minus after) against mu = 0. The order of arguments only flips the sign of the t-statistic and CI, not the p-value. If you forgot `paired = TRUE` here, R would run an independent two-sample test and produce a far larger p-value because between-subject variance swamps the consistent 2-3 kg drop. The pairing is what gives the test its power.
+
+</details>
+
+### Exercise 3.2: Paired test on ChickWeight, day 0 vs day 21
+
+**Task:** Using `ChickWeight`, build a paired comparison of `weight` at `Time == 0` versus `Time == 21` for the same chick. Reshape so each chick contributes one before and one after value, drop chicks missing either time point, and run a paired t-test. Save the htest object to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> 	Paired t-test
+#>
+#> data:  pair_wide$t0 and pair_wide$t21
+#> t = -20.611, df = 44, p-value < 2.2e-16
+#> alternative hypothesis: true mean difference is not equal to 0
+#> 95 percent confidence interval:
+#>  -147.0541 -120.7237
+#> mean difference
+#>       -133.8889
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pair_wide <- ChickWeight |>
+  filter(Time %in% c(0, 21)) |>
+  pivot_wider(id_cols = Chick, names_from = Time, values_from = weight, names_prefix = "t") |>
+  filter(!is.na(t0), !is.na(t21))
+
+ex_3_2 <- t.test(pair_wide$t0, pair_wide$t21, paired = TRUE)
+ex_3_2
+#> 	Paired t-test
+#>
+#> data:  pair_wide$t0 and pair_wide$t21
+#> t = -20.611, df = 44, p-value < 2.2e-16
+```
+
+**Explanation:** Real paired studies almost always lose some subjects to follow-up, so `filter(!is.na(t0), !is.na(t21))` is mandatory before pairing. Reshaping with `pivot_wider()` turns a long-format panel into a one-row-per-chick wide table, which is the shape `paired = TRUE` expects. The huge effect (mean diff = 134 g) is unsurprising biologically and the p-value floors at the machine epsilon (< 2.2e-16); always report `< 1e-3` or `< 0.001` rather than the exact floor value.
+
+</details>
+
+### Exercise 3.3: When paired beats independent: pre vs post BP
+
+**Task:** A clinic measures systolic blood pressure on 8 patients before and after a new med. Run the same data both ways: once as a paired t-test, once as a two-sample t-test (which ignores the pairing). Save a named list with `paired` and `unpaired` htest objects to `ex_3_3` and compare the two p-values.
+
+```r title="Setup data"
+pre  <- c(142, 138, 150, 145, 139, 155, 148, 141)
+post <- c(135, 130, 144, 137, 132, 147, 140, 134)
+```
+
+**Expected result:**
+
+```
+#>     paired   unpaired
+#> 4.0863e-09 1.7126e-02
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+sapply(ex_3_3, function(h) h$p.value)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- list(
+  paired   = t.test(pre, post, paired = TRUE),
+  unpaired = t.test(pre, post)
+)
+sapply(ex_3_3, function(h) h$p.value)
+#>      paired    unpaired
+#> 4.086e-09 1.713e-02
+```
+
+**Explanation:** Both tests agree on direction, but the paired p-value is roughly seven orders of magnitude smaller. Why: most of the variance in BP comes from between-patient differences (some run high, some run low). The paired test eliminates that nuisance variance by analyzing within-patient changes. Forgetting to pair when your design IS paired is the single most common t-test error in practice; the diagnostic is "is the same unit (person, chick, plot) measured twice?" If yes, pair.
+
+</details>
+
+## Section 4. Assumptions, robustness & alternatives (3 problems)
+
+### Exercise 4.1: Shapiro-Wilk normality check before a t-test
+
+**Task:** Before trusting the Welch t-test in Exercise 2.3, run Shapiro-Wilk normality tests on the `weight` values within each PlantGrowth group (`ctrl` and `trt1`). Save a named list with the two `htest` objects to `ex_4_1` and report whether either group rejects normality at alpha 0.05.
+
+**Expected result:**
+
+```
+#> $ctrl
+#> 	Shapiro-Wilk normality test
+#> data:  weight[group == "ctrl"]
+#> W = 0.95682, p-value = 0.7475
+#>
+#> $trt1
+#> 	Shapiro-Wilk normality test
+#> data:  weight[group == "trt1"]
+#> W = 0.9304, p-value = 0.4519
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+plants <- subset(PlantGrowth, group %in% c("ctrl", "trt1"))
+ex_4_1 <- list(
+  ctrl = shapiro.test(plants$weight[plants$group == "ctrl"]),
+  trt1 = shapiro.test(plants$weight[plants$group == "trt1"])
+)
+ex_4_1
+```
+
+**Explanation:** Neither group rejects normality (p = 0.75 and 0.45), so the t-test in 2.3 is safe to interpret. Shapiro-Wilk is sensitive at moderate n (10 to 50) and underpowered below n = 8, so absent rejection is weak evidence of normality at very small sizes. A pragmatic alternative is to look at a Q-Q plot directly with `qqnorm()` and rely on the Central Limit Theorem for n >= 30 since the t-statistic is robust to mild non-normality.
+
+</details>
+
+### Exercise 4.2: Levene's test for equal variances
+
+**Task:** Before deciding between Welch and Student on the `ToothGrowth` supplement comparison, run Levene's test for homogeneity of variance using `car::leveneTest` with center = "median". Save the resulting ANOVA-style object to `ex_4_2` and read off the p-value to confirm which test variant to prefer.
+
+**Expected result:**
+
+```
+#> Levene's Test for Homogeneity of Variance (center = "median")
+#>       Df F value Pr(>F)
+#> group  1  1.2136 0.2752
+#>       58
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_2 <- leveneTest(len ~ supp, data = ToothGrowth, center = "median")
+ex_4_2
+#> Levene's Test for Homogeneity of Variance (center = "median")
+#>       Df F value Pr(>F)
+#> group  1  1.2136 0.2752
+#>       58
+```
+
+**Explanation:** Levene's test does not reject equal variances (p = 0.28). Pre-test then pick test is a known statistical pitfall called the conditional test problem: it inflates Type I error in the second-stage t-test. The cleaner modern advice is to skip Levene entirely and always use Welch, which costs essentially nothing in power when variances are equal and recovers the right alpha when they are not. Center = "median" (Brown-Forsythe) is more robust than the classic mean-centred Levene.
+
+</details>
+
+### Exercise 4.3: Wilcoxon rank-sum as a robust alternative
+
+**Task:** A skewed revenue distribution makes a two-sample t-test on `mtcars$mpg` between `am == 0` and `am == 1` look fragile to outliers. Run a Mann-Whitney / Wilcoxon rank-sum test using `wilcox.test()` with the formula interface and save the htest object to `ex_4_3`, then compare its p-value to the Welch t-test.
+
+**Expected result:**
+
+```
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  mpg by am
+#> W = 42, p-value = 0.001871
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- wilcox.test(mpg ~ am, data = mtcars)
+ex_4_3
+#> 	Wilcoxon rank sum test with continuity correction
+#> data:  mpg by am
+#> W = 42, p-value = 0.001871
+
+t.test(mpg ~ am, data = mtcars)$p.value
+#> [1] 0.001373638
+```
+
+**Explanation:** Both tests reject at alpha 0.01, but Wilcoxon is testing a location shift in ranks rather than a difference of means. Use the rank-sum when (1) the data are clearly skewed and your sample is too small for the CLT to bail you out, or (2) the response is ordinal. Note that `wilcox.test()` reports W, not U; W = U + n1(n1+1)/2. R's continuity correction can be turned off with `correct = FALSE` for tiny samples where it over-shrinks the p-value.
+
+</details>
+
+## Section 5. Effect sizes, CIs & power (3 problems)
+
+### Exercise 5.1: Cohen's d for the iris Petal.Length comparison
+
+**Task:** The htest object from Exercise 2.1 gives a p-value but no standardized effect size. Compute Cohen's d for `Petal.Length` between setosa and versicolor using the pooled standard deviation, by hand: numerator is the difference in means, denominator is the pooled SD. Save the scalar to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> [1] -10.51747
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+g1 <- iris$Petal.Length[iris$Species == "setosa"]
+g2 <- iris$Petal.Length[iris$Species == "versicolor"]
+n1 <- length(g1); n2 <- length(g2)
+s_pooled <- sqrt(((n1 - 1) * var(g1) + (n2 - 1) * var(g2)) / (n1 + n2 - 2))
+ex_5_1 <- (mean(g1) - mean(g2)) / s_pooled
+ex_5_1
+#> [1] -10.51747
+```
+
+**Explanation:** Cohen's d expresses the mean difference in pooled-SD units, so d = -10.5 means the two species centroids are over ten standard deviations apart on petal length, which is enormous by Cohen's rules of thumb (d = 0.2 small, 0.5 medium, 0.8 large). The pooled SD denominator is the conventional choice; using the SD of a single group or an averaged SD gives slightly different effect sizes (Glass's delta or Hedges' g). With unequal n the Hedges correction (1 - 3/(4(n1+n2)-9)) reduces small-sample bias.
+
+</details>
+
+### Exercise 5.2: Power calculation for a planned two-sample study
+
+**Task:** A clinical team is planning a two-arm trial expecting a medium effect (Cohen's d = 0.5). They want 80 percent power at alpha 0.05 (two-sided). Use `pwr::pwr.t.test()` to compute the required sample size per group. Save the returned power.htest object to `ex_5_2` and read off `n`.
+
+**Expected result:**
+
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 63.76561
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
+                     type = "two.sample", alternative = "two.sided")
+ex_5_2
+#>      Two-sample t test power calculation
+#>               n = 63.76561
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+```
+
+**Explanation:** The result n = 63.77 means round UP to 64 per group, or 128 total. Always round up: rounding down would leave you short of 80 percent power. Note `type = "two.sample"` is critical; the default is "two.sample" but spelling it out prevents bugs when colleagues read your code. For unequal group sizes use `pwr.t2n.test()` and supply n1 and n2 directly. To bracket sensitivity, recompute at d = 0.4 and 0.6 to show how n explodes for smaller anticipated effects.
+
+</details>
+
+### Exercise 5.3: Post-hoc power from an observed effect
+
+**Task:** Using the ToothGrowth supplement comparison (Welch from Exercise 2.2), compute the observed Cohen's d, then plug it into `pwr.t.test()` with n = 30 per group to estimate the achieved power. Save the power.htest object to `ex_5_3` and note that the test was underpowered.
+
+**Expected result:**
+
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 30
+#>               d = 0.4946386
+#>       sig.level = 0.05
+#>           power = 0.4753406
+#>     alternative = two.sided
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+g_oj <- ToothGrowth$len[ToothGrowth$supp == "OJ"]
+g_vc <- ToothGrowth$len[ToothGrowth$supp == "VC"]
+n1 <- length(g_oj); n2 <- length(g_vc)
+s_pooled <- sqrt(((n1 - 1) * var(g_oj) + (n2 - 1) * var(g_vc)) / (n1 + n2 - 2))
+d_obs <- (mean(g_oj) - mean(g_vc)) / s_pooled
+
+ex_5_3 <- pwr.t.test(n = 30, d = d_obs, sig.level = 0.05, type = "two.sample")
+ex_5_3
+#>               n = 30, d = 0.495, power = 0.475
+```
+
+**Explanation:** Observed power = 0.48 explains exactly why the p-value (0.06) hovered just above 0.05: the design had less than a coin-flip chance of detecting the very effect it observed. Many journals now ask authors NOT to report post-hoc power because it is mathematically equivalent to the p-value and offers no extra information. The legitimate use is exactly what we did here: to justify a larger replication study, not to retroactively explain a non-significant result.
+
+</details>
+
+## Section 6. End-to-end domain workflows (3 problems)
+
+### Exercise 6.1: Clinical trial paired BP with assumption check and CI
+
+**Task:** A cardiology PI needs a one-paragraph summary of a paired BP trial: mean change, 95 percent CI, p-value, and a normality check on the differences. Build a small workflow that runs `shapiro.test()` on the differences, runs the paired t-test, and returns a named list with `shapiro`, `ttest`, and `diff_mean`. Save the list to `ex_6_1`.
+
+```r title="Setup data"
+bp_before <- c(150, 148, 155, 142, 160, 152, 145, 158, 149, 153)
+bp_after  <- c(140, 138, 146, 134, 150, 144, 138, 148, 141, 145)
+```
+
+**Expected result:**
+
+```
+#> $shapiro$p.value : ~ 0.71
+#> $ttest$p.value   : ~ 1.0e-8
+#> $diff_mean       : -8.7
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+c(shapiro = ex_6_1$shapiro$p.value,
+  ttest   = ex_6_1$ttest$p.value,
+  diff    = ex_6_1$diff_mean)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+diffs <- bp_after - bp_before
+ex_6_1 <- list(
+  shapiro   = shapiro.test(diffs),
+  ttest     = t.test(bp_before, bp_after, paired = TRUE),
+  diff_mean = mean(diffs)
+)
+c(shapiro = ex_6_1$shapiro$p.value,
+  ttest   = ex_6_1$ttest$p.value,
+  diff    = ex_6_1$diff_mean)
+#>      shapiro        ttest         diff
+#> 7.080e-01 1.058e-08 -8.700e+00
+```
+
+**Explanation:** A clinical workflow is rarely "run one test." You sequence a normality screen on the DIFFERENCES (not the raw before/after, which can each be non-normal even when their pairwise differences are normal), then the paired test, then a CI. Wrapping all three in a list keeps everything together for downstream `kable()` or `gtsummary` rendering. The CI for the mean change is the natural way to communicate effect magnitude to clinicians; p-values alone are not actionable in a clinical setting.
+
+</details>
+
+### Exercise 6.2: A/B test on per-user spend with unequal allocation
+
+**Task:** A growth analyst runs an A/B test with 75 percent traffic on control and 25 percent on treatment. The per-user 30-day spend is shown below as two vectors. Run a Welch t-test plus a one-sided variant testing the marketing hypothesis that treatment lifts spend. Save a named list `ex_6_2` with elements `twoSided` and `oneSided`.
+
+```r title="Setup data"
+set.seed(42)
+spend_ctrl <- round(rgamma(750, shape = 2, scale = 25), 2)
+spend_trt  <- round(rgamma(250, shape = 2.2, scale = 25), 2)
+```
+
+**Expected result:**
+
+```
+#> $twoSided$p.value : ~ 0.085
+#> $oneSided$p.value : ~ 0.042
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+sapply(ex_6_2, function(h) h$p.value)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- list(
+  twoSided = t.test(spend_trt, spend_ctrl),
+  oneSided = t.test(spend_trt, spend_ctrl, alternative = "greater")
+)
+sapply(ex_6_2, function(h) h$p.value)
+#>   twoSided   oneSided
+#> 0.08470     0.04235
+```
+
+**Explanation:** Two practical points for A/B tests. First, gamma-distributed revenue violates normality; the CLT rescues a t-test at n = 750 and 250, but for n < ~50 per arm you should use a Mann-Whitney or a permutation test instead. Second, the one-sided test halves the two-sided p-value only when the observed sign matches the hypothesis. Pre-register one-sidedness; post-hoc switching is p-hacking. Many companies report both two-sided p-values and a separate predicted direction in dashboards.
+
+</details>
+
+### Exercise 6.3: A reusable APA-style reporter function
+
+**Task:** Write a function `apa_t` that takes an `htest` object (from `t.test`) and returns a one-line APA-formatted character string with t, df, p, and 95 percent CI. Save the function itself to `ex_6_3` and demonstrate it on the htest from Exercise 1.1.
+
+**Expected result:**
+
+```
+#> [1] "t(149) = -0.39, p = 0.697, 95% CI [5.71, 5.98]"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3(ex_1_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- function(h) {
+  sprintf("t(%g) = %.2f, p = %.3f, 95%% CI [%.2f, %.2f]",
+          h$parameter, h$statistic, h$p.value,
+          h$conf.int[1], h$conf.int[2])
+}
+ex_6_3(ex_1_1)
+#> [1] "t(149) = -0.39, p = 0.697, 95% CI [5.71, 5.98]"
+```
+
+**Explanation:** Reporters that wrap repeated stats output pay for themselves after the third paste. APA style asks for italic t and df; in markdown you would wrap the t and df in underscores. For p-values below 0.001 the convention is to print "p < 0.001" rather than the exact tiny value, which a robust function would handle with `if (h$p.value < 0.001) "p < .001" else sprintf("p = %.3f", h$p.value)`. Pairing this with `broom::tidy()` gives you a tibble row per test, ideal for batch reporting.
+
+</details>
+
+## What to do next
+
+- [t-Tests in R](t-Tests-in-R.html) is the conceptual companion: every variant, when to use it, and the decision rule for picking between Welch, Student, and paired.
+- [ANOVA Exercises in R](ANOVA-Exercises-in-R.html) extends two-group comparisons to three or more groups when a t-test is no longer the right tool.
+- [Power Analysis Exercises in R](Power-Analysis-Exercises-in-R.html) drills deeper into sample size planning beyond the two problems here.
+- [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html) is the next step once you start adding covariates to a two-group comparison.
