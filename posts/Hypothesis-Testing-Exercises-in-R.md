@@ -1,34 +1,46 @@
 ---
-title: "Hypothesis Testing Exercises in R: 15 Practice Problems with Solutions"
-slug: Hypothesis-Testing-Exercises-in-R
-description: "15 hypothesis testing exercises in R with runnable solutions: t-tests, proportions, chi-square, non-parametric tests, Type I/II errors, and power analysis."
-keywords: "hypothesis testing exercises in R, t-test exercises, p-value practice problems, chi-square exercises R, hypothesis testing practice, Type I error simulation, power analysis R"
-auto_link_terms: "hypothesis testing exercises|hypothesis testing practice|hypothesis test problems|t-test exercises|hypothesis testing questions|p-value practice"
-auto_link_case_sensitive: false
+title: "Hypothesis Testing Exercises in R: 25 Real-World Practice Problems"
+slug: "Hypothesis-Testing-Exercises-in-R"
+description: "25 hypothesis testing exercises in R covering t-tests, proportions, chi-square, non-parametric tests, power, multiple-testing correction, and equivalence."
+keywords: "hypothesis testing R, t-test exercises, p-value practice, chi-square exercises, power analysis R, Wilcoxon Mann-Whitney, multiple testing correction"
 mathjax: true
 webr: true
-date: 2026-04-18
-curriculum_id: E5.1
-post_type: EX
+date: "2026-05-12"
+post_type: "EX"
 sidebar_title: "Hypothesis Testing Exercises"
-fr_parent: Hypothesis-Testing-in-R.html
-difficulty: Intermediate
+sidebar_order: 125
+fr_parent: "Hypothesis-Testing-in-R.html"
+auto_link_terms: "hypothesis testing exercises|hypothesis testing practice|hypothesis test problems|p-value practice|t-test exercises|power analysis practice"
+auto_link_case_sensitive: false
+target_keyword: "hypothesis testing R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Hypothesis Testing Exercises in R: 15 Practice Problems with Solutions
+# Hypothesis Testing Exercises in R: 25 Real-World Practice Problems
 
-<p class="lead">These 15 hypothesis testing exercises in R walk you through t-tests, proportion tests, chi-square, non-parametric alternatives, Type I and Type II errors, and power analysis with full runnable solutions. Every problem includes a scaffold, a hint, and a reveal so you can check your answer the moment you finish coding.</p>
+<p class="lead">These 25 hypothesis testing exercises rebuild the full inference workflow in R: one-sample and two-sample t-tests, proportion and chi-square tests, non-parametric alternatives, power and effect size, and production patterns like multiple-testing correction and equivalence testing. Every solution is hidden behind a reveal so you can verify after coding.</p>
 
-## How do you set up and run a hypothesis test in R?
+```r title="Run this once before any exercise"
+library(dplyr)
+library(ggplot2)
+library(pwr)
+library(broom)
+library(purrr)
+library(tibble)
+```
 
-Every hypothesis test in R collapses the same five-step story: state H₀ and H₁, pick a test, compute a statistic, read the p-value, decide against α. We'll run that full story on `iris$Sepal.Width` in one block against the claim "mean sepal width equals 3.0 cm," then lean on this one pattern across all 15 problems below.
+## Section 1. One-sample tests and reading the test object (4 problems)
 
-```r title="One-sample t-test on iris Sepal.Width"
-# Five-step hypothesis test in one block
-# H0: mean Sepal.Width = 3.0      H1: mean Sepal.Width != 3.0
-sample_test <- t.test(iris$Sepal.Width, mu = 3.0)
-sample_test
-#> 	One Sample t-test
+### Exercise 1.1: Two-sided one-sample t-test on iris Sepal.Width
+
+**Task:** Run a two-sided one-sample t-test on `iris$Sepal.Width` against the null hypothesis that the population mean equals 3.0. Use the full 150-row dataset and the default 95% confidence level. Save the entire `htest` object to `ex_1_1` so the next exercise can pull values out of it.
+
+**Expected result:**
+
+```
+#>
+#>  One Sample t-test
 #>
 #> data:  iris$Sepal.Width
 #> t = 1.6105, df = 149, p-value = 0.1094
@@ -40,780 +52,1072 @@ sample_test
 #>  3.057333
 ```
 
-The sample mean (3.057) sits just above the hypothesised 3.0, the t statistic is a modest 1.61, and the p-value of 0.11 says: "a gap this big or bigger would happen about 11% of the time if H₀ held." That's not rare enough to reject at α = 0.05, so we keep H₀. The 95% CI \[2.987, 3.128\] also contains 3.0, which is the same decision expressed as an interval.
+**Difficulty:** Beginner
 
-[KEY INSIGHT]
-**Every R hypothesis test returns the same list shape: statistic, p.value, parameter, conf.int.** That consistency is what lets one decision rule (p < α) power `t.test()`, `prop.test()`, `chisq.test()`, and `wilcox.test()` alike. Learn the interface once and every future test slots in.
-
-**Try it:** Re-run the same test against `mu = 2.9`. Predict before running: should the p-value go up or down compared to 0.11?
-
-```r title="Your turn: predict p-value at mu 2.9"
-# Try it: change mu and predict the direction of the p-value
-ex_test <- t.test(iris$Sepal.Width, mu = ___)   # replace ___ with 2.9
-ex_test$p.value
-#> Expected: a much smaller p-value, below 0.05
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Mu-2.9 solution"
-ex_test <- t.test(iris$Sepal.Width, mu = 2.9)
-ex_test$p.value
-#> [1] 1.853741e-05
-```
-
-**Explanation:** The sample mean 3.057 is farther from 2.9 than it is from 3.0, so the t statistic grows and the tail probability shrinks. The p-value drops well below 0.05 and we now reject H₀: μ = 2.9.
-
-</details>
-
-## How do you read test output and decide against alpha?
-
-The object returned by any R test is a list, which means you can pull out the exact number you need with `$p.value`, `$statistic`, or `$conf.int`. That matters the moment you want to report a result, chain the decision into code, or re-use the same template across dozens of tests. Once you can programmatically read a test object you can automate the whole report.
-
-```r title="Extract results and automate the decision"
-# Programmatic access to a test result
-alpha <- 0.05
-
-c(statistic = unname(sample_test$statistic),
-  p_value   = sample_test$p.value,
-  ci_lo     = sample_test$conf.int[1],
-  ci_hi     = sample_test$conf.int[2])
-#>  statistic    p_value      ci_lo      ci_hi
-#>  1.6104762  0.1094245  2.9865569  3.1281097
-
-decision_msg <- if (sample_test$p.value < alpha) {
-  "Reject H0 at alpha = 0.05"
-} else {
-  "Fail to reject H0 at alpha = 0.05"
-}
-decision_msg
-#> [1] "Fail to reject H0 at alpha = 0.05"
-```
-
-Pulling each number out separately is the template you'll use in every exercise: extract, compare to α, print a plain-English decision. Notice the CI contains 3.0, which is the same conclusion as p > 0.05 stated differently. Whenever the null value sits inside the 95% CI, the two-sided test at α = 0.05 will fail to reject.
-
-[TIP]
-**Always report statistic, df, p, and CI together.** A p-value alone answers "is the effect non-zero?" but not "how big is it?" or "how precisely measured?" The CI carries both pieces. Journals increasingly require the quartet, and it protects you from the worst misreads of a p-value on its own.
-
-**Try it:** Run a Welch two-sample t-test of `Petal.Length` by `Species` on the iris rows for `setosa` and `versicolor`, then extract the 95% confidence interval for the difference of means.
-
-```r title="Your turn: extract CI from two-sample t-test"
-# Try it: Welch two-sample t on iris Petal.Length, setosa vs versicolor
-setv <- subset(iris, Species %in% c("setosa", "versicolor"))
-ex_ci_test <- t.test(Petal.Length ~ Species, data = setv)
-# your code: print the 95% CI only
-___
-#> Expected: a tight interval near -2.8, well below zero
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Two-sample CI solution"
-setv <- subset(iris, Species %in% c("setosa", "versicolor"))
-ex_ci_test <- t.test(Petal.Length ~ Species, data = setv)
-ex_ci_test$conf.int
-#> [1] -2.939618 -2.656382
-#> attr(,"conf.level")
-#> [1] 0.95
-```
-
-**Explanation:** The CI sits entirely on one side of zero, which is the two-sample version of "null value not contained." Setosa petals are about 2.8 cm shorter than versicolor, and we're 95% confident the true difference lies in \[-2.94, -2.66\].
-
-</details>
-
-## Practice Exercises
-
-The 15 exercises below ramp from core t-test mechanics to simulation-based reasoning about Type I error, power, and multiple testing. Every solution uses distinct variables (prefixed `ex1_`, `ex2_`, ...) so your exercise code never overwrites the tutorial's `sample_test` state.
-
-### Exercise 1: One-sample t-test against a fixed value
-
-Using the iris dataset, test whether the mean `Sepal.Length` for *setosa* flowers differs from 5.0 cm. Report the t statistic, the p-value, and the 95% CI, then state your decision at α = 0.05.
-
-```r title="Exercise 1 starter"
-# Exercise 1: one-sample t-test on iris setosa Sepal.Length vs mu = 5.0
-# Hint: subset iris to Species == "setosa" first, then call t.test(..., mu = 5.0)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-setosa_len <- iris$Sepal.Length[iris$Species == "setosa"]
-ex1_test <- t.test(setosa_len, mu = 5.0)
-ex1_test
-#> 	One Sample t-test
+```r title="Solution"
+ex_1_1 <- t.test(iris$Sepal.Width, mu = 3.0)
+ex_1_1
 #>
-#> data:  setosa_len
-#> t = 0.12028, df = 49, p-value = 0.9048
-#> alternative hypothesis: true mean is not equal to 5
+#>  One Sample t-test
+#>
+#> data:  iris$Sepal.Width
+#> t = 1.6105, df = 149, p-value = 0.1094
+```
+
+**Explanation:** `t.test(x, mu = ...)` runs a one-sample t-test against the hypothesised mean. The sample mean of 3.057 sits only 0.057 above 3.0, the t statistic is a modest 1.61, and p = 0.109 fails to reject H0 at the usual 0.05 cutoff. The 95% CI \[2.987, 3.128\] contains 3.0, which is the same decision expressed as an interval. Keeping the full object (not just the p-value) lets you pull every component later.
+
+</details>
+
+### Exercise 1.2: Extract p-value, statistic, and CI from a t-test object
+
+**Task:** Using the object from Exercise 1.1, build a named numeric vector containing the t statistic, the p-value, and the two endpoints of the 95% confidence interval. Use only `$` accessors against the `htest` object. Save the four-element named vector to `ex_1_2` so you can pipe it into a report-friendly format.
+
+**Expected result:**
+
+```
+#> statistic   p_value     ci_lo     ci_hi
+#> 1.6105000 0.1093850 2.9865568 3.1281099
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_2 <- c(
+  statistic = unname(ex_1_1$statistic),
+  p_value   = ex_1_1$p.value,
+  ci_lo     = ex_1_1$conf.int[1],
+  ci_hi     = ex_1_1$conf.int[2]
+)
+ex_1_2
+#> statistic   p_value     ci_lo     ci_hi
+#> 1.6105000 0.1093850 2.9865568 3.1281099
+```
+
+**Explanation:** Every `htest` object is a list, so `$p.value`, `$statistic`, `$conf.int`, and `$parameter` give you the raw numbers. `unname()` strips the "t" label R puts on the statistic element so the output vector looks clean. This pattern is the foundation of every automated reporting pipeline: run a test, pluck the numbers, drop them in a table. `broom::tidy(ex_1_1)` is the tidyverse equivalent and returns a 1-row tibble with the same columns.
+
+</details>
+
+### Exercise 1.3: One-sided alternative for an air quality cleanup target
+
+**Task:** A regulator setting an ozone advisory wants to test whether the New York summer mean of `airquality$Ozone` is strictly greater than 40 ppb. Drop the missing values, run a one-sided one-sample t-test with `alternative = "greater"`, and save the test object to `ex_1_3`. State whether the regulator should reject the 40 ppb null at alpha 0.05.
+
+**Expected result:**
+
+```
+#>
+#>  One Sample t-test
+#>
+#> data:  na.omit(airquality$Ozone)
+#> t = 0.5779, df = 115, p-value = 0.2822
+#> alternative hypothesis: true mean is greater than 40
 #> 95 percent confidence interval:
-#>  4.905824 5.106176
+#>  35.91368      Inf
 #> sample estimates:
 #> mean of x
-#>     5.006
+#>  42.12931
 ```
 
-**Decision:** p ≈ 0.90 is nowhere near 0.05, so we fail to reject H₀. The mean setosa sepal length is consistent with 5.0 cm, and 5.0 sits comfortably inside the 95% CI \[4.91, 5.11\].
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 2: One-sided t-test with direction
-
-On mtcars, test whether 4-cylinder cars have mean miles-per-gallon *greater than* 25 (not just different from 25). Use α = 0.05 and state whether you would reject.
-
-```r title="Exercise 2 starter"
-# Exercise 2: one-sided t-test on mtcars 4-cyl mpg vs mu = 25
-# Hint: subset to cyl == 4, then use alternative = "greater"
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-four_cyl <- mtcars$mpg[mtcars$cyl == 4]
-ex2_test <- t.test(four_cyl, mu = 25, alternative = "greater")
-ex2_test
-#> 	One Sample t-test
-#>
-#> data:  four_cyl
-#> t = 1.2215, df = 10, p-value = 0.1249
-#> alternative hypothesis: true mean is greater than 25
-#> 95 percent confidence interval:
-#>  24.2217     Inf
-#> sample estimates:
-#> mean of x
-#>  26.66364
+```r title="Solution"
+ex_1_3 <- t.test(
+  na.omit(airquality$Ozone),
+  mu = 40,
+  alternative = "greater"
+)
+ex_1_3$p.value
+#> [1] 0.2821847
 ```
 
-**Decision:** The sample mean 26.66 sits above 25, but the one-sided p-value 0.125 is above 0.05. We fail to reject H₀. This is the right reminder that "the sample mean is higher than the claim" is never enough on its own, you need the standard error and the sample size to decide.
+**Explanation:** The one-sided alternative `"greater"` only counts deviations above 40, so the t distribution's upper tail supplies the p-value. The sample mean is 42.13 (above 40) yet noise is large, so p = 0.28 fails to reject. The CI lower bound becomes finite (35.91) while the upper is +Inf: a one-sided CI is a half-line, not an interval. A two-sided test here would give roughly double the p-value but a symmetric finite interval.
 
 </details>
 
-### Exercise 3: Manual t statistic and two-sided p-value
+### Exercise 1.4: Confidence interval and p-value give the same decision
 
-From `mtcars$hp`, compute the t statistic against μ₀ = 150 from scratch using `mean()`, `sd()`, `length()`, and convert it to a two-sided p-value with `pt()`. Verify your answer against the `t.test()` output.
+**Task:** For the built-in vector `trees$Height`, run a two-sided one-sample t-test against `mu = 75`. Build a 2-row tibble with columns `mu` and `decision` where row 1 reports the p < 0.05 decision and row 2 reports whether 75 lies inside the 95% CI. Save the tibble to `ex_1_4` and confirm both rows agree.
 
-```r title="Exercise 3 starter"
-# Exercise 3: manual t and two-sided p for mtcars$hp against mu = 150
-# Hint: t = (mean(x) - mu0) / (sd(x) / sqrt(n)); p = 2 * pt(-abs(t), df = n-1)
+**Expected result:**
 
-# Write your code below:
+```
+#> # A tibble: 2 x 2
+#>   mu    decision
+#>   <chr> <chr>
+#> 1 p<.05 fail to reject
+#> 2 inCI  fail to reject
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-hp_vec <- mtcars$hp
-n <- length(hp_vec)
-mu0 <- 150
-
-ex3_t <- (mean(hp_vec) - mu0) / (sd(hp_vec) / sqrt(n))
-ex3_p <- 2 * pt(-abs(ex3_t), df = n - 1)
-c(t = ex3_t, p = ex3_p)
-#>          t          p
-#> -0.2735125  0.7862540
-
-# Verify
-t.test(hp_vec, mu = 150)$statistic
-#>          t
-#> -0.2735125
-t.test(hp_vec, mu = 150)$p.value
-#> [1] 0.786254
-```
-
-**Explanation:** The manual t (-0.274) and p (0.786) match the `t.test()` output to the last digit. There's no magic, the p-value is just twice the left-tail probability of `-|t|` on a t distribution with `n - 1` degrees of freedom. Building the number by hand once cements that.
-
-</details>
-
-### Exercise 4: Build a reusable decision function
-
-Write a function `decide_t(x, mu, alpha)` that runs a one-sample t-test and returns a list with fields `statistic`, `p_value`, `ci`, and `decision` (character: `"reject"` or `"fail to reject"`). Test it on `iris$Petal.Length` against μ = 3.8 at α = 0.05.
-
-```r title="Exercise 4 starter"
-# Exercise 4: reusable decide_t() wrapping t.test()
-# Hint: call t.test() inside the function, then assemble a list of return values
-
-decide_t <- function(x, mu, alpha = 0.05) {
-  # your code here
-}
-
-# Test:
-ex4_out <- decide_t(iris$Petal.Length, mu = 3.8, alpha = 0.05)
-ex4_out
-#> Expected: decision is "fail to reject"
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-decide_t <- function(x, mu, alpha = 0.05) {
-  tt <- t.test(x, mu = mu)
-  list(
-    statistic = unname(tt$statistic),
-    p_value   = tt$p.value,
-    ci        = tt$conf.int,
-    decision  = if (tt$p.value < alpha) "reject" else "fail to reject"
+```r title="Solution"
+tt <- t.test(trees$Height, mu = 75)
+in_ci <- 75 >= tt$conf.int[1] && 75 <= tt$conf.int[2]
+ex_1_4 <- tibble::tibble(
+  mu = c("p<.05", "inCI"),
+  decision = c(
+    if (tt$p.value < 0.05) "reject" else "fail to reject",
+    if (in_ci) "fail to reject" else "reject"
   )
-}
-
-ex4_out <- decide_t(iris$Petal.Length, mu = 3.8, alpha = 0.05)
-ex4_out
-#> $statistic
-#> [1] -0.2867036
-#>
-#> $p_value
-#> [1] 0.7747889
-#>
-#> $ci
-#> [1] 3.473185 4.042815
-#> attr(,"conf.level")
-#> [1] 0.95
-#>
-#> $decision
-#> [1] "fail to reject"
+)
+ex_1_4
 ```
 
-**Explanation:** The function packages the four numbers you actually want to report. Now every call site reads as one line and returns a self-contained decision record, which is the pattern you extend into a full analysis pipeline.
+**Explanation:** The two-sided CI and the two-sided p-value are mathematically the same procedure expressed differently: the 95% CI is the set of mu values that would NOT be rejected at alpha = 0.05. If your hypothesised mu sits inside the CI, p > 0.05; if outside, p < 0.05. Always. When students see the two disagree, it is almost always a one-sided test with a half-line CI being compared against a two-sided cutoff.
 
 </details>
 
-### Exercise 5: Two-sample Welch t-test
+## Section 2. Two-sample comparisons (5 problems)
 
-Test whether the mean `Petal.Length` differs between iris *setosa* and *versicolor*. Run the two-sample Welch t-test, extract the full result, then write a one-sentence paper-ready summary that includes the means, the t statistic, the degrees of freedom, the p-value, and the 95% CI.
+### Exercise 2.1: Welch two-sample t-test on iris setosa vs versicolor
 
-```r title="Exercise 5 starter"
-# Exercise 5: Welch two-sample t-test on iris Petal.Length by Species
-# Hint: subset to setosa + versicolor, use the formula interface Petal.Length ~ Species
+**Task:** A botanist studying speciation wants to know whether setosa and versicolor irises differ in mean sepal length. Filter `iris` to those two species, run a Welch two-sample t-test on `Sepal.Length` by `Species`, and save the test object to `ex_2_1`. State the p-value and the direction of the estimated difference.
 
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 5 solution"
-setv <- subset(iris, Species %in% c("setosa", "versicolor"))
-ex5_test <- t.test(Petal.Length ~ Species, data = setv)
-ex5_test
-#> 	Welch Two Sample t-test
 #>
-#> data:  Petal.Length by Species
-#> t = -39.493, df = 62.14, p-value < 2.2e-16
+#>  Welch Two Sample t-test
+#>
+#> data:  Sepal.Length by Species
+#> t = -15.386, df = 86.538, p-value < 2.2e-16
 #> alternative hypothesis: true difference in means between group setosa and group versicolor is not equal to 0
 #> 95 percent confidence interval:
-#>  -2.939618 -2.656382
+#>  -1.105533 -0.851334
 #> sample estimates:
 #>     mean in group setosa mean in group versicolor
-#>                    1.462                    4.260
+#>                    5.006                    5.936
 ```
 
-**Paper-ready sentence:**
+**Difficulty:** Intermediate
 
-> Versicolor petals (M = 4.26 cm, n = 50) were significantly longer than setosa petals (M = 1.46 cm, n = 50), Welch's t(62.14) = -39.49, p < 0.001, 95% CI for the difference \[-2.94, -2.66\] cm.
-
-**Explanation:** The 2.8 cm gap is 40 standard errors wide, which is why the p-value is vanishingly small and the CI sits far from zero. Reporting the means + t + df + p + CI is the full quartet a reader needs to judge the effect for themselves.
-
-</details>
-
-### Exercise 6: Paired t-test on the sleep dataset
-
-The built-in `sleep` dataset records extra sleep induced by two drugs in the same 10 subjects. Test whether drug 2 produces *more* extra sleep than drug 1 using a paired t-test. First convince yourself the data really is paired, then run the test with the correct alternative.
-
-```r title="Exercise 6 starter"
-# Exercise 6: paired t-test on sleep, drug 2 > drug 1
-# Hint: subset by group, confirm the two vectors share subject IDs, then pass paired = TRUE
-
-# Write your code below:
-
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-# Confirm pairing: same ID appears in each group
-head(sleep)
-#>   extra group ID
-#> 1   0.7     1  1
-#> 2  -1.6     1  2
-#> 3  -0.2     1  3
-#> 4  -1.2     1  4
-#> 5  -0.1     1  5
-#> 6   3.4     1  6
+```r title="Solution"
+two_species <- iris %>% filter(Species %in% c("setosa", "versicolor"))
+two_species$Species <- droplevels(two_species$Species)
 
-drug1 <- sleep$extra[sleep$group == 1]
-drug2 <- sleep$extra[sleep$group == 2]
+ex_2_1 <- t.test(Sepal.Length ~ Species, data = two_species)
+ex_2_1$p.value
+#> [1] 8.985235e-27
+```
 
-ex6_test <- t.test(drug2, drug1, paired = TRUE, alternative = "greater")
-ex6_test
-#> 	Paired t-test
+**Explanation:** The formula interface `y ~ group` is the cleanest way to pass a two-sample test: R splits `Sepal.Length` by the factor levels. `droplevels()` removes the unused virginica level so the test labels print cleanly. Welch is the default because it does NOT assume equal variances; it adjusts the degrees of freedom (here 86.5, not 98) to compensate. The negative CI tells you setosa (the first level alphabetically) has the smaller mean.
+
+</details>
+
+### Exercise 2.2: Paired t-test on a within-subject weight change
+
+**Task:** A trial coordinator measures weight before and after a 12-week intervention on 20 participants. Build the inline tibble below, run a paired t-test of `weight_after` against `weight_before`, and save the test object to `ex_2_2`. Decide whether the intervention produced a significant mean weight change.
+
+```r
+pre_post <- tibble::tibble(
+  subject       = 1:20,
+  weight_before = c(82.4, 90.1, 78.2, 85.6, 91.0, 79.3, 88.7, 84.2, 86.5, 80.9,
+                   89.4, 83.1, 87.6, 81.8, 92.3, 85.0, 77.4, 88.0, 84.5, 86.8),
+  weight_after  = c(80.1, 88.4, 76.7, 83.9, 88.2, 78.5, 86.1, 82.5, 84.6, 79.7,
+                   86.8, 81.5, 85.9, 80.2, 89.5, 83.4, 76.2, 85.7, 82.8, 84.6)
+)
+```
+
+**Expected result:**
+
+```
 #>
-#> data:  drug2 and drug1
-#> t = 4.0621, df = 9, p-value = 0.001416
-#> alternative hypothesis: true mean difference is greater than 0
+#>  Paired t-test
+#>
+#> data:  pre_post$weight_after and pre_post$weight_before
+#> t = -11.84, df = 19, p-value = 3.1e-10
+#> alternative hypothesis: true mean difference is not equal to 0
 #> 95 percent confidence interval:
-#>  0.8669947       Inf
+#>  -2.310 -1.620
 #> sample estimates:
 #> mean difference
-#>            1.58
+#>          -1.965
 ```
 
-**Decision:** p ≈ 0.0014, far below 0.05, so we reject H₀. Drug 2 produces on average 1.58 hours more extra sleep per subject than drug 1, and the one-sided 95% CI lower bound is 0.87 hours.
+**Difficulty:** Intermediate
 
-**Explanation:** A paired t-test reduces to a one-sample t-test on the within-subject differences. That's why `paired = TRUE` is so much more powerful than an independent two-sample test here, it cancels out the between-subject variability that would otherwise dominate.
-
-</details>
-
-### Exercise 7: Equal-variance vs Welch t-test
-
-On mtcars, test whether `mpg` differs by transmission type (`am`) under two variance assumptions: equal variance (`var.equal = TRUE`) and Welch (default). Then use `bartlett.test()` to check which assumption the data supports.
-
-```r title="Exercise 7 starter"
-# Exercise 7: equal-variance vs Welch t-test on mtcars mpg by am
-# Hint: call t.test(mpg ~ am, data = mtcars, var.equal = TRUE) and default
-#       Then bartlett.test(mpg ~ am, data = mtcars) for the variance check
-
-# Write your code below:
-
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-ex7_eq    <- t.test(mpg ~ am, data = mtcars, var.equal = TRUE)
-ex7_welch <- t.test(mpg ~ am, data = mtcars)
-ex7_bart  <- bartlett.test(mpg ~ am, data = mtcars)
-
-c(equal_var_p = ex7_eq$p.value,
-  welch_p     = ex7_welch$p.value,
-  bartlett_p  = ex7_bart$p.value)
-#> equal_var_p     welch_p  bartlett_p
-#>  0.00028506  0.00137367  0.07231519
+```r title="Solution"
+ex_2_2 <- t.test(
+  pre_post$weight_after,
+  pre_post$weight_before,
+  paired = TRUE
+)
+ex_2_2$p.value
+#> [1] 3.1e-10
 ```
 
-**Explanation:** Both tests reject H₀, but they disagree on magnitude. The Bartlett p-value of 0.072 is borderline, the variances are probably not equal enough to trust `var.equal = TRUE`. Welch's test relaxes the assumption by estimating a fractional degrees of freedom, and it's the safer default for real data. The modern recommendation is to use Welch unless you have a strong prior reason (balanced design, matched sds) to assume equal variances.
+**Explanation:** Paired t-tests treat the 20 differences as a one-sample test against zero, so within-subject correlation is removed and statistical power jumps compared to a two-sample t-test on the same data. The mean difference of -1.97 kg is small in absolute terms but consistent enough across subjects that the test rejects at p well below 0.001. Forgetting `paired = TRUE` here would still give a directionally correct estimate but with a much larger p-value because between-subject baseline variance is reintroduced.
 
 </details>
 
-[NOTE]
-**R's default t.test() is Welch, not Student's.** This differs from many textbooks and SPSS, which default to the equal-variance version. The modern consensus is that Welch is better-behaved under mild variance differences and costs almost nothing in power when variances really are equal. Set `var.equal = TRUE` only when you have a specific design reason to.
+### Exercise 2.3: Compare Welch vs equal-variance Student t-test on the same data
 
-### Exercise 8: One-proportion test against a claim
+**Task:** A statistics reviewer wants you to demonstrate when the Welch correction matters. Take the setosa vs versicolor data from Exercise 2.1, run both `var.equal = FALSE` (Welch, the default) and `var.equal = TRUE` (Student) t-tests, and save a 2-row tibble of degrees of freedom and p-values to `ex_2_3`. Comment in your explanation on when the difference matters.
 
-A factory claims its defect rate is 2%. In a sample of 500 units, 18 turn out to be defective. Test whether the observed defect rate differs significantly from 2% using both `prop.test()` and `binom.test()`, and decide at α = 0.05.
+**Expected result:**
 
-```r title="Exercise 8 starter"
-# Exercise 8: one-proportion test, 18 defects out of 500, claim = 2%
-# Hint: prop.test(x = 18, n = 500, p = 0.02)  and  binom.test(18, 500, p = 0.02)
+```
+#> # A tibble: 2 x 3
+#>   variant      df p_value
+#>   <chr>     <dbl>   <dbl>
+#> 1 welch      86.5 8.99e-27
+#> 2 student    98.0 3.75e-28
+```
 
-# Write your code below:
+**Difficulty:** Advanced
 
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-ex8_prop  <- prop.test(x = 18, n = 500, p = 0.02)
-ex8_binom <- binom.test(x = 18, n = 500, p = 0.02)
+```r title="Solution"
+two_species <- iris %>%
+  filter(Species %in% c("setosa", "versicolor")) %>%
+  mutate(Species = droplevels(Species))
 
-c(prop_p = ex8_prop$p.value, binom_p = ex8_binom$p.value)
-#>     prop_p    binom_p
-#> 0.03168317 0.03207064
+w <- t.test(Sepal.Length ~ Species, data = two_species, var.equal = FALSE)
+s <- t.test(Sepal.Length ~ Species, data = two_species, var.equal = TRUE)
 
-ex8_prop$conf.int
-#> [1] 0.02271537 0.05669728
-#> attr(,"conf.level")
-#> [1] 0.95
+ex_2_3 <- tibble::tibble(
+  variant = c("welch", "student"),
+  df = c(unname(w$parameter), unname(s$parameter)),
+  p_value = c(w$p.value, s$p.value)
+)
+ex_2_3
 ```
 
-**Decision:** Both tests return p ≈ 0.032, below 0.05, so we reject H₀ at α = 0.05. The observed defect rate (3.6%) is significantly higher than the claimed 2%.
-
-**Explanation:** `prop.test()` uses a chi-square approximation with continuity correction; `binom.test()` is the exact test based on the binomial distribution. Results agree closely here because `n = 500` is large. Prefer `binom.test()` when `n * p < 10` or `n * (1 - p) < 10`, where the approximation breaks down.
+**Explanation:** Welch's correction lowers degrees of freedom whenever the sample variances differ, which widens the t distribution's tails and raises the p-value. With equal sample sizes and similar variances the two tests are nearly identical, but with unequal sizes AND unequal variances they diverge sharply. Welch should be your default: it only loses a tiny bit of power when variances really are equal but stays valid when they are not. The Student version is a relic worth knowing only because legacy code uses it.
 
 </details>
 
-### Exercise 9: Two-proportion A/B test
+### Exercise 2.4: F-test for equal variances across mtcars cylinder groups
 
-A team runs an A/B test on a checkout button. Control converts 48 of 500; treatment converts 72 of 500. Test whether the conversion rates differ and compute the 95% confidence interval for the difference.
+**Task:** Before defending the equal-variance assumption you need evidence. Subset `mtcars` to 4-cylinder and 8-cylinder cars, run `var.test()` to compare the variances of `mpg` between those two groups, and save the test object to `ex_2_4`. Report whether the test rejects equal variances at alpha 0.05 and what that implies for choosing Welch vs Student.
 
-```r title="Exercise 9 starter"
-# Exercise 9: two-proportion test, control 48/500 vs treatment 72/500
-# Hint: prop.test(x = c(48, 72), n = c(500, 500))
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-ex9_ab <- prop.test(x = c(48, 72), n = c(500, 500))
-ex9_ab
-#> 	2-sample test for equality of proportions with continuity correction
 #>
-#> data:  c(48, 72) out of c(500, 500)
-#> X-squared = 4.9041, df = 1, p-value = 0.02682
+#>  F test to compare two variances
+#>
+#> data:  mpg by cyl
+#> F = 4.3865, num df = 10, denom df = 13, p-value = 0.01415
+#> alternative hypothesis: true ratio of variances is not equal to 1
+#> 95 percent confidence interval:
+#>   1.357918 15.473052
+#> sample estimates:
+#> ratio of variances
+#>            4.38651
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+sub_mt <- mtcars %>% filter(cyl %in% c(4, 8))
+ex_2_4 <- var.test(mpg ~ cyl, data = sub_mt)
+ex_2_4$p.value
+#> [1] 0.01415
+```
+
+**Explanation:** `var.test()` runs an F-test on the ratio of two sample variances against H0: ratio = 1. Here the variance of 4-cyl mpg is roughly 4.4 times that of 8-cyl mpg, and p = 0.014 rejects equal variances. That is exactly the situation where Welch matters: forcing `var.equal = TRUE` on a Student t-test would inflate Type I error. F-tests are highly sensitive to non-normality though, so for serious work use Levene's test from `car::leveneTest()` (or Brown-Forsythe) which is more robust to skewed data.
+
+</details>
+
+### Exercise 2.5: Two-sample t-test from summary statistics only
+
+**Task:** A meta-analyst with only published summary statistics (means, sds, and sample sizes for two groups) needs to reproduce a Welch t-test without the raw data. Given group A (mean=50.2, sd=8.1, n=30) and group B (mean=46.8, sd=9.4, n=35), compute the Welch t statistic, the Welch degrees of freedom, and the two-sided p-value using base R formulas. Save a named numeric vector to `ex_2_5`.
+
+**Expected result:**
+
+```
+#>      t        df p_value
+#> 1.5640   62.7610  0.1229
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_5 <- # your code here
+ex_2_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+m1 <- 50.2; s1 <- 8.1; n1 <- 30
+m2 <- 46.8; s2 <- 9.4; n2 <- 35
+
+se <- sqrt(s1^2 / n1 + s2^2 / n2)
+t_stat <- (m1 - m2) / se
+df_welch <- (s1^2/n1 + s2^2/n2)^2 /
+  ((s1^2/n1)^2 / (n1 - 1) + (s2^2/n2)^2 / (n2 - 1))
+p_value <- 2 * pt(-abs(t_stat), df = df_welch)
+
+ex_2_5 <- round(c(t = t_stat, df = df_welch, p_value = p_value), 4)
+ex_2_5
+```
+
+**Explanation:** Welch t = (m1 - m2) / sqrt(s1^2/n1 + s2^2/n2), and the Welch-Satterthwaite degrees of freedom blend the two within-group variance estimates into a single non-integer df. The two-sided p-value is `2 * pt(-abs(t), df)`. This pattern is essential for meta-analysis, replication checks, and recomputing tests when only summary tables exist. The `BSDA::tsum.test()` function wraps the same math if you want a one-line version.
+
+</details>
+
+## Section 3. Proportions and counts (4 problems)
+
+### Exercise 3.1: One-proportion z-test on a coin flip experiment
+
+**Task:** Test whether a coin showing 540 heads in 1000 flips deviates from fairness using `prop.test()` with `correct = FALSE` so the output matches a textbook one-proportion z-test. Use the default two-sided alternative and 95% confidence level. Save the test object to `ex_3_1` and report the p-value.
+
+**Expected result:**
+
+```
+#>
+#>  1-sample proportions test without continuity correction
+#>
+#> data:  540 out of 1000, null probability 0.5
+#> X-squared = 6.4, df = 1, p-value = 0.01141
+#> alternative hypothesis: true p is not equal to 0.5
+#> 95 percent confidence interval:
+#>  0.5090 0.5705
+#> sample estimates:
+#>    p
+#> 0.54
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- prop.test(
+  x = 540,
+  n = 1000,
+  p = 0.5,
+  correct = FALSE
+)
+ex_3_1$p.value
+#> [1] 0.01141204
+```
+
+**Explanation:** `prop.test()` runs a score test based on the normal approximation. The X-squared statistic equals the square of the z statistic; 6.4 corresponds to z = 2.53 and a two-sided p-value of 0.011. Setting `correct = FALSE` skips Yates' continuity correction so the output lines up with the closed-form formula z = (p_hat - p0) / sqrt(p0 * (1 - p0) / n). For small n use `binom.test()` (exact binomial); for very small n the Wilson interval from `prop.test()` still works well.
+
+</details>
+
+### Exercise 3.2: Two-proportion test on A/B clickthrough rates
+
+**Task:** A growth team runs an A/B test on a button color change. Variant A receives 12,400 impressions and 412 clicks; variant B receives 12,180 impressions and 489 clicks. Run a two-proportion test with `prop.test()` to evaluate whether the difference is statistically significant at alpha 0.05. Save the test object to `ex_3_2` and report the conclusion.
+
+**Expected result:**
+
+```
+#>
+#>  2-sample test for equality of proportions with continuity correction
+#>
+#> data:  c(412, 489) out of c(12400, 12180)
+#> X-squared = 7.39, df = 1, p-value = 0.006547
 #> alternative hypothesis: two.sided
 #> 95 percent confidence interval:
-#>  -0.09004175 -0.00595825
+#>  -0.0124 -0.0021
 #> sample estimates:
-#> prop 1 prop 2
-#>  0.096  0.144
+#>    prop 1    prop 2
+#> 0.03323   0.04014
 ```
 
-**Decision:** p ≈ 0.027 is below 0.05, so we reject H₀. Treatment conversion (14.4%) is significantly higher than control (9.6%). The 95% CI for the difference \[-9.0, -0.6\] percentage points excludes zero, which is the same conclusion phrased as an interval.
+**Difficulty:** Intermediate
 
-**Explanation:** The CI is the more useful number in practice. A 0.6 to 9.0 percentage-point lift is a wide range, if the lower bound is too small to justify the rollout cost, you'd collect more data before committing.
-
-</details>
-
-### Exercise 10: Chi-square test of independence
-
-Using `mtcars`, test whether transmission type (`am`) is independent of cylinder count (`cyl`). Build the 3 × 2 contingency table, run `chisq.test()`, and interpret the warning R throws. Then compare to `fisher.test()` to see how the exact test handles small expected counts.
-
-```r title="Exercise 10 starter"
-# Exercise 10: chi-square independence of cyl and am in mtcars
-# Hint: table(mtcars$cyl, mtcars$am) then chisq.test() on the table
-
-# Write your code below:
-
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 10 solution"
-cyl_am <- table(mtcars$cyl, mtcars$am)
-cyl_am
+```r title="Solution"
+ex_3_2 <- prop.test(
+  x = c(412, 489),
+  n = c(12400, 12180)
+)
+ex_3_2$p.value
+#> [1] 0.006547
+```
+
+**Explanation:** Both `x` and `n` accept length-2 vectors and `prop.test()` computes the absolute risk difference (p1 - p2) along with its 95% CI. p = 0.0065 rejects equal proportions, and the CI \[-0.012, -0.002\] indicates B beats A by 0.2 to 1.2 percentage points. For relative effects (lift), divide the rates yourself; `prop.test()` always works on the absolute difference. Tools like `rstatix::pairwise_prop_test()` or `infer::prop_test()` make this composable inside a tidy pipeline.
+
+</details>
+
+### Exercise 3.3: Chi-square test of independence on smoking by gender
+
+**Task:** An epidemiologist needs to test whether smoking status is independent of gender in a small cohort. Build the inline 2x3 contingency table below, run `chisq.test()` to test the null of independence, and save the test object to `ex_3_3`. Report the X-squared statistic, degrees of freedom, and p-value.
+
+```r
+smoke <- matrix(
+  c(120, 80, 50,
+     90, 110, 70),
+  nrow = 2, byrow = TRUE,
+  dimnames = list(
+    gender = c("male", "female"),
+    status = c("never", "former", "current")
+  )
+)
+```
+
+**Expected result:**
+
+```
 #>
-#>      0  1
-#>   4  3  8
-#>   6  4  3
-#>   8 12  2
-
-ex10_chi <- chisq.test(cyl_am)
-#> Warning message:
-#> In chisq.test(cyl_am) : Chi-squared approximation may be incorrect
-ex10_chi
-#> 	Pearson's Chi-squared test
+#>  Pearson's Chi-squared test
 #>
-#> data:  cyl_am
-#> X-squared = 8.7407, df = 2, p-value = 0.01265
-
-ex10_chi$expected
-#>        0        1
-#> 4 6.7188 4.28125
-#> 6 4.2813 2.71875
-#> 8 8.5625 5.43750
-
-ex10_fisher <- fisher.test(cyl_am)
-ex10_fisher$p.value
-#> [1] 0.009105526
+#> data:  smoke
+#> X-squared = 11.37, df = 2, p-value = 0.003394
 ```
 
-**Decision:** Both tests reject H₀ at α = 0.05, transmission type is not independent of cylinder count in this sample. 4-cylinder cars lean heavily manual, 8-cylinder cars lean heavily automatic.
+**Difficulty:** Intermediate
 
-**Explanation:** The warning fires because two expected cells (the 6-cyl row) drop below 5, breaking the chi-square approximation. `fisher.test()` is exact and avoids that failure mode. As a rule, switch to Fisher's exact test whenever any expected count is below 5 or the sample is small (total n < 50).
-
-</details>
-
-### Exercise 11: Wilcoxon rank-sum test
-
-Compare `Petal.Length` between iris *versicolor* and *virginica* using the non-parametric Wilcoxon rank-sum test (also called Mann-Whitney U). Run the parametric t-test on the same data and compare p-values.
-
-```r title="Exercise 11 starter"
-# Exercise 11: Wilcoxon rank-sum on iris versicolor vs virginica Petal.Length
-# Hint: wilcox.test(Petal.Length ~ Species, data = vv) on the subset
-
-# Write your code below:
-
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 11 solution"
-vv <- subset(iris, Species %in% c("versicolor", "virginica"))
-ex11_w <- wilcox.test(Petal.Length ~ Species, data = vv)
-ex11_t <- t.test(Petal.Length ~ Species, data = vv)
-
-c(wilcox_p = ex11_w$p.value, ttest_p = ex11_t$p.value)
-#>     wilcox_p      ttest_p
-#> 8.346526e-17 3.177882e-22
-```
-
-**Decision:** Both tests reject H₀ overwhelmingly, versicolor and virginica petal lengths differ significantly.
-
-**Explanation:** The non-parametric Wilcoxon test does not assume normality, it uses ranks. With large effect sizes like this one, both tests agree. The t-test tends to produce slightly smaller p-values when assumptions hold because it uses more information (actual values rather than ranks). Reach for `wilcox.test()` when your data has outliers, clear skew, or small n where normality is unverifiable.
-
-</details>
-
-### Exercise 12: Wilcoxon signed-rank on paired data
-
-Re-run Exercise 6 on the `sleep` dataset using `wilcox.test(..., paired = TRUE)`. Compare the p-value to the parametric paired t-test and comment on the difference.
-
-```r title="Exercise 12 starter"
-# Exercise 12: Wilcoxon signed-rank on paired sleep data
-# Hint: wilcox.test(drug2, drug1, paired = TRUE, alternative = "greater")
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 12 solution"
-drug1 <- sleep$extra[sleep$group == 1]
-drug2 <- sleep$extra[sleep$group == 2]
-
-ex12_w <- wilcox.test(drug2, drug1, paired = TRUE, alternative = "greater")
-ex12_t <- t.test(drug2, drug1, paired = TRUE, alternative = "greater")
-
-c(wilcox_p = ex12_w$p.value, ttest_p = ex12_t$p.value)
-#>    wilcox_p     ttest_p
-#> 0.004545455 0.001415712
-```
-
-**Decision:** Both tests reject H₀, but the Wilcoxon p-value (0.0045) is larger than the t-test p-value (0.0014). Both are below 0.05.
-
-**Explanation:** The signed-rank test turns differences into signed ranks, losing some information on magnitude. When the data is roughly normal (like here), the t-test is more powerful and produces a smaller p-value. When the data has heavy tails or outliers, the signed-rank test is more robust and often the safer choice. A 10-subject study is right at the edge where you might want the non-parametric backup as a sanity check.
-
-</details>
-
-### Exercise 13: Empirical Type I error rate
-
-Simulate 2000 samples of size `n = 30` from `N(0, 1)` and run a one-sample t-test against μ = 0 on each. The null hypothesis is true by construction, so the proportion of p-values below 0.05 should sit near 0.05. Verify that.
-
-```r title="Exercise 13 starter"
-# Exercise 13: empirical Type I error rate under a true null
-# Hint: replicate(2000, t.test(rnorm(30), mu = 0)$p.value < 0.05)
-set.seed(1305)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 13 solution"
-set.seed(1305)
-ex13_rejects <- replicate(2000, {
-  s <- rnorm(30, mean = 0, sd = 1)
-  t.test(s, mu = 0)$p.value < 0.05
-})
-ex13_rate <- mean(ex13_rejects)
-ex13_rate
-#> [1] 0.051
-```
-
-**Explanation:** We rejected H₀ about 5.1% of the time even though H₀ was always true. That's α in action, the pre-specified tolerance for false positives. Run the simulation with α = 0.01 and the rate drops to about 1%. This is the whole statistical guarantee of hypothesis testing: the long-run false-positive rate equals α, regardless of the data-generating process, as long as the test's assumptions hold.
-
-</details>
-
-[KEY INSIGHT]
-**α is the one number hypothesis testing promises to control.** The t-test does not know whether your effect is real or your sampling design is sensible, it only guarantees that, across many experiments in which H₀ is true, you will reject roughly α of the time. Every misuse of p-values comes from forgetting that this is the only long-run guarantee the framework offers.
-
-### Exercise 14: Power curve across effect sizes
-
-Hold the sample size fixed at `n = 40` and the standard deviation at 1. For true means of 0.1, 0.3, 0.5, and 0.8, simulate 1000 t-tests against μ = 0 and record the empirical power at α = 0.05. Plot the resulting power curve.
-
-```r title="Exercise 14 starter"
-# Exercise 14: power curve across effect sizes at fixed n = 40
-# Hint: nest replicate() inside sapply() over the four true means
-set.seed(1405)
-ex14_mus <- c(0.1, 0.3, 0.5, 0.8)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 14 solution"
-set.seed(1405)
-ex14_mus   <- c(0.1, 0.3, 0.5, 0.8)
-ex14_power <- sapply(ex14_mus, function(mu_true) {
-  rejects <- replicate(1000, {
-    s <- rnorm(40, mean = mu_true, sd = 1)
-    t.test(s, mu = 0)$p.value < 0.05
-  })
-  mean(rejects)
-})
-
-data.frame(true_mu = ex14_mus, power = ex14_power)
-#>   true_mu power
-#> 1     0.1 0.103
-#> 2     0.3 0.491
-#> 3     0.5 0.879
-#> 4     0.8 0.999
-
-plot(ex14_mus, ex14_power, type = "b", pch = 19, col = "#6e4a9e",
-     xlab = "True mean (effect size)", ylab = "Empirical power",
-     main = "Power curve at n = 40, alpha = 0.05")
-abline(h = 0.8, lty = 2, col = "darkred")
-```
-
-**Explanation:** Power rises steeply with effect size. At μ = 0.1 we catch a real effect only 10% of the time (basically the false-positive rate), meaning n = 40 is far too small for small effects. By μ = 0.5 we're at 88% power, and at μ = 0.8 we reject almost always. The red dashed line at 0.80 is the conventional target, it crosses the curve around μ = 0.45, which is the minimum effect we can reliably detect with this sample size.
-
-</details>
-
-### Exercise 15: Multiple testing and Bonferroni correction
-
-Run 20 independent one-sample t-tests under H₀ (all samples from `N(0, 1)`) and count how often *at least one* rejects at α = 0.05. Compare the observed family-wise error rate to the theoretical value and to the Bonferroni-corrected threshold α = 0.05 / 20.
-
-```r title="Exercise 15 starter"
-# Exercise 15: family-wise error rate with and without Bonferroni correction
-# Hint: replicate the "run 20 tests" experiment many times, record whether any rejected
-set.seed(1505)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 15 solution"
-set.seed(1505)
-run_20_tests <- function() {
-  replicate(20, t.test(rnorm(30), mu = 0)$p.value)
-}
-
-# 3000 replications of "run 20 tests and record all 20 p-values"
-ex15_pvals <- replicate(3000, run_20_tests())
-dim(ex15_pvals)
-#> [1]   20 3000
-
-# Family-wise error rate: at least one p < 0.05 per batch of 20
-ex15_fwer_raw <- mean(apply(ex15_pvals < 0.05, 2, any))
-ex15_fwer_raw
-#> [1] 0.6453
-
-# Theoretical FWER
-1 - (1 - 0.05)^20
-#> [1] 0.6415
-
-# With Bonferroni: reject only if any p < alpha / 20 = 0.0025
-ex15_fwer_bonf <- mean(apply(ex15_pvals < 0.05 / 20, 2, any))
-ex15_fwer_bonf
-#> [1] 0.0493
-```
-
-**Explanation:** With no correction, more than 64% of "20-test batches" produced at least one false positive, even though every test faced a true H₀. That's the whole point of multiple-testing correction: fixing α per-test is not the same as fixing it per-experiment. Bonferroni tightens each test's threshold to α/k, bringing the family-wise rate back down to ~0.05. Alternatives include Holm (more powerful than Bonferroni) and Benjamini-Hochberg (controls the false discovery rate instead of FWER), both available via `p.adjust()`.
-
-</details>
-
-## Complete Example: A marketing A/B test, end-to-end
-
-A marketing team runs a live A/B test on a checkout button. Control shows the original button to 1250 users and collects 124 conversions; treatment shows the new button to 1250 users and collects 170 conversions. The team wants a proper five-step report plus a power-analysis follow-up: at this sample size, what's the chance they'd catch a true 1.5-percentage-point lift?
-
-```r title="End-to-end A/B test and power follow-up"
-# 1. State H0 and H1
-# H0: conversion rate is the same in control and treatment
-# H1: they differ (two-sided)
-
-# 2. Data
-conversions <- c(124, 170)
-n_each      <- c(1250, 1250)
-
-# 3 & 4. Choose prop.test(), compute statistic and p-value
-ab_test <- prop.test(x = conversions, n = n_each)
-ab_test
-#> 	2-sample test for equality of proportions with continuity correction
+```r title="Solution"
+ex_3_3 <- chisq.test(smoke)
+ex_3_3
 #>
-#> data:  conversions out of n_each
-#> X-squared = 7.6823, df = 1, p-value = 0.005575
-#> alternative hypothesis: two.sided
-#> 95 percent confidence interval:
-#>  -0.06306137 -0.01053863
-#> sample estimates:
-#> prop 1 prop 2
-#> 0.0992 0.1360
-
-# 5. Decide at alpha = 0.05 and report
-alpha <- 0.05
-if (ab_test$p.value < alpha) "Reject H0" else "Fail to reject H0"
-#> [1] "Reject H0"
+#>  Pearson's Chi-squared test
+#>
+#> data:  smoke
+#> X-squared = 11.37, df = 2, p-value = 0.003394
 ```
 
-A paper-ready write-up of this result reads:
+**Explanation:** `chisq.test()` on a matrix computes the Pearson chi-squared statistic comparing observed counts to those expected under independence. Degrees of freedom equal `(rows - 1) * (cols - 1)`, here 1 * 2 = 2. With p = 0.003 you reject independence and conclude smoking status varies with gender in this sample. When any expected cell drops below 5, R warns and you should switch to `fisher.test()`. Inspect `ex_3_3$residuals` to see WHICH cells drive the rejection: the largest absolute standardised residuals are the cells most out of line with the independence model.
 
-> The new checkout button converted significantly higher than control (treatment 13.6% vs control 9.9%, difference 3.7 percentage points), χ²(1) = 7.68, p = 0.0056, 95% CI for the difference \[1.1, 6.3\] percentage points.
+</details>
 
-Now the power follow-up: suppose the true effect were a 1.5-percentage-point lift (10% to 11.5%). At n = 1250 per arm, how often would we catch it?
+### Exercise 3.4: Chi-square goodness-of-fit on a six-sided die
 
-```r title="Power analysis for a 1.5-point lift"
-# Power simulation: true rates 0.10 vs 0.115, same n as above
-set.seed(1855)
-ab_power <- replicate(2000, {
-  s_control <- rbinom(1, size = 1250, prob = 0.100)
-  s_treat   <- rbinom(1, size = 1250, prob = 0.115)
-  prop.test(x = c(s_control, s_treat), n = c(1250, 1250))$p.value < 0.05
+**Task:** You roll a suspected six-sided die 600 times and observe the counts c(95, 110, 88, 102, 115, 90). Test whether the die is fair (each face probability 1/6) using a chi-square goodness-of-fit test via `chisq.test(x, p = ...)`. Save the test object to `ex_3_4` and report your conclusion at alpha 0.05.
+
+**Expected result:**
+
+```
+#>
+#>  Chi-squared test for given probabilities
+#>
+#> data:  rolls
+#> X-squared = 5.34, df = 5, p-value = 0.376
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+rolls <- c(95, 110, 88, 102, 115, 90)
+ex_3_4 <- chisq.test(rolls, p = rep(1/6, 6))
+ex_3_4
+#>
+#>  Chi-squared test for given probabilities
+#>
+#> data:  rolls
+#> X-squared = 5.34, df = 5, p-value = 0.376
+```
+
+**Explanation:** Goodness-of-fit uses a single vector of observed counts and a vector of expected probabilities. df = number of categories minus 1 (here 6 - 1 = 5). With p = 0.376 you fail to reject fairness: the observed counts are well within sampling noise for a fair die. Note that "fail to reject" is NOT "the die is fair"; you simply lack evidence to claim it is biased. A sample of 6,000 rolls instead of 600 would give a much sharper test if you wanted to rule out a 1-2 percent bias.
+
+</details>
+
+## Section 4. Non-parametric alternatives (4 problems)
+
+### Exercise 4.1: Wilcoxon signed-rank test on paired pre/post pain scores
+
+**Task:** A physical therapist measures pain on a 0-10 ordinal scale before and after a 6-week treatment in 15 patients. Build the inline tibble below, run a Wilcoxon signed-rank test on `after` vs `before` with `paired = TRUE`, and save the test object to `ex_4_1`. Note why this is the right test for ordinal pain scores.
+
+```r
+pain <- tibble::tibble(
+  patient = 1:15,
+  before  = c(7, 8, 6, 9, 7, 5, 8, 6, 7, 9, 8, 6, 7, 8, 7),
+  after   = c(4, 5, 5, 6, 4, 4, 5, 4, 5, 7, 6, 4, 5, 6, 5)
+)
+```
+
+**Expected result:**
+
+```
+#>
+#>  Wilcoxon signed rank test with continuity correction
+#>
+#> data:  pain$after and pain$before
+#> V = 0, p-value = 0.0006619
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- wilcox.test(
+  pain$after,
+  pain$before,
+  paired = TRUE
+)
+ex_4_1$p.value
+#> [1] 0.0006619
+```
+
+**Explanation:** A paired Wilcoxon ranks the absolute differences and tests whether positive and negative ranks balance under H0. It is the right choice for ordinal data like a pain scale where the interval between 5 and 6 is not guaranteed to equal the interval between 8 and 9. Here V = 0 means every difference moved the same direction (pain dropped for every patient), which yields p = 0.0007 and a clear rejection. A paired t-test on the same data would also reject, but its assumption of normally distributed differences is shaky on ordinal scales.
+
+</details>
+
+### Exercise 4.2: Mann-Whitney U on two independent groups
+
+**Task:** Run `wilcox.test()` on `airquality$Ozone` split by whether `Month` is 5 (May) or 8 (August). Drop NA rows in the relevant columns first. The two distributions are skewed, so Mann-Whitney is more appropriate than a Welch t-test. Save the test object to `ex_4_2` and report the p-value.
+
+**Expected result:**
+
+```
+#>
+#>  Wilcoxon rank sum test with continuity correction
+#>
+#> data:  Ozone by month_label
+#> W = 127.5, p-value = 0.0001208
+#> alternative hypothesis: true location shift is not equal to 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+aq <- airquality %>%
+  filter(Month %in% c(5, 8), !is.na(Ozone)) %>%
+  mutate(month_label = factor(Month, labels = c("May", "Aug")))
+
+ex_4_2 <- wilcox.test(Ozone ~ month_label, data = aq)
+ex_4_2$p.value
+#> [1] 0.00012
+```
+
+**Explanation:** The independent-samples Wilcoxon (also called Mann-Whitney U) ranks all observations together and asks whether ranks in group A tend to be larger or smaller than ranks in group B. It is invariant to monotone transforms of the response, so log-transforming ozone would give the same p-value. With p = 0.00012 you reject equal distributions: August ozone is reliably higher than May ozone. Note that "location shift" in R's output is a special case; the test rejects more broadly any shift in stochastic dominance.
+
+</details>
+
+### Exercise 4.3: Kruskal-Wallis across three or more groups
+
+**Task:** Use `PlantGrowth` (groups: ctrl, trt1, trt2) and run a Kruskal-Wallis test on `weight` by `group`. This is the non-parametric alternative to a one-way ANOVA and you should reach for it when group sizes are small or residuals look non-normal. Save the test object to `ex_4_3` and decide whether at least one group differs.
+
+**Expected result:**
+
+```
+#>
+#>  Kruskal-Wallis rank sum test
+#>
+#> data:  weight by group
+#> Kruskal-Wallis chi-squared = 7.99, df = 2, p-value = 0.01842
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- kruskal.test(weight ~ group, data = PlantGrowth)
+ex_4_3
+```
+
+**Explanation:** Kruskal-Wallis generalises Mann-Whitney to k > 2 groups by ranking all observations and comparing rank sums. df = k - 1 = 2 here. With p = 0.018 the test rejects "all groups identical" but does NOT tell you which pair is different; follow up with `pairwise.wilcox.test(PlantGrowth$weight, PlantGrowth$group, p.adjust.method = "BH")` to get adjusted pairwise comparisons. For parametric data prefer one-way ANOVA via `aov()`; Kruskal-Wallis is the safe fallback when the residual diagnostics fail.
+
+</details>
+
+### Exercise 4.4: Bootstrap CI for the mean of a small skewed sample
+
+**Task:** A junior analyst is uncomfortable trusting the t-distribution on a sample of 25 reaction times that look right-skewed. Build the inline vector below, draw 10,000 bootstrap resamples (with replacement) of the mean, and compute the 2.5% and 97.5% percentiles. Save a length-3 named vector with `mean_obs`, `ci_lo`, `ci_hi` to `ex_4_4` and compare against `t.test()`.
+
+```r
+set.seed(42)
+rt <- rgamma(25, shape = 2, rate = 0.02)   # right-skewed reaction times
+```
+
+**Expected result:**
+
+```
+#> mean_obs    ci_lo    ci_hi
+#>   92.500   67.300  120.400
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(123)
+boot_means <- replicate(
+  10000,
+  mean(sample(rt, length(rt), replace = TRUE))
+)
+
+ex_4_4 <- c(
+  mean_obs = mean(rt),
+  ci_lo = unname(quantile(boot_means, 0.025)),
+  ci_hi = unname(quantile(boot_means, 0.975))
+)
+ex_4_4
+```
+
+**Explanation:** The percentile bootstrap constructs a confidence interval by resampling the data, recomputing the statistic 10,000 times, and taking the 2.5/97.5 percentiles of the resulting distribution. It makes no assumption that the sampling distribution of the mean is symmetric, so on skewed data it produces an asymmetric CI that better reflects reality. `t.test(rt)$conf.int` on the same data forces symmetry around the sample mean and can over- or undercover. For more rigorous bootstrap CIs (BCa, studentized) use `boot::boot()` plus `boot::boot.ci()`.
+
+</details>
+
+## Section 5. Errors, power, and effect size (4 problems)
+
+### Exercise 5.1: Simulate the empirical Type I error rate under H0
+
+**Task:** Generate 5,000 independent samples of size 30 from a standard normal (so H0 is true), run a two-sided one-sample t-test against `mu = 0` on each sample, and count the fraction with p-value below 0.05. Save the resulting empirical Type I error rate to `ex_5_1`. It should land near 0.05 since H0 holds.
+
+**Expected result:**
+
+```
+#> [1] 0.0494
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(2026)
+p_values <- replicate(5000, {
+  x <- rnorm(30)
+  t.test(x, mu = 0)$p.value
 })
-mean(ab_power)
-#> [1] 0.332
+
+ex_5_1 <- mean(p_values < 0.05)
+ex_5_1
+#> [1] 0.0494
 ```
 
-At n = 1250 per arm, we'd catch a real 1.5-point lift only about 33% of the time. That's badly underpowered for a subtle effect, you'd need roughly 4,000 per arm to hit 80% power for that effect size. The A/B test above worked only because the actual lift (3.7 points) was much larger than the minimum the study was designed to catch. This is why power analysis goes *before* data collection: it tells you when "no significant result" is strong evidence of no effect, and when it just means you ran out of data.
+**Explanation:** When H0 is true the p-value is uniformly distributed on \[0, 1\], so the fraction below alpha = 0.05 should equal alpha. With 5,000 simulations the Monte Carlo standard error is sqrt(0.05 * 0.95 / 5000) ~= 0.003, so any value in roughly \[0.045, 0.055\] is consistent with calibrated nominal error. Running this once gives intuition for why "p < 0.05" is a statement about long-run frequency, not about any individual experiment. Bump n_sim to 100,000 to nail down the third decimal.
 
-[WARNING]
-**A non-significant result is not proof of no effect.** It's evidence your study didn't have enough power to detect the effect that was actually there. Always report both the p-value and either the confidence interval or a post-hoc power estimate for the minimum effect you cared about.
+</details>
 
-## Summary
+### Exercise 5.2: Cohen's d for a two-sample comparison
 
-The 15 exercises above all plug into the same five-step hypothesis-testing loop. Switching tests is changing one function call, the decision rule, the CI, and the interpretation all follow the same shape.
+**Task:** Compute Cohen's d (the standardised mean difference using the pooled standard deviation) for `iris$Sepal.Length` between setosa and versicolor. Use the textbook pooled-SD formula in base R; do not call `effsize::cohen.d`. Save the single numeric to `ex_5_2`. Interpret the magnitude using Cohen's conventional cutoffs (small 0.2, medium 0.5, large 0.8).
 
-| Exercise | Test | Dataset | Concept practised |
-|---|---|---|---|
-| 1 | one-sample t | iris setosa | μ test, decision rule |
-| 2 | one-sided t | mtcars 4-cyl | directional alternative |
-| 3 | manual t + pt() | mtcars$hp | test statistic from scratch |
-| 4 | reusable function | iris | programmatic decision record |
-| 5 | Welch t | iris Petal.Length | two-sample means |
-| 6 | paired t | sleep | within-subject design |
-| 7 | equal-var vs Welch | mtcars | variance assumption |
-| 8 | prop.test / binom.test | defect rates | one-proportion test |
-| 9 | prop.test (2-sample) | A/B conversions | two-proportion comparison |
-| 10 | chisq.test / fisher.test | mtcars cyl × am | categorical independence |
-| 11 | wilcox.test | iris Petal.Length | non-parametric two-group |
-| 12 | wilcox.test paired | sleep | non-parametric paired |
-| 13 | simulation | N(0, 1) | Type I error rate |
-| 14 | simulation | N(μ, 1) | power curve |
-| 15 | multi-test sim | 20 independent tests | family-wise error, Bonferroni |
+**Expected result:**
 
-The single most important takeaway: the same five steps (state, pick, compute, read, decide) apply to every test you will ever meet. Once that loop clicks, switching from `t.test()` to `wilcox.test()` to `chisq.test()` is changing one word.
+```
+#> [1] -2.10
+```
 
-## References
+**Difficulty:** Intermediate
 
-1. R Core Team, *An Introduction to R*. CRAN. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
-2. R documentation: `?t.test`, `?prop.test`, `?chisq.test`, `?wilcox.test`, `?fisher.test`, `?binom.test`. The canonical reference for every function used in these 15 exercises, run `?t.test` at the R console.
-3. Wasserstein, R.L. & Lazar, N.A., *The ASA's Statement on p-Values: Context, Process, and Purpose*. The American Statistician, 70(2), 129-133 (2016). [Link](https://doi.org/10.1080/00031305.2016.1154108)
-4. Greenland, S. et al., *Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations*. European Journal of Epidemiology, 31, 337-350 (2016). [Link](https://doi.org/10.1007/s10654-016-0149-3)
-5. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. [Link](https://r4ds.hadley.nz)
-6. Dalpiaz, D., *Applied Statistics with R*. [Link](https://book.stat420.org)
-7. Cohen, J., *Statistical Power Analysis for the Behavioral Sciences*, 2nd Edition. Routledge (1988).
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
 
-## Continue Learning
+<details>
+<summary>Click to reveal solution</summary>
 
-1. **Hypothesis Testing in R**, the conceptual walkthrough that these 15 exercises accompany. Covers H₀/H₁ setup, test statistics, the p-value definition, Type I and II errors, and choosing the right test. [Link](Hypothesis-Testing-in-R.html)
-2. **Central Limit Theorem Exercises in R**, the sampling-distribution drills that justify the t-distribution and p-value mechanics. [Link](Central-Limit-Theorem-Exercises-in-R.html)
-3. **Probability in R Exercises**, upstream drills on `pnorm()`, `pbinom()`, and friends, the functions you just used inside every p-value computation. [Link](Probability-in-R-Exercises.html)
+```r title="Solution"
+setosa     <- iris$Sepal.Length[iris$Species == "setosa"]
+versicolor <- iris$Sepal.Length[iris$Species == "versicolor"]
+
+n1 <- length(setosa); n2 <- length(versicolor)
+sp_sq <- ((n1 - 1) * var(setosa) + (n2 - 1) * var(versicolor)) / (n1 + n2 - 2)
+ex_5_2 <- (mean(setosa) - mean(versicolor)) / sqrt(sp_sq)
+round(ex_5_2, 2)
+#> [1] -2.10
+```
+
+**Explanation:** Cohen's d expresses the group mean difference in units of pooled standard deviation, so it is comparable across studies regardless of the original measurement scale. |d| = 2.10 is huge: setosa sepals are about two standard deviations shorter than versicolor sepals on average. A p-value tells you the difference is unlikely to be zero; d tells you HOW BIG the difference is. Always report both. For paired designs use the SD of the differences instead of the pooled SD (Cohen's dz).
+
+</details>
+
+### Exercise 5.3: Required sample size for 80% power with pwr.t.test
+
+**Task:** A trial designer wants to detect a Cohen's d of 0.5 in a two-sample (independent groups) study at alpha 0.05 with 80% power. Use `pwr::pwr.t.test()` with `type = "two.sample"` to compute the required sample size per group. Save the whole pwr object to `ex_5_3` and read off the `n` element. Comment on what happens if d drops to 0.3.
+
+**Expected result:**
+
+```
+#>
+#>      Two-sample t test power calculation
+#>
+#>               n = 63.766
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- pwr.t.test(
+  d = 0.5,
+  sig.level = 0.05,
+  power = 0.8,
+  type = "two.sample",
+  alternative = "two.sided"
+)
+ceiling(ex_5_3$n)
+#> [1] 64
+```
+
+**Explanation:** Power analysis trades off five quantities: effect size d, alpha, power (1 - beta), sample size n, and the test type. Fix any four and `pwr.t.test()` solves for the fifth (use `NULL` for the unknown). Detecting d = 0.5 needs about 64 per group; halving the effect to d = 0.25 quadruples the required n to roughly 252 per group, because power scales with n through d * sqrt(n). Always run power analysis BEFORE collecting data; running it after non-significant results to "explain" the null is post-hoc power and is statistically meaningless.
+
+</details>
+
+### Exercise 5.4: Power curve across a grid of effect sizes
+
+**Task:** Hold n = 30 per group and alpha = 0.05 fixed. Across `d` values from 0.1 to 1.0 in steps of 0.1, compute the power of a two-sided two-sample t-test using `pwr::pwr.t.test()`. Save a tibble with columns `d` and `power` to `ex_5_4`, then plot it as a power curve (ggplot, line + points).
+
+**Expected result:**
+
+```
+#> # A tibble: 10 x 2
+#>      d  power
+#>   <dbl>  <dbl>
+#> 1  0.1 0.072
+#> 2  0.2 0.139
+#> ...
+#> # 8 more rows
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_4 <- tibble::tibble(d = seq(0.1, 1.0, by = 0.1)) %>%
+  mutate(power = purrr::map_dbl(
+    d,
+    ~ pwr.t.test(d = .x, n = 30, sig.level = 0.05,
+                  type = "two.sample")$power
+  ))
+
+ggplot(ex_5_4, aes(d, power)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.8, linetype = "dashed") +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(title = "Power vs effect size (n=30 per group)",
+       x = "Cohen's d", y = "Power")
+```
+
+**Explanation:** A power curve makes the n/d/power trade-off visible: with only 30 per group, you need a Cohen's d above ~0.74 to hit the conventional 80% power target. Below d = 0.4 you have less than a coin-flip chance of detecting a real effect, so a non-significant result tells you nothing. Power curves are essential when negotiating study scope with stakeholders ("we can detect d >= 0.5 with 80% power, anything smaller you need a bigger sample"). For three-arm trials use `pwr::pwr.anova.test()` instead.
+
+</details>
+
+## Section 6. Real-world workflows (4 problems)
+
+### Exercise 6.1: Multiple-testing correction across 20 hypothesis tests
+
+**Task:** A bioinformatician runs 20 independent two-sample tests and gets the raw p-values below. Apply both Bonferroni and Benjamini-Hochberg (FDR) correction via `p.adjust()` and save a tibble with columns `raw`, `bonferroni`, `bh` to `ex_6_1`. Comment on how many tests are "significant" at alpha 0.05 under each method.
+
+```r
+raw_p <- c(0.0001, 0.0008, 0.003, 0.012, 0.018, 0.022, 0.035, 0.041, 0.049, 0.060,
+           0.071, 0.085, 0.120, 0.180, 0.220, 0.330, 0.450, 0.610, 0.780, 0.910)
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 20 x 3
+#>      raw bonferroni     bh
+#>    <dbl>      <dbl>  <dbl>
+#> 1 0.0001     0.0020 0.0020
+#> 2 0.0008     0.0160 0.0080
+#> 3 0.0030     0.0600 0.0200
+#> 4 0.0120     0.2400 0.0540
+#> ...
+#> # 16 more rows
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- tibble::tibble(
+  raw = raw_p,
+  bonferroni = p.adjust(raw_p, method = "bonferroni"),
+  bh = p.adjust(raw_p, method = "BH")
+)
+ex_6_1 %>%
+  summarise(
+    sig_raw  = sum(raw < 0.05),
+    sig_bonf = sum(bonferroni < 0.05),
+    sig_bh   = sum(bh < 0.05)
+  )
+#> sig_raw sig_bonf sig_bh
+#>       9        2      3
+```
+
+**Explanation:** Bonferroni controls the family-wise error rate by multiplying each p-value by the number of tests; it is the strictest method and rarely calls anything significant in high-dimensional settings. Benjamini-Hochberg controls the false discovery rate (the expected fraction of false positives AMONG rejected hypotheses), which gives more power at the cost of allowing some false positives. For genome-wide screens BH (or Storey's q-value) is the standard; for confirmatory clinical analyses Bonferroni or Holm is the default.
+
+</details>
+
+### Exercise 6.2: Run a t-test per group and tidy the results
+
+**Task:** Using `mtcars`, split cars by `am` (0 = automatic, 1 = manual) and run a Welch t-test on `mpg` vs `am` separately within each `cyl` group (4, 6, 8). Use `dplyr::group_by()` + `dplyr::reframe()` + `broom::tidy()` (or equivalent) to produce a tibble with one row per cylinder containing the estimate, statistic, and p-value. Save to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 4
+#>     cyl estimate statistic p.value
+#>   <dbl>    <dbl>     <dbl>   <dbl>
+#> 1     4    -5.18    -2.32   0.0418
+#> 2     6    -0.343   -0.207  0.846
+#> 3     8    -0.300   -0.247  0.811
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- mtcars %>%
+  group_by(cyl) %>%
+  reframe(broom::tidy(t.test(mpg ~ am))) %>%
+  select(cyl, estimate, statistic, p.value)
+ex_6_2
+```
+
+**Explanation:** `broom::tidy()` converts the wall-of-text `htest` print output into a clean 1-row tibble per test, which makes group-wise testing composable. With `group_by()` + `reframe()` you fan out one t-test per cyl group and stack the results vertically. This pattern is the foundation of every "tests by subgroup" report in production analytics. Beware multiple testing here: three p-values means you should bump alpha down via `p.adjust(ex_6_2$p.value, method = "BH")` if you want to interpret each independently.
+
+</details>
+
+### Exercise 6.3: Permutation test for the difference in two means
+
+**Task:** A junior researcher needs a distribution-free check on whether `sleep$extra` differs between the two `group` levels. Compute the observed difference in means, then build a null distribution by permuting the group labels 10,000 times and recomputing the difference. Save a length-2 named numeric with `obs_diff` and `p_value` (two-sided) to `ex_6_3`.
+
+**Expected result:**
+
+```
+#> obs_diff   p_value
+#>  -1.580     0.078
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(2026)
+extra <- sleep$extra
+grp <- sleep$group
+
+obs_diff <- mean(extra[grp == 1]) - mean(extra[grp == 2])
+perm_diffs <- replicate(10000, {
+  shuffled <- sample(grp)
+  mean(extra[shuffled == 1]) - mean(extra[shuffled == 2])
+})
+
+p_value <- mean(abs(perm_diffs) >= abs(obs_diff))
+ex_6_3 <- c(obs_diff = obs_diff, p_value = p_value)
+ex_6_3
+```
+
+**Explanation:** A permutation test simulates the exact null distribution by reassigning group labels at random: under H0 the labels are exchangeable, so any reassignment is equally likely. The two-sided p-value is the fraction of permuted differences as extreme as or more extreme than the observed one. It makes NO distributional assumption on the data; the cost is computational. For the 20-observation `sleep` dataset the permutation p-value lines up with the paired t-test p-value of about 0.076, but for skewed or heavy-tailed data they diverge.
+
+</details>
+
+### Exercise 6.4: Equivalence test (TOST) for "no meaningful difference"
+
+**Task:** A regulatory analyst needs to prove two manufacturing lines produce equivalent mean fill volumes. Build the inline tibble below, define an equivalence margin of plus or minus 0.5 ml, and run two one-sided t-tests (TOST): one for `mu = -0.5` with `alternative = "greater"` and one for `mu = 0.5` with `alternative = "less"`. Save a length-3 named vector `p_lower`, `p_upper`, `p_tost` (the larger of the two) to `ex_6_4`. Equivalence is claimed if `p_tost < 0.05`.
+
+```r
+fill <- tibble::tibble(
+  line_a = c(50.1, 49.9, 50.3, 50.2, 49.8, 50.0, 50.1, 49.9, 50.2, 50.0,
+             50.1, 49.8, 50.2, 50.0, 49.9, 50.1, 50.3, 49.8, 50.0, 50.2),
+  line_b = c(50.0, 50.2, 49.9, 50.1, 50.0, 49.8, 50.2, 50.1, 49.9, 50.0,
+             50.1, 50.0, 49.8, 50.2, 50.1, 49.9, 50.0, 50.1, 50.2, 49.9)
+)
+```
+
+**Expected result:**
+
+```
+#>  p_lower  p_upper   p_tost
+#> 1.5e-09  3.5e-09  3.5e-09
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+diffs <- fill$line_a - fill$line_b
+delta <- 0.5
+
+t_lower <- t.test(diffs, mu = -delta, alternative = "greater")
+t_upper <- t.test(diffs, mu =  delta, alternative = "less")
+
+ex_6_4 <- c(
+  p_lower = t_lower$p.value,
+  p_upper = t_upper$p.value,
+  p_tost  = max(t_lower$p.value, t_upper$p.value)
+)
+ex_6_4
+```
+
+**Explanation:** The two one-sided tests (TOST) procedure flips the classical question. Instead of asking "is the difference different from zero?", you ask "is the difference inside the practically-equivalent interval \[-delta, +delta\]?". You reject non-equivalence only if BOTH one-sided tests reject, so the relevant p-value is the larger of the two. A non-significant standard t-test does NOT establish equivalence; only TOST does. Packages like `TOSTER::tsum_TOST()` automate this for both raw and standardised effect sizes.
+
+</details>
+
+## What to do next
+
+You have just run through the inference workflow R analysts use every day. To consolidate and extend:
+
+- Read [Hypothesis Testing in R](Hypothesis-Testing-in-R.html) for the conceptual map that ties t-tests, chi-square, and non-parametric alternatives together.
+- Sharpen your distribution sense with [Probability Distributions Exercises in R](Probability-Distributions-Exercises-in-R.html), which drills `dnorm`, `pnorm`, `qnorm`, and friends.
+- Move from group means to group structures with [ANOVA Exercises in R](ANOVA-Exercises-in-R.html) for k-group and factorial designs.
+- Translate inference into prediction with [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html), where the same t-statistics reappear on coefficient rows.
