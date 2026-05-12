@@ -1323,8 +1323,12 @@ def build_post(
     # Certificate ribbon for EX posts only. Hub title is the page <h1>.
     post_type = meta.get('post_type', '').strip()
     if post_type == 'EX':
-        # Use the sidebar_title if available (short form), else strip ' Exercises ...' suffix from title
-        hub_short = meta.get('sidebar_title') or re.sub(r'\s+Exercises.*$', '', title)
+        # Hub topic name for the certificate label. Strip "Exercises" suffix from
+        # sidebar_title/title so we don't get "X Exercises Certificate" redundancy.
+        hub_short_raw = meta.get('sidebar_title') or title
+        hub_short = re.sub(r'\s+(Exercises|Questions|Practice).*$', '', hub_short_raw).strip()
+        if not hub_short:
+            hub_short = hub_short_raw
         quiz_url = '/' + os.path.splitext(slug)[0] + '-quiz.html'
         cert_top = make_cert_ribbon(hub_short, quiz_url)
         cert_bottom = make_cert_final(hub_short, quiz_url)
