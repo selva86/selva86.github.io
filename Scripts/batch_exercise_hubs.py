@@ -42,7 +42,7 @@ LOG_FILE = REPO_ROOT / "Scripts" / "batch_exercise.log"
 LOCK_FILE = REPO_ROOT / "Scripts" / "batch_exercise.lock"
 
 WRITE_TIMEOUT = 2400    # 40 min per write
-PUBLISH_TIMEOUT = 1500  # 25 min per publish (auto-link on 700+ pages can take >15 min)
+PUBLISH_TIMEOUT = 600   # 10 min per publish (sync_registries skipped via --skip-sync-registries)
 MAX_ATTEMPTS = 2
 
 
@@ -186,8 +186,12 @@ def run_write_skill(claude: str, slug: str, regenerate: bool, dry_run: bool) -> 
         return -1
 
 
-def run_publish_skill(claude: str, slug: str, dry_run: bool) -> int:
-    prompt = f"/publish-post {slug}"
+def run_publish_skill(claude: str, slug: str, dry_run: bool,
+                      skip_sync_registries: bool = False) -> int:
+    args_str = slug
+    if skip_sync_registries:
+        args_str += " --skip-sync-registries"
+    prompt = f"/publish-post {args_str}"
     if dry_run:
         log(f"  DRY-RUN publish: claude -p \"{prompt}\"")
         return 0
@@ -201,6 +205,29 @@ def run_publish_skill(claude: str, slug: str, dry_run: bool) -> int:
     except subprocess.TimeoutExpired:
         log(f"  TIMEOUT after {PUBLISH_TIMEOUT}s")
         return -1
+
+
+def run_final_sync_registries():
+    """Run sync_registries.py once at the end of a batch. Returns exit code."""
+    log("Running final sync_registries.py (catch-up after skip-sync batch)")
+    t0 = time.time()
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "_build" / "sync_registries.py")],
+        cwd=str(REPO_ROOT), timeout=1800
+    )
+    elapsed = int(time.time() - t0)
+    log(f"  sync_registries exit={result.returncode} ({elapsed}s)")
+    if result.returncode == 0:
+        # Commit and push any drift the sync produced
+        subprocess.run(["git", "add", "-u"], capture_output=True, cwd=str(REPO_ROOT))
+        cm = subprocess.run(
+            ["git", "commit", "-m", "Final sync_registries pass after batch regeneration"],
+            capture_output=True, cwd=str(REPO_ROOT)
+        )
+        if cm.returncode == 0:
+            subprocess.run(["git", "push", "origin", "master"], capture_output=True, cwd=str(REPO_ROOT))
+            log(f"  Final sync committed and pushed")
+    return result.returncode
 
 
 def audit_only():
@@ -334,7 +361,8 @@ def main():
                 continue
 
             t0 = time.time()
-            pub_exit = run_publish_skill(claude, slug, args.dry_run)
+            pub_exit = run_publish_skill(claude, slug, args.dry_run,
+                                          skip_sync_registries=True)
             elapsed = int(time.time() - t0)
             log(f"  Publish exit={pub_exit} ({elapsed}s)")
 
@@ -384,6 +412,13 @@ def main():
                 )
                 log(f"  Drift committed and pushed")
 
+        # End-of-batch: run sync_registries once to catch up auto-links and FR blocks
+        # across the whole site, then commit + push the drift.
+        if not args.dry_run and not args.audit_only:
+            try:
+                run_final_sync_registries()
+            except Exception as e:
+                log(f"  Final sync_registries failed: {e}")
     finally:
         release_lock()
 
