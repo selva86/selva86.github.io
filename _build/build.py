@@ -1330,8 +1330,18 @@ def build_post(
         if not hub_short:
             hub_short = hub_short_raw
         quiz_url = '/' + os.path.splitext(slug)[0] + '-quiz.html'
+        # hub_slug = derive a short kebab key for the localStorage record.
+        # e.g. "dplyr-Exercises-in-R.html" → "dplyr"; falls back to the hub
+        # short label lowercased when no obvious prefix exists.
+        _slug_base = os.path.splitext(slug)[0]
+        if '-Exercises' in _slug_base:
+            hub_slug = _slug_base.split('-Exercises', 1)[0].lower()
+        elif '-Questions' in _slug_base:
+            hub_slug = _slug_base.split('-Questions', 1)[0].lower()
+        else:
+            hub_slug = hub_short.lower().replace(' ', '-')
         cert_top = make_cert_ribbon(hub_short, quiz_url)
-        cert_bottom = make_cert_final(hub_short, quiz_url)
+        cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug)
     else:
         cert_top = ''
         cert_bottom = ''
@@ -1373,40 +1383,79 @@ _CERT_SEAL_SVG = (
 
 
 def make_cert_ribbon(hub_short, quiz_url):
+    # Thin status strip placed under the H1. One line. No button — text-only CTA.
     return (
-        '<div class="cert-ribbon" role="complementary">'
-        f'<div class="cert-ribbon-left">'
-        f'<div class="cert-ribbon-icon">{_CERT_SEAL_SVG}</div>'
-        f'<div class="cert-ribbon-text">'
-        f'<p class="cert-ribbon-eyebrow">Verified Certificate</p>'
-        f'<p class="cert-ribbon-title">{hub_short} Mastery Certificate</p>'
-        f'<p class="cert-ribbon-sub">Practice the exercises below. When you feel ready, attempt the quiz to earn a verifiable certificate you can share on LinkedIn.</p>'
-        f'</div></div>'
-        f'<a href="{quiz_url}" class="cert-ribbon-cta">'
-        f'Attempt the quiz<span class="cert-ribbon-cta-arrow">&rarr;</span>'
-        f'</a></div>'
+        '<div class="cert-strip" role="complementary">'
+        f'<span class="cert-strip-seal">{_CERT_SEAL_SVG}</span>'
+        '<span class="cert-strip-text">'
+        f'<strong>{hub_short} Mastery</strong> '
+        '<span class="cert-strip-sep">&middot;</span> '
+        'Verifiable certificate issued after a concept-and-code assessment'
+        '</span>'
+        f'<a href="{quiz_url}" class="cert-strip-cta">'
+        'Begin assessment<span class="cert-strip-arrow">&rarr;</span>'
+        '</a></div>'
     )
 
 
-def make_cert_final(hub_short, quiz_url):
+def make_cert_final(hub_short, quiz_url, hub_slug):
+    # The diploma hero card. Leads with the artifact ("THIS DOCUMENT CERTIFIES")
+    # rather than the marketing pitch. Watermark + typography-lockup CTA.
+    # data-hub-slug + the tiny inline script swap in a "you earned this" state
+    # for returning visitors who passed the quiz in this browser.
     return (
-        '<div class="cert-final">'
-        f'<p class="cert-final-eyebrow">Verified Certificate</p>'
-        f'<div class="cert-final-icon">{_CERT_SEAL_SVG}</div>'
-        f'<h3 class="cert-final-title">Earn your {hub_short} Mastery Certificate</h3>'
-        f'<p class="cert-final-sub">The quiz is concept-based and respects your time. Pass it once and your verifiable certificate is yours to share on LinkedIn, your resume, or your portfolio. Take it when you feel comfortable with the material.</p>'
-        '<div class="cert-final-meta">'
-        '<span>Concept-based</span>'
-        '<span class="cert-final-meta-dot"></span>'
-        '<span>7-question quiz</span>'
-        '<span class="cert-final-meta-dot"></span>'
-        '<span>LinkedIn-shareable</span>'
+        f'<div class="cert-hero" role="complementary" data-hub-slug="{hub_slug}" data-hub-short="{hub_short}">'
+        '<div class="cert-hero-watermark" aria-hidden="true">VERIFIED</div>'
+        '<div class="cert-hero-content">'
+        '<p class="cert-hero-issuer">r-statistics.co &middot; Verifiable credential &middot; Public URL</p>'
+        '<p class="cert-hero-eyebrow">This document certifies mastery of</p>'
+        f'<div class="cert-hero-seal">{_CERT_SEAL_SVG}</div>'
+        f'<h3 class="cert-hero-title">{hub_short} Mastery</h3>'
+        '<p class="cert-hero-trust">Every certificate has a public verification URL that proves the holder passed the assessment. Anyone with the link can confirm the recipient and date.</p>'
+        '<p class="cert-hero-meta">'
+        '10 questions <span class="cert-hero-meta-sep">&middot;</span> '
+        'concept + code <span class="cert-hero-meta-sep">&middot;</span> '
+        '~12 minutes <span class="cert-hero-meta-sep">&middot;</span> '
+        'pass once'
+        '</p>'
+        '<div class="cert-hero-cta-row">'
+        '<span class="cert-hero-rule"></span>'
+        f'<a href="{quiz_url}" class="cert-hero-cta">'
+        'Begin assessment<span class="cert-hero-cta-arrow">&rarr;</span>'
+        '</a>'
+        '<span class="cert-hero-rule"></span>'
         '</div>'
-        f'<a href="{quiz_url}" class="cert-ribbon-cta">'
-        f'Attempt the quiz<span class="cert-ribbon-cta-arrow">&rarr;</span>'
-        f'</a>'
-        f'<p class="cert-final-issued">Issued by r-statistics.co &middot; Verifiable on a public URL</p>'
-        f'</div>'
+        '</div>'
+        '</div>'
+        # Returning-visitor swap: if the user already passed the quiz in this
+        # browser, replace the call-to-action with their earned state inline.
+        '<script>(function(){'
+        'try{'
+        'var card=document.querySelector(".cert-hero[data-hub-slug=\\""+'
+        f'"{hub_slug}"'
+        '+"\\"]");if(!card)return;'
+        'var raw=localStorage.getItem("rstat_certs_v1");if(!raw)return;'
+        'var data=JSON.parse(raw);'
+        f'var rec=data && data["{hub_slug}"];if(!rec||!rec.verifyURL)return;'
+        'var d=new Date(rec.date||Date.now());'
+        'var months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];'
+        'var dateText=months[d.getMonth()]+" "+d.getDate()+", "+d.getFullYear();'
+        'var content=card.querySelector(".cert-hero-content");'
+        'if(!content)return;'
+        'content.innerHTML='
+        '\'<p class="cert-hero-issuer">r-statistics.co &middot; Verifiable credential</p>\''
+        '+\'<div class="cert-earned-flag">Certificate earned</div>\''
+        f'+\'<div class="cert-hero-seal">{_CERT_SEAL_SVG}</div>\''
+        f'+\'<h3 class="cert-hero-title">{hub_short} Mastery</h3>\''
+        '+\'<p class="cert-earned-name">\'+(rec.name||"")+\'</p>\''
+        '+\'<p class="cert-earned-meta">Issued \'+dateText+\' &middot; ID \'+(rec.id||"")+\'</p>\''
+        '+\'<div class="cert-hero-cta-row">\''
+        '+\'<span class="cert-hero-rule"></span>\''
+        '+\'<a href="\'+rec.verifyURL+\'" class="cert-hero-cta" target="_blank" rel="noopener">View certificate<span class="cert-hero-cta-arrow">&rarr;</span></a>\''
+        '+\'<span class="cert-hero-rule"></span>\''
+        '+\'</div>\';'
+        '}catch(e){}'
+        '})();</script>'
     )
 
 
