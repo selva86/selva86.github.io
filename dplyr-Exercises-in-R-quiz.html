@@ -645,23 +645,87 @@
     background: currentColor;
   }
   .q-editor-status.loading .q-editor-status-dot { animation: pulse 1.2s ease-in-out infinite; }
-  .q-editor {
-    width: 100%;
-    min-height: 160px;
-    padding: 12px 16px;
-    border: none;
+  /* Editor surface: a highlighted <pre> sits behind the textarea. The
+     textarea has transparent text but a visible caret, so the user sees
+     the syntax-highlighted pre while typing into the textarea. Both share
+     identical font metrics so glyphs align perfectly. Gutter on the left
+     shows line numbers, also computed at input time. */
+  .q-editor-surface {
+    position: relative;
     background: #1e2734;
-    color: #e1e6ee;
+    min-height: 180px;
+  }
+  .q-editor-gutter {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 42px;
+    padding: 12px 8px 12px 0;
+    text-align: right;
+    font-family: 'IBM Plex Mono', Consolas, Monaco, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #4a5566;
+    background: #181f2a;
+    border-right: 1px solid #2a3445;
+    user-select: none;
+    pointer-events: none;
+    white-space: pre;
+    overflow: hidden;
+  }
+  .q-editor-pad {
+    position: relative;
+    margin-left: 42px;
+  }
+  .q-editor,
+  .q-editor-highlight {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 180px;
+    padding: 12px 16px;
+    margin: 0;
     font-family: 'IBM Plex Mono', Consolas, Monaco, monospace;
     font-size: 13.5px;
     line-height: 1.6;
-    resize: vertical;
-    outline: none;
     tab-size: 2;
     -moz-tab-size: 2;
     white-space: pre;
+    word-wrap: normal;
+    overflow-x: auto;
+    border: 0;
   }
-  .q-editor:focus { background: #1e2734; }
+  .q-editor-highlight {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    color: #e1e6ee;
+    background: transparent;
+    z-index: 1;
+  }
+  .q-editor-highlight code {
+    font: inherit;
+    color: inherit;
+    background: transparent;
+    padding: 0;
+    display: block;
+  }
+  .q-editor {
+    position: relative;
+    z-index: 2;
+    background: transparent !important;
+    color: transparent;
+    caret-color: #e1e6ee;
+    resize: vertical;
+    outline: none;
+  }
+  .q-editor::selection { background: rgba(146, 164, 216, 0.32); color: transparent; }
+  .q-editor::-moz-selection { background: rgba(146, 164, 216, 0.32); color: transparent; }
+  /* Token colors — restrained, IBM Carbon-ish dark theme */
+  .t-com  { color: #6b7891; font-style: italic; }
+  .t-str  { color: #c5b8d8; }
+  .t-kw   { color: #c499d8; font-weight: 500; }
+  .t-num  { color: #f0a070; }
+  .t-fn   { color: #f0d28c; }
+  .t-op   { color: #92a4d8; }
 
   .q-editor-bar {
     display: flex; gap: 10px;
@@ -1193,7 +1257,13 @@
             <span id="editor-status-text">Loading R&hellip;</span>
           </span>
         </div>
-        <textarea class="q-editor" id="code-editor" spellcheck="false"></textarea>
+        <div class="q-editor-surface">
+          <pre class="q-editor-gutter" id="code-gutter" aria-hidden="true">1</pre>
+          <div class="q-editor-pad">
+            <pre class="q-editor-highlight" id="code-highlight" aria-hidden="true"><code class="language-r"></code></pre>
+            <textarea class="q-editor" id="code-editor" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+          </div>
+        </div>
         <div class="q-editor-bar">
           <button type="button" class="q-editor-btn run" id="run-btn" disabled>&#9654; Run</button>
           <button type="button" class="q-editor-btn check" id="check-btn" disabled>&#10003; Check</button>
@@ -1596,6 +1666,8 @@
     codeArea: document.getElementById('code-area'),
     codeFnName: document.getElementById('code-fn-name'),
     codeEditor: document.getElementById('code-editor'),
+    codeHighlight: document.getElementById('code-highlight'),
+    codeGutter: document.getElementById('code-gutter'),
     codeOutput: document.getElementById('code-output'),
     runBtn: document.getElementById('run-btn'),
     checkBtn: document.getElementById('check-btn'),
@@ -1868,8 +1940,12 @@
       els.nextBtn.disabled = !ans.picked && ans.picked !== 0;
       els.nextBtn.firstChild.textContent = 'Submit answer';
     } else {
-      els.nextBtn.disabled = true;
-      els.nextBtn.firstChild.textContent = 'Check your code first';
+      // Code question: Next is always allowed. If Check has passed, it locks
+      // and advances. Otherwise it skips without locking — the tick stays
+      // unanswered so the user can come back via the timeline.
+      els.nextBtn.disabled = false;
+      els.nextBtn.firstChild.textContent =
+        (state.index === state.questionIds.length - 1) ? 'Skip and finish' : 'Skip for now';
     }
 
     // Tally
@@ -1927,11 +2003,62 @@
     saveState();
   }
 
+  // R syntax highlighter — lightweight, no external dep. Recognizes
+  // comments, strings, numbers, keywords, and function-call names.
+  // Operators are left at default color (better than tagging every <-).
+  var R_KEYWORDS = /\b(?:if|else|for|while|function|return|TRUE|FALSE|NULL|NA|NA_integer_|NA_real_|NA_character_|in|next|break|repeat|library|require|UseMethod|Inf|NaN)\b/;
+  var R_HIGHLIGHT_RE = new RegExp([
+    "(#[^\\n]*)",                                // 1: comments
+    "(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*')", // 2: strings
+    R_KEYWORDS.source.replace(/\\b/g, '\\b'),    // 3: keywords (with word boundaries)
+    "(\\b\\d+\\.?\\d*\\b)",                       // 4: numbers
+    "([a-zA-Z_][a-zA-Z0-9_.]*)(?=\\s*\\()"        // 5: function calls
+  ].join('|'), 'g');
+  function escapeHTML(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function highlightR(code) {
+    return escapeHTML(code).replace(R_HIGHLIGHT_RE,
+      function(m, com, str, kw, num, fn) {
+        if (com) return '<span class="t-com">' + com + '</span>';
+        if (str) return '<span class="t-str">' + str + '</span>';
+        if (kw)  return '<span class="t-kw">'  + kw  + '</span>';
+        if (num) return '<span class="t-num">' + num + '</span>';
+        if (fn)  return '<span class="t-fn">'  + fn  + '</span>';
+        return m;
+      });
+  }
+  function syncEditorHighlight() {
+    if (!els.codeEditor || !els.codeHighlight) return;
+    var src = els.codeEditor.value;
+    // Trailing newline trick: textareas need a final blank line; pre does too.
+    if (src.endsWith('\n')) src += ' ';
+    els.codeHighlight.querySelector('code').innerHTML = highlightR(src);
+    // Line numbers in the gutter
+    if (els.codeGutter) {
+      var lines = els.codeEditor.value.split('\n').length;
+      var out = '';
+      for (var i = 1; i <= lines; i++) out += i + '\n';
+      els.codeGutter.textContent = out;
+    }
+    // Auto-resize textarea to fit content
+    els.codeEditor.style.height = 'auto';
+    var h = Math.max(180, els.codeEditor.scrollHeight);
+    els.codeEditor.style.height = h + 'px';
+    els.codeHighlight.style.minHeight = h + 'px';
+  }
+  function syncEditorScroll() {
+    if (!els.codeEditor || !els.codeHighlight) return;
+    els.codeHighlight.scrollTop = els.codeEditor.scrollTop;
+    els.codeHighlight.scrollLeft = els.codeEditor.scrollLeft;
+  }
+
   function renderCode(q, ans) {
     els.questionOptions.style.display = 'none';
     els.codeArea.style.display = 'block';
     els.codeFnName.textContent = q.fnName;
     els.codeEditor.value = ans.codeBody || q.starter;
+    syncEditorHighlight();
     els.codeOutput.classList.remove('show', 'error', 'success');
     els.codeOutput.innerHTML = '';
     els.codeAttempts.textContent = ans.codeAttempts ? ('attempts: ' + ans.codeAttempts) : '';
@@ -1944,7 +2071,22 @@
 
     els.codeEditor.oninput = function() {
       ans.codeBody = els.codeEditor.value;
+      syncEditorHighlight();
       saveState();
+    };
+    els.codeEditor.onscroll = syncEditorScroll;
+    els.codeEditor.onkeydown = function(e) {
+      // Tab inserts two spaces instead of moving focus
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        var s = els.codeEditor.selectionStart;
+        var en = els.codeEditor.selectionEnd;
+        els.codeEditor.value = els.codeEditor.value.slice(0, s) + '  ' + els.codeEditor.value.slice(en);
+        els.codeEditor.selectionStart = els.codeEditor.selectionEnd = s + 2;
+        ans.codeBody = els.codeEditor.value;
+        syncEditorHighlight();
+        saveState();
+      }
     };
 
     els.runBtn.onclick = function() { runUserCode(q, ans, false); };
@@ -1953,6 +2095,7 @@
       if (ans.locked) return;
       els.codeEditor.value = q.starter;
       ans.codeBody = q.starter;
+      syncEditorHighlight();
       saveState();
     };
 
@@ -2256,17 +2399,28 @@
     var ans = ensureAnswer(qid);
 
     if (!ans.locked) {
-      if (q.type === 'mcq') lockMCQ(q, ans);
-      else if (q.type === 'code' && ans.codePassed) lockCode(q, ans);
-      else return;
-    } else {
-      if (state.index < state.questionIds.length - 1) {
-        state.index += 1;
-        saveState();
-        renderQuestion();
-      } else {
-        finishQuiz();
+      if (q.type === 'mcq') {
+        lockMCQ(q, ans);
+        return;
       }
+      if (q.type === 'code' && ans.codePassed) {
+        lockCode(q, ans);
+        return;
+      }
+      // Code question with no passing Check yet — treat Next as Skip.
+      // Don't lock; just advance. The user can return via the timeline.
+      advanceOrFinish();
+      return;
+    }
+    advanceOrFinish();
+  }
+  function advanceOrFinish() {
+    if (state.index < state.questionIds.length - 1) {
+      state.index += 1;
+      saveState();
+      renderQuestion();
+    } else {
+      finishQuiz();
     }
   }
   function onPrev() {
@@ -2280,6 +2434,24 @@
   // Finish + results
   // ============================================================
   function finishQuiz() {
+    // Warn if any questions are still unanswered — give the user a chance
+    // to jump back via the timeline before locking in a final score.
+    var unanswered = state.questionIds.filter(function(qid) {
+      var a = state.answers[qid];
+      return !a || !a.locked;
+    });
+    if (unanswered.length) {
+      var first = state.questionIds.indexOf(unanswered[0]) + 1;
+      var msg = 'You have ' + unanswered.length + ' unanswered question' +
+        (unanswered.length > 1 ? 's' : '') + ' (starting at Q' + first + '). ' +
+        'They will count as 0 XP.\n\nSubmit anyway?';
+      if (!window.confirm(msg)) {
+        // Jump back to the first unanswered question
+        state.index = state.questionIds.indexOf(unanswered[0]);
+        renderQuestion();
+        return;
+      }
+    }
     state.finished = true;
     stopTimer();
     saveState();
