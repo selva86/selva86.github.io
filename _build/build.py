@@ -1320,7 +1320,59 @@ def build_post(
     page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', make_engagement_head_block(_hrefs) if webr else '')
     page_html = page_html.replace('{{ENGAGEMENT_BODY}}', make_engagement_body_block(_hrefs) if webr else '')
 
+    # Certificate ribbon for EX posts only. Hub title is the page <h1>.
+    post_type = meta.get('post_type', '').strip()
+    if post_type == 'EX':
+        # Use the sidebar_title if available (short form), else strip ' Exercises ...' suffix from title
+        hub_short = meta.get('sidebar_title') or re.sub(r'\s+Exercises.*$', '', title)
+        quiz_url = '/' + os.path.splitext(slug)[0] + '-quiz.html'
+        cert_top = make_cert_ribbon(hub_short, quiz_url)
+        cert_bottom = make_cert_final(hub_short, quiz_url)
+    else:
+        cert_top = ''
+        cert_bottom = ''
+    page_html = page_html.replace('{{CERT_RIBBON_TOP}}', cert_top)
+    page_html = page_html.replace('{{CERT_RIBBON_BOTTOM}}', cert_bottom)
+
     return page_html
+
+
+# Certificate ribbon helpers
+_CERT_SEAL_SVG = (
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    'stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" '
+    'aria-hidden="true">'
+    '<circle cx="12" cy="9.5" r="5.5"/>'
+    '<path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/>'
+    '</svg>'
+)
+
+
+def make_cert_ribbon(hub_short, quiz_url):
+    return (
+        '<div class="cert-ribbon" role="complementary">'
+        f'<div class="cert-ribbon-left">'
+        f'<div class="cert-ribbon-icon">{_CERT_SEAL_SVG}</div>'
+        f'<div class="cert-ribbon-text">'
+        f'<p class="cert-ribbon-title">Earn the {hub_short} Certificate</p>'
+        f'<p class="cert-ribbon-sub">Practice the exercises below. When you feel ready, attempt the quiz to earn a verifiable certificate you can share on LinkedIn.</p>'
+        f'</div></div>'
+        f'<a href="{quiz_url}" class="cert-ribbon-cta">'
+        f'Attempt the quiz<span class="cert-ribbon-cta-arrow">&rarr;</span>'
+        f'</a></div>'
+    )
+
+
+def make_cert_final(hub_short, quiz_url):
+    return (
+        '<div class="cert-final">'
+        f'<div class="cert-final-icon">{_CERT_SEAL_SVG}</div>'
+        f'<h3 class="cert-final-title">Ready to earn the {hub_short} Certificate?</h3>'
+        f'<p class="cert-final-sub">The quiz is concept-based and respects your time: pass it once and your verifiable certificate is yours to share on LinkedIn, your resume, or your portfolio. Take it when you feel comfortable with the material.</p>'
+        f'<a href="{quiz_url}" class="cert-ribbon-cta">'
+        f'Attempt the quiz<span class="cert-ribbon-cta-arrow">&rarr;</span>'
+        f'</a></div>'
+    )
 
 
 def update_sitemap(filenames):

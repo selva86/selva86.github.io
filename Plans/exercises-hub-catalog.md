@@ -62,7 +62,7 @@ Ship in this order. Each can plausibly pull 5-15K monthly visits at decent ranki
 | 29 | ggplot2-Themes-Exercises-in-R | ggplot2 themes, customize ggplot |
 | 30 | ggplot2-Facets-Exercises-in-R | facet_wrap exercises, ggplot facet practice |
 | 31 | ggplot2-Color-Scales-Exercises-in-R | ggplot color palette exercises |
-| 32 | ggplot2-Bar-Chart-Exercises | ggplot bar chart, geom_bar exercises |
+| 32 | ggplot2-Bar-Chart-Exercises-in-R | ggplot bar chart, geom_bar exercises |
 | 33 | ggplot2-Heatmap-Exercises-in-R | ggplot heatmap, geom_tile exercises |
 | 34 | tidyr-Pivot-Exercises-in-R | pivot_longer pivot_wider exercises |
 | 35 | tidyr-Nest-Unnest-Exercises-in-R | nest unnest R, many models |

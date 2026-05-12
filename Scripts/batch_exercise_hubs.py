@@ -351,6 +351,12 @@ def main():
                     hub["last_error"] = "quality gate failed twice"
                     move_to_failed(slug)
                 write_status(status)
+                # Critical: clean any half-written tracked files left by the
+                # failed write subprocess so the NEXT iteration's git-clean
+                # check doesn't abort the whole batch.
+                subprocess.run(["git", "checkout", "--", "."],
+                               capture_output=True, cwd=str(REPO_ROOT))
+                log("  Reset tracked changes after gate failure")
                 continue
 
             # 3. Publish (optional)
