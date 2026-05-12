@@ -1,8 +1,8 @@
 ---
 title: "Tidyverse Exercises in R: 50 Real-World Practice Problems"
 slug: "tidyverse-Exercises-in-R"
-description: "Sharpen tidyverse skills with 50 cross-package practice problems spanning dplyr, tidyr, stringr, lubridate, and purrr on real workflows. Hidden solutions."
-keywords: "tidyverse exercises, tidyverse practice, tidyverse exercises in R, learn tidyverse by example, tidyverse practice problems, dplyr tidyr exercises"
+description: "Practice the tidyverse with 50 cross-package R exercises spanning dplyr, tidyr, stringr, lubridate, and purrr on real workflows. Hidden solutions and explanations."
+keywords: "tidyverse exercises, tidyverse practice, tidyverse exercises in R, learn tidyverse by example, tidyverse practice problems, dplyr tidyr stringr exercises"
 mathjax: false
 webr: true
 date: "2026-05-12"
@@ -19,7 +19,7 @@ difficulty: "Mixed"
 
 # Tidyverse Exercises in R: 50 Real-World Practice Problems
 
-<p class="lead">Fifty cross-package practice problems spanning dplyr, tidyr, stringr, lubridate, and purrr. Each problem states the task, shows the expected result, and hides a fully worked solution with an explanation. The sweet spot is exercises that force you to pick the right verb from the right package and chain them on real data.</p>
+<p class="lead">Fifty tidyverse practice problems grouped into six themed sections that cross dplyr, tidyr, stringr, lubridate, and purrr on real workflows. Every problem ships with an expected result so you can verify, and solutions stay hidden behind reveal toggles so you actually try first.</p>
 
 ```r title="Run this once before any exercise"
 library(dplyr)
@@ -36,7 +36,7 @@ library(ggplot2)
 
 ### Exercise 1.1: Filter mpg for fuel-efficient compact cars
 
-**Task:** Use the `mpg` dataset from ggplot2 to keep only rows where `class` equals "compact" AND city mileage (`cty`) exceeds 25 miles per gallon. Retain every original column so a reviewer can inspect manufacturer, model, and transmission for each match. Save the filtered tibble to `ex_1_1`.
+**Task:** Use the `mpg` dataset from ggplot2 to keep only rows where `class` equals "compact" AND city mileage (`cty`) is strictly greater than 25 miles per gallon. Retain every original column so a reviewer can inspect manufacturer, model, and transmission for each match. Save the filtered tibble to `ex_1_1`.
 
 **Expected result:**
 
@@ -67,13 +67,13 @@ ex_1_1 <- mpg |>
 ex_1_1
 ```
 
-**Explanation:** Passing multiple conditions to `filter()` separated by commas is equivalent to combining them with `&` (logical AND). Using commas reads more naturally and is the idiomatic dplyr style. A common mistake is writing `class = "compact"` with a single equals sign, which is assignment and triggers an error. Use `==` for equality tests inside `filter()`.
+**Explanation:** Passing multiple conditions to `filter()` separated by commas is equivalent to combining them with `&` (logical AND). The comma style reads more naturally and is the idiomatic dplyr form. A common mistake is writing `class = "compact"` with a single equals sign, which is assignment and triggers an error inside `filter()`. Always use `==` for equality tests.
 
 </details>
 
 ### Exercise 1.2: Select diamond grading columns with tidyselect helpers
 
-**Task:** From the `diamonds` dataset, build a tibble that keeps `price` first, then every column whose name starts with "c" (carat, cut, color, clarity). Use a tidyselect helper rather than naming columns one by one so the code keeps working if a new "c" column is added later. Save the result to `ex_1_2`.
+**Task:** From the `diamonds` dataset, build a tibble that keeps `price` first, then every column whose name starts with the letter "c" (carat, cut, color, clarity). Use a tidyselect helper rather than naming columns one by one so the code keeps working if a new "c" column is added later. Save the result to `ex_1_2`.
 
 **Expected result:**
 
@@ -104,13 +104,13 @@ ex_1_2 <- diamonds |>
 ex_1_2
 ```
 
-**Explanation:** `starts_with()` is one of several tidyselect helpers (`ends_with()`, `contains()`, `matches()`, `where()`). Naming `price` first then `starts_with("c")` is how column reordering works inside `select()`: order in the call equals order in the output. Because `starts_with()` skips columns already listed by name, `price` does not get duplicated even if it had started with "c".
+**Explanation:** `starts_with()` is one of the tidyselect helpers (`ends_with()`, `contains()`, `matches()`, `where()`). Naming `price` first then `starts_with("c")` controls column order: position in the call equals position in the output. Because `starts_with()` skips columns already listed by name, `price` never gets duplicated even if it had started with "c" itself.
 
 </details>
 
 ### Exercise 1.3: Sort diamonds by price descending then carat ascending
 
-**Task:** Sort the `diamonds` data frame so the most expensive stones appear first, and within the same price, the smaller carat appears first. This is the order a pricing audit would want when scanning for unusual entries. Save the sorted tibble to `ex_1_3`.
+**Task:** Sort the `diamonds` data frame so the most expensive stones appear first, and within the same price the smaller carat appears first. This is the order a pricing audit would want when scanning for entries that look mispriced relative to size. Save the sorted tibble to `ex_1_3`.
 
 **Expected result:**
 
@@ -122,6 +122,7 @@ ex_1_2
 #> 2  2    Very Good G     SI1      63.5    56 18818  7.9   7.97  5.04
 #> 3  1.51 Ideal     G     IF       61.7    55 18806  7.37  7.41  4.56
 #> ...
+#> # 53,937 more rows hidden
 ```
 
 **Difficulty:** Beginner
@@ -140,13 +141,13 @@ ex_1_3 <- diamonds |>
 ex_1_3
 ```
 
-**Explanation:** `arrange()` sorts ascending by default. Wrap an argument in `desc()` to flip the direction for that single column without affecting the others. The secondary sort by `carat` is only visible when ties exist on `price`, which is common at integer-rounded dollar values like 18820. A common mistake is `arrange(-price, carat)` for character columns: the negation works for numerics only.
+**Explanation:** `arrange()` sorts ascending by default; wrap a column in `desc()` for descending. Passing two columns means the second is a tiebreaker for the first. Note that `arrange()` ignores grouping; to sort within groups, either `arrange(group, key)` or use `.by_group = TRUE`. Sorting is non-destructive: it returns a new tibble with row order changed but no data removed.
 
 </details>
 
 ### Exercise 1.4: Tag diamonds into price tiers with case_when
 
-**Task:** A jeweller preparing a quarterly catalog wants every diamond labelled as "budget" (under 1000), "mid" (1000 to 4999), or "premium" (5000 and above). Add a `tier` column to `diamonds` using `case_when()` and save the augmented tibble to `ex_1_4`.
+**Task:** Add a `tier` column to `diamonds` that bins `price` into three buckets; "budget" (below 1000), "mid" (1000 to under 5000), and "premium" (5000 and above). A jeweller preparing a quarterly sale wants this label for routing inventory to different campaigns. Save the result to `ex_1_4`.
 
 **Expected result:**
 
@@ -158,15 +159,19 @@ ex_1_3
 #> 2  0.21 Premium   E     SI1      59.8    61   326  3.89  3.84  2.31 budget
 #> 3  0.23 Good      E     VS1      56.9    65   327  4.05  4.07  2.31 budget
 #> ...
-#> # count by tier:
-#> # budget  14524, mid 28966, premium 10450
+#> # 53,937 more rows hidden
+#> count(ex_1_4, tier):
+#>   tier        n
+#> 1 budget  14524
+#> 2 mid     28966
+#> 3 premium 10450
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
-ex_1_4 <- diamonds |>
-  # your code here
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
@@ -182,21 +187,21 @@ ex_1_4 <- diamonds |>
 count(ex_1_4, tier)
 ```
 
-**Explanation:** `case_when()` evaluates conditions top to bottom and the first match wins, so the second branch only sees rows with `price >= 1000`. The closing `TRUE ~ "premium"` is the catch-all fallback. Without it, prices of 5000 and above would silently become `NA`. For ordered, mutually exclusive buckets this reads far cleaner than nested `if_else()` calls and scales gracefully when you add a fourth tier later.
+**Explanation:** `case_when()` reads top-to-bottom and the first matching condition wins. Because the second branch implicitly handles 1000-4999, you do not need `price >= 1000 & price < 5000`. The trailing `TRUE ~ ...` is the catch-all default; without it, prices of 5000 or above would become `NA`. Cleaner than nested `if_else()` once you reach three or more buckets.
 
 </details>
 
 ### Exercise 1.5: Summarise diamonds with multiple statistics in one call
 
-**Task:** Compute four summary statistics on the `diamonds` table in a single `summarise()` call: number of stones, mean price, median price, and price standard deviation. The reporting team wants all four numbers in one wide row for a daily inventory dashboard. Save the result to `ex_1_5`.
+**Task:** Compute four summary statistics for the entire `diamonds` price column in one `summarise()` call: mean price (`mean_price`), median price (`median_price`), 10th percentile (`p10`), and 90th percentile (`p90`). Round all four to one decimal place so the result fits a single audit row. Save the resulting tibble to `ex_1_5`.
 
 **Expected result:**
 
 ```
 #> # A tibble: 1 x 4
-#>       n mean_price median_price sd_price
-#>   <int>      <dbl>        <dbl>    <dbl>
-#> 1 53940      3933.         2401     3989.
+#>   mean_price median_price    p10    p90
+#>        <dbl>        <dbl>  <dbl>  <dbl>
+#> 1     3932.8        2401   646   9821
 ```
 
 **Difficulty:** Beginner
@@ -212,21 +217,21 @@ ex_1_5
 ```r title="Solution"
 ex_1_5 <- diamonds |>
   summarise(
-    n            = n(),
-    mean_price   = mean(price),
+    mean_price   = round(mean(price), 1),
     median_price = median(price),
-    sd_price     = sd(price)
+    p10          = quantile(price, 0.10),
+    p90          = quantile(price, 0.90)
   )
 ex_1_5
 ```
 
-**Explanation:** `summarise()` collapses a tibble to one row when no grouping is set, and inside it `n()` returns the row count without needing a column reference. Aligning the equals signs is purely cosmetic but pays off when the team scans diffs. A common mistake is calling `summarise(mean(price))`: it works but the output column is named `mean(price)`, which is awkward to reference downstream.
+**Explanation:** `summarise()` collapses many rows to one and is the right verb whenever you need a one-row report. `quantile()` returns a named numeric; `summarise()` strips the name and stores it under the column name you assigned. To compute the same statistics by group, the only change is prepending `group_by()`; the `summarise()` call stays identical. That symmetry is why pipelines stay short.
 
 </details>
 
 ### Exercise 1.6: Drop duplicate model rows keeping every column
 
-**Task:** In `mpg`, several rows share the same manufacturer and model because the dataset captures multiple model years. Use `distinct()` to keep one row per (`manufacturer`, `model`) combination while preserving every other column from the first occurrence. Save the result to `ex_1_6`.
+**Task:** The `mpg` dataset has multiple rows per (manufacturer, model) pair because of trim variants. Keep one row per unique (manufacturer, model) combination but retain every original column from whichever row appears first. Save the result to `ex_1_6` so a product catalogue can reference one row per model.
 
 **Expected result:**
 
@@ -236,8 +241,9 @@ ex_1_5
 #>   <chr>        <chr>      <dbl> <int> <int> <chr>      <chr> <int> <int> <chr> <chr>
 #> 1 audi         a4           1.8  1999     4 auto(l5)   f        18    29 p     compact
 #> 2 audi         a4 quattro   1.8  1999     4 manual(m5) 4        18    26 p     compact
+#> 3 audi         a6 quattro   2.8  1999     6 auto(l5)   4        15    24 a     midsize
 #> ...
-#> # 36 more rows hidden
+#> # 35 more rows hidden
 ```
 
 **Difficulty:** Intermediate
@@ -256,13 +262,13 @@ ex_1_6 <- mpg |>
 ex_1_6
 ```
 
-**Explanation:** By default `distinct()` returns ONLY the columns you list, which is rarely what you want. Setting `.keep_all = TRUE` preserves the remaining columns by taking values from the first matching row of each group. If you need a specific row per group (most recent year, highest mpg), reach for `slice_max()` or `slice_min()` with a `.by` instead, because `distinct()` is non-deterministic about which "first" row it picks.
+**Explanation:** Without `.keep_all = TRUE`, `distinct()` returns only the columns you list. With it, dplyr keeps the first encountered row in full whenever a duplicate of the key columns appears. This is faster than `group_by() |> slice(1)` and reads more clearly when the intent is dedup-on-key. To choose a specific row instead of the first, switch to `slice_min()` or `slice_max()` on a tiebreaker column.
 
 </details>
 
 ### Exercise 1.7: Find the top three priciest diamonds per cut grade
 
-**Task:** A premium-jewellery retailer needs the three most expensive stones in each `cut` grade for the front-page showcase. Use `slice_max()` with `.by` to pull the top three rows per cut by `price`, breaking ties so you never end up with more than three per group. Save the result to `ex_1_7`.
+**Task:** For each `cut` quality level in `diamonds`, return the three rows with the highest `price`. Break ties by including all ties (so a cut with four diamonds tied for second place returns four rows, not three). Save the resulting tibble to `ex_1_7` so a buyer can see the top stones in each grade.
 
 **Expected result:**
 
@@ -270,11 +276,11 @@ ex_1_6
 #> # A tibble: 15 x 10
 #>   carat cut       color clarity depth table price     x     y     z
 #>   <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl>
-#> 1  2.29 Premium   I     VS2      60.8    60 18823  8.5   8.47  5.16
-#> 2  2.04 Premium   H     SI1      58.1    60 18795  8.37  8.28  4.84
-#> 3  2    Premium   I     VS1      60.8    59 18795  8.13  8.02  4.91
-#> 4  2    Very Good G     SI1      63.5    56 18818  7.9   7.97  5.04
+#> 1  2.01 Fair      G     SI1      70.6    64 18574  7.43  6.64  4.69
+#> 2  2.02 Fair      H     VS2      64.5    57 18565  8     7.95  5.13
+#> 3  4.5  Fair      J     I1       65.8    58 18531 10.2  10.16  6.72
 #> ...
+#> # 12 more rows hidden
 ```
 
 **Difficulty:** Intermediate
@@ -289,27 +295,31 @@ ex_1_7
 
 ```r title="Solution"
 ex_1_7 <- diamonds |>
-  slice_max(price, n = 3, by = cut, with_ties = FALSE)
+  group_by(cut) |>
+  slice_max(price, n = 3, with_ties = TRUE) |>
+  ungroup()
 ex_1_7
 ```
 
-**Explanation:** The `.by` argument introduced in dplyr 1.1 performs per-group operations without needing `group_by()` followed by `ungroup()`. `with_ties = FALSE` is critical: at integer-rounded prices, two stones often tie and `slice_max()` would return more than `n` per group otherwise. The classic pre-1.1 idiom was `group_by(cut) |> slice_max(...) |> ungroup()` which still works but is wordier.
+**Explanation:** `slice_max()` keeps the n highest values; `slice_min()` is the symmetric verb. The `with_ties = TRUE` default returns extra rows when the nth row is tied, which is usually what audits want. `ungroup()` at the end prevents the grouping from leaking into downstream operations; a frequent source of confusing dplyr bugs. Always ungroup once group-aware work is done.
 
 </details>
 
 ### Exercise 1.8: Rename and reorder columns for a finance report
 
-**Task:** Take `economics` (a personal-finance time series in ggplot2) and rename `psavert` to `savings_rate`, `pce` to `consumer_spend`, and `uempmed` to `unemp_duration`. Then reorder columns so `date` comes first, the three renamed columns follow, and the rest trail behind. Save the result to `ex_1_8`.
+**Task:** Make the `economics` dataset publication-ready: rename `psavert` to `savings_rate`, rename `unemploy` to `unemployed_thousands`, and reorder so the columns appear as `date`, `unemployed_thousands`, `savings_rate`, then everything else in original order. Save to `ex_1_8` so the result can be shipped to a finance team unfamiliar with R abbreviations.
 
 **Expected result:**
 
 ```
 #> # A tibble: 574 x 6
-#>   date       savings_rate consumer_spend unemp_duration   pop unemploy
-#>   <date>            <dbl>          <dbl>          <dbl> <dbl>    <dbl>
-#> 1 1967-07-01         12.5           507.            4.5 198712     2944
-#> 2 1967-08-01         12.5           510.            4.7 198911     2945
+#>   date       unemployed_thousands savings_rate    pce    pop uempmed
+#>   <date>                    <dbl>        <dbl>  <dbl>  <dbl>   <dbl>
+#> 1 1967-07-01                 2944         12.5  507.0  198712     4.5
+#> 2 1967-08-01                 2945         12.5  510.9  198911     4.7
+#> 3 1967-09-01                 2958         11.7  516.7  199113     4.6
 #> ...
+#> # 571 more rows hidden
 ```
 
 **Difficulty:** Beginner
@@ -324,32 +334,30 @@ ex_1_8
 
 ```r title="Solution"
 ex_1_8 <- economics |>
-  rename(
-    savings_rate   = psavert,
-    consumer_spend = pce,
-    unemp_duration = uempmed
-  ) |>
-  select(date, savings_rate, consumer_spend, unemp_duration, everything())
+  rename(savings_rate = psavert, unemployed_thousands = unemploy) |>
+  relocate(date, unemployed_thousands, savings_rate)
 ex_1_8
 ```
 
-**Explanation:** Inside `rename()` and `select()` the syntax is `new_name = old_name`, which is the opposite direction from `mutate()`. The `everything()` helper inside `select()` is the cleanest way to "and keep all the remaining columns in their original order" without typing them out. If you swap the order of `rename()` and `select()` it still works because `select()` references the already-renamed columns.
+**Explanation:** `rename()` takes pairs in `new = old` order; the opposite of `mutate()`, which is `new = expression`. `relocate()` is the dedicated verb for column reordering; the columns you name move to the front by default, and unlisted columns keep their relative order. You could chain `select()` to reorder but `select()` drops anything not listed, which is risky for wide tables. Prefer `relocate()`.
 
 </details>
 
 ### Exercise 1.9: Z-score every numeric column in mtcars
 
-**Task:** A modelling team needs every numeric column of `mtcars` rescaled to z-scores (mean zero, unit standard deviation) so they can compare coefficients across predictors. Use `across()` to apply `scale()` to all numeric columns at once, dropping the matrix attribute scale returns. Save the standardized tibble to `ex_1_9`.
+**Task:** Standardise every numeric column of `mtcars` (subtract the mean, divide by the standard deviation) so the result has mean zero and unit variance per column. Use `mutate(across(...))` rather than rewriting one mutate per column. Save the scaled tibble to `ex_1_9` for use as model input later.
 
 **Expected result:**
 
 ```
 #> # A tibble: 32 x 11
-#>     mpg     cyl    disp     hp   drat      wt    qsec     vs     am   gear   carb
-#>   <dbl>   <dbl>   <dbl>  <dbl>  <dbl>   <dbl>   <dbl>  <dbl>  <dbl>  <dbl>  <dbl>
-#> 1 0.151 -0.105  -0.571  -0.535  0.568 -0.610  -0.777  -0.868  1.19   0.424 0.735
-#> 2 0.151 -0.105  -0.571  -0.535  0.568 -0.350  -0.464  -0.868  1.19   0.424 0.735
+#>      mpg    cyl   disp     hp   drat     wt   qsec     vs     am   gear   carb
+#>    <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>  <dbl>
+#> 1  0.151 -0.105 -0.571 -0.535  0.568 -0.610 -0.777 -0.868  1.190  0.424  0.735
+#> 2  0.151 -0.105 -0.571 -0.535  0.568 -0.350 -0.464 -0.868  1.190  0.424  0.735
+#> 3  0.450 -1.225 -0.990 -0.783  0.474 -0.917  0.426  1.116  1.190  0.424 -1.122
 #> ...
+#> # 29 more rows hidden
 ```
 
 **Difficulty:** Intermediate
@@ -363,13 +371,12 @@ ex_1_9
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_9 <- mtcars |>
-  as_tibble() |>
-  mutate(across(everything(), \(x) as.numeric(scale(x))))
+ex_1_9 <- as_tibble(mtcars) |>
+  mutate(across(everything(), \(x) (x - mean(x)) / sd(x)))
 ex_1_9
 ```
 
-**Explanation:** `across()` is dplyr's "do this to many columns" tool. The anonymous function `\(x) as.numeric(scale(x))` strips the matrix attributes that `scale()` would otherwise attach. `everything()` works here because every column of `mtcars` is numeric: in mixed-type data use `where(is.numeric)` instead. Pre-`across()` code used `mutate_if()` or `mutate_all()`, which are now superseded.
+**Explanation:** `across()` applies a function to many columns at once. `everything()` is the selector here; for numeric-only safety on mixed-type tables, use `where(is.numeric)`. The backslash lambda `\(x) ...` is base R 4.1+ shorthand for `function(x) ...`. An alternative is `scale()`, but it returns a matrix; `mutate(across())` keeps the result as a tibble, which is usually what you want for downstream piping.
 
 </details>
 
@@ -377,20 +384,19 @@ ex_1_9
 
 ### Exercise 2.1: Average highway mileage per vehicle class
 
-**Task:** Group `mpg` by `class` and compute the mean highway mileage (`hwy`) and row count per group. Arrange the result so the most efficient class appears at the top, since that is the chart order a fuel-economy report needs. Save the summary to `ex_2_1`.
+**Task:** Group the `mpg` dataset by `class` and report two columns: `n` (number of vehicles in that class) and `mean_hwy` (mean highway mpg, rounded to 1 decimal). Sort the output so the most fuel-efficient class appears at the top. Save the result to `ex_2_1` for a fleet-procurement briefing.
 
 **Expected result:**
 
 ```
 #> # A tibble: 7 x 3
-#>   class      mean_hwy     n
-#>   <chr>         <dbl> <int>
-#> 1 compact        28.3    47
-#> 2 midsize        27.3    41
-#> 3 subcompact     28.1    35
-#> 4 minivan        22.4    11
-#> 5 2seater        24.8     5
+#>   class          n mean_hwy
+#>   <chr>      <int>    <dbl>
+#> 1 compact       47     28.3
+#> 2 midsize       41     27.3
+#> 3 subcompact    35     28.1
 #> ...
+#> # 4 more rows hidden
 ```
 
 **Difficulty:** Beginner
@@ -405,22 +411,19 @@ ex_2_1
 
 ```r title="Solution"
 ex_2_1 <- mpg |>
-  summarise(
-    mean_hwy = mean(hwy),
-    n        = n(),
-    .by      = class
-  ) |>
+  group_by(class) |>
+  summarise(n = n(), mean_hwy = round(mean(hwy), 1)) |>
   arrange(desc(mean_hwy))
 ex_2_1
 ```
 
-**Explanation:** Using `.by` inside `summarise()` is the dplyr 1.1+ idiom that replaces `group_by() |> summarise() |> ungroup()`. The result is automatically ungrouped, which avoids a common bug where downstream operations behave unexpectedly because rows are still grouped. Sorting by the metric you care about is a small touch that makes the table immediately useful in a dashboard.
+**Explanation:** `n()` is a dplyr counter that works only inside `summarise()` and similar verbs; it knows the current group size. The `arrange(desc())` after summarising sorts the one-row-per-group output by the computed mean. Since dplyr 1.1, you could also write `summarise(..., .by = class)` and skip the explicit `group_by()`; both styles are valid, but the explicit form remains easier for newcomers to read.
 
 </details>
 
 ### Exercise 2.2: Percentage of diamonds in each cut quality
 
-**Task:** A marketing analyst needs the share of total inventory each `cut` grade represents in `diamonds`, expressed as a percentage rounded to one decimal place. The output should have columns `cut`, `n`, and `pct`, sorted from most common cut to least common. Save the result to `ex_2_2`.
+**Task:** Report what percentage of all 53,940 diamonds belong to each `cut` grade. The output must have columns `cut`, `n`, and `pct` (percent of total, rounded to 2 decimals), with rows sorted from largest cut category to smallest. Save the result to `ex_2_2` so it can drop straight into a slide deck.
 
 **Expected result:**
 
@@ -428,11 +431,11 @@ ex_2_1
 #> # A tibble: 5 x 3
 #>   cut           n   pct
 #>   <ord>     <int> <dbl>
-#> 1 Ideal     21551  40.0
-#> 2 Premium   13791  25.6
-#> 3 Very Good 12082  22.4
-#> 4 Good       4906   9.1
-#> 5 Fair       1610   3.0
+#> 1 Ideal     21551  39.95
+#> 2 Premium   13791  25.57
+#> 3 Very Good 12082  22.40
+#> 4 Good       4906   9.10
+#> 5 Fair       1610   2.98
 ```
 
 **Difficulty:** Intermediate
@@ -448,45 +451,43 @@ ex_2_2
 ```r title="Solution"
 ex_2_2 <- diamonds |>
   count(cut, sort = TRUE) |>
-  mutate(pct = round(100 * n / sum(n), 1))
+  mutate(pct = round(100 * n / sum(n), 2))
 ex_2_2
 ```
 
-**Explanation:** `count(x, sort = TRUE)` is shorthand for `group_by(x) |> summarise(n = n()) |> arrange(desc(n))`. The trick that catches people is that after `count()` the data is ungrouped, so `sum(n)` correctly returns the GRAND total, not a per-group total. If you wanted within-group shares (for example "pct of premium stones that are color D"), you would need an explicit `.by` on the `mutate()` call.
+**Explanation:** `count(cut, sort = TRUE)` is shorthand for `group_by(cut) |> summarise(n = n()) |> arrange(desc(n))`. After counting, the data is no longer grouped, so `sum(n)` in `mutate()` totals across all rows; which is what we want for an overall percent. If we had stayed grouped, `sum(n)` would have just returned each group's own count and every `pct` would have been 100.
 
 </details>
 
 ### Exercise 2.3: Inner-join orders to customers on customer_id
 
-**Task:** A retail dataset has separate tibbles for customers and orders. Inner-join the two below on `customer_id` so the result contains only customers who placed at least one order, with both customer attributes and order amount on the same row. Save the joined tibble to `ex_2_3`.
-
-```r title="Setup for 2.3, 2.4, 2.5"
-customers <- tibble(
-  customer_id = c(1, 2, 3, 4),
-  name        = c("Ada", "Beau", "Cleo", "Dan"),
-  city        = c("NYC", "SF", "LA", "Chicago")
-)
-orders <- tibble(
-  customer_id = c(1, 1, 2, 5),
-  order_id    = c(101, 102, 103, 104),
-  amount      = c(50, 30, 80, 60)
-)
-```
+**Task:** Build two small inline tibbles; `customers` with columns `customer_id`, `name` (5 rows) and `orders` with `order_id`, `customer_id`, `amount` (6 rows where one `customer_id` does not exist in `customers`). Inner-join orders to customers so only orders with a matching customer remain, and save to `ex_2_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 3 x 5
-#>   customer_id name  city  order_id amount
-#>         <dbl> <chr> <chr>    <dbl>  <dbl>
-#> 1           1 Ada   NYC        101     50
-#> 2           1 Ada   NYC        102     30
-#> 3           2 Beau  SF         103     80
+#> # A tibble: 5 x 4
+#>   order_id customer_id name    amount
+#>      <int>       <int> <chr>    <dbl>
+#> 1     1001           1 Alice     49.9
+#> 2     1002           2 Bob      120
+#> 3     1003           1 Alice     33.5
+#> 4     1004           3 Cara      87.2
+#> 5     1006           4 Dan       15
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+customers <- tibble(
+  customer_id = 1:5,
+  name        = c("Alice", "Bob", "Cara", "Dan", "Eve")
+)
+orders <- tibble(
+  order_id    = 1001:1006,
+  customer_id = c(1, 2, 1, 3, 9, 4),
+  amount      = c(49.9, 120, 33.5, 87.2, 200, 15)
+)
 ex_2_3 <- # your code here
 ex_2_3
 ```
@@ -495,30 +496,31 @@ ex_2_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_3 <- customers |>
-  inner_join(orders, by = "customer_id")
+ex_2_3 <- orders |>
+  inner_join(customers, by = "customer_id")
 ex_2_3
 ```
 
-**Explanation:** Inner joins keep only rows that match on both sides. Ada has two orders so she appears twice, Cleo and Dan are dropped (no orders), and customer 5 is dropped (no customer record). Specifying `by = "customer_id"` is more readable than letting dplyr guess from common column names, and it gives a clearer error if a column gets renamed upstream.
+**Explanation:** `inner_join()` keeps only rows whose join key exists in both tables. The order of arguments determines column order in the output, not the join semantics; `orders |> inner_join(customers)` and `customers |> inner_join(orders)` return the same rows but with columns in different positions. dplyr 1.1 also accepts `join_by(customer_id)` as the modern alternative to `by = "customer_id"`.
 
 </details>
 
 ### Exercise 2.4: Left-join customers with orders and fill missing amounts
 
-**Task:** Left-join `customers` to `orders` from the previous setup so every customer appears in the result, including those without orders. Replace the resulting `NA` in `amount` with zero so a "lifetime spend" rollup later does not silently break. Save the cleaned tibble to `ex_2_4`.
+**Task:** Using the `customers` and `orders` tibbles from Exercise 2.3, build a left join that starts from `customers` and brings in `order_id` and `amount`. Where a customer has no orders, replace the resulting `NA` amount with 0 so the column is fully numeric. Save the result to `ex_2_4`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 5 x 5
-#>   customer_id name  city    order_id amount
-#>         <dbl> <chr> <chr>      <dbl>  <dbl>
-#> 1           1 Ada   NYC          101     50
-#> 2           1 Ada   NYC          102     30
-#> 3           2 Beau  SF           103     80
-#> 4           3 Cleo  LA            NA      0
-#> 5           4 Dan   Chicago       NA      0
+#> # A tibble: 6 x 4
+#>   customer_id name  order_id amount
+#>         <int> <chr>    <int>  <dbl>
+#> 1           1 Alice     1001   49.9
+#> 2           1 Alice     1003   33.5
+#> 3           2 Bob       1002  120
+#> 4           3 Cara      1004   87.2
+#> 5           4 Dan       1006   15
+#> 6           5 Eve         NA    0
 ```
 
 **Difficulty:** Intermediate
@@ -534,25 +536,25 @@ ex_2_4
 ```r title="Solution"
 ex_2_4 <- customers |>
   left_join(orders, by = "customer_id") |>
-  mutate(amount = replace_na(amount, 0))
+  mutate(amount = coalesce(amount, 0))
 ex_2_4
 ```
 
-**Explanation:** A left join keeps every row from the left table and pads unmatched columns from the right table with `NA`. `replace_na()` from tidyr is the tidy idiom for setting a default value, and it is type-aware (it would refuse to put `"none"` into a numeric column). Leaving `order_id` as `NA` is fine because the downstream rollup sums `amount`, not `order_id`. If you needed both filled, pass a named list to `replace_na()`.
+**Explanation:** A left join keeps every row of the left table and adds matching columns from the right; non-matches become `NA`. `coalesce()` is the tidyverse "first non-NA" function and is the idiomatic replacement for `ifelse(is.na(x), 0, x)`. Notice that Eve still shows `NA` for `order_id`; only `amount` was patched, because the order id of a non-existent order is genuinely undefined.
 
 </details>
 
 ### Exercise 2.5: Anti-join to find orders without matching customers
 
-**Task:** The data engineering team suspects some orders reference customer IDs that no longer exist in the customers table (likely due to a soft-delete bug). Use `anti_join()` on the setup tibbles to surface every `orders` row whose `customer_id` is missing from `customers`. Save the offending rows to `ex_2_5`.
+**Task:** Using the same `orders` and `customers` tibbles, surface every order whose `customer_id` does NOT exist in the customer table. This is exactly what a data-quality auditor looking for orphan transactions wants. Save the result to `ex_2_5`.
 
 **Expected result:**
 
 ```
 #> # A tibble: 1 x 3
-#>   customer_id order_id amount
-#>         <dbl>    <dbl>  <dbl>
-#> 1           5      104     60
+#>   order_id customer_id amount
+#>      <int>       <int>  <dbl>
+#> 1     1005           9    200
 ```
 
 **Difficulty:** Intermediate
@@ -571,17 +573,13 @@ ex_2_5 <- orders |>
 ex_2_5
 ```
 
-**Explanation:** `anti_join()` keeps rows from the left table that have NO match on the right, and unlike a left join it does not add the right-side columns. It is the cleanest way to express "give me the orphans" in a data-quality check, and it scales to multi-column keys. The opposite, `semi_join()`, keeps rows that DO match without adding columns.
+**Explanation:** `anti_join()` keeps rows of the left table whose key has NO match in the right table; the inverse of `semi_join()`. The right table contributes no columns; it acts purely as a filter. This is the cleanest way to find referential-integrity violations in joined data. Functionally equivalent to `filter(!customer_id %in% customers$customer_id)` but reads better and is faster on large data.
 
 </details>
 
 ### Exercise 2.6: Semi-join to keep only iris rows of selected species
 
-**Task:** Use `semi_join()` to keep only the rows of `iris` whose `Species` appears in a small lookup tibble `keep`. The point is to filter by membership without adding columns from the lookup. Save the filtered tibble to `ex_2_6`.
-
-```r title="Setup for 2.6"
-keep <- tibble(Species = c("setosa", "virginica"))
-```
+**Task:** Build a one-column tibble called `keep` listing two species: "setosa" and "virginica". Use a semi-join against `iris` (converted to a tibble) so the result contains every iris row whose species appears in `keep`, with no columns from `keep` itself. Save the result to `ex_2_6`.
 
 **Expected result:**
 
@@ -591,13 +589,15 @@ keep <- tibble(Species = c("setosa", "virginica"))
 #>          <dbl>       <dbl>        <dbl>       <dbl> <fct>
 #> 1          5.1         3.5          1.4         0.2 setosa
 #> 2          4.9         3            1.4         0.2 setosa
+#> 3          4.7         3.2          1.3         0.2 setosa
 #> ...
-#> # 98 more rows hidden
+#> # 97 more rows hidden
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+keep <- tibble(Species = c("setosa", "virginica"))
 ex_2_6 <- # your code here
 ex_2_6
 ```
@@ -606,40 +606,36 @@ ex_2_6
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_6 <- iris |>
-  as_tibble() |>
+ex_2_6 <- as_tibble(iris) |>
   semi_join(keep, by = "Species")
 ex_2_6
 ```
 
-**Explanation:** `semi_join()` is filter-by-lookup. It is preferable to `filter(Species %in% keep$Species)` when the lookup table itself has multiple key columns or comes from a database query, because it does not require you to enumerate the values inline. A subtle factor-vs-character mismatch on `Species` would not break the join because dplyr coerces compatibly, but it does warn in noisy modes.
+**Explanation:** `semi_join()` filters the left table by membership in the right table's key; it never duplicates rows even if the right table has multiple matches. Compare with `inner_join()`, which would broadcast: if `keep` had `setosa` listed twice, `inner_join()` would double every setosa row, but `semi_join()` would not. Use semi-join whenever you need filter-by-membership semantics without column merging.
 
 </details>
 
 ### Exercise 2.7: Full-join two product price feeds and coalesce values
 
-**Task:** Two vendor price feeds for the same SKU catalog occasionally disagree on which products they list. Full-join the two feeds below on `sku`, then collapse the two price columns into a single `price` taking vendor A's value when present, otherwise vendor B's. Save the consolidated tibble to `ex_2_7`.
-
-```r title="Setup for 2.7"
-feed_a <- tibble(sku = c("X1", "X2", "X3"), price_a = c(10, 15, NA))
-feed_b <- tibble(sku = c("X2", "X3", "X4"), price_b = c(14, 22, 30))
-```
+**Task:** Two feeds report product prices and one is missing some SKUs. Build inline tibbles `feed_a` (SKUs A, B, C with prices 10, 20, 30) and `feed_b` (SKUs B, C, D with prices 22, 31, 40). Full-join them on `sku`, then add a `final_price` column that prefers `feed_a` when present and falls back to `feed_b`. Save to `ex_2_7`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 2
-#>   sku   price
-#>   <chr> <dbl>
-#> 1 X1       10
-#> 2 X2       15
-#> 3 X3       22
-#> 4 X4       30
+#> # A tibble: 4 x 4
+#>   sku   price_a price_b final_price
+#>   <chr>   <dbl>   <dbl>       <dbl>
+#> 1 A          10      NA          10
+#> 2 B          20      22          20
+#> 3 C          30      31          30
+#> 4 D          NA      40          40
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+feed_a <- tibble(sku = c("A","B","C"), price_a = c(10, 20, 30))
+feed_b <- tibble(sku = c("B","C","D"), price_b = c(22, 31, 40))
 ex_2_7 <- # your code here
 ex_2_7
 ```
@@ -650,42 +646,40 @@ ex_2_7
 ```r title="Solution"
 ex_2_7 <- feed_a |>
   full_join(feed_b, by = "sku") |>
-  mutate(price = coalesce(price_a, price_b)) |>
-  select(sku, price)
+  mutate(final_price = coalesce(price_a, price_b))
 ex_2_7
 ```
 
-**Explanation:** `full_join()` returns every key from either side, padding missing columns with `NA`. `coalesce()` walks arguments left to right and returns the first non-`NA` value, which is exactly the "prefer A, fall back to B" rule the business is asking for. Sku X3 demonstrates the fallback: A has `NA`, so B's 22 wins. For three or more feeds, `coalesce()` accepts an arbitrary number of arguments.
+**Explanation:** `full_join()` returns the union of keys from both tables, inserting `NA` where a key is missing on either side. `coalesce()` accepts any number of arguments and returns the first non-`NA` per row, making it perfect for prioritised feed reconciliation. If you wanted the maximum or mean of the two prices instead, swap `coalesce()` for `pmax(..., na.rm = TRUE)` or `rowMeans(..., na.rm = TRUE)`.
 
 </details>
 
 ### Exercise 2.8: Stack quarterly tibbles with a source identifier
 
-**Task:** Three quarterly sales extracts arrive as separate tibbles with identical schemas. Stack them into one long tibble using `bind_rows()` and add a `quarter` column that records which source each row came from. Save the combined tibble to `ex_2_8`.
-
-```r title="Setup for 2.8"
-q1 <- tibble(product = c("A", "B"), sales = c(100, 200))
-q2 <- tibble(product = c("A", "B"), sales = c(110, 180))
-q3 <- tibble(product = c("A", "B"), sales = c(130, 210))
-```
+**Task:** Three quarterly tibbles each have the same columns `region` and `revenue` but no quarter label. Stack them into one long tibble adding a `quarter` column (Q1, Q2, Q3) sourced from the list element name. Save to `ex_2_8` so revenue can be plotted across quarters.
 
 **Expected result:**
 
 ```
 #> # A tibble: 6 x 3
-#>   quarter product sales
-#>   <chr>   <chr>   <dbl>
-#> 1 q1      A         100
-#> 2 q1      B         200
-#> 3 q2      A         110
-#> 4 q2      B         180
-#> 5 q3      A         130
-#> 6 q3      B         210
+#>   quarter region revenue
+#>   <chr>   <chr>    <dbl>
+#> 1 Q1      east       100
+#> 2 Q1      west       150
+#> 3 Q2      east       110
+#> 4 Q2      west       170
+#> 5 Q3      east       125
+#> 6 Q3      west       190
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+q_list <- list(
+  Q1 = tibble(region = c("east","west"), revenue = c(100, 150)),
+  Q2 = tibble(region = c("east","west"), revenue = c(110, 170)),
+  Q3 = tibble(region = c("east","west"), revenue = c(125, 190))
+)
 ex_2_8 <- # your code here
 ex_2_8
 ```
@@ -694,35 +688,40 @@ ex_2_8
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_8 <- bind_rows(q1 = q1, q2 = q2, q3 = q3, .id = "quarter") |>
-  select(quarter, everything())
+ex_2_8 <- bind_rows(q_list, .id = "quarter")
 ex_2_8
 ```
 
-**Explanation:** Passing named arguments plus `.id = "quarter"` makes `bind_rows()` produce a column tagging each row with the originating tibble's name. This pattern is invaluable when concatenating monthly or vendor exports because it preserves provenance for free. If the schemas differ, `bind_rows()` fills missing columns with `NA` rather than failing, which is usually what you want but can mask typos in column names.
+**Explanation:** `bind_rows()` accepts a list of tibbles and stacks them. The magic argument is `.id`: it adds a new column whose values are the list-element names. This is the cleanest way to preserve a "source" label when combining many similar tables. If you instead had separate variables `q1`, `q2`, `q3`, you would call `bind_rows(Q1 = q1, Q2 = q2, Q3 = q3, .id = "quarter")` with explicit naming.
 
 </details>
 
 ### Exercise 2.9: Compute day-over-day price change with lag
 
-**Task:** A trading desk wants the day-over-day absolute and percentage change in `Open` for the `EuStockMarkets` DAX series. Convert the time series to a tibble, then use `lag()` to access the previous row inside `mutate()` to compute both changes. Save the resulting tibble to `ex_2_9`.
+**Task:** Build an inline tibble of seven consecutive daily closing prices for a single ticker, then add a `delta` column equal to today minus yesterday. The first row should have `delta` = `NA` because there is no prior day. Save to `ex_2_9` so a trader can flag big single-day moves.
 
 **Expected result:**
 
 ```
-#> # A tibble: 1,860 x 4
-#>   day   open_dax abs_change pct_change
-#>   <int>    <dbl>      <dbl>      <dbl>
-#> 1     1    1629.      NA         NA
-#> 2     2    1614.     -14.9      -0.916
-#> 3     3    1607.      -7.4      -0.459
-#> 4     4    1621.      14.3       0.890
-#> ...
+#> # A tibble: 7 x 3
+#>   date       close delta
+#>   <date>     <dbl> <dbl>
+#> 1 2026-05-01  101    NA
+#> 2 2026-05-02  103     2
+#> 3 2026-05-03  100    -3
+#> 4 2026-05-04  104     4
+#> 5 2026-05-05  108     4
+#> 6 2026-05-06  107    -1
+#> 7 2026-05-07  111     4
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+prices <- tibble(
+  date  = as.Date("2026-05-01") + 0:6,
+  close = c(101, 103, 100, 104, 108, 107, 111)
+)
 ex_2_9 <- # your code here
 ex_2_9
 ```
@@ -731,18 +730,13 @@ ex_2_9
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_9 <- as_tibble(EuStockMarkets) |>
-  mutate(
-    day        = row_number(),
-    open_dax   = DAX,
-    abs_change = open_dax - lag(open_dax),
-    pct_change = 100 * abs_change / lag(open_dax)
-  ) |>
-  select(day, open_dax, abs_change, pct_change)
+ex_2_9 <- prices |>
+  arrange(date) |>
+  mutate(delta = close - lag(close))
 ex_2_9
 ```
 
-**Explanation:** `lag(x)` shifts the column down by one row, so `x - lag(x)` is "today minus yesterday". The first row's change is `NA` because there is no yesterday: this is intentional and downstream `mean()` should set `na.rm = TRUE`. For per-group changes, pass `.by` to `mutate()` or use `lag(x, default = NA)`. A frequent bug is using `lag()` on an unsorted tibble: always `arrange()` first.
+**Explanation:** `lag()` shifts a vector down by one, padding the top with `NA`; `lead()` is its mirror. Always `arrange()` before lagging or you will compute deltas between rows that are not actually adjacent in time. For groupwise lags (per ticker), wrap in `group_by()` first; `lag()` respects grouping inside a dplyr pipeline. Use `lag(close, n = 5)` for a 5-day lag.
 
 </details>
 
@@ -750,35 +744,33 @@ ex_2_9
 
 ### Exercise 3.1: Pivot quarterly sales from wide to long
 
-**Task:** A regional team receives sales as a wide table with columns Q1, Q2, Q3, Q4. Pivot to long format with columns `region`, `quarter`, and `sales` so the data can be grouped or charted. Save the long tibble to `ex_3_1`.
-
-```r title="Setup for 3.1"
-sales_wide <- tibble(
-  region = c("North", "South", "East", "West"),
-  Q1     = c(100, 120, 90, 110),
-  Q2     = c(130, 150, 100, 140),
-  Q3     = c(120, 140, 110, 130),
-  Q4     = c(160, 170, 130, 150)
-)
-```
+**Task:** Take a wide tibble where each row is a region and quarterly sales sit across columns `Q1`, `Q2`, `Q3`, `Q4`. Pivot to long form so the result has columns `region`, `quarter`, and `sales`. Save the long tibble to `ex_3_1` for use as ggplot input.
 
 **Expected result:**
 
 ```
-#> # A tibble: 16 x 3
+#> # A tibble: 12 x 3
 #>   region quarter sales
 #>   <chr>  <chr>   <dbl>
-#> 1 North  Q1        100
-#> 2 North  Q2        130
-#> 3 North  Q3        120
-#> 4 North  Q4        160
-#> 5 South  Q1        120
+#> 1 east   Q1        100
+#> 2 east   Q2        110
+#> 3 east   Q3        125
+#> 4 east   Q4        140
+#> 5 west   Q1        150
 #> ...
+#> # 7 more rows hidden
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
+wide_sales <- tibble(
+  region = c("east","west","north"),
+  Q1 = c(100, 150, 80),
+  Q2 = c(110, 170, 85),
+  Q3 = c(125, 190, 90),
+  Q4 = c(140, 210, 95)
+)
 ex_3_1 <- # your code here
 ex_3_1
 ```
@@ -787,7 +779,7 @@ ex_3_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_1 <- sales_wide |>
+ex_3_1 <- wide_sales |>
   pivot_longer(
     cols      = Q1:Q4,
     names_to  = "quarter",
@@ -796,27 +788,26 @@ ex_3_1 <- sales_wide |>
 ex_3_1
 ```
 
-**Explanation:** `pivot_longer()` reshapes wide-to-long. `cols = Q1:Q4` is tidyselect syntax for a contiguous range, equivalent to `c(Q1, Q2, Q3, Q4)` or `starts_with("Q")`. Whatever was a column NAME becomes a value in the new `quarter` column, and whatever was a column VALUE moves into the new `sales` column. This shape is what most ggplot2 and dplyr verbs prefer.
+**Explanation:** `pivot_longer()` takes the columns named in `cols`, stacks them into one new column whose values come from old cell entries, and adds a key column listing the old column names. `cols = Q1:Q4` uses tidyselect range syntax; you could equivalently write `cols = starts_with("Q")`. Long form is the format ggplot, dplyr summarisation, and most modelling functions expect, so reshaping wide-to-long is usually the first step.
 
 </details>
 
 ### Exercise 3.2: Pivot the same data back to wide format
 
-**Task:** Take the long tibble produced in the previous exercise (`ex_3_1`) and pivot it back to wide format with one row per region and one column per quarter. This is the shape an executive summary table usually wants. Save the result to `ex_3_2`.
+**Task:** Take the long-format `ex_3_1` and pivot back to wide so each region is one row and each quarter is a column (Q1, Q2, Q3, Q4). The result should match the original `wide_sales` exactly. Save to `ex_3_2` so you can validate the round-trip.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 5
+#> # A tibble: 3 x 5
 #>   region    Q1    Q2    Q3    Q4
 #>   <chr>  <dbl> <dbl> <dbl> <dbl>
-#> 1 East      90   100   110   130
-#> 2 North    100   130   120   160
-#> 3 South    120   150   140   170
-#> 4 West     110   140   130   150
+#> 1 east     100   110   125   140
+#> 2 west     150   170   190   210
+#> 3 north     80    85    90    95
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -835,35 +826,29 @@ ex_3_2 <- ex_3_1 |>
 ex_3_2
 ```
 
-**Explanation:** `pivot_wider()` is the inverse of `pivot_longer()`. `names_from` says which column's values become the NEW column headers, and `values_from` says where the cells come from. A common gotcha is when the data has duplicate (`region`, `quarter`) combinations: `pivot_wider()` would silently put a list-column in there. To collapse duplicates first, group and summarise, then pivot.
+**Explanation:** `pivot_wider()` is the inverse of `pivot_longer()`. `names_from` says which column's values become new column names; `values_from` says which column's values fill the cells. If the (region, quarter) combination is not unique, you must supply `values_fn = mean` (or sum, list, etc.) to tell pivot how to aggregate duplicates. Without that, `pivot_wider()` warns and stores list-columns.
 
 </details>
 
 ### Exercise 3.3: Split a name column into first and last names
 
-**Task:** Use `separate_wider_delim()` to split the `full_name` column on a single space into `first` and `last` columns. The HR team needs the split before importing names into a system that stores them in separate fields. Save the split tibble to `ex_3_3`.
-
-```r title="Setup for 3.3"
-people <- tibble(
-  full_name = c("Ada Lovelace", "Alan Turing", "Grace Hopper"),
-  role      = c("mathematician", "logician", "rear admiral")
-)
-```
+**Task:** Given a tibble of three full names like "Ada Lovelace" in a single `full_name` column, split on the space into two new columns `first` and `last`. The original column should be dropped. Save the resulting two-column tibble to `ex_3_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 3 x 3
-#>   first last     role
-#>   <chr> <chr>    <chr>
-#> 1 Ada   Lovelace mathematician
-#> 2 Alan  Turing   logician
-#> 3 Grace Hopper   rear admiral
+#> # A tibble: 3 x 2
+#>   first    last
+#>   <chr>    <chr>
+#> 1 Ada      Lovelace
+#> 2 Grace    Hopper
+#> 3 Margaret Hamilton
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
+people <- tibble(full_name = c("Ada Lovelace", "Grace Hopper", "Margaret Hamilton"))
 ex_3_3 <- # your code here
 ex_3_3
 ```
@@ -873,42 +858,33 @@ ex_3_3
 
 ```r title="Solution"
 ex_3_3 <- people |>
-  separate_wider_delim(
-    cols  = full_name,
-    delim = " ",
-    names = c("first", "last")
-  )
+  separate_wider_delim(full_name, delim = " ", names = c("first", "last"))
 ex_3_3
 ```
 
-**Explanation:** `separate_wider_delim()` is tidyr 1.3's modern replacement for the older `separate()`. It is stricter and louder by default, which is helpful: if a row had three space-separated tokens, it would error rather than silently truncate. The argument names (`cols`, `delim`, `names`) are deliberately verbose so the call reads almost like English. For multi-character delimiters use `delim = ", "` literally.
+**Explanation:** `separate_wider_delim()` is the modern tidyr replacement for the deprecated `separate()`. It splits on a delimiter and creates the named columns. If you had three-word names like "Mary Jane Watson", you would need `too_many = "merge"` or `too_many = "drop"` to handle the extra parts; otherwise tidyr errors loudly, which is usually safer than silently truncating.
 
 </details>
 
 ### Exercise 3.4: Parse a structured event code with separate_wider_regex
 
-**Task:** Event identifiers in a logging pipeline follow the pattern `<region>-<year>-<seq>` where region is two uppercase letters, year is four digits, and seq is three digits. Use `separate_wider_regex()` to break the column into three typed parts. Save the parsed tibble to `ex_3_4`.
-
-```r title="Setup for 3.4"
-events <- tibble(
-  event_id = c("US-2024-001", "EU-2025-042", "JP-2024-330")
-)
-```
+**Task:** A logging system stores event codes as strings like "EVT-2026-0427-NY-ORDER" (prefix-year-mmdd-region-type). Parse one inline column of three such codes into four columns: `year`, `mmdd`, `region`, `type`. Use a regex-based separator so each piece lands in the right column. Save to `ex_3_4`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 3 x 3
-#>   region year  seq
-#>   <chr>  <chr> <chr>
-#> 1 US     2024  001
-#> 2 EU     2025  042
-#> 3 JP     2024  330
+#> # A tibble: 3 x 4
+#>   year  mmdd  region type
+#>   <chr> <chr> <chr>  <chr>
+#> 1 2026  0427  NY     ORDER
+#> 2 2026  0428  SF     REFUND
+#> 3 2026  0429  NY     ORDER
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+events <- tibble(code = c("EVT-2026-0427-NY-ORDER", "EVT-2026-0428-SF-REFUND", "EVT-2026-0429-NY-ORDER"))
 ex_3_4 <- # your code here
 ex_3_4
 ```
@@ -919,19 +895,22 @@ ex_3_4
 ```r title="Solution"
 ex_3_4 <- events |>
   separate_wider_regex(
-    cols     = event_id,
-    patterns = c(region = "[A-Z]{2}", "-", year = "\\d{4}", "-", seq = "\\d{3}")
+    code,
+    patterns = c(
+      "EVT-", year = "\\d{4}", "-", mmdd = "\\d{4}", "-",
+      region = "[A-Z]+", "-", type = "[A-Z]+"
+    )
   )
 ex_3_4
 ```
 
-**Explanation:** `separate_wider_regex()` (tidyr 1.3+) consumes a named-and-unnamed pattern vector: named entries become output columns, unnamed entries are literal separators consumed but discarded. This is more robust than `separate()` because it validates each piece against a pattern rather than just splitting on a delimiter. If you need numeric output, follow with `mutate(year = as.integer(year))` since separate functions always return character columns.
+**Explanation:** `separate_wider_regex()` accepts a vector of named (kept) and unnamed (dropped) patterns. Unnamed strings like `"EVT-"` and `"-"` act as separators and disappear from the result. Named entries become columns. This pattern is far cleaner than a single mega-regex with capture groups because each field is documented inline and missing pieces fail loudly with row indices, easing debugging.
 
 </details>
 
 ### Exercise 3.5: Nest mpg into one row per manufacturer
 
-**Task:** Group `mpg` so each manufacturer collapses into a single row carrying a list-column called `data` that holds the full per-row detail for that manufacturer. This is the entry point to per-group modelling. Save the nested tibble to `ex_3_5`.
+**Task:** Collapse the `mpg` dataset so the result has one row per manufacturer with a list-column `data` containing every other column for that manufacturer's vehicles. Save the nested tibble to `ex_3_5`. This is the canonical setup for fitting one model per group with purrr.
 
 **Expected result:**
 
@@ -943,6 +922,7 @@ ex_3_4
 #> 2 chevrolet    <tibble [19 x 10]>
 #> 3 dodge        <tibble [37 x 10]>
 #> ...
+#> # 12 more rows hidden
 ```
 
 **Difficulty:** Intermediate
@@ -957,17 +937,19 @@ ex_3_5
 
 ```r title="Solution"
 ex_3_5 <- mpg |>
-  nest(data = -manufacturer)
+  group_by(manufacturer) |>
+  nest() |>
+  ungroup()
 ex_3_5
 ```
 
-**Explanation:** `nest(data = -manufacturer)` reads "stash all columns except `manufacturer` into a list-column called `data`". The result has one row per unique manufacturer with a tibble inside. From here you can fit a model per manufacturer with `mutate(model = map(data, \(df) lm(hwy ~ cty, df)))`, which is the canonical purrr-meets-broom workflow you will see in Section 5.
+**Explanation:** `nest()` turns each group of rows into a one-row entry in a list-column called `data`. You can pass `nest(.by = manufacturer)` since tidyr 1.3 to avoid the explicit `group_by()`. Always ungroup afterwards or downstream pipelines may behave unexpectedly. Nested tibbles are the foundation of split-apply-combine modelling: you nest, model, extract, then unnest.
 
 </details>
 
 ### Exercise 3.6: Unnest a list-column back into long form
 
-**Task:** Take the nested tibble `ex_3_5` from the previous exercise and unnest the `data` list-column so every original row reappears. This is how you go back to flat form after computing something per-group. Save the unnested tibble to `ex_3_6`.
+**Task:** Take the nested tibble `ex_3_5` and expand the `data` list-column back into the original shape; one row per vehicle, with `manufacturer` repeated across every row of its group. Save the unnested tibble to `ex_3_6`. The row count should match the original `mpg`.
 
 **Expected result:**
 
@@ -976,11 +958,12 @@ ex_3_5
 #>   manufacturer model      displ  year   cyl trans      drv     cty   hwy fl    class
 #>   <chr>        <chr>      <dbl> <int> <int> <chr>      <chr> <int> <int> <chr> <chr>
 #> 1 audi         a4           1.8  1999     4 auto(l5)   f        18    29 p     compact
+#> 2 audi         a4           1.8  1999     4 manual(m5) f        21    29 p     compact
 #> ...
-#> # 233 more rows hidden
+#> # 232 more rows hidden
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_3_6 <- # your code here
@@ -996,39 +979,36 @@ ex_3_6 <- ex_3_5 |>
 ex_3_6
 ```
 
-**Explanation:** `unnest(data)` expands each list element back into rows, reattaching the grouping column (`manufacturer`) on the left. The cycle nest -> per-group operation -> unnest is the tidyverse pattern for "do something complicated per group" when `summarise()` is not enough (for example, returning a model object or a multi-row prediction). If the nested tibbles have different schemas, `unnest()` will error unless you specify `names_repair`.
+**Explanation:** `unnest()` is the inverse of `nest()`. It takes a list-column of tibbles and stacks them, repeating the non-list columns to match each row. If the list-column held atomic vectors instead of tibbles, you would need `unnest_longer()` (each element becomes a row) or `unnest_wider()` (each element becomes a column). Match the verb to the shape of the list-column content.
 
 </details>
 
 ### Exercise 3.7: Complete missing day-product combinations with zero sales
 
-**Task:** A daily sales tibble has rows only for products that sold that day, but the analytics team needs every (day, product) combination present, with missing rows filled with zero sales. Use `complete()` then `replace_na()` to fix the gaps. Save the completed tibble to `ex_3_7`.
-
-```r title="Setup for 3.7"
-sparse_sales <- tibble(
-  day     = as.Date(c("2024-01-01", "2024-01-01", "2024-01-02", "2024-01-03")),
-  product = c("A", "B", "A", "B"),
-  units   = c(5, 3, 7, 2)
-)
-```
+**Task:** A sparse sales log only records days where at least one product sold. Given three rows covering 2 products across 3 days, expand to the full 6-row grid so every (day, product) pair appears, filling absent sales with 0. Save to `ex_3_7` so a dashboard does not show gaps.
 
 **Expected result:**
 
 ```
 #> # A tibble: 6 x 3
-#>   day        product units
+#>   day        product sales
 #>   <date>     <chr>   <dbl>
-#> 1 2024-01-01 A           5
-#> 2 2024-01-01 B           3
-#> 3 2024-01-02 A           7
-#> 4 2024-01-02 B           0
-#> 5 2024-01-03 A           0
-#> 6 2024-01-03 B           2
+#> 1 2026-05-01 A           5
+#> 2 2026-05-01 B           0
+#> 3 2026-05-02 A           0
+#> 4 2026-05-02 B           7
+#> 5 2026-05-03 A           3
+#> 6 2026-05-03 B           4
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+sparse <- tibble(
+  day     = as.Date(c("2026-05-01","2026-05-02","2026-05-03","2026-05-03")),
+  product = c("A","B","A","B"),
+  sales   = c(5, 7, 3, 4)
+)
 ex_3_7 <- # your code here
 ex_3_7
 ```
@@ -1037,44 +1017,40 @@ ex_3_7
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_7 <- sparse_sales |>
-  complete(day, product, fill = list(units = 0))
+ex_3_7 <- sparse |>
+  complete(day, product, fill = list(sales = 0))
 ex_3_7
 ```
 
-**Explanation:** `complete()` builds the cartesian product of the named columns' unique values and ensures every combination has a row, inserting `NA` where the original did not. The `fill = list(units = 0)` argument lets you provide a default in the same call so you avoid an extra `mutate()`. This is the canonical fix when downstream code (a rolling sum, a chart) silently miscounts because zero-sales days are absent.
+**Explanation:** `complete()` takes one or more columns and ensures every combination of their unique values appears as a row. Missing rows are added with `NA` in other columns; `fill = list(col = value)` provides defaults. This is exactly the operation needed before time-series joins or aggregations where missing observations represent zero, not unknown. Skipping `complete()` here would make a downstream `group_by(day)` give wrong averages.
 
 </details>
 
 ### Exercise 3.8: Forward-fill missing branch labels in a transaction log
 
-**Task:** A transaction export has a `branch` column that is only filled on the row that opened a branch session; subsequent rows are `NA` until a new branch opens. Use `fill()` to propagate the branch downward so every row is labelled. Save the filled tibble to `ex_3_8`.
-
-```r title="Setup for 3.8"
-tx <- tibble(
-  row_id = 1:6,
-  branch = c("NYC", NA, NA, "SF", NA, "LA"),
-  amount = c(50, 75, 20, 100, 60, 40)
-)
-```
+**Task:** A bank's transaction export only writes the branch name on the first row of each block and leaves it blank afterwards. Given a tibble where `branch` has `NA` for rows 2, 3, 5, 6, forward-fill the column so every row has the most recent branch above it. Save to `ex_3_8`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 6 x 3
-#>   row_id branch amount
-#>    <int> <chr>   <dbl>
-#> 1      1 NYC        50
-#> 2      2 NYC        75
-#> 3      3 NYC        20
-#> 4      4 SF        100
-#> 5      5 SF         60
-#> 6      6 LA         40
+#> # A tibble: 6 x 2
+#>   branch     amount
+#>   <chr>       <dbl>
+#> 1 Downtown      120
+#> 2 Downtown       85
+#> 3 Downtown      210
+#> 4 Airport       55
+#> 5 Airport       90
+#> 6 Airport      130
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+tx <- tibble(
+  branch = c("Downtown", NA, NA, "Airport", NA, NA),
+  amount = c(120, 85, 210, 55, 90, 130)
+)
 ex_3_8 <- # your code here
 ex_3_8
 ```
@@ -1088,7 +1064,7 @@ ex_3_8 <- tx |>
 ex_3_8
 ```
 
-**Explanation:** `fill()` propagates the last non-`NA` value forward (or backward with `.direction = "up"`) within a column. It is the tidy idiom for "carry last observation forward", which shows up constantly in time-stamped logs where only the change-of-state rows are written. If the very first row is `NA`, `down` cannot fill it; combine with `arrange()` or pre-pend a sentinel row if that case matters.
+**Explanation:** `fill()` propagates the last non-`NA` value into subsequent `NA`s. `.direction = "down"` is the default and matches the spreadsheet "merged cell" pattern. Use `"up"` for backward fill or `"downup"` to fill from both directions in one pass. `fill()` respects grouping, so prepending `group_by(account_id)` prevents one account's branch from leaking into another's.
 
 </details>
 
@@ -1096,7 +1072,7 @@ ex_3_8
 
 ### Exercise 4.1: Keep mpg rows whose model name contains "audi"
 
-**Task:** Use `str_detect()` inside `filter()` to keep `mpg` rows whose `manufacturer` column contains the substring "audi", case-insensitive. The output should retain all original columns. Save the filtered tibble to `ex_4_1`.
+**Task:** From the `mpg` dataset, keep only rows where `manufacturer` matches "audi" (case-insensitive so a future "AUDI" entry would still match). Use a stringr detector inside `filter()` rather than `==`. Save the filtered tibble to `ex_4_1`.
 
 **Expected result:**
 
@@ -1105,8 +1081,9 @@ ex_3_8
 #>   manufacturer model      displ  year   cyl trans      drv     cty   hwy fl    class
 #>   <chr>        <chr>      <dbl> <int> <int> <chr>      <chr> <int> <int> <chr> <chr>
 #> 1 audi         a4           1.8  1999     4 auto(l5)   f        18    29 p     compact
+#> 2 audi         a4           1.8  1999     4 manual(m5) f        21    29 p     compact
 #> ...
-#> # 17 more rows hidden
+#> # 16 more rows hidden
 ```
 
 **Difficulty:** Beginner
@@ -1125,33 +1102,29 @@ ex_4_1 <- mpg |>
 ex_4_1
 ```
 
-**Explanation:** `str_detect(x, pattern)` returns a logical vector the same length as `x`, which is exactly what `filter()` needs. Wrapping the pattern in `regex(..., ignore_case = TRUE)` is more explicit than `str_detect(..., negate = FALSE)` and pairs naturally with other regex options like `multiline` or `dotall`. A common mistake is `grepl("audi", manufacturer)`, which works but is base R and inconsistent with the rest of the pipe.
+**Explanation:** `str_detect()` returns a logical vector indicating which strings contain the pattern, perfect for use inside `filter()`. Wrapping the pattern in `regex(..., ignore_case = TRUE)` makes the match case-insensitive without modifying the source data. For a literal substring match without regex semantics, use `fixed("Audi")` to disable special characters; faster and safer when the pattern is user input.
 
 </details>
 
 ### Exercise 4.2: Strip leading zeros from a string ID column
 
-**Task:** A legacy export pads numeric IDs with leading zeros ("00042"), but downstream systems expect bare digits ("42"). Use `str_replace()` with a regex anchored to the start of the string to remove the leading zeros without touching internal zeros. Save the cleaned tibble to `ex_4_2`.
-
-```r title="Setup for 4.2"
-ids <- tibble(raw = c("00042", "00100", "001000", "00009"))
-```
+**Task:** A legacy system pads identifiers to a fixed width with leading zeros: "00042", "00100", "01999". Strip the leading zeros to produce "42", "100", "1999", but keep the result as a character column (not numeric) because downstream code expects strings. Save to `ex_4_2`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 2
-#>   raw    clean
+#> # A tibble: 3 x 2
+#>   id_raw id_clean
 #>   <chr>  <chr>
 #> 1 00042  42
 #> 2 00100  100
-#> 3 001000 1000
-#> 4 00009  9
+#> 3 01999  1999
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+ids <- tibble(id_raw = c("00042", "00100", "01999"))
 ex_4_2 <- # your code here
 ex_4_2
 ```
@@ -1161,45 +1134,41 @@ ex_4_2
 
 ```r title="Solution"
 ex_4_2 <- ids |>
-  mutate(clean = str_replace(raw, "^0+", ""))
+  mutate(id_clean = str_remove(id_raw, "^0+"))
 ex_4_2
 ```
 
-**Explanation:** The `^` anchor matches only the start of the string, and `0+` matches one or more consecutive zeros. Together they say "leading zeros only", which is what protects the inner zeros in "100". Without the anchor, `str_replace_all()` would strip every zero. If a value could be the literal string "00000" you would end up with the empty string; handle that with `if_else(clean == "", "0", clean)` if zero is a valid ID.
+**Explanation:** `str_remove()` deletes the first regex match; `str_remove_all()` deletes every match. The anchor `^` ties the pattern to the start of the string, and `0+` matches one or more zeros. Without the anchor, `0+` would also remove zeros in the middle, turning "10500" into "15". A trap: `str_remove("00000", "^0+")` yields `""` not `"0"`; guard against all-zero inputs separately if you need to preserve a single zero.
 
 </details>
 
 ### Exercise 4.3: Extract phone numbers from free-text contact notes
 
-**Task:** Customer support notes contain phone numbers in the format `(XXX) XXX-XXXX` embedded in free text. Use `str_extract()` with a regex to pull the first occurrence into a `phone` column, returning `NA` when no phone is present. Save the augmented tibble to `ex_4_3`.
-
-```r title="Setup for 4.3"
-notes <- tibble(
-  case_id = 1:4,
-  note    = c(
-    "Call back at (415) 555-2071 after 3pm",
-    "Customer angry, no number provided",
-    "Reach via (212) 555-0144 (mobile) or email",
-    "Spoke with (510) 555-9999 today, all resolved"
-  )
-)
-```
+**Task:** Pull every US-style phone number formatted as ddd-ddd-dddd out of three rows of free-text contact notes. There may be zero, one, or two numbers per row. Return a tibble with one row per phone number found, retaining a `note_id` so each match links back to its source. Save to `ex_4_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 3
-#>   case_id note                                              phone
-#>     <int> <chr>                                             <chr>
-#> 1       1 Call back at (415) 555-2071 after 3pm             (415) 555-2071
-#> 2       2 Customer angry, no number provided                NA
-#> 3       3 Reach via (212) 555-0144 (mobile) or email        (212) 555-0144
-#> 4       4 Spoke with (510) 555-9999 today, all resolved     (510) 555-9999
+#> # A tibble: 4 x 2
+#>   note_id phone
+#>     <int> <chr>
+#> 1       1 415-555-2671
+#> 2       2 212-555-1010
+#> 3       2 415-555-9090
+#> 4       3 718-555-4444
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
+notes <- tibble(
+  note_id = 1:3,
+  text    = c(
+    "Call Ada at 415-555-2671 next week.",
+    "Reach Bob on 212-555-1010 or 415-555-9090, either is fine.",
+    "Cara: 718-555-4444 (mobile, after 7pm only)."
+  )
+)
 ex_4_3 <- # your code here
 ex_4_3
 ```
@@ -1209,36 +1178,35 @@ ex_4_3
 
 ```r title="Solution"
 ex_4_3 <- notes |>
-  mutate(phone = str_extract(note, "\\(\\d{3}\\) \\d{3}-\\d{4}"))
+  mutate(phone = str_extract_all(text, "\\d{3}-\\d{3}-\\d{4}")) |>
+  select(note_id, phone) |>
+  unnest_longer(phone)
 ex_4_3
 ```
 
-**Explanation:** Parentheses are special in regex (they group), so they must be escaped as `\\(` and `\\)`. `\\d{3}` is "exactly three digits". `str_extract()` returns the first match per element, or `NA` when no match exists, which is the desired behavior. If the format varied (some entries used dashes, others periods), you would broaden the pattern with `[ .-]?` between groups and validate downstream rather than trying to parse every variant inline.
+**Explanation:** `str_extract_all()` returns a list-column where each element holds every match for one row. `unnest_longer()` turns that list-column into one row per match, repeating `note_id` as needed. If you only wanted the first match per row, `str_extract()` (without `_all`) returns a character vector directly and no unnest is needed. Pick the verb based on whether rows can have multiple matches.
 
 </details>
 
 ### Exercise 4.4: Parse mixed-format date strings with lubridate
 
-**Task:** A CSV import gave you date strings in `"YYYY-MM-DD"` form as character. Use `ymd()` from lubridate to parse them into proper Date objects so date arithmetic works. Save the tibble with the new `parsed` column to `ex_4_4`.
-
-```r title="Setup for 4.4"
-raw_dates <- tibble(d = c("2024-01-15", "2024-02-29", "2024-12-31"))
-```
+**Task:** A CSV merged data from three vendors and each used a different date format: "2026-04-27", "04/28/2026", "29-Apr-2026". Parse all three into `Date` objects in one column called `parsed`. The result should be sortable as a date. Save to `ex_4_4`.
 
 **Expected result:**
 
 ```
 #> # A tibble: 3 x 2
-#>   d          parsed
-#>   <chr>      <date>
-#> 1 2024-01-15 2024-01-15
-#> 2 2024-02-29 2024-02-29
-#> 3 2024-12-31 2024-12-31
+#>   raw         parsed
+#>   <chr>       <date>
+#> 1 2026-04-27  2026-04-27
+#> 2 04/28/2026  2026-04-28
+#> 3 29-Apr-2026 2026-04-29
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+mixed <- tibble(raw = c("2026-04-27", "04/28/2026", "29-Apr-2026"))
 ex_4_4 <- # your code here
 ex_4_4
 ```
@@ -1247,29 +1215,30 @@ ex_4_4
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_4 <- raw_dates |>
-  mutate(parsed = ymd(d))
+ex_4_4 <- mixed |>
+  mutate(parsed = parse_date_time(raw, orders = c("ymd", "mdy", "dmy")) |> as.Date())
 ex_4_4
 ```
 
-**Explanation:** lubridate's parsing helpers are named after the order of components in the input: `ymd()` for year-month-day, `mdy()` for the American month-day-year format, `dmy()` for the European order. They tolerate a wide variety of separators ("-", "/", "."). If the column had multiple formats mixed together, use `parse_date_time(x, orders = c("ymd", "mdy"))` instead and lubridate will guess each row separately.
+**Explanation:** `parse_date_time()` accepts a vector of candidate `orders` and tries them in turn for each value, returning the first that parses. The output is a `POSIXct`; `as.Date()` strips the time component. If you knew every row was the same format, the single-format functions `ymd()`, `mdy()`, or `dmy()` are faster. For heterogeneous CSVs, `parse_date_time()` is the workhorse; lock the candidate set tightly to avoid ambiguous matches.
 
 </details>
 
 ### Exercise 4.5: Aggregate economics to monthly mean savings rate
 
-**Task:** Floor every `date` in `economics` to the first of its month using `floor_date()`, then group by month and compute the mean `psavert`. This is the same shape an executive dashboard would chart as a monthly time series. Save the aggregated tibble to `ex_4_5`.
+**Task:** The `economics` dataset is already monthly, but treat it as a stress test: extract `year` and `month` (1-12) from `date`, then compute the mean `psavert` (personal savings rate) per (year, month) pair. The aggregation will be a no-op here (one row in equals one row out), but the code should be correct for any daily input. Save to `ex_4_5`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 574 x 2
-#>   month      mean_savings
-#>   <date>            <dbl>
-#> 1 1967-07-01         12.5
-#> 2 1967-08-01         12.5
-#> 3 1967-09-01         11.7
+#> # A tibble: 574 x 3
+#>    year month mean_savings
+#>   <dbl> <dbl>        <dbl>
+#> 1  1967     7        12.5
+#> 2  1967     8        12.5
+#> 3  1967     9        11.7
 #> ...
+#> # 571 more rows hidden
 ```
 
 **Difficulty:** Intermediate
@@ -1284,43 +1253,38 @@ ex_4_5
 
 ```r title="Solution"
 ex_4_5 <- economics |>
-  mutate(month = floor_date(date, unit = "month")) |>
-  summarise(mean_savings = mean(psavert), .by = month) |>
-  arrange(month)
+  mutate(year = year(date), month = month(date)) |>
+  group_by(year, month) |>
+  summarise(mean_savings = mean(psavert), .groups = "drop")
 ex_4_5
 ```
 
-**Explanation:** `floor_date(x, "month")` snaps every date back to the first of its month, which is the conventional anchor for monthly aggregations. The `economics` dataset already has monthly observations, so the group has only one row each: in higher-frequency data (daily, hourly) the same pattern collapses multiple rows. The mirror function is `ceiling_date()`, useful when the convention is "end of month".
+**Explanation:** `year()` and `month()` from lubridate return integer components from a `Date` or `POSIXct`. The `.groups = "drop"` argument is the cleanest way to silence dplyr's grouping warning and return an ungrouped result. Writing this idiom on a daily series automatically becomes a monthly rollup; the same pattern works whether the input is daily, hourly, or already monthly.
 
 </details>
 
 ### Exercise 4.6: Compute customer tenure in days
 
-**Task:** For each customer below, compute the number of full days between `signup_date` and `first_purchase_date`. The growth team uses this "time-to-first-purchase" as a leading indicator of activation quality. Save the augmented tibble to `ex_4_6`.
-
-```r title="Setup for 4.6"
-cust <- tibble(
-  customer_id         = 1:4,
-  signup_date         = ymd(c("2024-01-01", "2024-02-15", "2024-03-20", "2024-04-10")),
-  first_purchase_date = ymd(c("2024-01-05", "2024-02-20", "2024-04-01", "2024-04-10"))
-)
-```
+**Task:** Build an inline tibble of three customers with `signup_date` ranging across years. Compute a `tenure_days` column showing how many whole days passed between `signup_date` and 2026-05-12. Save to `ex_4_6` so a retention dashboard can bucket customers by tenure.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 4
-#>   customer_id signup_date first_purchase_date tenure_days
-#>         <int> <date>      <date>                    <dbl>
-#> 1           1 2024-01-01  2024-01-05                    4
-#> 2           2 2024-02-15  2024-02-20                    5
-#> 3           3 2024-03-20  2024-04-01                   12
-#> 4           4 2024-04-10  2024-04-10                    0
+#> # A tibble: 3 x 3
+#>   customer signup_date tenure_days
+#>   <chr>    <date>      <dbl>
+#> 1 Alice    2024-01-15        848
+#> 2 Bob      2025-08-30        255
+#> 3 Cara     2026-04-30         12
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
+signups <- tibble(
+  customer    = c("Alice","Bob","Cara"),
+  signup_date = as.Date(c("2024-01-15","2025-08-30","2026-04-30"))
+)
 ex_4_6 <- # your code here
 ex_4_6
 ```
@@ -1329,41 +1293,39 @@ ex_4_6
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_6 <- cust |>
-  mutate(tenure_days = as.numeric(difftime(first_purchase_date, signup_date, units = "days")))
+ex_4_6 <- signups |>
+  mutate(tenure_days = as.numeric(as.Date("2026-05-12") - signup_date))
 ex_4_6
 ```
 
-**Explanation:** Subtracting two Date objects directly returns a `difftime` object whose units are not guaranteed (R picks based on magnitude). `difftime(..., units = "days")` forces the unit explicitly, and `as.numeric()` strips the `difftime` class so downstream code sees a plain numeric. The customer 4 row showing `0` confirms that same-day purchases are correctly handled as zero rather than `NA`.
+**Explanation:** Subtracting two `Date` objects returns a `difftime`; `as.numeric()` strips the unit and gives a plain number of days. A lubridate alternative is `interval(signup_date, ymd("2026-05-12")) / days(1)`, which is more explicit about the unit but more verbose. For days-only arithmetic, the base R subtraction is usually the simplest correct answer.
 
 </details>
 
 ### Exercise 4.7: Count tags in a semicolon-separated tag column
 
-**Task:** A blog-post export stores tags as a single semicolon-separated string per row. Split each row's `tags` string on the separator, count the number of tags per post, and add it as a `tag_count` column. Save the augmented tibble to `ex_4_7`.
-
-```r title="Setup for 4.7"
-posts <- tibble(
-  post_id = 1:4,
-  tags    = c("r;tidyverse;dplyr", "python;pandas", "r", "r;ggplot2;visualization;dataviz")
-)
-```
+**Task:** A CMS stores article tags as a single `tags` string like "r;tidyverse;analytics". Given three rows, count the total occurrences of each individual tag across all rows. Return a tibble with columns `tag` and `n`, sorted from most to least common. Save to `ex_4_7`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 3
-#>   post_id tags                              tag_count
-#>     <int> <chr>                                 <int>
-#> 1       1 r;tidyverse;dplyr                         3
-#> 2       2 python;pandas                             2
-#> 3       3 r                                         1
-#> 4       4 r;ggplot2;visualization;dataviz           4
+#> # A tibble: 5 x 2
+#>   tag           n
+#>   <chr>     <int>
+#> 1 r             3
+#> 2 tidyverse     2
+#> 3 analytics     1
+#> 4 ggplot2       1
+#> 5 reporting     1
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+articles <- tibble(
+  id   = 1:3,
+  tags = c("r;tidyverse;analytics", "r;ggplot2", "r;tidyverse;reporting")
+)
 ex_4_7 <- # your code here
 ex_4_7
 ```
@@ -1372,40 +1334,39 @@ ex_4_7
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_7 <- posts |>
-  mutate(tag_count = map_int(str_split(tags, ";"), length))
+ex_4_7 <- articles |>
+  separate_longer_delim(tags, delim = ";") |>
+  count(tag = tags, sort = TRUE)
 ex_4_7
 ```
 
-**Explanation:** `str_split(x, sep)` returns a LIST of character vectors, one per input element, because each row can have a different number of pieces. `map_int(..., length)` walks the list applying `length()` to each element, returning an integer vector aligned with the rows. An alternative one-liner is `str_count(tags, ";") + 1`, which counts separators and adds one, but it breaks on empty strings and is less explicit.
+**Explanation:** `separate_longer_delim()` is tidyr's row-multiplying split; one tag per row, with `id` repeated. Then `count()` does the tabulation. The rename `tag = tags` inside `count()` makes the output column read like a singular noun. This is the canonical way to summarise "many-valued" columns and avoids the trap of writing a regex-based count, which would miss whitespace edge cases.
 
 </details>
 
 ### Exercise 4.8: Convert UTC event timestamps to a local timezone
 
-**Task:** A logging service writes event timestamps in UTC, but the on-call team in San Francisco wants them rendered in Pacific time for triage. Use `with_tz()` to convert the `ts_utc` column to `"America/Los_Angeles"`. Save the augmented tibble to `ex_4_8`.
-
-```r title="Setup for 4.8"
-events_log <- tibble(
-  event_id = 1:3,
-  ts_utc   = ymd_hms(c("2024-06-15 14:30:00", "2024-06-15 18:45:00", "2024-12-15 02:00:00"), tz = "UTC")
-)
-```
+**Task:** A logging pipeline timestamps events in UTC. Given three ISO-8601 UTC strings, parse them, then convert to "America/New_York" wall-clock time. The resulting column should be a `POSIXct` whose displayed times reflect Eastern, not UTC. Save to `ex_4_8`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 3 x 3
-#>   event_id ts_utc              ts_pt
-#>      <int> <dttm>              <dttm>
-#> 1        1 2024-06-15 14:30:00 2024-06-15 07:30:00
-#> 2        2 2024-06-15 18:45:00 2024-06-15 11:45:00
-#> 3        3 2024-12-15 02:00:00 2024-12-14 18:00:00
+#> # A tibble: 3 x 2
+#>   utc_string               local_ny
+#>   <chr>                    <dttm>
+#> 1 2026-05-12T14:00:00Z     2026-05-12 10:00:00
+#> 2 2026-05-12T18:30:00Z     2026-05-12 14:30:00
+#> 3 2026-05-13T02:15:00Z     2026-05-12 22:15:00
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+events <- tibble(utc_string = c(
+  "2026-05-12T14:00:00Z",
+  "2026-05-12T18:30:00Z",
+  "2026-05-13T02:15:00Z"
+))
 ex_4_8 <- # your code here
 ex_4_8
 ```
@@ -1414,12 +1375,12 @@ ex_4_8
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_8 <- events_log |>
-  mutate(ts_pt = with_tz(ts_utc, tzone = "America/Los_Angeles"))
+ex_4_8 <- events |>
+  mutate(local_ny = with_tz(ymd_hms(utc_string, tz = "UTC"), "America/New_York"))
 ex_4_8
 ```
 
-**Explanation:** `with_tz()` changes the timezone the timestamp is DISPLAYED in without altering the underlying instant in time. Its sibling `force_tz()` reinterprets the same wall-clock time as if it were in the new zone, which is almost never what you want for already-correct UTC data. Note row 3: in December, San Francisco is on Pacific Standard Time (UTC-8), so 02:00 UTC is 18:00 the previous day, which the result correctly shows.
+**Explanation:** `ymd_hms()` parses the timestamp and you must pass `tz = "UTC"` because the trailing "Z" is not auto-detected. `with_tz()` shifts the displayed timezone without changing the underlying instant; the moment in time is identical, only the wall-clock representation differs. Contrast with `force_tz()`, which RE-LABELS the timezone and produces a different instant; that is almost never what you want.
 
 </details>
 
@@ -1427,16 +1388,16 @@ ex_4_8
 
 ### Exercise 5.1: Column-wise means of mtcars with map_dbl
 
-**Task:** Compute the mean of every column of `mtcars` using `map_dbl()` and return a named numeric vector. The point of `map_dbl()` over `sapply()` is type safety: you guarantee the output is double, not whatever shape the data happens to produce. Save the named vector to `ex_5_1`.
+**Task:** Compute the mean of every column of `mtcars` using `map_dbl()`. The result must be a named numeric vector (not a list, not a tibble), with one entry per column. Save to `ex_5_1` and verify it has length 11.
 
 **Expected result:**
 
 ```
-#>     mpg     cyl    disp      hp    drat      wt    qsec      vs      am    gear    carb
-#> 20.0906  6.1875 230.722 146.688  3.5966  3.2173 17.8487  0.4375  0.4063  3.6875  2.8125
+#>      mpg      cyl     disp       hp     drat       wt     qsec       vs       am     gear     carb
+#> 20.09063  6.18750 230.72188 146.68750  3.59656  3.21725 17.84875  0.43750  0.40625  3.68750  2.81250
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -1451,18 +1412,13 @@ ex_5_1 <- map_dbl(mtcars, mean)
 ex_5_1
 ```
 
-**Explanation:** A data frame is internally a list of columns, so `map_dbl()` walks each column and applies `mean()`, returning a named double vector. The "type-stable" `_dbl` suffix would error if any iteration returned a non-double, which is what you want in production. The `purrr` family also has `_int`, `_chr`, `_lgl`, and `_df` siblings for other return types. A common base-R parallel is `sapply()`, but its return type is unpredictable.
+**Explanation:** `map_dbl()` is the type-stable variant of `map()` that guarantees a double vector output; `map_chr()`, `map_int()`, `map_lgl()` work the same way. If any column produced a non-numeric result, `map_dbl()` would error rather than silently coerce; that strictness is the whole point. For mixed-result situations, fall back to `map()` (returns a list) and inspect element types before deciding the next verb.
 
 </details>
 
 ### Exercise 5.2: Pair-wise add two vectors with map2
 
-**Task:** Given two equal-length numeric vectors `a` and `b`, compute the element-wise sum using `map2_dbl()` rather than R's native vectorization. The point is to practice the two-input map for cases where the operation is more complex than a single operator. Save the result vector to `ex_5_2`.
-
-```r title="Setup for 5.2"
-a <- c(1, 2, 3, 4)
-b <- c(10, 20, 30, 40)
-```
+**Task:** Given two equal-length numeric vectors `a` and `b`, produce a new vector where each element is the sum of the corresponding pair, using `map2_dbl()`. Save the result to `ex_5_2`. This pattern generalises to any element-wise function more complex than `+`.
 
 **Expected result:**
 
@@ -1470,9 +1426,11 @@ b <- c(10, 20, 30, 40)
 #> [1] 11 22 33 44
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
+a <- c(1, 2, 3, 4)
+b <- c(10, 20, 30, 40)
 ex_5_2 <- # your code here
 ex_5_2
 ```
@@ -1485,33 +1443,33 @@ ex_5_2 <- map2_dbl(a, b, \(x, y) x + y)
 ex_5_2
 ```
 
-**Explanation:** `map2(x, y, f)` walks two vectors in lockstep and calls `f(x_i, y_i)` per pair. For trivial sums, plain `a + b` is faster and more readable, but `map2_dbl()` shines when `f` is a non-vectorized function like a custom regression call that needs paired inputs. The anonymous function `\(x, y) x + y` is base-R 4.1+ syntax: pre-4.1 you would write `function(x, y) x + y` or `~ .x + .y` in purrr-lambda form.
+**Explanation:** `map2()` walks two parallel inputs simultaneously, passing one element from each to the function. The type-stable suffixes `_dbl`, `_int`, `_chr` apply here too. For element-wise addition specifically, plain vectorisation (`a + b`) is faster and more idiomatic. But for arbitrary two-argument functions that are NOT vectorised (e.g. fitting one model per parameter pair), `map2()` is the right tool.
 
 </details>
 
 ### Exercise 5.3: Build a tibble of geometric series with pmap
 
-**Task:** Generate a tibble of geometric series rows where each row has a starting value `a`, a ratio `r`, and the resulting third term `a * r * r`. Use `pmap_dbl()` so the row-wise arguments come straight from the tibble. Save the augmented tibble to `ex_5_3`.
-
-```r title="Setup for 5.3"
-params <- tibble(a = c(1, 2, 5, 10), r = c(2, 3, 0.5, 1.1))
-```
+**Task:** For each of three (start, ratio, n) triples, generate the geometric series of length `n` starting at `start` with multiplicative ratio `ratio`. Collect the three sequences as rows of a list-column `series` inside a tibble. Save to `ex_5_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 4 x 3
-#>       a     r third_term
-#>   <dbl> <dbl>      <dbl>
-#> 1     1   2         4
-#> 2     2   3        18
-#> 3     5   0.5       1.25
-#> 4    10   1.1      12.1
+#> # A tibble: 3 x 4
+#>   start ratio     n series
+#>   <dbl> <dbl> <dbl> <list>
+#> 1     1   2       4 <dbl [4]>
+#> 2     5   1.5     3 <dbl [3]>
+#> 3    10   0.5     5 <dbl [5]>
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+params <- tibble(
+  start = c(1, 5, 10),
+  ratio = c(2, 1.5, 0.5),
+  n     = c(4, 3, 5)
+)
 ex_5_3 <- # your code here
 ex_5_3
 ```
@@ -1521,27 +1479,27 @@ ex_5_3
 
 ```r title="Solution"
 ex_5_3 <- params |>
-  mutate(third_term = pmap_dbl(list(a = a, r = r), \(a, r) a * r * r))
+  mutate(series = pmap(list(start, ratio, n), \(start, ratio, n) start * ratio ^ (0:(n-1))))
 ex_5_3
 ```
 
-**Explanation:** `pmap()` is the n-ary cousin of `map2()`. Its first argument is a list of equal-length vectors (or a data frame), and its function gets one argument per list element. The pattern `pmap_dbl(list(a = a, r = r), \(a, r) ...)` reads as "call this function once per row of these named columns". An even shorter idiom is `pmap_dbl(params, \(a, r, ...) a * r * r)`: the `...` swallows any extra columns the row may carry.
+**Explanation:** `pmap()` takes a list of equal-length inputs and a function whose argument names match. By naming the lambda arguments `start`, `ratio`, `n`, the call reads like a row-wise function. Putting the result inside `mutate()` creates a list-column, which you can later `unnest_longer()` if you need one row per series element. `pmap` is the n-argument generalisation of `map2`; learn it once and you rarely need `mapply()`.
 
 </details>
 
 ### Exercise 5.4: Fit a linear model per cylinder count and extract slope
 
-**Task:** Group `mtcars` by `cyl`, then fit `mpg ~ wt` within each group and extract the slope coefficient. Use `nest()` to collapse to one row per cylinder count, `map()` to fit, and `map_dbl()` to pull the slope. Save the per-group slopes to `ex_5_4`.
+**Task:** Group `mtcars` by `cyl`, fit a linear model `mpg ~ wt` within each group, and return a tibble with one row per cylinder value showing `cyl`, the model slope (`slope`), and the R-squared (`r2`). Save to `ex_5_4`. This is the canonical split-apply-combine modelling workflow.
 
 **Expected result:**
 
 ```
 #> # A tibble: 3 x 3
-#>     cyl  data              slope
-#>   <dbl> <list>             <dbl>
-#> 1     6 <tibble [7 x 10]>  -2.78
-#> 2     4 <tibble [11 x 10]> -5.65
-#> 3     8 <tibble [14 x 10]> -2.19
+#>     cyl   slope    r2
+#>   <dbl>   <dbl> <dbl>
+#> 1     4  -5.65  0.713
+#> 2     6  -2.78  0.465
+#> 3     8  -2.19  0.423
 ```
 
 **Difficulty:** Advanced
@@ -1555,45 +1513,47 @@ ex_5_4
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_4 <- mtcars |>
-  as_tibble() |>
-  nest(data = -cyl) |>
+ex_5_4 <- as_tibble(mtcars) |>
+  group_by(cyl) |>
+  nest() |>
   mutate(
     model = map(data, \(df) lm(mpg ~ wt, data = df)),
-    slope = map_dbl(model, \(m) coef(m)[["wt"]])
+    slope = map_dbl(model, \(m) coef(m)[["wt"]]),
+    r2    = map_dbl(model, \(m) summary(m)$r.squared)
   ) |>
-  select(cyl, data, slope)
+  select(cyl, slope, r2) |>
+  ungroup()
 ex_5_4
 ```
 
-**Explanation:** This is the canonical "many models" pattern: nest into list-columns, map a model-fit over the nested data, then map an extraction over the fitted objects. Storing the fitted models in their own column lets downstream code pull other quantities (intercept, R-squared, predictions) without re-fitting. For a tidy-formatted coefficient table, swap the slope step for `map(model, broom::tidy)` and `unnest()`.
+**Explanation:** The nest-model-extract pattern is the tidyverse alternative to `by()` and `dlply()`. Each step is independently testable: you can print `ex_5_4$model` to inspect individual fits. `broom::tidy(m)` is an even cleaner extractor if you want all coefficients with standard errors and p-values in long form; drop it in and `unnest()` to expand.
 
 </details>
 
 ### Exercise 5.5: Keep only the named list elements that are numeric
 
-**Task:** Given a heterogeneous named list, use `keep()` to retain only the elements that pass `is.numeric()`. The data-engineering team uses this idiom to defensively filter a configuration list before passing it to a numeric-only function. Save the filtered list to `ex_5_5`.
-
-```r title="Setup for 5.5"
-config <- list(retries = 3, host = "api.example.com", timeout = 30, verbose = TRUE, batch = 100)
-```
+**Task:** Given a heterogeneous list with character, numeric, logical, and tibble elements, filter it to keep only the numeric entries using `keep()`. Save the resulting (still a list) to `ex_5_5`. The element names must be preserved.
 
 **Expected result:**
 
 ```
-#> $retries
-#> [1] 3
+#> $a
+#> [1] 1 2 3
 #>
-#> $timeout
-#> [1] 30
-#>
-#> $batch
-#> [1] 100
+#> $c
+#> [1] 4.5
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+mixed <- list(
+  a = c(1,2,3),
+  b = "hello",
+  c = 4.5,
+  d = TRUE,
+  e = tibble(x = 1:2)
+)
 ex_5_5 <- # your code here
 ex_5_5
 ```
@@ -1602,40 +1562,35 @@ ex_5_5
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_5 <- keep(config, is.numeric)
+ex_5_5 <- keep(mixed, is.numeric)
 ex_5_5
 ```
 
-**Explanation:** `keep(.x, .p)` returns the elements of `.x` for which the predicate `.p` returns `TRUE`. Its mirror is `discard()`, which drops them. Note that `verbose = TRUE` is kept out because logical is not numeric. To include integers and doubles explicitly, you could pass an anonymous predicate `\(x) is.numeric(x) && !is.logical(x)` since base R sometimes treats logical as a numeric in arithmetic.
+**Explanation:** `keep()` retains elements for which the predicate returns `TRUE`; `discard()` is the inverse. The predicate can be a named function (`is.numeric`) or a lambda (`\(x) length(x) > 1`). Both verbs preserve list names, unlike `Filter()` in base R, which also works but has less consistent naming. For tibbles specifically, `select(where(is.numeric))` is the column-wise analogue.
 
 </details>
 
 ### Exercise 5.6: Reduce a list of tibbles by left-joining them all
 
-**Task:** Given a list of three lookup tibbles all sharing the key `id`, combine them into a single tibble by repeatedly left-joining. Use `reduce()` so the code scales to any number of lookups without nested `left_join()` calls. Save the joined tibble to `ex_5_6`.
-
-```r title="Setup for 5.6"
-lookups <- list(
-  tibble(id = 1:3, name  = c("Ada", "Beau", "Cleo")),
-  tibble(id = 1:3, city  = c("NYC", "SF", "LA")),
-  tibble(id = 1:3, score = c(91, 87, 95))
-)
-```
+**Task:** Three small tibbles share a `customer_id` column and each adds a different attribute (`name`, `email`, `country`). Combine them into one wide tibble using `reduce()` plus `left_join()`. Save to `ex_5_6`. The result must have every column from every input.
 
 **Expected result:**
 
 ```
 #> # A tibble: 3 x 4
-#>      id name  city  score
-#>   <int> <chr> <chr> <dbl>
-#> 1     1 Ada   NYC      91
-#> 2     2 Beau  SF       87
-#> 3     3 Cleo  LA       95
+#>   customer_id name  email             country
+#>         <int> <chr> <chr>             <chr>
+#> 1           1 Alice alice@example.com US
+#> 2           2 Bob   bob@example.com   UK
+#> 3           3 Cara  cara@example.com  IN
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+t_names    <- tibble(customer_id = 1:3, name = c("Alice","Bob","Cara"))
+t_emails   <- tibble(customer_id = 1:3, email = c("alice@example.com","bob@example.com","cara@example.com"))
+t_countries <- tibble(customer_id = 1:3, country = c("US","UK","IN"))
 ex_5_6 <- # your code here
 ex_5_6
 ```
@@ -1644,38 +1599,33 @@ ex_5_6
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_6 <- reduce(lookups, left_join, by = "id")
+ex_5_6 <- list(t_names, t_emails, t_countries) |>
+  reduce(left_join, by = "customer_id")
 ex_5_6
 ```
 
-**Explanation:** `reduce(.x, .f)` applies a two-argument function across a list left-to-right: it starts with the first two elements, applies `.f`, then folds the result with the third element, and so on. Passing `left_join` (without parentheses) plus its named argument `by = "id"` produces "join all of these on id". This pattern generalizes to any associative two-argument operation: `+`, `intersect`, `bind_rows`.
+**Explanation:** `reduce()` applies a binary function cumulatively along a list: `f(f(t1, t2), t3)`. For joins, this is the cleanest way to merge an arbitrary number of tables without writing N-1 explicit `left_join()` calls. The first list element is the seed; each subsequent element gets joined in. `reduce()` is also the right verb for repeated `bind_rows()`, `intersect()`, `union()`, etc.
 
 </details>
 
 ### Exercise 5.7: Safely apply log() and capture failures
 
-**Task:** Apply `log()` to a vector that includes a non-numeric value using `safely()` so the call does not abort the pipeline. The result should be a list with `result` and `error` slots per input. Save the wrapped output to `ex_5_7`.
-
-```r title="Setup for 5.7"
-xs <- list(2, 8, "oops", 16)
-```
+**Task:** Apply `log()` to a mixed list `list(1, 100, -5, "oops")` using `safely()` so that the call NEVER errors. The result should be a list of three components, each with `result` and `error` slots; successes have `result` populated and `error` is `NULL`, failures vice versa. Save to `ex_5_7`.
 
 **Expected result:**
 
 ```
-#> [[1]]$result
-#> [1] 0.6931
-#> [[2]]$result
-#> [1] 2.0794
-#> [[3]]$error
-#> <simpleError in log(x): non-numeric argument to mathematical function>
-#> [[4]]$result
-#> [1] 2.7726
+#> [[1]]$result -> 0
+#> [[2]]$result -> 4.6052
+#> [[3]]$result -> NaN  ($error NULL, because log(-5) gives NaN with a warning, not error)
+#> [[4]]$result -> NULL ($error -> non-numeric argument)
+#> (exact structure: 4 entries, each a list of $result and $error)
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+inputs <- list(1, 100, -5, "oops")
 ex_5_7 <- # your code here
 ex_5_7
 ```
@@ -1685,33 +1635,34 @@ ex_5_7
 
 ```r title="Solution"
 safe_log <- safely(log)
-ex_5_7  <- map(xs, safe_log)
+ex_5_7 <- map(inputs, safe_log)
 ex_5_7
 ```
 
-**Explanation:** `safely(f)` returns a NEW function that always succeeds: it returns a list with `result` (the value if `f` worked, `NULL` otherwise) and `error` (the condition if `f` failed, `NULL` otherwise). This is the standard purrr way to keep a pipeline running over a list of inputs where some may fail. Companion helpers are `possibly()` (substitute a default value on failure) and `quietly()` (capture warnings and messages too).
+**Explanation:** `safely()` is a function adverb: it wraps a function so the wrapped version never errors, returning a list of `result` and `error` instead. The companion `possibly()` returns a fallback value on error (simpler, less information). `quietly()` captures messages and warnings. For a production pipeline that must continue past bad rows, `safely() |> map()` plus a `transpose()` to pull out the two halves is the canonical pattern.
 
 </details>
 
 ### Exercise 5.8: Walk a list to print each item with its position
 
-**Task:** Use `walk2()` to iterate over a named character vector and print each element prefixed with its index. `walk*()` is the side-effect cousin of `map*()`: same iteration, but the return value is discarded and you get the input back invisibly. Save the input vector to `ex_5_8` after walking it.
-
-```r title="Setup for 5.8"
-titles <- c("intro" = "Hello", "body" = "World", "outro" = "Bye")
-```
+**Task:** For each element of a list of three strings, print a line in the format "<i>: <element>" where `i` is the 1-based position. The function must return the input invisibly so the printing is the visible side effect, not the return value. Save the (invisibly returned) input to `ex_5_8`.
 
 **Expected result:**
 
 ```
-#> [intro] Hello
-#> [body] World
-#> [outro] Bye
+#> 1: apple
+#> 2: banana
+#> 3: cherry
+#> ex_5_8 is the original input list, returned invisibly:
+#> [[1]] "apple"
+#> [[2]] "banana"
+#> [[3]] "cherry"
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
+fruits <- list("apple", "banana", "cherry")
 ex_5_8 <- # your code here
 ex_5_8
 ```
@@ -1720,12 +1671,11 @@ ex_5_8
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-walk2(names(titles), titles, \(nm, val) cat("[", nm, "] ", val, "\n", sep = ""))
-ex_5_8 <- titles
+ex_5_8 <- iwalk(fruits, \(x, i) cat(i, ": ", x, "\n", sep = ""))
 ex_5_8
 ```
 
-**Explanation:** `walk2()` runs the function for its side effect (printing here) without returning a list of `NULL`s like `map2()` would. This makes it appropriate for logging, writing files, or any "do X for each row" operation where the value is irrelevant. It returns the input invisibly so you can keep piping, which is why the third line `ex_5_8 <- titles` works without losing data.
+**Explanation:** `walk()` is `map()`'s side-effect cousin: it runs the function for each element but returns the input invisibly, so it composes inside pipelines. `iwalk()` is the indexed variant that also passes the position (or name, if the list is named). Use `walk` for printing, logging, file writes, plot saving; anything where the function's job is the side effect, not the return value. Never use `map()` for side effects: you would build a list of `NULL`s for nothing.
 
 </details>
 
@@ -1733,23 +1683,22 @@ ex_5_8
 
 ### Exercise 6.1: Build a per-class fuel-efficiency leaderboard with mean and rank
 
-**Task:** A consumer-vehicles report ranks each `class` in `mpg` by mean highway efficiency. Compute mean `hwy` per class, attach a rank (1 = best), keep classes with at least five vehicles in the dataset, and sort by rank. Save the leaderboard to `ex_6_1`.
+**Task:** For each `class` in `mpg`, compute the mean `hwy` mileage, rank the classes from most to least efficient (1 = best), and report `class`, `mean_hwy` (rounded to 1 decimal), and `rank`. Save to `ex_6_1` so the procurement team can pick the top three classes.
 
 **Expected result:**
 
 ```
-#> # A tibble: 6 x 4
-#>   class      mean_hwy     n  rank
-#>   <chr>         <dbl> <int> <int>
-#> 1 compact        28.3    47     1
-#> 2 subcompact     28.1    35     2
-#> 3 midsize        27.3    41     3
-#> 4 minivan        22.4    11     4
-#> 5 suv            18.1    62     5
-#> 6 pickup         16.9    33     6
+#> # A tibble: 7 x 3
+#>   class      mean_hwy  rank
+#>   <chr>         <dbl> <int>
+#> 1 compact        28.3     1
+#> 2 subcompact     28.1     2
+#> 3 midsize        27.3     3
+#> ...
+#> # 4 more rows hidden
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -1761,41 +1710,44 @@ ex_6_1
 
 ```r title="Solution"
 ex_6_1 <- mpg |>
-  summarise(
-    mean_hwy = mean(hwy),
-    n        = n(),
-    .by      = class
-  ) |>
-  filter(n >= 5) |>
+  group_by(class) |>
+  summarise(mean_hwy = round(mean(hwy), 1), .groups = "drop") |>
   arrange(desc(mean_hwy)) |>
   mutate(rank = row_number())
 ex_6_1
 ```
 
-**Explanation:** The order of operations matters: filter for "enough data" BEFORE ranking, otherwise a tiny class with one fluky data point could win the leaderboard. `row_number()` after `arrange(desc(mean_hwy))` assigns 1 to the top row and increments down. For dense ranks (where ties share a rank), use `dense_rank()`; for sparse ranks (where ties skip subsequent numbers), use `min_rank()`.
+**Explanation:** `row_number()` inside an arranged frame assigns sequential integers, which is what you want for a 1-based rank. For dense ranks (ties share a rank but no gaps), use `dense_rank()`; for tied ranks (gaps after ties), use `min_rank()`. Choosing the right ranking function matters for presentations: `row_number()` breaks ties arbitrarily, which surprises users who see different orders on different runs.
 
 </details>
 
 ### Exercise 6.2: Compute a three-period trailing mean within group
 
-**Task:** For each `chick` in `ChickWeight`, compute the trailing three-day mean of `weight` using `lag()`. The pediatric-research team uses smoothed weights to avoid noise from a single weighing. Save the augmented tibble to `ex_6_2`.
+**Task:** For each `region` of inline quarterly sales (10 quarters per region), add a `ma3` column that is the trailing three-quarter mean of `revenue` within the region. The first two rows per region should be `NA` since there is not enough history. Save to `ex_6_2`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 578 x 5
-#>   Chick weight  Time Diet  trailing_mean
-#>   <ord>  <dbl> <dbl> <fct>         <dbl>
-#> 1 18        42     0 1                NA
-#> 2 18        39     2 1                NA
-#> 3 18        35.5   4 1                38.8
-#> 4 16        41     0 1                NA
+#> # A tibble: 20 x 4
+#>   region quarter revenue   ma3
+#>   <chr>    <int>   <dbl> <dbl>
+#> 1 east         1     100  NA
+#> 2 east         2     110  NA
+#> 3 east         3     125  112
+#> 4 east         4     140  125
+#> 5 east         5     155  140
 #> ...
+#> # 15 more rows hidden
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+qtr <- tibble(
+  region  = rep(c("east","west"), each = 10),
+  quarter = rep(1:10, times = 2),
+  revenue = c(100,110,125,140,155,170,180,195,205,210, 150,170,190,210,220,230,245,260,275,290)
+)
 ex_6_2 <- # your code here
 ex_6_2
 ```
@@ -1804,36 +1756,35 @@ ex_6_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_6_2 <- ChickWeight |>
-  as_tibble() |>
-  arrange(Chick, Time) |>
-  mutate(
-    trailing_mean = (weight + lag(weight, 1) + lag(weight, 2)) / 3,
-    .by           = Chick
-  )
+ex_6_2 <- qtr |>
+  arrange(region, quarter) |>
+  group_by(region) |>
+  mutate(ma3 = (revenue + lag(revenue) + lag(revenue, 2)) / 3) |>
+  ungroup()
 ex_6_2
 ```
 
-**Explanation:** Adding three `lag()` shifts (offset 0, 1, 2) and dividing by three is the simplest trailing-mean idiom that does not pull in another package. Always `arrange()` before any windowed call so `lag()` actually reaches yesterday and not just "the row above". The `.by = Chick` argument confines `lag()` within each chick so the first two observations of every chick are correctly `NA` rather than borrowing from a different bird.
+**Explanation:** A trailing 3-period mean is the simplest rolling statistic and can be expressed with two `lag()` calls; no rolling package needed. For longer windows (say 12 months), `slider::slide_dbl()` or `zoo::rollmean()` scale better. Grouping by region matters: without it, the lag would pull the last east values into the first west values, corrupting the boundary rows.
 
 </details>
 
 ### Exercise 6.3: Build a data-quality flag report for diamonds
 
-**Task:** Scan `diamonds` for three quality flags: zero `x` (impossible width), `depth` outside the plausible 50 to 75 range, and `price` below 300 (suspiciously low). Build a summary tibble with one row per flag showing how many records trip it. Save the report to `ex_6_3`.
+**Task:** Inspect the `diamonds` dataset for three known quality issues: zero values in `x`, `y`, or `z` (a physical impossibility for a diamond), and `depth` outside the sane range 55-75. Add three boolean flag columns (`flag_xyz_zero`, `flag_depth_oob`) plus an aggregate `flag_any`. Save flagged rows only (`flag_any` is TRUE) to `ex_6_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 3 x 2
-#>   flag             n_records
-#>   <chr>                <int>
-#> 1 zero_width               8
-#> 2 implausible_depth       16
-#> 3 low_price                0
+#> # A tibble: 28 x 13
+#>   carat cut       color clarity depth table price     x     y     z flag_xyz_zero flag_depth_oob flag_any
+#>   <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl> <lgl>         <lgl>          <lgl>
+#> 1  1.07 Ideal     F     SI2      61.6    56  4954     0  6.62  0    TRUE          FALSE          TRUE
+#> 2  1    Premium   H     SI2      59.2    61  3142  6.55     0  0    TRUE          FALSE          TRUE
+#> ...
+#> # 26 more rows hidden
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1845,37 +1796,37 @@ ex_6_3
 
 ```r title="Solution"
 ex_6_3 <- diamonds |>
-  summarise(
-    zero_width         = sum(x == 0),
-    implausible_depth  = sum(depth < 50 | depth > 75),
-    low_price          = sum(price < 300)
+  mutate(
+    flag_xyz_zero  = x == 0 | y == 0 | z == 0,
+    flag_depth_oob = depth < 55 | depth > 75,
+    flag_any       = flag_xyz_zero | flag_depth_oob
   ) |>
-  pivot_longer(everything(), names_to = "flag", values_to = "n_records")
+  filter(flag_any)
 ex_6_3
 ```
 
-**Explanation:** Summing a logical vector counts the `TRUE`s because in R, `TRUE` coerces to `1`. Computing all three flags in one `summarise()` and then pivoting long produces a tidy report with one row per check. This shape is easy to share with stakeholders and easy to extend by adding another summary line plus the pivot will pick it up automatically.
+**Explanation:** Layering individual flag columns BEFORE filtering is more useful than a single combined predicate: downstream consumers can audit which rule fired, and the same code generates both the report and the filtered set. For more than three rules, build a helper that returns a tibble of named flags, then `bind_cols()` them; that keeps the rule list as data rather than code and makes adding rules a one-line change.
 
 </details>
 
 ### Exercise 6.4: Top three texas housing markets per year by median sale price
 
-**Task:** From `txhousing` (a Texas housing time series in ggplot2), compute median monthly sale price per (year, city), then for each year keep the three cities with the highest median. Sort the result by year then median descending. Save to `ex_6_4`.
+**Task:** Using the `txhousing` dataset (built into ggplot2), report the three cities with the highest annual median sale price for each year between 2010 and 2014 inclusive. Drop rows with missing `median` first. Save to `ex_6_4` so a relocation report can highlight premium markets per year.
 
 **Expected result:**
 
 ```
-#> # A tibble: 60 x 3
-#>    year city               yearly_median
-#>   <int> <chr>                      <dbl>
-#> 1  2000 South Padre Island       180000
-#> 2  2000 Collin County            172500
-#> 3  2000 Bay Area                 144000
-#> 4  2001 South Padre Island       190000
+#> # A tibble: 15 x 3
+#>    year city          year_median
+#>   <int> <chr>               <dbl>
+#> 1  2010 Collin County      215000
+#> 2  2010 Midland            155400
+#> 3  2010 Austin             185000
 #> ...
+#> # 12 more rows hidden
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1887,42 +1838,43 @@ ex_6_4
 
 ```r title="Solution"
 ex_6_4 <- txhousing |>
-  summarise(yearly_median = median(median, na.rm = TRUE), .by = c(year, city)) |>
-  slice_max(yearly_median, n = 3, by = year, with_ties = FALSE) |>
-  arrange(year, desc(yearly_median))
+  filter(!is.na(median), year %in% 2010:2014) |>
+  group_by(year, city) |>
+  summarise(year_median = median(median), .groups = "drop_last") |>
+  slice_max(year_median, n = 3, with_ties = FALSE) |>
+  arrange(year, desc(year_median)) |>
+  ungroup()
 ex_6_4
 ```
 
-**Explanation:** `summarise(.by = c(year, city))` groups by both columns in one shot, returning one row per (year, city). The second step uses `slice_max(.., by = year)` to keep the top three within each year. Passing `with_ties = FALSE` protects against years where two cities tie on the median, which would otherwise yield more than three rows for that year and break a fixed-width report.
+**Explanation:** `.groups = "drop_last"` after `summarise()` keeps the `year` grouping but drops `city`, so the subsequent `slice_max()` operates per year as intended. `with_ties = FALSE` enforces exactly three rows per year by breaking ties arbitrarily; if you genuinely want all tied rows, leave it `TRUE` and accept variable group sizes. The `arrange()` at the end fixes within-year ordering after slicing.
 
 </details>
 
 ### Exercise 6.5: Pivot wider with TWO value columns at once
 
-**Task:** Given the long sales tibble below carrying both `revenue` and `units`, pivot wider so each quarter becomes TWO columns (one for revenue, one for units). The output should have one row per region. Save the wide tibble to `ex_6_5`.
-
-```r title="Setup for 6.5"
-long <- tibble(
-  region  = rep(c("North", "South"), each = 4),
-  quarter = rep(c("Q1", "Q2", "Q3", "Q4"), 2),
-  revenue = c(100, 130, 120, 160, 120, 150, 140, 170),
-  units   = c(10, 13, 12, 16, 12, 15, 14, 17)
-)
-```
+**Task:** Given a long tibble of quarterly sales and units per region (4 rows per region, 3 regions), pivot to wide so each region is one row and both `sales` and `units` spread out: columns become `sales_Q1`, `units_Q1`, `sales_Q2`, etc. Save to `ex_6_5` for a one-page dashboard export.
 
 **Expected result:**
 
 ```
-#> # A tibble: 2 x 9
-#>   region revenue_Q1 revenue_Q2 revenue_Q3 revenue_Q4 units_Q1 units_Q2 units_Q3 units_Q4
-#>   <chr>       <dbl>      <dbl>      <dbl>      <dbl>    <dbl>    <dbl>    <dbl>    <dbl>
-#> 1 North         100        130        120        160       10       13       12       16
-#> 2 South         120        150        140        170       12       15       14       17
+#> # A tibble: 3 x 9
+#>   region sales_Q1 units_Q1 sales_Q2 units_Q2 sales_Q3 units_Q3 sales_Q4 units_Q4
+#>   <chr>     <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>    <dbl>
+#> 1 east        100       10      110       12      125       14      140       16
+#> 2 north        80        8       85        9       90       10       95       11
+#> 3 west        150       18      170       20      190       22      210       25
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+long <- tibble(
+  region  = rep(c("east","west","north"), each = 4),
+  quarter = rep(c("Q1","Q2","Q3","Q4"), times = 3),
+  sales   = c(100,110,125,140, 150,170,190,210, 80,85,90,95),
+  units   = c(10,12,14,16, 18,20,22,25, 8,9,10,11)
+)
 ex_6_5 <- # your code here
 ex_6_5
 ```
@@ -1933,31 +1885,32 @@ ex_6_5
 ```r title="Solution"
 ex_6_5 <- long |>
   pivot_wider(
-    names_from   = quarter,
-    values_from  = c(revenue, units)
+    names_from  = quarter,
+    values_from = c(sales, units),
+    names_glue  = "{.value}_{quarter}"
   )
 ex_6_5
 ```
 
-**Explanation:** Passing a vector of columns to `values_from` produces a Cartesian product in the output column names: for each value column and each name level, you get one output column. The default separator is `_`. If you want the quarter to come first, pass `names_glue = "{quarter}_{.value}"`. This pattern is the cleanest way to produce "wide reports" without manually pivoting twice and joining.
+**Explanation:** Passing a vector to `values_from` tells `pivot_wider()` to produce multiple wide columns per key. The default naming is `sales_Q1`, `units_Q1`; already correct here, but `names_glue` lets you customise (e.g. `"{quarter}_{.value}"` for quarter-first). This is the cleanest way to ship a one-row-per-entity export with multiple metrics per period, avoiding two separate pivots followed by a join.
 
 </details>
 
 ### Exercise 6.6: Per-species linear model with broom-tidied coefficients
 
-**Task:** For each species in `iris`, fit `Petal.Length ~ Sepal.Length` and produce a tidy coefficient table with columns `Species`, `term`, `estimate`, and `p.value`. Use `broom::tidy()` inside a nested mutate. Save the coefficient tibble to `ex_6_6`.
+**Task:** For each `Species` of `iris`, fit `Petal.Length ~ Sepal.Length` and return one row per (species, coefficient) pair from `broom::tidy()`. The output should have columns `Species`, `term`, `estimate`, `std.error`, `statistic`, `p.value`. Save to `ex_6_6`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 6 x 4
-#>   Species    term        estimate p.value
-#>   <fct>      <chr>          <dbl>   <dbl>
-#> 1 setosa     (Intercept)    0.803  0.0264
-#> 2 setosa     Sepal.Length   0.131  0.0698
-#> 3 versicolor (Intercept)    0.185  0.770
-#> 4 versicolor Sepal.Length   0.686  1.27e-12
+#> # A tibble: 6 x 6
+#>   Species    term         estimate std.error statistic p.value
+#>   <fct>      <chr>           <dbl>     <dbl>     <dbl>   <dbl>
+#> 1 setosa     (Intercept)     0.803     0.344      2.34  0.0238
+#> 2 setosa     Sepal.Length    0.132     0.0685     1.92  0.0607
+#> 3 versicolor (Intercept)    -0.0843    0.506     -0.166 0.869
 #> ...
+#> # 3 more rows hidden
 ```
 
 **Difficulty:** Advanced
@@ -1971,52 +1924,51 @@ ex_6_6
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_6_6 <- iris |>
-  as_tibble() |>
-  nest(data = -Species) |>
+ex_6_6 <- as_tibble(iris) |>
+  group_by(Species) |>
+  nest() |>
   mutate(
     model = map(data, \(df) lm(Petal.Length ~ Sepal.Length, data = df)),
-    coefs = map(model, tidy)
+    tidy  = map(model, broom::tidy)
   ) |>
-  select(Species, coefs) |>
-  unnest(coefs) |>
-  select(Species, term, estimate, p.value)
+  unnest(tidy) |>
+  select(Species, term, estimate, std.error, statistic, p.value) |>
+  ungroup()
 ex_6_6
 ```
 
-**Explanation:** `broom::tidy()` converts a fitted model into a tibble with one row per term and standardized column names (`estimate`, `std.error`, `statistic`, `p.value`). Combining it with `nest()` and `unnest()` is the canonical recipe for fitting many models and getting a long-format coefficient table out the other end. From there you can pivot or filter to answer "which species has the steepest relationship" type questions.
+**Explanation:** `broom::tidy()` converts a fitted model into a tidy tibble of coefficients, standard errors, and p-values. Combining nest + map + tidy + unnest is the canonical pattern for grouped modelling and it scales smoothly from two species to two thousand. For predictions, swap `tidy()` for `broom::augment()`; for one-row model summaries (R-squared, F-statistic, deviance), `broom::glance()`. Three verbs, three views.
 
 </details>
 
 ### Exercise 6.7: Cohort retention table by signup month
 
-**Task:** Given a small activity log, build a cohort retention table: rows are signup months, columns are month-since-signup, cells are counts of distinct customers who were active in that period. Use `floor_date()`, `pivot_wider()`, and a `complete()` step to fill missing combinations with zero. Save the cohort table to `ex_6_7`.
-
-```r title="Setup for 6.7"
-activity <- tibble(
-  customer_id   = c(1, 1, 1, 2, 2, 3, 3, 3, 3),
-  signup_date   = ymd(c("2024-01-15", "2024-01-15", "2024-01-15",
-                        "2024-01-20", "2024-01-20",
-                        "2024-02-10", "2024-02-10", "2024-02-10", "2024-02-10")),
-  activity_date = ymd(c("2024-01-15", "2024-02-05", "2024-03-10",
-                        "2024-01-20", "2024-02-25",
-                        "2024-02-10", "2024-02-22", "2024-03-15", "2024-04-02"))
-)
-```
+**Task:** Given an inline activity log of (customer_id, signup_month, active_month), build a retention table: rows are signup_month, columns are months-since-signup (0, 1, 2, 3), and cells are the count of customers active in that gap. Save to `ex_6_7`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 2 x 5
-#>   cohort     month_0 month_1 month_2 month_3
-#>   <date>       <int>   <int>   <int>   <int>
-#> 1 2024-01-01       2       2       1       0
-#> 2 2024-02-01       1       1       1       0
+#> # A tibble: 3 x 5
+#>   signup_month gap_0 gap_1 gap_2 gap_3
+#>   <chr>        <int> <int> <int> <int>
+#> 1 2026-01          3     2     2     1
+#> 2 2026-02          2     2     1    NA
+#> 3 2026-03          2     1    NA    NA
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+activity <- tribble(
+  ~customer_id, ~signup_month, ~active_month,
+  1, "2026-01", "2026-01", 1, "2026-01", "2026-02", 1, "2026-01", "2026-03", 1, "2026-01", "2026-04",
+  2, "2026-01", "2026-01", 2, "2026-01", "2026-02", 2, "2026-01", "2026-03",
+  3, "2026-01", "2026-01",
+  4, "2026-02", "2026-02", 4, "2026-02", "2026-03", 4, "2026-02", "2026-04",
+  5, "2026-02", "2026-02", 5, "2026-02", "2026-03",
+  6, "2026-03", "2026-03", 6, "2026-03", "2026-04",
+  7, "2026-03", "2026-03"
+)
 ex_6_7 <- # your code here
 ex_6_7
 ```
@@ -2027,49 +1979,50 @@ ex_6_7
 ```r title="Solution"
 ex_6_7 <- activity |>
   mutate(
-    cohort       = floor_date(signup_date, "month"),
-    period       = interval(floor_date(signup_date, "month"),
-                            floor_date(activity_date, "month")) %/% months(1)
+    su  = ym(signup_month),
+    act = ym(active_month),
+    gap = (year(act) - year(su)) * 12 + (month(act) - month(su))
   ) |>
-  summarise(n = n_distinct(customer_id), .by = c(cohort, period)) |>
-  complete(cohort, period = 0:3, fill = list(n = 0)) |>
-  mutate(period = paste0("month_", period)) |>
-  pivot_wider(names_from = period, values_from = n)
+  count(signup_month, gap) |>
+  pivot_wider(names_from = gap, values_from = n, names_prefix = "gap_") |>
+  arrange(signup_month)
 ex_6_7
 ```
 
-**Explanation:** Cohort retention requires three computational steps in sequence: derive the cohort anchor (signup month floored), derive the period offset (months between activity and signup), and count distinct customers per (cohort, period). The `complete()` call ensures the grid is rectangular so the wider step does not produce ragged columns. `interval(...) %/% months(1)` is lubridate's idiom for "how many whole months between these dates".
+**Explanation:** Cohort tables are the canonical lubridate + tidyr exercise. `ym()` parses "YYYY-MM" strings to dates. The `gap` calculation handles year boundaries because subtracting months alone breaks at year-end. The `pivot_wider()` produces the report shape; cells without observations stay `NA`, which is correct because we have no evidence about months that have not occurred yet for the latest cohort.
 
 </details>
 
 ### Exercise 6.8: RFM customer scoring on a transaction log
 
-**Task:** Compute classic Recency-Frequency-Monetary scores on the customer transaction log below. For each `customer_id`, compute recency (days since last purchase relative to a snapshot date), frequency (number of orders), and monetary (sum of amounts). Then assign 1-5 quintile scores to each metric so the marketing team can target segments. Save the scored tibble to `ex_6_8`.
-
-```r title="Setup for 6.8"
-set.seed(1)
-tx_log <- tibble(
-  customer_id = sample(1:20, 80, replace = TRUE),
-  order_date  = sample(seq(ymd("2024-01-01"), ymd("2024-06-01"), by = "day"), 80, replace = TRUE),
-  amount      = round(runif(80, 10, 500), 2)
-)
-snapshot <- ymd("2024-07-01")
-```
+**Task:** Compute RFM (Recency in days, Frequency = count, Monetary = sum) per customer from an inline transaction log of three customers over April-May 2026. Recency is measured against an "as-of" date of 2026-05-12. Save the per-customer summary to `ex_6_8`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 20 x 7
-#>   customer_id recency_days frequency monetary r_score f_score m_score
-#>         <int>        <dbl>     <int>    <dbl>   <int>   <int>   <int>
-#> 1           1           18         6     1532.      5       4       4
-#> 2           2           45         3      612.      3       2       2
-#> ...
+#> # A tibble: 3 x 4
+#>   customer_id recency frequency monetary
+#>         <int>   <dbl>     <int>    <dbl>
+#> 1           1       2         4      230
+#> 2           2      12         2      130
+#> 3           3       7         3      155
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+tx <- tribble(
+  ~customer_id, ~tx_date,     ~amount,
+  1, "2026-04-01", 50,
+  1, "2026-04-15", 60,
+  1, "2026-05-05", 70,
+  1, "2026-05-10", 50,
+  2, "2026-04-20", 80,
+  2, "2026-04-30", 50,
+  3, "2026-04-25", 55,
+  3, "2026-05-01", 50,
+  3, "2026-05-05", 50
+)
 ex_6_8 <- # your code here
 ex_6_8
 ```
@@ -2078,31 +2031,26 @@ ex_6_8
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_6_8 <- tx_log |>
+as_of <- as.Date("2026-05-12")
+ex_6_8 <- tx |>
+  mutate(tx_date = as.Date(tx_date)) |>
+  group_by(customer_id) |>
   summarise(
-    recency_days = as.numeric(snapshot - max(order_date)),
-    frequency    = n(),
-    monetary     = sum(amount),
-    .by          = customer_id
-  ) |>
-  mutate(
-    r_score = ntile(-recency_days, 5),
-    f_score = ntile(frequency, 5),
-    m_score = ntile(monetary, 5)
-  ) |>
-  arrange(customer_id)
+    recency   = as.numeric(as_of - max(tx_date)),
+    frequency = n(),
+    monetary  = sum(amount),
+    .groups   = "drop"
+  )
 ex_6_8
 ```
 
-**Explanation:** RFM is the marketing-analytics workhorse for segmenting customers by behavior. The trick is that for RECENCY, smaller is better (a recent buyer is more valuable), so we pass `-recency_days` to `ntile()` to flip the sort order before quantile-binning. `ntile(x, 5)` chops `x` into five equal-sized buckets ranked 1 (lowest) through 5 (highest). Customers with `r_score = f_score = m_score = 5` are the marketing team's "champions" segment.
+**Explanation:** RFM is the foundational customer-segmentation feature set in marketing analytics. Recency uses `max(tx_date)` per customer because the most recent purchase defines how stale that customer is. Frequency is row count (`n()`), monetary is `sum(amount)`. In production, you would then `mutate(across(c(recency, frequency, monetary), ntile, n = 5))` to score each metric into quintiles and concatenate to a three-digit RFM code per customer.
 
 </details>
 
 ## What to do next
 
-Now that you have these reps in muscle memory, deepen the pipeline by pulling on one strand at a time:
-
-- [dplyr Exercises in R](dplyr-Exercises-in-R.html) drills the verbs in isolation with 50 more focused problems.
-- [tidyr Exercises in R](tidyr-Exercises-in-R.html) goes deeper on reshaping and list-columns.
-- [purrr Exercises in R](purrr-Exercises-in-R.html) focuses on functional iteration patterns at scale.
-- [Data Wrangling Exercises in R](Data-Wrangling-Exercises-in-R.html) blends tidyverse and base R on messier datasets.
+- [dplyr Exercises in R](dplyr-Exercises-in-R.html) for focused practice on filter, mutate, summarise, joins, and window functions.
+- [tidyr Exercises in R](tidyr-Exercises-in-R.html) for deeper drills on pivot, separate, nest, complete, and fill.
+- [Data Wrangling Exercises in R](Data-Wrangling-Exercises-in-R.html) for cross-package data-cleaning problems that combine these verbs on messier inputs.
+- [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html) once you have a tidy result and want to plot it.
