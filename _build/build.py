@@ -1338,7 +1338,7 @@ def build_post(
             hub_slug = _slug_base.split('-Questions', 1)[0].lower()
         else:
             hub_slug = hub_short.lower().replace(' ', '-')
-        topics = _extract_topic_chips(content)
+        topics = _extract_topic_chips(content, hub_slug=hub_slug)
         issuance_base = _issuance_baseline(hub_slug)
         cert_top = make_cert_ribbon(hub_short, quiz_url)
         cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug,
@@ -1403,8 +1403,12 @@ _SKIP_TOPIC_RE = re.compile(
 )
 
 
-def _extract_topic_chips(content_html, max_chips=5):
-    """Pull short topic chip labels from a fragment's <h2> headings."""
+def _extract_topic_chips(content_html, max_chips=5, hub_slug=None):
+    """Pull short topic chip labels from a fragment's <h2> headings.
+
+    If the hub has no sectional <h2> structure (flat list of <h3> exercises),
+    fall back to the curated override map keyed by hub slug.
+    """
     out = []
     for m in _H2_RE.finditer(content_html or ''):
         raw = _TAG_RE.sub('', m.group(1)).strip()
@@ -1421,7 +1425,24 @@ def _extract_topic_chips(content_html, max_chips=5):
         out.append(cleaned)
         if len(out) >= max_chips:
             break
+    if not out and hub_slug and hub_slug in _CHIP_OVERRIDES:
+        out = list(_CHIP_OVERRIDES[hub_slug])
     return out
+
+
+# Curated chip lists for hubs whose _posts/*.html has no <h2> sections
+# (typically a flat <h3> exercise list). Add an entry here when a chip-less
+# hub needs labeled topics on its banner.
+_CHIP_OVERRIDES = {
+    'correlation': ['Pearson', 'Spearman', 'Kendall', 'Correlation matrix', 'cor.test'],
+    'probability-distributions': ['Normal', 'Binomial', 'Poisson', 't-distribution', 'Chi-square'],
+    'cross-validation': ['k-fold CV', 'LOOCV', 'Repeated CV', 'caret', 'rsample'],
+    'clustering': ['k-means', 'Hierarchical', 'PAM', 'Silhouette', 'DBSCAN'],
+    'pca': ['prcomp', 'Scree plot', 'Loadings', 'Biplot', 'Variance explained'],
+    'anova': ['One-way', 'Two-way', 'Repeated measures', 'Post-hoc', 'Effect size'],
+    'chi-square-test': ['Goodness of fit', 'Independence', "Yates' correction", 'Fisher exact', 'Effect size'],
+    't-test': ['One-sample', 'Two-sample', 'Paired', "Welch's", 'Effect size'],
+}
 
 
 # Certificate ribbon helpers — laurel-wreath seal SVG (richer than a plain medallion)
