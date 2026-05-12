@@ -1939,14 +1939,22 @@
       var stdoutBuf = '';
       var visibleLines = [];
       (res.output || []).forEach(function(line) {
-        if (line.type === 'stderr') {
+        // WebR stdout/stderr come through as strings. "message" lines (R-style
+        // messages/warnings/errors emitted via message()/warning()/stop()) wrap
+        // the payload in an object; we only display plain string lines for the
+        // user. Sentinel-bearing stdout still gets buffered for the pass check.
+        if (line.type === 'stderr' && typeof line.data === 'string') {
           visibleLines.push({ kind: 'stderr', data: line.data });
           hasError = true;
-        } else if (line.type === 'stdout') {
-          stdoutBuf += (line.data || '') + '\n';
+        } else if (line.type === 'stdout' && typeof line.data === 'string') {
+          stdoutBuf += line.data + '\n';
           visibleLines.push({ kind: 'stdout', data: line.data });
-        } else if (line.type === 'message') {
-          visibleLines.push({ kind: 'message', data: line.data });
+        } else if (line.type === 'message' && line.data && typeof line.data === 'object') {
+          // Pull a readable string from the message payload when available.
+          var msg = (line.data.obj && (line.data.obj.message || line.data.obj.value)) || '';
+          if (typeof msg === 'string' && msg.trim()) {
+            visibleLines.push({ kind: 'message', data: msg.trim() });
+          }
         }
       });
       // Strip sentinel lines from visible output
