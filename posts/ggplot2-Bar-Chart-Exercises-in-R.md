@@ -1,25 +1,25 @@
 ---
-title: "ggplot2 Bar Chart Exercises in R: 25 Practice Problems"
+title: "ggplot2 Bar Chart Exercises in R: 17 Real-World Problems"
 slug: "ggplot2-Bar-Chart-Exercises-in-R"
-description: "Twenty-five graded ggplot2 bar chart exercises in R: counts, geom_col, stacks, dodges, percentages, labels, facets, lollipops, pyramids."
-keywords: "ggplot2 bar chart exercises, geom_bar exercises R, geom_col practice, stacked bar R exercises, ggplot bar chart tutorial"
+description: "Practice ggplot2 bar chart skills with 17 hands-on interactive R exercises: geom_bar, geom_col, stacked, dodged, fill, factor reorder, themes, and labels."
+keywords: "ggplot bar chart, geom_bar exercises, geom_col, stacked bar chart in R, ggplot2 practice problems"
 mathjax: false
 webr: true
 date: "2026-05-12"
 post_type: "EX"
-sidebar_title: "ggplot2 Bar Chart Exercises"
-sidebar_order: 127
-fr_parent: "Top50-Ggplot2-Visualizations-MasterList-R-Code.html"
-auto_link_terms: "ggplot2 bar chart exercises|geom_bar exercises|geom_col practice|stacked bar chart R|dodged bar chart R|lollipop chart R"
+sidebar_title: "ggplot2 Bar Chart Practice"
+sidebar_order: 145
+fr_parent: "ggplot2-Bar-Charts.html"
+auto_link_terms: "ggplot bar chart|geom_bar exercises|geom_col practice|stacked bar chart in r|ggplot2 bar chart exercises"
 auto_link_case_sensitive: false
-target_keyword: "ggplot2 bar chart exercises"
+target_keyword: "ggplot bar chart, geom_bar exercises"
 sibling_block_enabled: false
 difficulty: "Mixed"
 ---
 
-# ggplot2 Bar Chart Exercises in R: 25 Practice Problems
+# ggplot2 Bar Chart Exercises in R: 17 Real-World Problems
 
-<p class="lead">Twenty-five graded practice problems on ggplot2 bar charts in R: counts and explicit heights, stacking and dodging, percentage fills, labels and palettes, summarised bars with error bars, facets, lollipops, population pyramids, and highlighted bars. Solutions are hidden so you can try first.</p>
+<p class="lead">Drill the bar chart patterns analysts actually build: counts versus pre-summarised values, dodged versus stacked, factor reordering, themes, and value labels. Seventeen problems across six sections with hidden solutions. Try each task in the editor before clicking the reveal. Every chart uses the <code>diamonds</code> or <code>mpg</code> datasets that ship with ggplot2.</p>
 
 ```r title="Run this once before any exercise"
 library(ggplot2)
@@ -27,22 +27,19 @@ library(dplyr)
 library(forcats)
 library(scales)
 library(tidyr)
-library(tibble)
 ```
 
-## Section 1. Bar basics: counts and explicit heights (5 problems)
+## Section 1. Basics: geom_bar vs geom_col (3 problems)
 
-### Exercise 1.1: Build a count bar chart of diamond cut quality
+### Exercise 1.1: Count cars in each body class with geom_bar
 
-**Task:** A jeweller preparing inventory reports wants a single chart that shows how many stones fall into each `cut` category in the `diamonds` dataset. Use `geom_bar()` so ggplot counts the rows for you, map `cut` to the x axis, and save the resulting plot object to `ex_1_1`.
+**Task:** The `mpg` dataset that ships with ggplot2 includes a `class` column with vehicle body styles. Build a basic bar chart with `geom_bar()` that counts how many cars fall into each `class`. Save the plot object to `ex_1_1`.
 
 **Expected result:**
 
 ```
-#> Bar chart with 5 vertical bars on the x-axis: Fair, Good, Very Good, Premium, Ideal.
-#> y-axis is "count" automatically computed by stat_count.
-#> Ideal is tallest (~21551 stones); Fair is shortest (~1610).
-#> Default gray fill, no legend.
+#> A vertical bar chart, x = class (alphabetical), y = count.
+#> Bar heights: 2seater 5, compact 47, midsize 41, minivan 11, pickup 33, subcompact 35, suv 62.
 ```
 
 **Difficulty:** Beginner
@@ -56,38 +53,34 @@ ex_1_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_1 <- ggplot(diamonds, aes(x = cut)) +
+ex_1_1 <- ggplot(mpg, aes(x = class)) +
   geom_bar()
 ex_1_1
-#> A vertical bar chart with one bar per cut grade.
+#> A vertical bar chart with 7 bars, suv tallest at 62, 2seater shortest at 5.
 ```
 
-**Explanation:** `geom_bar()` carries its own statistic, `stat_count`, which counts rows for each unique value of the mapped variable. That is why you do not pass a y aesthetic. If you already have a tibble of pre-aggregated totals, switch to `geom_col()` instead, which expects an explicit `y`. Mapping `cut` (an ordered factor) preserves the natural quality order on the axis.
+**Explanation:** `geom_bar()` defaults to `stat = "count"`, which tallies rows per x category for you. There is no need to summarise the data first. Use `geom_bar()` when you have raw observations and want ggplot to count them; reach for `geom_col()` when the y-value is already computed (next exercise).
 
 </details>
 
-### Exercise 1.2: Plot brand revenue from a pre-summarised tibble using geom_col
+### Exercise 1.2: Plot pre-summarised totals with geom_col
 
-**Task:** A retail analyst has already computed total quarterly revenue per product line and stored it in the tibble built below. Use `geom_col()` (not `geom_bar`) to draw one bar per `product` with bar height equal to the `revenue_k` value in thousands of dollars, and save the chart to `ex_1_2`.
-
-```r title="Run before the exercise"
-revenue_tbl <- tibble::tibble(
-  product   = c("Alpha", "Bravo", "Charlie", "Delta", "Echo"),
-  revenue_k = c(412, 268, 591, 124, 347)
-)
-```
+**Task:** A retailer wants a chart of total `diamonds` inventory value by `cut`. Summarise `diamonds` to total `price` per `cut`, then plot the rolled-up table with `geom_col()` since the y-values are precomputed. Save the plot to `ex_1_2`.
 
 **Expected result:**
 
 ```
-#> 5 vertical bars (Alpha, Bravo, Charlie, Delta, Echo) ordered alphabetically.
-#> y-axis = revenue_k, bar heights: 412, 268, 591, 124, 347.
-#> Charlie tallest, Delta shortest.
+#> A vertical bar chart of total price (USD) by cut.
+#> Ideal ~74.5M tallest, Premium ~63.2M, Very Good ~45.3M, Good ~17.3M, Fair ~7.4M.
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
+diamond_totals <- diamonds |>
+  group_by(cut) |>
+  summarise(total_price = sum(price))
+
 ex_1_2 <- # your code here
 ex_1_2
 ```
@@ -96,25 +89,28 @@ ex_1_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_2 <- ggplot(revenue_tbl, aes(x = product, y = revenue_k)) +
+diamond_totals <- diamonds |>
+  group_by(cut) |>
+  summarise(total_price = sum(price))
+
+ex_1_2 <- ggplot(diamond_totals, aes(x = cut, y = total_price)) +
   geom_col()
 ex_1_2
-#> One bar per product, height drawn from revenue_k.
+#> Bar chart with 5 bars: Ideal tallest (~74.5M), Fair shortest (~7.4M).
 ```
 
-**Explanation:** `geom_col()` is shorthand for `geom_bar(stat = "identity")`: it draws each row as a bar of height `y`. Use it whenever the heights are already computed (means, totals, percentages). A common mistake is calling `geom_bar()` here and getting bars of height 1 because every product appears exactly once in the summary tibble.
+**Explanation:** `geom_col()` is identical to `geom_bar(stat = "identity")`, but more explicit and idiomatic. When the y-aesthetic is already a numeric value (a sum, average, share), use `geom_col()`. The common beginner trap is mapping `y` and still using `geom_bar()`; ggplot will warn and try to sum within each category, which is rarely what you wanted.
 
 </details>
 
-### Exercise 1.3: Reorder cut bars from most to least frequent with fct_infreq
+### Exercise 1.3: Show proportions instead of raw counts
 
-**Task:** Returning to the `diamonds` count chart, your stakeholder wants the bars sorted by frequency so the busiest cut sits on the left and the rarest on the right rather than the default quality order. Wrap `cut` in `fct_infreq()` inside `aes()` and save the reordered chart to `ex_1_3`.
+**Task:** Re-plot the `diamonds$cut` bar chart so each bar's height is the proportion of rows in that cut rather than the raw count, with all bars summing to one. Use `aes(y = after_stat(prop), group = 1)` inside `geom_bar()` and save to `ex_1_3`.
 
 **Expected result:**
 
 ```
-#> 5 bars in descending order of count from left to right:
-#> Ideal (21551), Premium (13791), Very Good (12082), Good (4906), Fair (1610).
+#> A bar chart of cut proportions: Fair 0.030, Good 0.091, Very Good 0.224, Premium 0.256, Ideal 0.400.
 ```
 
 **Difficulty:** Intermediate
@@ -128,104 +124,27 @@ ex_1_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_3 <- ggplot(diamonds, aes(x = fct_infreq(cut))) +
+ex_1_3 <- ggplot(diamonds, aes(x = cut, y = after_stat(prop), group = 1)) +
   geom_bar()
 ex_1_3
-#> Bars from tallest to shortest: Ideal, Premium, Very Good, Good, Fair.
+#> Bar heights now read as fractions of total rows; Ideal ~0.40 tallest.
 ```
 
-**Explanation:** `fct_infreq()` releveles a factor by descending count, so the resulting x-axis is ranked rather than ordinal. This is one of the highest-leverage moves for categorical bar charts: ranked bars let a reader extract the ordering in one glance. To flip the direction (rarest first), chain `fct_rev()` after `fct_infreq()`.
+**Explanation:** `after_stat(prop)` accesses the computed proportion column that `stat_count()` generates internally. The `group = 1` aesthetic tells ggplot to treat all bars as one group so proportions sum across all categories (not within each). Without `group = 1`, each bar would be its own group and every bar would have height 1.
 
 </details>
 
-### Exercise 1.4: Flip long categorical labels onto a horizontal axis
+## Section 2. Color, fill, and themes (3 problems)
 
-**Task:** Working with the built-in `mpg` dataset, a code reviewer needs the `manufacturer` names readable without rotation, so the bars should run horizontally instead of vertically. Build a count bar chart of manufacturers with `geom_bar()` and produce horizontal bars by mapping `manufacturer` to the y aesthetic, then save it to `ex_1_4`.
+### Exercise 2.1: Fill bars by category using a viridis palette
+
+**Task:** Build a count bar chart of `mpg` cars by `class`, fill each bar by its own class using the discrete viridis palette, apply `theme_minimal()`, and hide the legend because the x-axis already labels every bar. Save to `ex_2_1`.
 
 **Expected result:**
 
 ```
-#> Horizontal bar chart with one bar per manufacturer on the y-axis.
-#> 15 manufacturers listed top to bottom in alphabetical order.
-#> dodge has the longest bar (~37 cars); lincoln the shortest (~3).
-```
-
-**Difficulty:** Beginner
-
-```r title="Your turn"
-ex_1_4 <- # your code here
-ex_1_4
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_1_4 <- ggplot(mpg, aes(y = manufacturer)) +
-  geom_bar()
-ex_1_4
-#> Horizontal count bars by manufacturer.
-```
-
-**Explanation:** Modern ggplot2 (3.3+) supports flipping by simply moving the discrete variable from `x` to `y` rather than appending `coord_flip()`. The advantage: axis labels, scales, and limits all keep their natural meaning, while `coord_flip()` confuses downstream code that references `xlim`/`ylim`. Reserve `coord_flip()` for retrofitting old code.
-
-</details>
-
-### Exercise 1.5: Force a custom day-of-week order with factor levels
-
-**Task:** You have a small weekday traffic table built below. R sorts character strings alphabetically by default, which puts Friday before Monday on the axis. Convert `day` to a factor with the correct Mon to Sun order, then draw a `geom_col()` chart of visits, and save the chart to `ex_1_5`.
-
-```r title="Run before the exercise"
-traffic_tbl <- tibble::tibble(
-  day    = c("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
-  visits = c(820, 905, 870, 950, 1120, 1480, 1310)
-)
-```
-
-**Expected result:**
-
-```
-#> 7 bars in calendar order along the x-axis: Mon, Tue, Wed, Thu, Fri, Sat, Sun.
-#> Heights: 820, 905, 870, 950, 1120, 1480, 1310.
-#> Sat is the tallest; Mon is the shortest.
-```
-
-**Difficulty:** Intermediate
-
-```r title="Your turn"
-ex_1_5 <- # your code here
-ex_1_5
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_1_5 <- traffic_tbl |>
-  mutate(day = factor(day, levels = c("Mon","Tue","Wed","Thu","Fri","Sat","Sun"))) |>
-  ggplot(aes(x = day, y = visits)) +
-  geom_col()
-ex_1_5
-#> Bars in Mon-to-Sun order.
-```
-
-**Explanation:** ggplot inherits axis order from the variable's factor levels, so the fix happens at the data step, not the plot step. `factor(..., levels = ...)` is the canonical move; `forcats::fct_relevel(day, "Mon","Tue",...)` does the same thing more readably for partial reorderings. Without this step the x-axis becomes Fri, Mon, Sat, Sun, Thu, Tue, Wed.
-
-</details>
-
-## Section 2. Stacked, dodged, and filled bars (5 problems)
-
-### Exercise 2.1: Stack diamond clarity within each cut for a single-bar inventory view
-
-**Task:** A jeweller wants a single bar per `cut` with internal segments showing how that cut breaks down by `clarity` grade. Build a stacked bar chart of `diamonds` with `cut` on x and `clarity` mapped to `fill`, leaving the default `position = "stack"` so segments stack vertically, and save to `ex_2_1`.
-
-**Expected result:**
-
-```
-#> 5 vertical stacked bars (one per cut).
-#> Each bar split into 8 colored segments corresponding to clarity grades I1..IF.
-#> Ideal bar tallest overall (~21551); Fair shortest (~1610).
-#> Legend on the right labelled "clarity".
+#> Vertical bar chart, 7 bars colored on the viridis discrete palette (purple to yellow).
+#> Theme is minimal (white background, gray gridlines). No legend visible.
 ```
 
 **Difficulty:** Intermediate
@@ -239,26 +158,28 @@ ex_2_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_1 <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
-  geom_bar()
+ex_2_1 <- ggplot(mpg, aes(x = class, fill = class)) +
+  geom_bar() +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(legend.position = "none")
 ex_2_1
-#> Stacked bars by clarity within each cut.
+#> 7 viridis-colored bars, minimal theme, legend hidden.
 ```
 
-**Explanation:** Stacking is the default position for `geom_bar()` whenever a `fill` aesthetic is set, so you do not need to specify `position = "stack"` explicitly. Stacked bars communicate totals well but make within-group comparisons hard because the segments do not share a baseline. If readers must compare segment sizes across cuts, switch to dodged or filled bars.
+**Explanation:** Mapping `fill = class` inside `aes()` makes the color carry information; setting `fill` outside `aes()` would apply a single static color. `scale_fill_viridis_d()` is the discrete variant of viridis (suitable for categorical fills). Hiding a redundant legend with `theme(legend.position = "none")` is a small touch that produces cleaner reports.
 
 </details>
 
-### Exercise 2.2: Compare cut counts side by side across diamond colors using dodge
+### Exercise 2.2: Style a brand-colored chart with a single fill
 
-**Task:** A buyer wants to compare the count of each `cut` across the seven `color` grades, with side-by-side bars rather than stacked segments so each cut has its own baseline within every color group. Map `color` to x, `cut` to fill, and use `position = "dodge"` in `geom_bar()`, then save to `ex_2_2`.
+**Task:** The marketing team wants the `diamonds$cut` count chart rendered in their corporate teal (`#1f7a8c`) with a clean white background. Use `fill = "#1f7a8c"` as a static value inside `geom_bar()` and apply `theme_classic()`. Save the result to `ex_2_2`.
 
 **Expected result:**
 
 ```
-#> 7 groups along x (color grades D to J), each containing 5 colored bars (one per cut).
-#> Bars within a group sit shoulder to shoulder, not stacked.
-#> Tallest cluster overall sits at color G; Fair bars are uniformly shortest.
+#> A vertical bar chart of cut counts, every bar filled solid teal (#1f7a8c).
+#> theme_classic axes (black lines), no panel grid.
 ```
 
 **Difficulty:** Intermediate
@@ -272,26 +193,26 @@ ex_2_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_2 <- ggplot(diamonds, aes(x = color, fill = cut)) +
-  geom_bar(position = "dodge")
+ex_2_2 <- ggplot(diamonds, aes(x = cut)) +
+  geom_bar(fill = "#1f7a8c") +
+  theme_classic()
 ex_2_2
-#> Dodged bars, 5 cuts per color group.
+#> 5 teal bars, classic theme with black axis lines.
 ```
 
-**Explanation:** `position = "dodge"` offsets bars within the same x value so they share the baseline. This is the right choice when within-group comparison matters more than the total. A subtle pitfall: dodge keeps bars from missing fill levels invisible, which can make groups look unequally wide. Use `position_dodge2(preserve = "single")` to force consistent bar widths.
+**Explanation:** The key distinction: `fill` *inside* `aes()` maps a variable to color (and creates a legend); `fill` *outside* `aes()` paints every bar the same static color. Hex codes work everywhere R color names do. `theme_classic()` removes the gray panel background and grid, which usually reads better in slide decks and printed reports than the default `theme_gray()`.
 
 </details>
 
-### Exercise 2.3: Convert stacked bars into 100 percent filled bars to compare composition
+### Exercise 2.3: Highlight one category by manual fill mapping
 
-**Task:** A marketing analyst wants to see the proportion of each `cut` within every `color`, not the absolute counts, so all bars should reach the top of the panel and segments should show shares. Modify the dodged setup from the previous exercise: map `color` to x and `cut` to fill, but use `position = "fill"` to stack to 100 percent, and save to `ex_2_3`.
+**Task:** A product manager wants to highlight only the "Premium" cut in the diamonds bar chart while greying out the rest. Build the count chart with `scale_fill_manual()` mapping "Premium" to "#e85d04" and every other cut to "grey70". Save to `ex_2_3`.
 
 **Expected result:**
 
 ```
-#> 7 vertical bars (color D to J), each reaching height 1.0.
-#> Each bar split into 5 cut segments whose lengths sum to 1.
-#> y-axis displayed 0.00 to 1.00; legend on the right titled "cut".
+#> A vertical bar chart of cut counts.
+#> The "Premium" bar is orange (#e85d04); Fair, Good, Very Good, Ideal are grey70.
 ```
 
 **Difficulty:** Intermediate
@@ -305,107 +226,36 @@ ex_2_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_3 <- ggplot(diamonds, aes(x = color, fill = cut)) +
-  geom_bar(position = "fill") +
-  scale_y_continuous(labels = percent_format())
-ex_2_3
-#> 100% stacked bars; y-axis formatted as percentages.
-```
-
-**Explanation:** `position = "fill"` rescales each bar to length 1, exposing the within-bar share of every category. This makes composition comparable across groups of very different size. Pair it with `scale_y_continuous(labels = percent_format())` from the scales package so the axis reads as percentages, not 0.00..1.00. A 100 percent stacked bar is also called a Marimekko-style chart in finance.
-
-</details>
-
-### Exercise 2.4: Reverse the stack order so the legend matches the bar from top to bottom
-
-**Task:** The default ggplot2 stack ends up with the legend in the opposite order from the visual stack, which audit reviewers find confusing. Take the stacked diamonds chart, wrap `clarity` in `fct_rev()` inside the fill aesthetic so legend order tracks visual order, and save to `ex_2_4`.
-
-**Expected result:**
-
-```
-#> Same 5 stacked bars as Exercise 2.1, one per cut.
-#> Legend entries now appear in reverse order compared to the default (IF at top, I1 at bottom).
-#> The order of colored segments inside each bar visually matches the legend top to bottom.
-```
-
-**Difficulty:** Advanced
-
-```r title="Your turn"
-ex_2_4 <- # your code here
-ex_2_4
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_2_4 <- ggplot(diamonds, aes(x = cut, fill = fct_rev(clarity))) +
+ex_2_3 <- ggplot(diamonds, aes(x = cut, fill = cut)) +
   geom_bar() +
-  labs(fill = "clarity")
-ex_2_4
-#> Legend and stack order now match visually.
+  scale_fill_manual(values = c(
+    "Fair"      = "grey70",
+    "Good"      = "grey70",
+    "Very Good" = "grey70",
+    "Premium"   = "#e85d04",
+    "Ideal"     = "grey70"
+  )) +
+  theme_minimal() +
+  theme(legend.position = "none")
+ex_2_3
+#> Premium bar orange; others gray.
 ```
 
-**Explanation:** `geom_bar()` draws the first factor level at the bottom of each stack but lists the first level at the top of the legend. Reversing the factor with `fct_rev()` aligns the two so the topmost segment in the bar is the topmost legend entry. The explicit `labs(fill = "clarity")` restores a clean legend title because `fct_rev(clarity)` would otherwise show up verbatim.
+**Explanation:** `scale_fill_manual()` accepts a named vector mapping every level of the fill variable to a color. This is the standard "single-callout" idiom when you need to draw attention to one category in a comparison. An alternative is `case_when()` outside the plot to create a `highlight` flag column, then map fill to that, which scales better when you have many factor levels.
 
 </details>
 
-### Exercise 2.5: Plot diverging bars for satisfaction scores around a zero baseline
+## Section 3. Stacked, dodged, and filled bars (3 problems)
 
-**Task:** A product manager has the post-launch survey table built below where each feature has a net score that can be positive or negative. Draw a diverging horizontal bar chart with the `geom_col()` geometry, mapping positive bars one color and negative bars another via `fill = score > 0`, and save to `ex_2_5`.
+### Exercise 3.1: Stack drivetrain inside each body class
 
-```r title="Run before the exercise"
-nps_tbl <- tibble::tibble(
-  feature = c("Search", "Checkout", "Login", "Filters", "Notifications", "Pricing"),
-  score   = c(28, -14, 41, -7, 12, -33)
-)
-```
+**Task:** A used-car analyst wants to see how drivetrain (`drv`) splits across each vehicle `class` in `mpg`. Build a stacked bar chart with `class` on the x-axis, bars filled by `drv`, and the default `position = "stack"`. Save the plot to `ex_3_1`.
 
 **Expected result:**
 
 ```
-#> Horizontal bar chart with 6 bars (one per feature) extending left or right of x = 0.
-#> Positive bars (Search, Login, Notifications) extend right in one color.
-#> Negative bars (Checkout, Filters, Pricing) extend left in another color.
-```
-
-**Difficulty:** Advanced
-
-```r title="Your turn"
-ex_2_5 <- # your code here
-ex_2_5
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_2_5 <- nps_tbl |>
-  mutate(feature = fct_reorder(feature, score)) |>
-  ggplot(aes(x = score, y = feature, fill = score > 0)) +
-  geom_col() +
-  scale_fill_manual(values = c("TRUE" = "#2c7bb6", "FALSE" = "#d7191c"),
-                    guide  = "none") +
-  geom_vline(xintercept = 0, color = "grey30")
-ex_2_5
-#> Diverging horizontal bars around x = 0, colored by sign.
-```
-
-**Explanation:** Diverging bars exploit the fact that `geom_col()` accepts negative `x` values and draws the bar to the left of zero. Mapping a boolean (`score > 0`) to `fill` partitions the bars by sign; `scale_fill_manual()` assigns a deliberate pair of colors and `guide = "none"` suppresses the redundant legend. `fct_reorder()` sorts features by score so the chart reads as a ranked deviation plot.
-
-</details>
-
-## Section 3. Labels, colors, and theming (5 problems)
-
-### Exercise 3.1: Annotate bar tops with their count values using geom_text
-
-**Task:** A reporting analyst preparing a slide deck needs the count above each bar so executives do not have to read the y axis. Take the `diamonds` cut count bar chart and add `geom_text()` with `stat = "count"` to place the count label above each bar, then save to `ex_3_1`.
-
-**Expected result:**
-
-```
-#> 5 vertical bars by cut.
-#> Each bar carries a numeric label just above its top edge: 1610, 4906, 12082, 13791, 21551.
+#> Vertical stacked bar chart, x = class, y = count.
+#> Each bar segmented by drv (4, f, r) with a 3-color legend.
 ```
 
 **Difficulty:** Intermediate
@@ -419,30 +269,28 @@ ex_3_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_1 <- ggplot(diamonds, aes(x = cut)) +
-  geom_bar() +
-  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.3)
+ex_3_1 <- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar()
 ex_3_1
-#> Count value printed above every bar.
+#> 7 stacked bars; suv tallest, dominated by 4 (4WD) and r (RWD).
 ```
 
-**Explanation:** `geom_text()` defaults to `stat = "identity"`, so for a count chart you must reuse `stat_count` and pull the computed value with `after_stat(count)`. `vjust = -0.3` nudges labels above the bar tops; positive `vjust` would push them inside. For `geom_col()` charts where heights are explicit, you instead pass `aes(label = y)` directly without `after_stat()`.
+**Explanation:** Mapping `fill` to a second categorical variable triggers stacking by default. Stacking is good for comparing totals between groups but bad for comparing subgroups across groups, because the segments don't start from a common baseline. If your reader's question is "which class has the most 4WD cars?" use dodging (next exercise) instead.
 
 </details>
 
-### Exercise 3.2: Apply a ColorBrewer Set2 palette to colored bars
+### Exercise 3.2: Switch to dodged bars for side-by-side comparison
 
-**Task:** Switching to the `mpg` dataset, a junior analyst wants the count bars of vehicle `class` colored by `drv` (drivetrain) and dressed in a ColorBrewer Set2 palette to make the chart presentation ready. Build a stacked count bar chart with `class` on x and `drv` on fill, then add `scale_fill_brewer(palette = "Set2")`, and save to `ex_3_2`.
+**Task:** Rebuild the same `class` by `drv` chart with side-by-side bars instead of stacked, so each drivetrain gets its own bar inside each class. Use `position = "dodge"` inside `geom_bar()`. Save the plot object to `ex_3_2`.
 
 **Expected result:**
 
 ```
-#> 7 stacked bars (one per class: 2seater, compact, midsize, minivan, pickup, subcompact, suv).
-#> Segments in soft pastel colors from ColorBrewer Set2 (green, orange, blue) for drv values 4, f, r.
-#> Default theme; legend on the right.
+#> Vertical dodged bar chart, x = class, y = count.
+#> Each class has up to 3 small bars side-by-side, one per drv value.
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -454,36 +302,27 @@ ex_3_2
 
 ```r title="Solution"
 ex_3_2 <- ggplot(mpg, aes(x = class, fill = drv)) +
-  geom_bar() +
-  scale_fill_brewer(palette = "Set2")
+  geom_bar(position = "dodge")
 ex_3_2
-#> Stacked class bars colored by drv using ColorBrewer Set2.
+#> Three side-by-side bars per class (where present), colored by drv.
 ```
 
-**Explanation:** `scale_fill_brewer()` lives in ggplot2 itself (no separate package import needed at the user level) and exposes the qualitative, sequential, and diverging palettes from ColorBrewer. Set2 is a good default for low-saturation categorical fills because the colors are colorblind-safe and they print well in grayscale. Use `display.brewer.all()` from RColorBrewer to preview palettes.
+**Explanation:** `position = "dodge"` puts each subgroup in its own bar at the same baseline, so the eye can compare drivetrain counts across classes directly. A subtle issue: when a class has no observations for some `drv` level, dodged bars within that class are uneven widths. Use `position = position_dodge2(preserve = "single")` if you need equal-width bars even when groups are missing.
 
 </details>
 
-### Exercise 3.3: Hardcode brand-aligned colors per category with scale_fill_manual
+### Exercise 3.3: 100% stacked bar showing shares within each class
 
-**Task:** A growth team has a brand book that forces the colors blue (#1f77b4) for "Web", orange (#ff7f0e) for "Mobile", and green (#2ca02c) for "Email" on every chart. Using the inline tibble below, draw a `geom_col()` chart of conversions per channel and force the exact palette via `scale_fill_manual()`, then save to `ex_3_3`.
-
-```r title="Run before the exercise"
-channels_tbl <- tibble::tibble(
-  channel     = c("Web", "Mobile", "Email"),
-  conversions = c(412, 580, 263)
-)
-```
+**Task:** Convert the `class` by `drv` chart into a 100% stacked bar where each bar fills the full height and segments represent the proportion of each `drv` within that `class`. Use `position = "fill"` and format the y-axis with `scales::label_percent()`. Save to `ex_3_3`.
 
 **Expected result:**
 
 ```
-#> 3 vertical bars in this exact color order: Web=blue, Mobile=orange, Email=green.
-#> Bar heights: Web 412, Mobile 580, Email 263.
-#> Legend on the right with the same three named colors.
+#> A stacked bar chart where every bar reaches y = 1.0 (100%).
+#> Y-axis labels read 0%, 25%, 50%, 75%, 100%. Segments colored by drv.
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -494,108 +333,29 @@ ex_3_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_3 <- ggplot(channels_tbl, aes(x = channel, y = conversions, fill = channel)) +
-  geom_col() +
-  scale_fill_manual(values = c("Web"    = "#1f77b4",
-                               "Mobile" = "#ff7f0e",
-                               "Email"  = "#2ca02c"))
+ex_3_3 <- ggplot(mpg, aes(x = class, fill = drv)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = label_percent()) +
+  labs(y = "Share of class")
 ex_3_3
-#> Brand-locked colors per channel.
+#> Every bar fills the full height; y-axis shows percentages.
 ```
 
-**Explanation:** A named vector passed to `scale_fill_manual(values = ...)` binds factor levels to colors by name rather than by position, so the chart stays correct even if the order of `channel` changes later. This is the standard approach for brand books or accessibility-mandated palettes. If you supply an unnamed vector, ggplot maps colors to factor levels in level order, which is fragile.
+**Explanation:** `position = "fill"` rescales each bar to height 1 so segments become within-group proportions, which is the right view when totals differ a lot and you only care about composition. `scales::label_percent()` is preferred over manually multiplying by 100 and pasting "%" because it handles axis breaks and decimal precision automatically. The trade-off: you lose information about absolute totals, so pair with a count chart when the audience needs both.
 
 </details>
 
-### Exercise 3.4: Rotate x axis labels 45 degrees for long category names
+## Section 4. Ordering and factor reordering (3 problems)
 
-**Task:** When you draw a `manufacturer` count bar chart from `mpg` the default horizontal labels overlap badly because some brand names are long. Build the count chart with `geom_bar()`, then rotate the x axis text 45 degrees using `theme(axis.text.x = element_text(angle = 45, hjust = 1))`, and save it to `ex_3_4`.
+### Exercise 4.1: Order bars from most to least frequent with fct_infreq
+
+**Task:** The default alphabetical order of `mpg$class` bars makes it hard to spot the most common body style. Re-plot the count chart with bars sorted from most to least frequent using `forcats::fct_infreq()` on `class` inside `aes()`. Save to `ex_4_1`.
 
 **Expected result:**
 
 ```
-#> 15 vertical bars (one per manufacturer) along the x-axis.
-#> Manufacturer labels rotated 45 degrees, right-anchored under the bars so the labels do not overlap.
-```
-
-**Difficulty:** Beginner
-
-```r title="Your turn"
-ex_3_4 <- # your code here
-ex_3_4
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_3_4 <- ggplot(mpg, aes(x = manufacturer)) +
-  geom_bar() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ex_3_4
-#> Rotated x-axis labels at 45 degrees.
-```
-
-**Explanation:** Pair `angle = 45` with `hjust = 1` so the labels right-justify under the tick mark instead of dangling to the right. For full-vertical labels use `angle = 90, hjust = 1, vjust = 0.5`. If the categories are long and numerous, flipping the axis (mapping the variable to `y`) is usually a cleaner answer than rotation.
-
-</details>
-
-### Exercise 3.5: Strip gridlines and dress the chart in theme_minimal for print
-
-**Task:** A reporting analyst is exporting bar charts for a black and white printed report and wants a clean look with no panel background and only horizontal gridlines. Start from the `diamonds` cut count chart, then apply `theme_minimal()` and turn off panel borders plus major x gridlines via additional `theme()` arguments, and save to `ex_3_5`.
-
-**Expected result:**
-
-```
-#> 5 cut bars on a white panel background.
-#> No outer border around the panel.
-#> Horizontal gridlines visible; vertical gridlines suppressed.
-```
-
-**Difficulty:** Intermediate
-
-```r title="Your turn"
-ex_3_5 <- # your code here
-ex_3_5
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_3_5 <- ggplot(diamonds, aes(x = cut)) +
-  geom_bar() +
-  theme_minimal() +
-  theme(panel.grid.major.x = element_blank(),
-        panel.grid.minor.x = element_blank(),
-        panel.border       = element_blank())
-ex_3_5
-#> Minimal theme, only horizontal gridlines retained.
-```
-
-**Explanation:** Themes layer cumulatively: `theme_minimal()` strips the gray background and panel border, and the subsequent `theme()` call blanks out the vertical major and minor gridlines that the minimal theme still draws. The element_blank trick is also how you remove axis titles, legends, or strip backgrounds piecewise. For an even cleaner print look, consider `theme_classic()` which adds axis lines automatically.
-
-</details>
-
-## Section 4. Aggregations and computed bars (5 problems)
-
-### Exercise 4.1: Plot mean miles per gallon for each cylinder count
-
-**Task:** A data engineer profiling the `mtcars` dataset wants a bar chart of mean `mpg` per `cyl` group instead of a count of cars. First compute the means with `dplyr` grouping, then draw a `geom_col()` chart with `cyl` on x as a factor and mean MPG on y, and save to `ex_4_1`.
-
-**Expected result:**
-
-```
-#> Tibble of means used to draw the chart:
-#> # A tibble: 3 x 2
-#>     cyl mpg_mean
-#>   <dbl>    <dbl>
-#> 1     4     26.7
-#> 2     6     19.7
-#> 3     8     15.1
-#>
-#> 3 vertical bars labelled 4, 6, 8 on the x-axis.
-#> Bar heights: 26.7, 19.7, 15.1. y-axis labelled mpg_mean.
+#> A bar chart with x labels left to right: suv, compact, midsize, subcompact, pickup, minivan, 2seater.
+#> Heights descending: 62, 47, 41, 35, 33, 11, 5.
 ```
 
 **Difficulty:** Intermediate
@@ -609,41 +369,35 @@ ex_4_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_1 <- mtcars |>
-  group_by(cyl) |>
-  summarise(mpg_mean = mean(mpg)) |>
-  ggplot(aes(x = factor(cyl), y = mpg_mean)) +
-  geom_col()
+ex_4_1 <- ggplot(mpg, aes(x = fct_infreq(class))) +
+  geom_bar() +
+  labs(x = "class")
 ex_4_1
-#> Bars of mean mpg by cylinder.
+#> Bars now run highest to lowest left to right.
 ```
 
-**Explanation:** Bar charts of group means almost always go through `geom_col()`, not `geom_bar()`, because the heights are now explicit numbers from your summary. Casting `cyl` with `factor()` keeps the axis discrete (three labelled bars) rather than treating 4, 6, 8 as continuous values, which would space the bars unevenly along a numeric axis.
+**Explanation:** `fct_infreq()` reorders a factor's levels by descending frequency, which is the right ordering for almost every "count by category" chart. Without it, ggplot uses the factor's existing level order (often alphabetical) which gives readers no cue about which bar is biggest. The `labs(x = "class")` resets the x-axis title because `fct_infreq(class)` would otherwise become the displayed label.
 
 </details>
 
-### Exercise 4.2: Show the top 5 manufacturers by car count with slice_max
+### Exercise 4.2: Order bars by a numeric statistic using reorder
 
-**Task:** A retail analyst writing a quarterly review wants only the five busiest `manufacturer` entries from `mpg` plotted as a ranked horizontal bar chart. Count rows per manufacturer, keep the top five with `slice_max()`, reorder the factor, and draw horizontal `geom_col()` bars before saving to `ex_4_2`.
+**Task:** An analyst comparing average highway mileage by `class` in `mpg` wants the bars sorted from highest to lowest mean `hwy`. First summarise to a per-class mean, then plot with `reorder(class, -mean_hwy)` inside `aes()` and `geom_col()`. Save the plot to `ex_4_2`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 5 x 2
-#>   manufacturer     n
-#>   <chr>        <int>
-#> 1 dodge           37
-#> 2 toyota          34
-#> 3 volkswagen      27
-#> 4 ford            25
-#> 5 chevrolet       19
-#>
-#> Horizontal bar chart with 5 bars in descending count order top to bottom.
+#> A bar chart, x labels left to right: compact, subcompact, midsize, 2seater, minivan, suv, pickup.
+#> Bar heights approximately 28.3, 28.1, 27.3, 24.8, 22.4, 18.1, 16.9.
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+mpg_hwy <- mpg |>
+  group_by(class) |>
+  summarise(mean_hwy = mean(hwy))
+
 ex_4_2 <- # your code here
 ex_4_2
 ```
@@ -652,42 +406,39 @@ ex_4_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_2 <- mpg |>
-  count(manufacturer) |>
-  slice_max(n, n = 5) |>
-  mutate(manufacturer = fct_reorder(manufacturer, n)) |>
-  ggplot(aes(x = n, y = manufacturer)) +
-  geom_col()
+mpg_hwy <- mpg |>
+  group_by(class) |>
+  summarise(mean_hwy = mean(hwy))
+
+ex_4_2 <- ggplot(mpg_hwy, aes(x = reorder(class, -mean_hwy), y = mean_hwy)) +
+  geom_col() +
+  labs(x = "class", y = "Mean highway mpg")
 ex_4_2
-#> Ranked horizontal bars for the top 5 manufacturers.
+#> 7 bars, descending heights left to right.
 ```
 
-**Explanation:** `count()` is the idiomatic shortcut for `group_by() |> summarise(n = n())`. `slice_max(n, n = 5)` keeps the top five rows ranked by `n`. The crucial step is `fct_reorder(manufacturer, n)`, which reorders the factor by `n` so the horizontal bars come out sorted from longest at the top to shortest at the bottom rather than alphabetical.
+**Explanation:** `reorder(x, by)` sorts the factor `x` by ascending values of `by`; prefix `by` with a minus sign for descending order. `forcats::fct_reorder()` is the tidyverse equivalent and supports custom summary functions via the `.fun` argument (e.g., `.fun = median`). Both work in `aes()`. Always reset the x-axis label with `labs(x = ...)` because the default label becomes the full `reorder(...)` expression.
 
 </details>
 
-### Exercise 4.3: Overlay error bars on mean temperature bars by month
+### Exercise 4.3: Reorder a horizontal bar chart by mean price
 
-**Task:** A climatologist wants monthly mean temperatures from `airquality` plotted as `geom_col()` bars, with an error bar showing one standard error above and below each mean. Summarise mean and standard error by month, draw the bars, and add `geom_errorbar()` using the precomputed `lo` and `hi` columns, then save to `ex_4_3`.
+**Task:** A reporting analyst wants a horizontal bar chart of mean diamond `price` per `cut`, with the highest-priced cut at the top. Summarise to per-cut means, use `fct_reorder()` on `cut` by mean price, plot with `geom_col()` and `coord_flip()`. Save the plot to `ex_4_3`.
 
 **Expected result:**
 
 ```
-#> # A tibble: 5 x 4
-#>   Month  temp_mean    lo    hi
-#>   <int>      <dbl> <dbl> <dbl>
-#> 1     5       65.5  63.5  67.5
-#> 2     6       79.1  77.4  80.7
-#> 3     7       83.9  82.3  85.5
-#> 4     8       84.0  82.4  85.6
-#> 5     9       76.9  75.4  78.4
-#>
-#> 5 vertical bars (May to September) with vertical T-shaped error bars centered on each bar top.
+#> Horizontal bar chart, y axis lists cuts; Premium at top, Ideal at bottom.
+#> Bar lengths approximate mean prices: Premium 4584, Fair 4359, Very Good 3982, Good 3929, Ideal 3458.
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+cut_price <- diamonds |>
+  group_by(cut) |>
+  summarise(mean_price = mean(price))
+
 ex_4_3 <- # your code here
 ex_4_3
 ```
@@ -696,119 +447,33 @@ ex_4_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-temp_tbl <- airquality |>
-  group_by(Month) |>
-  summarise(
-    temp_mean = mean(Temp),
-    se        = sd(Temp) / sqrt(n()),
-    lo        = temp_mean - se,
-    hi        = temp_mean + se
-  )
+cut_price <- diamonds |>
+  group_by(cut) |>
+  summarise(mean_price = mean(price))
 
-ex_4_3 <- ggplot(temp_tbl, aes(x = factor(Month), y = temp_mean)) +
-  geom_col(fill = "grey70") +
-  geom_errorbar(aes(ymin = lo, ymax = hi), width = 0.2)
+ex_4_3 <- ggplot(cut_price, aes(x = fct_reorder(cut, mean_price), y = mean_price)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = "cut", y = "Mean price (USD)")
 ex_4_3
-#> Mean temperature bars with one-SE error bars by month.
+#> Horizontal bars; Premium at top because it has the highest mean price.
 ```
 
-**Explanation:** Compute the interval bounds in the summary step rather than inside `aes()` so the math is visible in the data. `geom_errorbar()` needs `ymin` and `ymax`; the `width` argument controls the length of the horizontal caps. For asymmetric intervals (such as confidence intervals on log-transformed counts), compute `lo` and `hi` separately. Always cast `Month` to a factor so the x-axis stays discrete.
+**Explanation:** `coord_flip()` swaps the x and y axes after the plot is built, which means you order the x aesthetic for what will visually become the y axis. The "top of the chart" maps to the largest factor level after the flip, so `fct_reorder()` in ascending order (default) puts the largest value at the top once flipped. A modern alternative is mapping `cut` to `y` directly: `aes(x = mean_price, y = fct_reorder(cut, mean_price))`. That skips `coord_flip()` entirely.
 
 </details>
 
-### Exercise 4.4: Plot within-group percentages of car class for each drive type
+## Section 5. Labels, annotations, and coord_flip (3 problems)
 
-**Task:** A marketing analyst studying the `mpg` dataset wants, for each drivetrain `drv`, the share of cars in each `class` so the bars within a drv group sum to 100 percent. Use `count(drv, class)` then `group_by(drv)` and compute `pct = n / sum(n)`, draw dodged `geom_col()` bars with `pct` on y, and save to `ex_4_4`.
+### Exercise 5.1: Add count labels just above each bar
+
+**Task:** For the basic `mpg$class` count chart, add the count value above each bar using `geom_text()` with `stat = "count"`, `aes(label = after_stat(count))`, and `vjust = -0.3` so labels sit just above the bar tops. Save the plot to `ex_5_1`.
 
 **Expected result:**
 
 ```
-#> # A tibble (head shown):
-#>   drv   class          n    pct
-#>   <chr> <chr>      <int>  <dbl>
-#> 1 4     compact       12 0.121
-#> 2 4     midsize        3 0.030
-#> 3 4     pickup        33 0.333
-#> 4 4     subcompact     4 0.040
-#> 5 4     suv           48 0.485
-#>
-#> Dodged bar chart: 3 drv groups (4, f, r) along the x-axis.
-#> Bars within each group sum to 1.0 on the y-axis (percent_format applied).
-```
-
-**Difficulty:** Advanced
-
-```r title="Your turn"
-ex_4_4 <- # your code here
-ex_4_4
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_4_4 <- mpg |>
-  count(drv, class) |>
-  group_by(drv) |>
-  mutate(pct = n / sum(n)) |>
-  ggplot(aes(x = drv, y = pct, fill = class)) +
-  geom_col(position = "dodge") +
-  scale_y_continuous(labels = percent_format())
-ex_4_4
-#> Dodged percentage bars within each drv group.
-```
-
-**Explanation:** Computing percentages in the data step (rather than letting `position = "fill"` do it) gives you full control over the denominator, which is critical when you want within-group rather than within-bar shares. Grouping by `drv` before the mutate sets the denominator correctly. If you grouped by `class` instead the bars would represent column percentages rather than row percentages.
-
-</details>
-
-### Exercise 4.5: Compare counts of two groups overlaid with stat_count
-
-**Task:** A junior analyst onboarding wants to see, on the same axes, how many of each `class` in `mpg` are 4-wheel-drive versus front-wheel-drive. Filter to those two `drv` values, then draw a dodged count bar chart with `stat = "count"` letting ggplot do the tallying, and save to `ex_4_5`.
-
-**Expected result:**
-
-```
-#> 7 dodged bar pairs (one pair per class).
-#> Each pair has a 4WD bar and an FWD bar sitting side by side.
-#> SUV pair: 4WD ~48, FWD ~0; compact pair: 4WD ~12, FWD ~35.
-```
-
-**Difficulty:** Intermediate
-
-```r title="Your turn"
-ex_4_5 <- # your code here
-ex_4_5
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_4_5 <- mpg |>
-  filter(drv %in% c("4", "f")) |>
-  ggplot(aes(x = class, fill = drv)) +
-  geom_bar(position = "dodge")
-ex_4_5
-#> Dodged class bars comparing 4 vs f drive types.
-```
-
-**Explanation:** `geom_bar()` with `position = "dodge"` automatically uses `stat_count`, so no manual counting is needed. Filtering to two `drv` values upstream is cleaner than coloring all three and asking the reader to mentally ignore the third. A common alternative for this pattern is `geom_col()` after `count(class, drv)` if you also want to label the bars with their values.
-
-</details>
-
-## Section 5. Facets, lollipops, and advanced layouts (5 problems)
-
-### Exercise 5.1: Facet diamond cut bars by clarity to break out each segment
-
-**Task:** A senior analyst comparing diamond inventories across clarity grades wants each clarity grade in its own panel, with the five `cut` bars repeated inside every panel. Build a `geom_bar()` count chart on `cut`, then add `facet_wrap(~ clarity, ncol = 4)`, and save the faceted chart to `ex_5_1`.
-
-**Expected result:**
-
-```
-#> Grid of 8 panels arranged 4 columns x 2 rows, one per clarity grade (I1, SI2, SI1, VS2, VS1, VVS2, VVS1, IF).
-#> Each panel contains 5 vertical bars (one per cut) with its own y-axis.
-#> Strip labels at the top of every panel name the clarity grade.
+#> A bar chart of class counts with numeric labels above each bar.
+#> Labels read: 5, 47, 41, 11, 33, 35, 62 above the respective bars.
 ```
 
 **Difficulty:** Intermediate
@@ -822,32 +487,36 @@ ex_5_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_1 <- ggplot(diamonds, aes(x = cut)) +
+ex_5_1 <- ggplot(mpg, aes(x = class)) +
   geom_bar() +
-  facet_wrap(~ clarity, ncol = 4)
+  geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.3)
 ex_5_1
-#> Faceted bar chart, one panel per clarity.
+#> 7 bars with count labels floating above each top.
 ```
 
-**Explanation:** `facet_wrap()` produces small multiples by wrapping panels into rows; `ncol = 4` forces four panels per row. Each panel shares the same x scale by default but can be freed with `scales = "free_y"` if the counts differ by orders of magnitude between panels. Use `facet_grid()` when you want a strict rows-and-columns split by two categorical variables.
+**Explanation:** `stat = "count"` tells `geom_text()` to use the same underlying counting transformation as `geom_bar()`, then `after_stat(count)` reaches the computed `count` column. `vjust = -0.3` nudges the label upward by 30% of label height. Negative `vjust` raises the label above the bar; positive `vjust` (between 0 and 1) drops it inside the bar. For `geom_col()`, where y is already mapped, you don't need `stat = "count"`: use `aes(label = y_value)` directly.
 
 </details>
 
-### Exercise 5.2: Convert bars into lollipops using geom_segment and geom_point
+### Exercise 5.2: Format y-axis as dollars on a sales bar chart
 
-**Task:** A reporting analyst wants the diamond cut counts drawn as lollipops (a thin stem from zero to the count, ending in a dot) instead of solid bars because lollipops carry less ink and read cleaner. Aggregate counts per cut with `count()`, then add `geom_segment()` and `geom_point()`, and save to `ex_5_2`.
+**Task:** A finance analyst is presenting total `diamonds` revenue by `cut`. Build a `geom_col()` chart of summed `price` per `cut`, format the y-axis with `scales::label_dollar()` so values read in millions ($XM), and add a clear chart title. Save the plot to `ex_5_2`.
 
 **Expected result:**
 
 ```
-#> 5 thin vertical stems on the x-axis (Fair, Good, Very Good, Premium, Ideal).
-#> Each stem ends in a filled circle marking the count (1610, 4906, 12082, 13791, 21551).
-#> No filled bar bodies.
+#> Bar chart of total price by cut.
+#> Y-axis tick labels read like $20M, $40M, $60M (label_dollar with scale = 1e-6, suffix = "M").
+#> Plot title: "Total diamond revenue by cut".
 ```
 
-**Difficulty:** Advanced
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+cut_revenue <- diamonds |>
+  group_by(cut) |>
+  summarise(total = sum(price))
+
 ex_5_2 <- # your code here
 ex_5_2
 ```
@@ -856,44 +525,44 @@ ex_5_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_2 <- diamonds |>
-  count(cut) |>
-  ggplot(aes(x = cut, y = n)) +
-  geom_segment(aes(xend = cut, y = 0, yend = n)) +
-  geom_point(size = 3)
+cut_revenue <- diamonds |>
+  group_by(cut) |>
+  summarise(total = sum(price))
+
+ex_5_2 <- ggplot(cut_revenue, aes(x = cut, y = total)) +
+  geom_col(fill = "#1f7a8c") +
+  scale_y_continuous(labels = label_dollar(scale = 1e-6, suffix = "M")) +
+  labs(
+    title = "Total diamond revenue by cut",
+    x = "Cut",
+    y = "Total revenue"
+  )
 ex_5_2
-#> Lollipop chart: thin stems from y=0 to count, dot on top.
+#> 5 teal bars; y-axis shows dollar values in millions.
 ```
 
-**Explanation:** A lollipop is constructed manually because ggplot2 has no `geom_lollipop()`. The segment runs from (cut, 0) to (cut, n) and the point sits at (cut, n). Lollipops are a stronger choice than bars when you have many categories or when the bar fills dominate the visual budget. The same idiom flipped (segments along y, points at the tip) produces a dot plot.
+**Explanation:** `label_dollar()` returns a labelling function (not a finished string) which `scale_y_continuous(labels = ...)` calls on each break. The `scale = 1e-6` multiplier rescales the displayed value (dividing by 1,000,000) and `suffix = "M"` appends the unit. The actual data values are unchanged. This is cleaner than mutating the data because the bar heights remain accurate for downstream filtering or faceting.
 
 </details>
 
-### Exercise 5.3: Build a population pyramid with mirrored bars for two sexes
+### Exercise 5.3: Percentage labels inside a horizontal bar chart
 
-**Task:** A demographer wants a population pyramid: age groups on the y axis, male counts extending left of zero as negative bars, female counts extending right as positive bars. Using the inline tibble below, negate the male count, then draw two `geom_col()` layers and save to `ex_5_3`.
-
-```r title="Run before the exercise"
-pyramid_tbl <- tibble::tibble(
-  age_group = factor(c("0-9","10-19","20-29","30-39","40-49","50-59","60-69","70+"),
-                     levels = c("0-9","10-19","20-29","30-39","40-49","50-59","60-69","70+")),
-  male      = c(82, 95, 110, 120, 105, 88, 60, 42),
-  female    = c(80, 92, 108, 124, 110, 95, 75, 58)
-)
-```
+**Task:** Build a horizontal bar chart of diamonds `cut` showing each cut's percentage share of the dataset. Compute the proportion, plot with `geom_col()` and `coord_flip()`, and add percentage labels inside each bar using `geom_text()` with `scales::label_percent()`. Save the plot to `ex_5_3`.
 
 **Expected result:**
 
 ```
-#> Horizontal population pyramid.
-#> y-axis: 8 age groups stacked youngest at bottom, oldest at top.
-#> Male bars extend left (negative x); female bars extend right.
-#> x-axis tick labels formatted as positive numbers on both sides.
+#> Horizontal bar chart of cut shares.
+#> Each bar carries a percentage label inside, white text. Labels: 3.0%, 9.1%, 22.4%, 25.6%, 40.0%.
 ```
 
 **Difficulty:** Advanced
 
 ```r title="Your turn"
+cut_share <- diamonds |>
+  count(cut) |>
+  mutate(share = n / sum(n))
+
 ex_5_3 <- # your code here
 ex_5_3
 ```
@@ -902,99 +571,183 @@ ex_5_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_3 <- pyramid_tbl |>
-  pivot_longer(c(male, female), names_to = "sex", values_to = "count") |>
-  mutate(count = if_else(sex == "male", -count, count)) |>
-  ggplot(aes(x = count, y = age_group, fill = sex)) +
-  geom_col() +
-  scale_x_continuous(labels = function(x) abs(x)) +
-  scale_fill_manual(values = c(male = "#3b8ec2", female = "#e07b54"))
+cut_share <- diamonds |>
+  count(cut) |>
+  mutate(share = n / sum(n))
+
+ex_5_3 <- ggplot(cut_share, aes(x = cut, y = share)) +
+  geom_col(fill = "#1f7a8c") +
+  geom_text(
+    aes(label = label_percent(accuracy = 0.1)(share)),
+    hjust = 1.1,
+    color = "white"
+  ) +
+  coord_flip() +
+  scale_y_continuous(labels = label_percent()) +
+  labs(x = "Cut", y = "Share of dataset")
 ex_5_3
-#> Population pyramid with mirrored bars, absolute-valued x-axis labels.
+#> 5 teal horizontal bars with white percentage labels tucked inside the right edge.
 ```
 
-**Explanation:** The pyramid trick is to feed negative values for one group so `geom_col()` draws those bars to the left of zero, then relabel the x-axis as absolute values so the reader sees the population count, not the sign. Pivoting long with `pivot_longer()` is necessary because ggplot needs sex as a single column to map to fill, not two separate columns.
+**Explanation:** `label_percent(accuracy = 0.1)` returns a function; calling it on `share` produces the formatted strings before they reach `geom_text()`. Because the chart is flipped, `hjust = 1.1` pulls the label slightly inside the right end of each bar (the flipped equivalent of `vjust`). White text on the colored bar gives strong contrast; switch to black if the bar fill is light. The pattern of calling a `scales::label_*()` factory inside `aes(label = ...)` is the cleanest way to format inline data labels.
 
 </details>
 
-### Exercise 5.4: Highlight a single selected bar against a muted gray background
+## Section 6. End-to-end realistic workflows (3 problems)
 
-**Task:** A performance reviewer presenting the `mpg` class counts wants every bar in light gray except `compact`, which should pop in a brand orange so the audience focuses there immediately. Build the count chart, map `fill` to `class == "compact"`, then assign manual colors and suppress the legend, and save to `ex_5_4`.
+### Exercise 6.1: Top 5 categories with title and caption
+
+**Task:** A category buyer wants a chart showing the top 5 most common `mpg$class` values ordered by count descending, with a title "Top 5 vehicle classes in the EPA fuel economy dataset" and a caption "Source: ggplot2::mpg". Save the plot to `ex_6_1`.
 
 **Expected result:**
 
 ```
-#> 7 bars (one per class).
-#> 6 bars in muted gray (#cccccc).
-#> The compact bar in brand orange (#e07b54).
-#> No legend visible because the boolean mapping is suppressed.
+#> Bar chart with 5 bars: suv 62, compact 47, midsize 41, subcompact 35, pickup 33.
+#> Title displayed above plot; caption "Source: ggplot2::mpg" in bottom-right.
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
-ex_5_4 <- # your code here
-ex_5_4
+ex_6_1 <- # your code here
+ex_6_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_4 <- ggplot(mpg, aes(x = class, fill = class == "compact")) +
-  geom_bar() +
-  scale_fill_manual(values = c("TRUE" = "#e07b54", "FALSE" = "#cccccc"),
-                    guide  = "none")
-ex_5_4
-#> Compact bar highlighted; all other bars in gray.
+top5 <- mpg |>
+  count(class, sort = TRUE) |>
+  slice_max(n, n = 5)
+
+ex_6_1 <- ggplot(top5, aes(x = fct_reorder(class, n, .desc = TRUE), y = n)) +
+  geom_col(fill = "#264653") +
+  geom_text(aes(label = n), vjust = -0.3) +
+  labs(
+    title = "Top 5 vehicle classes in the EPA fuel economy dataset",
+    x = NULL,
+    y = "Count",
+    caption = "Source: ggplot2::mpg"
+  ) +
+  theme_minimal()
+ex_6_1
+#> 5 dark teal bars descending left to right with count labels and caption.
 ```
 
-**Explanation:** Mapping `fill` to a logical comparison (`class == "compact"`) yields a two-level factor that you can color via `scale_fill_manual()`. Setting `guide = "none"` suppresses the otherwise-confusing TRUE/FALSE legend. This technique scales to any "one bar matters" narrative: highlight a peer benchmark, a regulatory threshold, or a target client.
+**Explanation:** `slice_max(n, n = 5)` picks the top 5 rows by the `n` column (note: the inner `n` is the column name; the outer `n =` is the slice argument count). Chaining `count(class, sort = TRUE)` then `slice_max` is the standard "top-N category" pattern. `labs(x = NULL)` removes the x-axis title when the labels themselves are self-explanatory. The `caption` argument is the right place for data source attribution; putting it in the subtitle clutters the heading.
 
 </details>
 
-### Exercise 5.5: Overlay an overall mean reference line on grouped bars
+### Exercise 6.2: Long-format dodged comparison with two measures
 
-**Task:** A QA analyst wants the mean MPG per cylinder bars from `mtcars` annotated with a dashed horizontal line at the overall mean MPG across all cars so reviewers can spot which groups sit above or below the global average. Build the bars, compute the overall mean separately, and add `geom_hline()`, saving to `ex_5_5`.
+**Task:** Build a publication-ready bar chart comparing mean city and highway mileage by `class` in `mpg`. Pivot the summary long with `tidyr::pivot_longer()`, plot a dodged `geom_col()`, set fill colors manually, label each bar with one decimal place, and apply `theme_minimal()`. Save the plot to `ex_6_2`.
 
 **Expected result:**
 
 ```
-#> 3 vertical bars at cyl = 4, 6, 8 with heights ~26.7, ~19.7, ~15.1.
-#> A dashed horizontal reference line drawn across the panel at y ~20.09 (the overall mpg mean).
-#> Bars for cyl=4 sit above the line; bars for cyl=6 and 8 sit below.
+#> A dodged bar chart with two bars per class (cty and hwy), 14 bars total.
+#> Each bar labeled with its mean to one decimal place.
+#> Two-color legend (cty, hwy).
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Advanced
 
 ```r title="Your turn"
-ex_5_5 <- # your code here
-ex_5_5
+mpg_summary <- mpg |>
+  group_by(class) |>
+  summarise(cty = mean(cty), hwy = mean(hwy)) |>
+  pivot_longer(c(cty, hwy), names_to = "measure", values_to = "mpg")
+
+ex_6_2 <- # your code here
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-overall_mean <- mean(mtcars$mpg)
+mpg_summary <- mpg |>
+  group_by(class) |>
+  summarise(cty = mean(cty), hwy = mean(hwy)) |>
+  pivot_longer(c(cty, hwy), names_to = "measure", values_to = "mpg")
 
-ex_5_5 <- mtcars |>
-  group_by(cyl) |>
-  summarise(mpg_mean = mean(mpg)) |>
-  ggplot(aes(x = factor(cyl), y = mpg_mean)) +
-  geom_col(fill = "grey60") +
-  geom_hline(yintercept = overall_mean, linetype = "dashed", color = "firebrick")
-ex_5_5
-#> Group-mean bars with an overall-mean dashed reference line.
+ex_6_2 <- ggplot(mpg_summary, aes(x = class, y = mpg, fill = measure)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.8) +
+  geom_text(
+    aes(label = sprintf("%.1f", mpg)),
+    position = position_dodge(width = 0.85),
+    vjust = -0.3,
+    size = 3
+  ) +
+  scale_fill_manual(values = c(cty = "#ef476f", hwy = "#06d6a0")) +
+  labs(
+    title = "City and highway mileage by class",
+    x = NULL,
+    y = "Mean mpg",
+    fill = NULL
+  ) +
+  theme_minimal()
+ex_6_2
+#> 14 dodged bars (2 per class), labeled with one-decimal means.
 ```
 
-**Explanation:** Reference lines are a fast win for grouped bars because they let the reader judge each bar against a baseline without doing mental arithmetic. Computing `overall_mean` outside the ggplot pipeline keeps it visible as a number you can also print in a caption. `geom_hline()` takes a `yintercept` scalar; for category-level references use `geom_segment()` with explicit x ranges instead.
+**Explanation:** The pivot-long pattern is the canonical way to compare multiple measures with a single `geom_col()` call: `class` on the x-axis, `mpg` on the y-axis, `measure` as the grouping fill. The matching `position_dodge(width = ...)` in `geom_text()` is required so labels align with their bars; if you only set dodge on `geom_col()`, the text would stack at the x-tick centers. `sprintf("%.1f", mpg)` formats to one decimal place; an equivalent tidyverse-style call is `scales::number(mpg, accuracy = 0.1)`.
+
+</details>
+
+### Exercise 6.3: Lollipop alternative to a long bar chart
+
+**Task:** When a bar chart has many categories, a lollipop chart often reads better. Build a horizontal lollipop showing mean `hwy` by `class` for `mpg`, ordered by value, using `geom_segment()` for the stems and `geom_point()` for the heads. Save to `ex_6_3`.
+
+**Expected result:**
+
+```
+#> A horizontal lollipop chart: 7 thin segments running from x = 0 to the mean hwy value, each ending in a dot.
+#> Y-axis lists classes ordered by mean hwy (compact at top, pickup at bottom).
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+mpg_hwy <- mpg |>
+  group_by(class) |>
+  summarise(mean_hwy = mean(hwy)) |>
+  mutate(class = fct_reorder(class, mean_hwy))
+
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mpg_hwy <- mpg |>
+  group_by(class) |>
+  summarise(mean_hwy = mean(hwy)) |>
+  mutate(class = fct_reorder(class, mean_hwy))
+
+ex_6_3 <- ggplot(mpg_hwy, aes(x = mean_hwy, y = class)) +
+  geom_segment(aes(x = 0, xend = mean_hwy, y = class, yend = class),
+               color = "grey60") +
+  geom_point(color = "#264653", size = 4) +
+  labs(x = "Mean highway mpg", y = NULL,
+       title = "Mean highway mpg by vehicle class") +
+  theme_minimal()
+ex_6_3
+#> A 7-row lollipop: gray stems from x = 0 to the mean, dark dots at the ends.
+```
+
+**Explanation:** A lollipop is functionally identical to a horizontal bar chart but with less ink, which works well when bars would otherwise look like a thick wall of color. The trick is `geom_segment()` with `x = 0` and `xend = mean_hwy`, which draws each "bar" as a thin line, then `geom_point()` overlays the dot. Sorting the factor with `fct_reorder()` is the same idiom from Section 4. Bars remain the right choice for stacked or grouped comparisons; lollipops shine for single-value ranks.
 
 </details>
 
 ## What to do next
 
-- Practice the parent tutorial: <a href="ggplot2-Bar-Charts.html">ggplot2 Bar Charts in R</a>.
-- Drill the underlying geom: <a href="ggplot2-geom_bar-in-R.html">geom_bar() and geom_col() in R</a>.
-- Layer error bars on means: <a href="ggplot2-geom_errorbar-in-R.html">geom_errorbar() in R</a>.
-- Move on to other ggplot2 hubs: <a href="ggplot2-Heatmap-Exercises-in-R.html">ggplot2 Heatmap Exercises in R</a>.
+Now that you have practiced the bar chart fundamentals, move into the related ggplot2 patterns:
+
+- [ggplot2 Bar Charts](ggplot2-Bar-Charts.html) is the parent tutorial that covers each pattern in detail with explanations.
+- [ggplot2 geom_bar() vs geom_col() in R](ggplot2-geom_bar-in-R.html) goes deeper on when to choose each geom.
+- [ggplot2 Histogram and Density Plot Exercises in R](ggplot2-Histograms-and-Densities-Exercises-in-R.html) is the natural next step for visualizing continuous distributions.
+- [ggplot2 Facets Exercises in R](ggplot2-Facets-Exercises-in-R.html) extends your bar charts into small-multiples comparisons.
