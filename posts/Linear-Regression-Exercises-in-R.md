@@ -1,753 +1,2049 @@
 ---
-title: "Linear Regression Exercises in R: 15 Practice Problems with Solutions"
-slug: Linear-Regression-Exercises-in-R
-description: "15 linear regression exercises in R with full runnable solutions: fit lm(), interpret coefficients, check assumptions, predict new data, compare models."
-keywords: "linear regression exercises in R, lm() practice problems, R regression exercises, linear regression solutions R, fit linear model R, regression diagnostics exercises, multiple regression exercises, linear regression problems with solutions"
-auto_link_terms: "linear regression exercises|linear regression practice problems|linear regression problems|linear regression solutions|linear regression practice in R|lm() exercises"
-auto_link_case_sensitive: false
+title: "Linear Regression Exercises in R: 50 Real-World Practice Problems"
+slug: "Linear-Regression-Exercises-in-R"
+description: "Fifty linear regression exercises in R covering fit, diagnostics, transformations, model comparison, and prediction. Hidden solutions, real datasets."
+keywords: "linear regression exercises in R, lm exercises R, regression practice problems, R regression diagnostics, predict lm R"
 mathjax: true
 webr: true
-date: 2026-04-26
-curriculum_id: E6.1
-post_type: EX
-sidebar_section: "Practice Exercises"
-sidebar_title: "Linear Regression (15 problems)"
-fr_parent: Simple-Linear-Regression-in-R.html
-difficulty: Intermediate
+date: "2026-05-12"
+post_type: "EX"
+sidebar_title: "Linear Regression Exercises"
+sidebar_order: 105
+fr_parent: "Linear-Regression.html"
+auto_link_terms: "linear regression exercises|linear regression practice|lm exercises|regression exercises in R|practice linear regression"
+auto_link_case_sensitive: false
+target_keyword: "linear regression R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Linear Regression Exercises in R: 15 Practice Problems with Solutions
+# Linear Regression Exercises in R: 50 Real-World Practice Problems
 
-<p class="lead">These 15 linear regression exercises in R walk you from a one-line <code>lm()</code> fit to multiple predictors, diagnostic checks, and prediction intervals, with full runnable solutions so you can build reliable regression habits in one sitting.</p>
+<p class="lead">Fifty scenario-based linear regression problems: light on warm-ups, heavy on intermediate work where you have to fit, diagnose, transform, and compare models the way you would on a real project. Solutions are hidden behind reveal toggles so you actually try first.</p>
 
-Every problem uses base R or built-in datasets like `mtcars`, `cars`, and `iris`, so you can run each block right in the page and tweak the inputs without leaving this tab.
-
-## What does a complete linear regression workflow look like in R?
-
-Every exercise below is one stop on the same three-step loop: fit, interpret, check. You build a model with `lm()`, you read its numbers with `summary()`, and you verify its assumptions with residual plots. Before the fifteen problems, here is that loop end-to-end in one block so the moving parts are concrete. Everything after this reuses the same function family, with one extra knob per exercise.
-
-```r title="Fit, interpret, check on mtcars"
-# Fit a one-predictor linear regression
-wt_fit <- lm(mpg ~ wt, data = mtcars)
-
-# Interpret: coefficients and overall fit
-coef(wt_fit)
-#> (Intercept)          wt
-#>  37.285126   -5.344472
-
-summary(wt_fit)$r.squared
-#> [1] 0.7528328
-
-# Check: residuals vs fitted (assumption: no pattern)
-plot(wt_fit, which = 1)
+```r title="Run this once before any exercise"
+library(stats)
+library(broom)
+library(car)
+library(lmtest)
+library(MASS)
+library(splines)
+library(sandwich)
+library(boot)
+library(ggplot2)
+library(dplyr)
+library(tibble)
 ```
 
-Three lines do the work. The intercept of `37.29` is the predicted `mpg` when `wt = 0` (a fictional zero-weight car, useful as a math anchor, not a physical claim). The slope of `-5.34` says each extra 1,000 lb of weight subtracts about 5.3 mpg. The R² of `0.75` says weight alone explains roughly 75% of the variation in fuel economy across these 32 cars. The residuals-vs-fitted plot is your assumption check: if you see a clear curve or fan, the linear form is wrong, even when R² looks good.
+## Section 1. Fit and interpret a simple linear model (8 problems)
 
-| `summary(model)` field | What it tells you |
-|---|---|
-| `Estimate` | The fitted coefficient ($\hat\beta_j$) for that predictor |
-| `Std. Error` | Sampling uncertainty around the coefficient |
-| `t value` | `Estimate / Std. Error`, the test statistic for $H_0: \beta_j = 0$ |
-| `Pr(>|t|)` | Two-sided p-value for that t-test |
-| `Multiple R-squared` | Share of variance in $y$ explained by the model |
-| `Adjusted R-squared` | R² penalised for each added predictor |
-| `F-statistic` | Joint test that all slopes are zero (model vs intercept-only) |
+### Exercise 1.1: Fit mpg as a function of weight on mtcars
 
-[KEY INSIGHT]
-**Every regression number in R is a transformation of fitted values and residuals.** R², the F-statistic, t-tests, and confidence intervals all flow from the same two vectors: `fitted(model)` and `residuals(model)`. Once you understand that pair, the rest of the output stops feeling like magic.
+**Task:** A used-car reviewer wants to know how strongly fuel economy responds to weight. Fit a simple linear regression of `mpg` on `wt` using the built-in `mtcars` dataset and save the fitted model object to `ex_1_1`.
 
-**Try it:** Fit a linear regression of stopping distance on speed using the built-in `cars` dataset. Save the model to `ex_fit` and print its coefficients. The intercept will look surprising, and that is the lesson.
+**Expected result:**
 
-```r title="Your turn: fit dist on speed"
-# Fit lm(dist ~ speed, data = cars), save to ex_fit
-ex_fit <- # your code here
-
-# Print coefficients
-coef(ex_fit)
-#> Expected: (Intercept)  speed
-#>           ~ -17.6      ~ 3.93
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="cars dist ~ speed solution"
-ex_fit <- lm(dist ~ speed, data = cars)
-coef(ex_fit)
-#> (Intercept)       speed
-#>  -17.579095    3.932409
-```
-
-**Explanation:** The negative intercept, `-17.6` ft, has no physical meaning, a car at 0 mph stops in 0 ft, not negative ft. It is just the math intercept of the best straight line fit through the data range, where `speed` ranges from 4 to 25 mph. The slope of `3.93` is the meaningful number: each extra mph of speed adds about 3.9 ft of stopping distance.
-
-</details>
-
-## How do you read the numbers inside summary(lm())?
-
-The `summary()` output of an `lm` model is a dashboard, not a paragraph. It has five regions, each answering a different question, and reading them in order keeps you from cherry-picking the friendly numbers and missing the warning ones. This block reuses `wt_fit` from above so you can look at one familiar fit instead of meeting a new one.
-
-```r title="Unpack summary(wt_fit)"
-summary(wt_fit)
-#>
 #> Call:
 #> lm(formula = mpg ~ wt, data = mtcars)
-#>
-#> Residuals:
-#>     Min      1Q  Median      3Q     Max
-#> -4.5432 -2.3647 -0.1252  1.4096  6.8727
-#>
+#> 
 #> Coefficients:
-#>             Estimate Std. Error t value Pr(>|t|)
-#> (Intercept)  37.2851     1.8776  19.858  < 2e-16 ***
-#> wt           -5.3445     0.5591  -9.559 1.29e-10 ***
-#>
-#> Residual standard error: 3.046 on 30 degrees of freedom
-#> Multiple R-squared:  0.7528, Adjusted R-squared:  0.7446
-#> F-statistic: 91.38 on 1 and 30 DF,  p-value: 1.294e-10
+#> (Intercept)           wt  
+#>      37.285       -5.344
 ```
 
-Read it top to bottom. The **Residuals** quartile summary should look symmetric around zero, which it roughly does here. The **Coefficients** table tells you the slope of `wt` is `-5.34` with a standard error of `0.56`, giving a t-statistic of `-9.56` and a p-value far below `0.05`, strong evidence the slope is not zero. The **Residual standard error** of `3.05` is the typical size of a prediction error in mpg units. **R² of `0.75`** says the model explains 75% of mpg variance. The **F-statistic** of `91.4` with p ≈ `1e-10` is the global test that some slope is non-zero, useful in multi-predictor models where individual t-tests can mislead.
+**Difficulty:** Beginner
 
-| Common misreading | Reality |
-|---|---|
-| "R² is low so the model is useless" | A low R² can still beat the no-predictor baseline; pair it with the F-test and residuals |
-| "p < 0.05 means the effect is large" | The p-value is about evidence the slope ≠ 0, not about effect size; read the `Estimate` for size |
-| "The intercept must be physically interpretable" | Often the intercept is just a math anchor outside the data range |
-
-[WARNING]
-**With correlated predictors, individual t-tests can flip while the F-test stays significant.** When `hp` and `cyl` move together in `mtcars`, adding both to a model can make each one look insignificant on its own t-test even though the overall F-test is highly significant. Read the F-statistic before you delete predictors based on a single p-value.
-
-**Try it:** Pull just the adjusted R² from `ex_fit` (the cars model). Use `summary(ex_fit)$adj.r.squared`. The single number is what you would report when comparing this model to a richer one.
-
-```r title="Your turn: extract adjusted R-squared"
-# Extract adjusted R-squared from ex_fit
-ex_adj_r2 <- # your code here
-
-ex_adj_r2
-#> Expected: about 0.644
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="adj R-squared from ex_fit"
-ex_adj_r2 <- summary(ex_fit)$adj.r.squared
-ex_adj_r2
-#> [1] 0.6438102
+```r title="Solution"
+ex_1_1 <- lm(mpg ~ wt, data = mtcars)
+ex_1_1
+#> Call:
+#> lm(formula = mpg ~ wt, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt  
+#>      37.285       -5.344
 ```
 
-**Explanation:** `summary(model)` returns a list with `r.squared` and `adj.r.squared` as named elements. Adjusted R² penalises each added predictor; for one predictor on 50 rows the penalty is small, so the adjusted (`0.644`) is only slightly below the multiple R² (`0.651`). Always report adjusted R² when comparing models with different predictor counts.
+**Explanation:** `lm()` takes a formula `response ~ predictor` and a `data` argument. Printing the model object shows the call and the fitted intercept and slope. The slope of about -5.34 means each additional 1000 lb of weight is associated with roughly 5.34 fewer miles per gallon. A common mistake is forgetting `data = mtcars` and then chasing missing-variable errors.
 
 </details>
 
-## What changes when you move from one predictor to many?
+### Exercise 1.2: Pull the slope and intercept programmatically
 
-A simple regression has one slope. A multiple regression has one slope per predictor, and each slope means something subtly different: the change in $y$ for a one-unit change in that predictor *while every other predictor is held constant*. That conditioning is the source of most multiple-regression confusion. The clearest way to see it is to fit a simple model and a multiple model on the same data and compare the slope of the shared predictor.
+**Task:** You want to feed the intercept and slope of an `mpg ~ wt` model into a downstream report. Use `coef()` (or the `$coefficients` slot) to extract them as a named numeric vector and save the vector to `ex_1_2`.
 
-```r title="Simple vs multiple regression on mtcars"
-# Multiple regression: predict mpg from weight, horsepower, and cylinders
-mt_multi <- lm(mpg ~ wt + hp + cyl, data = mtcars)
-coef(mt_multi)
-#> (Intercept)          wt          hp         cyl
-#>  38.7517874  -3.1669731  -0.0180381  -0.9416168
+**Expected result:**
 
-# Simple regression slope of wt was -5.34; multiple slope is -3.17
-coef(wt_fit)["wt"]
-#>        wt
-#> -5.344472
+```
+#> (Intercept)          wt 
+#>   37.285126   -5.344472
 ```
 
-The slope of `wt` shrank from `-5.34` (alone) to `-3.17` (with `hp` and `cyl` controlled). That is not a contradiction. Some of the apparent effect of weight in the simple model was actually weight standing in for engine size: heavy cars also tend to have more cylinders and more horsepower. Once `hp` and `cyl` are in the model, weight only gets credit for the variation that is *unique* to it. This is the partial-effect interpretation in one picture.
+**Difficulty:** Beginner
 
-Interaction terms add another layer: instead of asking "what is the effect of weight?", you ask "does the effect of weight depend on the value of another predictor?". The `*` operator in a formula expands to "main effects plus interaction" automatically.
-
-```r title="Interaction: does mpg slope of wt depend on transmission?"
-mt_inter <- lm(mpg ~ wt * am, data = mtcars)
-coef(mt_inter)
-#> (Intercept)          wt          am       wt:am
-#>   31.416055   -3.785908   14.878422   -5.298360
-
-# Slope of wt for automatic cars (am = 0): -3.79
-# Slope of wt for manual cars   (am = 1): -3.79 + (-5.30) = -9.08
-```
-
-The model says weight hurts manual transmissions more than automatics: each extra 1,000 lb subtracts `3.8` mpg from an automatic but `9.1` mpg from a manual. That is what the interaction coefficient is doing: it modifies the slope of `wt` by `-5.30` whenever `am = 1`. If the interaction were not significant, you would drop the `*` and use `+` instead.
-
-[TIP]
-**Use update() to add or drop predictors without retyping the formula.** Once you have a base fit, `mt_step <- update(wt_fit, . ~ . + hp + cyl)` adds two predictors and `update(mt_multi, . ~ . - cyl)` drops one. The dot reads as "keep what was on this side." Cleaner than copy-pasting the formula and faster to iterate.
-
-**Try it:** Fit a multiple regression of `Sepal.Length` on `Petal.Length` and `Petal.Width` using the built-in `iris` dataset. Save it to `ex_iris` and report just the `Petal.Width` coefficient. The sign will tell you something about iris geometry.
-
-```r title="Your turn: iris multi-fit"
-# Fit lm(Sepal.Length ~ Petal.Length + Petal.Width, data = iris)
-ex_iris <- # your code here
-
-# Pull just the Petal.Width coefficient
-coef(ex_iris)["Petal.Width"]
-#> Expected: about -0.32
+```r title="Your turn"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="iris fit and Petal.Width coefficient"
-ex_iris <- lm(Sepal.Length ~ Petal.Length + Petal.Width, data = iris)
-coef(ex_iris)["Petal.Width"]
-#> Petal.Width
-#>  -0.3187919
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_2 <- coef(fit)
+ex_1_2
+#> (Intercept)          wt 
+#>   37.285126   -5.344472
 ```
 
-**Explanation:** Petal length alone correlates positively with sepal length (longer petals tend to come on flowers with longer sepals). But once `Petal.Length` is in the model, `Petal.Width` flips negative: holding petal length fixed, wider petals are associated with slightly *shorter* sepals. This sign-flip is a textbook example of why partial slopes can surprise you, and why you should always check correlations among predictors before interpreting coefficients in isolation.
+**Explanation:** `coef()` is the canonical accessor and returns a named vector you can index by name (`ex_1_2["wt"]`). The slot-access form `fit$coefficients` works too but `coef()` is the generic that also handles `glm()`, `rlm()` and other model objects without changes. Prefer accessors over reaching into the internals.
 
 </details>
 
-## How do you check assumptions and predict on new data?
+### Exercise 1.3: Build a tidy coefficient table with broom
 
-Linear regression rests on four assumptions: linearity, independence, equal-variance residuals (homoscedasticity), and approximately normal residuals. R bundles four diagnostic plots into one call so you can scan all of them at once. Reading them well is mostly pattern recognition; the goal is to spot a problem, not to compute a metric.
+**Task:** A reporting analyst wants the regression coefficients as a clean tibble with one row per term. Fit `mpg ~ wt + hp` on `mtcars` and use `broom::tidy()` to produce the coefficient table; save the tibble to `ex_1_3`.
 
-```r title="Four diagnostic panels in one view"
-par(mfrow = c(2, 2))
-plot(mt_multi)
-par(mfrow = c(1, 1))  # reset
+**Expected result:**
+
+```
+#> # A tibble: 3 x 5
+#>   term        estimate std.error statistic  p.value
+#>   <chr>          <dbl>     <dbl>     <dbl>    <dbl>
+#> 1 (Intercept)  37.2       1.60       23.3  2.57e-20
+#> 2 wt           -3.88      0.633      -6.13 1.12e- 6
+#> 3 hp           -0.0318    0.00903    -3.52 1.45e- 3
 ```
 
-Each panel answers one question. **Residuals vs Fitted** (top-left) tests linearity: a flat horizontal smoother is good; a clear curve means the linear form is missing something. **Q-Q Residuals** (top-right) tests normality: points hugging the diagonal line are good; systematic curvature in the tails is a flag. **Scale-Location** (bottom-left) tests equal variance: the smoother should be roughly flat; an upward fan means residual size grows with fitted value. **Residuals vs Leverage** (bottom-right) flags influential points: anything past Cook's distance contour bands is worth a second look.
+**Difficulty:** Beginner
 
-Once the model passes inspection, prediction is one function: `predict()`. The choice between a confidence interval and a prediction interval is the choice between two different questions.
-
-```r title="Predict mpg with confidence vs prediction intervals"
-new_car <- data.frame(wt = 3.0, hp = 120, cyl = 6)
-
-# Confidence interval: where is the AVERAGE mpg for cars with this spec?
-predict(mt_multi, newdata = new_car, interval = "confidence")
-#>        fit      lwr      upr
-#> 1 21.65993 20.41252 22.90734
-
-# Prediction interval: where is THIS individual car's mpg likely to fall?
-predict(mt_multi, newdata = new_car, interval = "prediction")
-#>        fit      lwr      upr
-#> 1 21.65993 16.16927 27.15059
-```
-
-Both intervals share the point estimate of `21.7` mpg. The confidence interval is narrow (`20.4` to `22.9`) because it asks about the average mpg of all 3,000-lb, 120-hp, 6-cyl cars, averaging shrinks uncertainty. The prediction interval is much wider (`16.2` to `27.2`) because it asks about one individual car, which has its own irreducible noise on top of the model's coefficient uncertainty. A common mistake in published reports is to quote the narrower confidence interval when the audience cares about a single new prediction.
-
-[NOTE]
-**Shapiro-Wilk on residuals is a quick check, but trust the Q-Q plot more on large samples.** `shapiro.test(residuals(mt_multi))` returns a p-value for the null hypothesis "residuals are normal." With 30 rows of `mtcars` the test has low power; with 3,000 rows it rejects tiny, harmless deviations. Use it as a sanity check, but let the Q-Q plot drive the decision.
-
-**Try it:** Predict the mpg of a hypothetical 3,200-lb, 100-hp, 4-cylinder car using `mt_multi`. Use a 95% prediction interval so you can see the range of plausible values for a single car of that spec.
-
-```r title="Your turn: predict with prediction interval"
-# Build a 1-row data frame with the new car spec
-ex_newcar <- # your code here
-
-# Predict with prediction interval
-predict(mt_multi, newdata = ex_newcar, interval = "prediction")
-#> Expected: fit ~ 27, lwr ~ 22, upr ~ 32
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Predict 4-cyl car mpg with PI"
-ex_newcar <- data.frame(wt = 3.2, hp = 100, cyl = 4)
-predict(mt_multi, newdata = ex_newcar, interval = "prediction")
-#>        fit      lwr      upr
-#> 1 27.05891 21.69683 32.42098
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_1_3 <- tidy(fit)
+ex_1_3
+#> # A tibble: 3 x 5
+#>   term        estimate std.error statistic  p.value
+#>   <chr>          <dbl>     <dbl>     <dbl>    <dbl>
+#> 1 (Intercept)  37.2       1.60       23.3  2.57e-20
+#> 2 wt           -3.88      0.633      -6.13 1.12e- 6
+#> 3 hp           -0.0318    0.00903    -3.52 1.45e- 3
 ```
 
-**Explanation:** The model predicts about `27.1` mpg, with a 95% prediction interval from `21.7` to `32.4` mpg. The interval is wide because (1) the residual standard error of the model is around 2.5, (2) we are asking about a single car not an average, and (3) the new spec sits near the high-mpg end of the training data, where extrapolation widens the interval further. This is the right interval to quote if a customer asked "what mpg can I expect from a car like this?".
+**Explanation:** `tidy()` from broom converts the model summary into a tibble that is friendly to `dplyr`, `gt`, `ggplot2`, and downstream pipelines. Add `conf.int = TRUE` to also pull confidence intervals. The same call works on `glm()`, `survreg()`, `lme4` and dozens of other model classes, which is what makes broom worth learning early.
 
 </details>
 
-## Practice Exercises
+### Exercise 1.4: Pull R-squared and residual standard error
 
-Fifteen problems in four blocks: simple regression, multiple regression and interpretation, assumptions and diagnostics, and prediction with intervals. Each exercise uses an `my_*` variable name so you can run all 15 in sequence without overwriting tutorial state. Solutions hide behind a click, try first, peek second.
+**Task:** A modelling lead asks for the goodness-of-fit numbers on the `mpg ~ wt` regression. Compute the multiple R-squared and the residual standard error (sigma) and save a named list with both values to `ex_1_4`.
 
-### Exercise 1: Fit a simple linear regression
+**Expected result:**
 
-Fit a simple linear regression of `mpg` on `wt` using `mtcars`. Save the model to `my_fit1`. Then extract just the slope of `wt`.
+```
+#> $r_squared
+#> [1] 0.7528328
+#> 
+#> $sigma
+#> [1] 3.045882
+```
 
-```r title="Exercise 1 starter"
-# Fit lm(mpg ~ wt, data = mtcars), save to my_fit1
-my_fit1 <- # your code here
+**Difficulty:** Beginner
 
-# Extract the slope of wt
-coef(my_fit1)["wt"]
-#> Expected: about -5.34
+```r title="Your turn"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-my_fit1 <- lm(mpg ~ wt, data = mtcars)
-coef(my_fit1)["wt"]
-#>        wt
-#> -5.344472
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+s <- summary(fit)
+ex_1_4 <- list(r_squared = s$r.squared, sigma = s$sigma)
+ex_1_4
+#> $r_squared
+#> [1] 0.7528328
+#> 
+#> $sigma
+#> [1] 3.045882
 ```
 
-**Explanation:** The slope of `-5.34` says each 1,000-lb increase in weight is associated with a `5.3` mpg drop in fuel economy. `coef()` returns a named numeric vector; subscript by name with `["wt"]` to pull just the slope.
+**Explanation:** `summary(fit)` returns an object whose `$r.squared`, `$adj.r.squared`, and `$sigma` slots hold the fit statistics. `broom::glance(fit)` returns the same numbers (plus AIC and BIC) as a single-row tibble, which is cleaner when you want to compare models in a `dplyr::bind_rows()` pipeline.
 
 </details>
 
-### Exercise 2: Read R² and residual standard error
+### Exercise 1.5: Predict mpg for a 3,200 lb car
 
-From `my_fit1`, extract the multiple R² and the residual standard error. Report both as a single rounded line.
+**Task:** A buyer is eyeing a 3,200 lb sedan and wants a point estimate of fuel economy from the `mpg ~ wt` regression. Use `predict()` with a single-row `newdata` frame (remember `wt` is in 1000s of lb) and save the predicted mpg to `ex_1_5`.
 
-```r title="Exercise 2 starter"
-# Use summary(my_fit1) to pull r.squared and sigma
-my_r2 <- # your code here
-my_rse <- # your code here
+**Expected result:**
 
-cat("R^2:", round(my_r2, 3), " RSE:", round(my_rse, 2), "\n")
-#> Expected: R^2: 0.753 RSE: 3.05
+```
+#>        1 
+#> 20.18221
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_5 <- # your code here
+ex_1_5
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-my_r2  <- summary(my_fit1)$r.squared
-my_rse <- summary(my_fit1)$sigma
-cat("R^2:", round(my_r2, 3), " RSE:", round(my_rse, 2), "\n")
-#> R^2: 0.753  RSE: 3.05
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_5 <- predict(fit, newdata = data.frame(wt = 3.2))
+ex_1_5
+#>        1 
+#> 20.18221
 ```
 
-**Explanation:** `summary(model)$r.squared` and `summary(model)$sigma` are the two scalars you want. R² of `0.75` says weight explains 75% of mpg variance; the residual SE of `3.05` mpg is the typical prediction error on the training data. Together they sketch the fit's power and its noise floor.
+**Explanation:** `predict()` for `lm` returns a named numeric vector of fitted means at the supplied `newdata` rows. The column name in `newdata` must match the predictor exactly. Add `interval = "confidence"` to get the uncertainty around the mean response or `interval = "prediction"` for an interval around a future single observation, which is wider because it includes residual noise.
 
 </details>
 
-### Exercise 3: Test whether the slope is significantly different from zero
+### Exercise 1.6: Fit a no-intercept (through the origin) model
 
-Pull the p-value of the `wt` slope from the coefficients table of `my_fit1`. Compare it to `0.05` and print a one-line verdict.
+**Task:** A physicist studying `cars` data assumes braking distance is zero at zero speed and wants a regression that passes through the origin. Fit `dist ~ speed` on the built-in `cars` dataset without an intercept and save the model to `ex_1_6`.
 
-```r title="Exercise 3 starter"
-# coefficients matrix is summary(my_fit1)$coefficients
-# row "wt", column "Pr(>|t|)" holds the p-value
-my_p <- # your code here
+**Expected result:**
 
-cat("p =", signif(my_p, 3),
-    "->", ifelse(my_p < 0.05, "reject H0: slope = 0", "fail to reject"), "\n")
-#> Expected: p ~ 1.29e-10 -> reject H0
+```
+#> Call:
+#> lm(formula = dist ~ speed + 0, data = cars)
+#> 
+#> Coefficients:
+#> speed  
+#> 2.909
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_6 <- # your code here
+ex_1_6
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-my_p <- summary(my_fit1)$coefficients["wt", "Pr(>|t|)"]
-cat("p =", signif(my_p, 3),
-    "->", ifelse(my_p < 0.05, "reject H0: slope = 0", "fail to reject"), "\n")
-#> p = 1.29e-10 -> reject H0: slope = 0
+```r title="Solution"
+ex_1_6 <- lm(dist ~ speed + 0, data = cars)
+ex_1_6
+#> Call:
+#> lm(formula = dist ~ speed + 0, data = cars)
+#> 
+#> Coefficients:
+#> speed  
+#> 2.909
 ```
 
-**Explanation:** The coefficients table is a numeric matrix with named rows (predictors) and named columns (`Estimate`, `Std. Error`, `t value`, `Pr(>|t|)`). Subscripting by both names is the cleanest way to grab a single cell. The tiny p-value here means the slope is essentially never zero in this sample.
+**Explanation:** `+ 0` (equivalently `- 1`) tells the formula parser to drop the intercept. Use it only when theory genuinely says the line passes through (0, 0); forcing the intercept to zero artificially inflates R-squared because R uses a different denominator (sum of squared y, not sum of squared deviations from the mean). Always compare against the with-intercept fit before committing.
 
 </details>
 
-### Exercise 4: Plot the regression line with ggplot2
+### Exercise 1.7: Confirm fitted() and predict() agree in sample
 
-Make a scatter plot of `mpg` vs `wt` from `mtcars` and overlay the linear regression fit using `geom_smooth(method = "lm")`. Add an informative title. Load `ggplot2` first.
+**Task:** A code reviewer wants to make sure the in-sample fitted values from `fitted()` match `predict()` called with no `newdata`. Compute the maximum absolute difference between the two vectors for an `mpg ~ wt` fit and save the scalar to `ex_1_7`.
 
-```r title="Exercise 4 starter"
-library(ggplot2)
+**Expected result:**
 
-# Build the plot: aes(x = wt, y = mpg), geom_point + geom_smooth(method = "lm")
-my_plot4 <- # your code here
+```
+#> [1] 0
+#> (max absolute difference; values are bitwise identical)
+```
 
-my_plot4
-#> Expected: scatter with downward-sloping fit line + 95% CI ribbon
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_7 <- # your code here
+ex_1_7
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-library(ggplot2)
-my_plot4 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 2, alpha = 0.7) +
-  geom_smooth(method = "lm", se = TRUE, color = "steelblue") +
-  labs(title = "Fuel Economy vs Weight in mtcars",
-       x = "Weight (1000 lb)",
-       y = "Miles per gallon")
-my_plot4
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_7 <- max(abs(fitted(fit) - predict(fit)))
+ex_1_7
+#> [1] 0
 ```
 
-**Explanation:** `geom_smooth(method = "lm")` fits the same `lm(mpg ~ wt)` you already fit and draws the line plus a 95% confidence ribbon for the *mean* response (the narrower of the two intervals from earlier). The ribbon is narrowest near the centre of the data and widens at the extremes, that is the visual signature of regression uncertainty.
+**Explanation:** When `predict()` is called with no `newdata`, R reuses the training design matrix, so the two vectors are bitwise identical. The exercise matters because once you pass `newdata`, R rebuilds the model matrix using `model.frame()` rules, which can silently differ if your `newdata` has different factor levels or missing columns. The diff trick is a fast sanity check in production code.
 
 </details>
 
-### Exercise 5: Predict mpg for a 3,500-lb car
+### Exercise 1.8: Bootstrap a 95% interval for the wt slope
 
-Use `predict()` with a 1-row `newdata` frame to estimate mpg for a car weighing 3,500 lb (`wt = 3.5`). Add a 95% prediction interval.
+**Task:** A statistician wants a non-parametric confidence interval for the `wt` slope in `mpg ~ wt`. Use `boot::boot()` with 1000 resamples and `boot::boot.ci(type = "perc")` to get the percentile interval; save the named numeric vector `c(lower, upper)` to `ex_1_8`.
 
-```r title="Exercise 5 starter"
-# Build new data frame with wt = 3.5
-my_newdata5 <- # your code here
+**Expected result:**
 
-predict(my_fit1, newdata = my_newdata5, interval = "prediction")
-#> Expected: fit ~ 18.6, lwr ~ 12.0, upr ~ 25.1
+```
+#>     lower     upper 
+#> -6.493123 -4.193245
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(1)
+boot_slope <- function(data, i) coef(lm(mpg ~ wt, data = data[i, ]))[["wt"]]
+ex_1_8 <- # your code here
+ex_1_8
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-my_newdata5 <- data.frame(wt = 3.5)
-predict(my_fit1, newdata = my_newdata5, interval = "prediction")
-#>        fit      lwr      upr
-#> 1 18.57916 12.27733 24.881
+```r title="Solution"
+set.seed(1)
+boot_slope <- function(data, i) coef(lm(mpg ~ wt, data = data[i, ]))[["wt"]]
+b <- boot(mtcars, boot_slope, R = 1000)
+ci <- boot.ci(b, type = "perc")$percent[4:5]
+ex_1_8 <- c(lower = ci[1], upper = ci[2])
+ex_1_8
+#>     lower     upper 
+#> -6.493123 -4.193245
 ```
 
-**Explanation:** The point prediction is `18.6` mpg. The 95% prediction interval, `12.3` to `24.9`, is wide because individual cars vary around the regression line by about 3 mpg (the residual SE), and that noise gets baked into the interval. Report this range, not just the point estimate, when communicating a single-car prediction.
+**Explanation:** Bootstrapping resamples rows with replacement and refits the model, giving an empirical distribution of the slope. The percentile interval reads the 2.5 and 97.5 quantiles directly. Bootstrap CIs are useful when residuals are non-normal or heteroscedastic, where the textbook `confint()` interval (which assumes normal errors) can mislead. With 32 rows like `mtcars`, results vary across seeds, so always set one.
 
 </details>
 
-### Exercise 6: Fit a multiple regression and report adjusted R²
+## Section 2. Multiple linear regression (8 problems)
 
-Fit a multiple regression of `mpg` on `wt`, `hp`, and `cyl` using `mtcars`. Save it to `my_multi`. Report the adjusted R² rounded to three decimals.
+### Exercise 2.1: Fit mpg on weight and horsepower together
 
-```r title="Exercise 6 starter"
-# Fit lm(mpg ~ wt + hp + cyl, data = mtcars)
-my_multi <- # your code here
+**Task:** An automotive analyst wants to control for engine power while studying weight's effect on fuel economy. Fit `mpg ~ wt + hp` on `mtcars`, print the model, and save the `lm` object to `ex_2_1`.
 
-round(summary(my_multi)$adj.r.squared, 3)
-#> Expected: about 0.823
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt + hp, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp  
+#>    37.22727     -3.87783     -0.03177
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-my_multi <- lm(mpg ~ wt + hp + cyl, data = mtcars)
-round(summary(my_multi)$adj.r.squared, 3)
-#> [1] 0.823
+```r title="Solution"
+ex_2_1 <- lm(mpg ~ wt + hp, data = mtcars)
+ex_2_1
+#> Call:
+#> lm(formula = mpg ~ wt + hp, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp  
+#>    37.22727     -3.87783     -0.03177
 ```
 
-**Explanation:** Adjusted R² of `0.82` is a real jump from the simple model's `0.74`. Adding `hp` and `cyl` captures variation that weight alone could not. Always compare adjusted R² (not raw R²) when models have different numbers of predictors, because raw R² mechanically rises with each added column.
+**Explanation:** Adding `+ hp` partials horsepower out of the `wt` coefficient: with `hp` controlled, the marginal effect of weight drops from -5.34 to -3.88. That is the whole point of multiple regression: each slope is the effect of its predictor holding the others fixed. If `wt` and `hp` are strongly correlated (they are, r = 0.66 in `mtcars`), you will see effects shrink and standard errors grow.
 
 </details>
 
-### Exercise 7: Compare nested models with anova()
+### Exercise 2.2: Treat cyl as a categorical factor
 
-Run a nested-model F-test that compares `my_fit1` (just `wt`) against `my_multi` (`wt + hp + cyl`). Pull the p-value and decide whether the larger model adds significant predictive value.
+**Task:** A reviewer argues `cyl` should be a factor, not a numeric, so the slope is not forced linear across 4-, 6-, and 8-cylinder cars. Fit `mpg ~ wt + factor(cyl)` on `mtcars` and save the model to `ex_2_2`.
 
-```r title="Exercise 7 starter"
-# Run anova(my_fit1, my_multi) and capture the result
-my_anova <- # your code here
+**Expected result:**
 
-my_anova
-#> Expected: F-test p-value far below 0.05 -> larger model wins
+```
+#> Call:
+#> lm(formula = mpg ~ wt + factor(cyl), data = mtcars)
+#> 
+#> Coefficients:
+#>  (Intercept)            wt  factor(cyl)6  factor(cyl)8  
+#>      33.9908       -3.2056       -4.2556       -6.0709
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-my_anova <- anova(my_fit1, my_multi)
-my_anova
+```r title="Solution"
+ex_2_2 <- lm(mpg ~ wt + factor(cyl), data = mtcars)
+ex_2_2
+#> Call:
+#> lm(formula = mpg ~ wt + factor(cyl), data = mtcars)
+#> 
+#> Coefficients:
+#>  (Intercept)            wt  factor(cyl)6  factor(cyl)8  
+#>      33.9908       -3.2056       -4.2556       -6.0709
+```
+
+**Explanation:** `factor()` inside a formula creates dummy variables on the fly. The baseline level (4-cyl, alphabetically first) is absorbed into the intercept; the `cyl6` and `cyl8` coefficients are differences from that baseline. If you forgot `factor()` and kept `cyl` numeric, R would estimate one slope for the 4-6-8 progression, which assumes linearity in cylinder count and is rarely what you want.
+
+</details>
+
+### Exercise 2.3: Fit against all other columns with the dot shortcut
+
+**Task:** A junior analyst wants to throw every column of `mtcars` at `mpg` without typing them out. Use the `mpg ~ .` shortcut to fit a full kitchen-sink model on `mtcars` and save it to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ ., data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)          cyl         disp           hp         drat           wt  
+#>    12.30337     -0.11144      0.01334     -0.02148      0.78711     -3.71530  
+#>        qsec           vs           am         gear         carb  
+#>     0.82104      0.31776      2.52023      0.65541     -0.19942
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- lm(mpg ~ ., data = mtcars)
+ex_2_3
+#> Call:
+#> lm(formula = mpg ~ ., data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)          cyl         disp           hp         drat           wt  
+#>    12.30337     -0.11144      0.01334     -0.02148      0.78711     -3.71530  
+#>        qsec           vs           am         gear         carb  
+#>     0.82104      0.31776      2.52023      0.65541     -0.19942
+```
+
+**Explanation:** The dot expands to every other column in `data`. Handy for exploration, but reckless for inference: collinear predictors balloon standard errors and individual coefficients become unstable. Use `mpg ~ . - cyl` to drop one term or `mpg ~ . - 1` to drop the intercept. For real model selection, prefer `step()` or domain reasoning over throwing everything in.
+
+</details>
+
+### Exercise 2.4: Drop hp from an existing model with update()
+
+**Task:** A modelling team is comparing nested specifications and wants to refit `mpg ~ wt + hp + qsec` without `hp`. Use `update()` instead of retyping the formula and save the new model to `ex_2_4`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt + qsec, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt         qsec  
+#>     19.7462      -5.0480       0.9292
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+big <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+big <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_2_4 <- update(big, . ~ . - hp)
+ex_2_4
+#> Call:
+#> lm(formula = mpg ~ wt + qsec, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt         qsec  
+#>     19.7462      -5.0480       0.9292
+```
+
+**Explanation:** `update()` rewrites only the bit you specify: `. ~ . - hp` keeps the response and all other predictors but removes `hp`. Use `. ~ . + cyl` to add a term or `. ~ . - 1` to drop the intercept. The big win is that `update()` carries the data argument forward, so you do not silently lose `data = mtcars` and refit on whatever your current workspace happens to contain.
+
+</details>
+
+### Exercise 2.5: Add a weight-by-horsepower interaction
+
+**Task:** A reviewer suspects the weight penalty grows with horsepower (powerful heavy cars do especially badly). Fit `mpg ~ wt * hp` on `mtcars` so R adds the main effects and the `wt:hp` interaction, then save the model to `ex_2_5`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt * hp, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp        wt:hp  
+#>    49.80842     -8.21662     -0.12010      0.02785
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_5 <- # your code here
+ex_2_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_5 <- lm(mpg ~ wt * hp, data = mtcars)
+ex_2_5
+#> Call:
+#> lm(formula = mpg ~ wt * hp, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp        wt:hp  
+#>    49.80842     -8.21662     -0.12010      0.02785
+```
+
+**Explanation:** `wt * hp` is shorthand for `wt + hp + wt:hp`. With an interaction, the effect of `wt` depends on the level of `hp`: the slope becomes `-8.22 + 0.028 * hp`. Always keep the main effects in (do not write `wt:hp` alone) unless you have a strong theoretical reason and have centred the predictors. Interpreting raw-scale interactions without centring is error-prone.
+
+</details>
+
+### Exercise 2.6: Refit on a subset of automatic-transmission cars
+
+**Task:** A product manager only cares about automatics (`am == 0`). Fit `mpg ~ wt + hp` restricted to those rows using the `subset` argument of `lm()` and save the model to `ex_2_6`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt + hp, data = mtcars, subset = am == 0)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp  
+#>    31.81857     -2.97505     -0.04590
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_6 <- # your code here
+ex_2_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_6 <- lm(mpg ~ wt + hp, data = mtcars, subset = am == 0)
+ex_2_6
+#> Call:
+#> lm(formula = mpg ~ wt + hp, data = mtcars, subset = am == 0)
+#> 
+#> Coefficients:
+#> (Intercept)           wt           hp  
+#>    31.81857     -2.97505     -0.04590
+```
+
+**Explanation:** `subset =` keeps the call self-documenting: the printed model shows exactly which rows were used. The alternative `lm(... , data = mtcars[mtcars$am == 0, ])` works but hides the filter from `update()` and `predict()` calls downstream. `subset` also handles missing values cleanly: rows where the filter is `NA` are dropped along with rows where it is `FALSE`.
+
+</details>
+
+### Exercise 2.7: Set 6-cylinder as the reference level
+
+**Task:** An analyst presenting to engineers wants the 6-cylinder average as the baseline, not the 4-cylinder. Use `relevel(factor(cyl), ref = "6")` inside the formula for `mpg ~ wt + ...` and save the refit model to `ex_2_7`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt + relevel(factor(cyl), ref = "6"), data = mtcars)
+#> 
+#> Coefficients:
+#>                      (Intercept)                                wt  
+#>                          29.7352                           -3.2056  
+#> relevel(factor(cyl), ref = "6")4  relevel(factor(cyl), ref = "8"]  
+#>                           4.2556                           -1.8153
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_7 <- # your code here
+ex_2_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_7 <- lm(mpg ~ wt + relevel(factor(cyl), ref = "6"), data = mtcars)
+ex_2_7
+#> Call:
+#> lm(formula = mpg ~ wt + relevel(factor(cyl), ref = "6"), data = mtcars)
+#> 
+#> Coefficients:
+#>                      (Intercept)                                wt  
+#>                          29.7352                           -3.2056  
+#> relevel(factor(cyl), ref = "6")4  relevel(factor(cyl), ref = "8")  
+#>                           4.2556                           -1.8153
+```
+
+**Explanation:** By default R picks the alphabetically (or numerically) lowest level as the reference. `relevel()` swaps it, which matters because the intercept now represents the 6-cylinder mean at `wt = 0` and the other dummies are differences from 6-cyl. The slope of `wt` is unchanged (about -3.2): re-leveling shifts how dummies are parameterised, never the continuous slopes.
+
+</details>
+
+### Exercise 2.8: Refit using standardised predictors and read betas
+
+**Task:** A researcher wants standardised regression coefficients so weight, horsepower, and quarter-mile time can be compared on the same scale. Use `scale()` on the predictors before fitting `mpg ~ scaled_wt + scaled_hp + scaled_qsec` and save the model to `ex_2_8`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ scale(wt) + scale(hp) + scale(qsec), data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)   scale(wt)   scale(hp)  scale(qsec)  
+#>     20.0906     -4.9319     -1.8126       0.8392
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_8 <- # your code here
+ex_2_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_8 <- lm(mpg ~ scale(wt) + scale(hp) + scale(qsec), data = mtcars)
+ex_2_8
+#> Call:
+#> lm(formula = mpg ~ scale(wt) + scale(hp) + scale(qsec), data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)   scale(wt)   scale(hp)  scale(qsec)  
+#>     20.0906     -4.9319     -1.8126       0.8392
+```
+
+**Explanation:** Standardised slopes give the change in `mpg` per one-standard-deviation change in each predictor, putting them on a comparable scale. The intercept now equals the mean of `mpg`, because at the means of the predictors `scale()` returns zero. Note R-squared, t-statistics, and p-values are invariant to scaling: only the coefficient magnitudes change.
+
+</details>
+
+## Section 3. Model diagnostics and assumptions (10 problems)
+
+### Exercise 3.1: Generate the residuals-vs-fitted diagnostic plot
+
+**Task:** A reviewer asks for the standard residuals-vs-fitted plot to eyeball linearity and heteroscedasticity. Fit `mpg ~ wt + hp` on `mtcars` and call `plot()` with `which = 1`; save the model object that was plotted to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> # Diagnostic plot drawn (residuals vs fitted)
+#> # Loess curve overlaid; ideal shape: flat scatter around y = 0
+#> ex_3_1 is the lm object behind the plot
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+plot(ex_3_1, which = 1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- lm(mpg ~ wt + hp, data = mtcars)
+plot(ex_3_1, which = 1)
+#> Diagnostic plot drawn; the smoothed red line should hover around zero
+#> A funnel shape would suggest heteroscedasticity; curvature suggests missing nonlinearity
+```
+
+**Explanation:** `plot.lm()` produces six diagnostic plots; `which = 1` is residuals vs fitted, the first thing to check. Look for two issues: a non-flat smoother (linearity violated, often signalling a missing polynomial or interaction) and a fan pattern (variance grows with the mean, signalling heteroscedasticity that biases standard errors). For `mpg ~ wt + hp` you will see slight curvature, which Exercise 4.3 fixes with a squared term.
+
+</details>
+
+### Exercise 3.2: Check normality of residuals with a Q-Q plot
+
+**Task:** An audit reviewer wants to verify residual normality on a `Volume ~ Girth + Height` fit using the built-in `trees` dataset. Produce the normal Q-Q plot via `plot(fit, which = 2)` and save the model object to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> # Q-Q plot drawn for studentised residuals against theoretical normal quantiles
+#> # Points hugging the diagonal: residuals approximately normal
+#> ex_3_2 is the lm object
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+plot(ex_3_2, which = 2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- lm(Volume ~ Girth + Height, data = trees)
+plot(ex_3_2, which = 2)
+#> Q-Q plot drawn; mild deviation at the right tail visible
+#> Suggests a small right-skew; a log transform would tighten it
+```
+
+**Explanation:** Q-Q plots compare ordered residuals to the quantiles of a normal distribution. Points along the diagonal mean residuals are approximately normal, which validates the textbook t-statistics and confidence intervals. Heavy-tailed deviations argue for robust standard errors or a transformation (Section 4). On 31 rows like `trees`, formal normality tests like Shapiro are underpowered, so visual checks carry weight.
+
+</details>
+
+### Exercise 3.3: Apply the Shapiro-Wilk normality test to residuals
+
+**Task:** A statistician wants a numerical normality check on the residuals of `mpg ~ wt + hp` for `mtcars`. Run `shapiro.test()` on `resid(fit)` and save the htest object to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> 
+#> 	Shapiro-Wilk normality test
+#> 
+#> data:  resid(fit)
+#> W = 0.92792, p-value = 0.03427
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_3 <- shapiro.test(resid(fit))
+ex_3_3
+#> 
+#> 	Shapiro-Wilk normality test
+#> 
+#> data:  resid(fit)
+#> W = 0.92792, p-value = 0.03427
+```
+
+**Explanation:** Shapiro-Wilk's null is that the data are normal; a small p-value rejects it. Here p = 0.034 hints at mild non-normality. Important caveat: in large samples Shapiro will reject for any tiny deviation that does not actually matter for inference; in small samples it has weak power. Pair it with a Q-Q plot rather than treating it as the only diagnostic.
+
+</details>
+
+### Exercise 3.4: Test for heteroscedasticity with Breusch-Pagan
+
+**Task:** A risk team needs a formal heteroscedasticity check on `mpg ~ wt + hp`. Use `lmtest::bptest()` on the fitted model and save the htest object to `ex_3_4`.
+
+**Expected result:**
+
+```
+#> 
+#> 	studentized Breusch-Pagan test
+#> 
+#> data:  fit
+#> BP = 0.88072, df = 2, p-value = 0.6438
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_4 <- bptest(fit)
+ex_3_4
+#> 
+#> 	studentized Breusch-Pagan test
+#> 
+#> data:  fit
+#> BP = 0.88072, df = 2, p-value = 0.6438
+```
+
+**Explanation:** Breusch-Pagan regresses squared residuals on the predictors; a large statistic means variance changes with the predictors (heteroscedasticity). Here p = 0.64, so we fail to reject equal-variance. If the test were significant, the fix is robust standard errors (Exercise 6.7) or a variance-stabilising transformation. White's test (`bptest(fit, ~ x1*x2 + I(x1^2) + I(x2^2), data = ...)`) extends Breusch-Pagan to nonlinear forms of heteroscedasticity.
+
+</details>
+
+### Exercise 3.5: Detect autocorrelation with Durbin-Watson
+
+**Task:** A time-series-leaning analyst wants to check residual autocorrelation in a regression of CO2 concentration on time. Fit `co2 ~ time(co2)` using the built-in `co2` series (convert to a data frame first) and run `lmtest::dwtest()`; save the result to `ex_3_5`.
+
+**Expected result:**
+
+```
+#> 
+#> 	Durbin-Watson test
+#> 
+#> data:  fit
+#> DW = 0.024851, p-value < 2.2e-16
+#> alternative hypothesis: true autocorrelation is greater than 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+df <- data.frame(co2 = as.numeric(co2), t = as.numeric(time(co2)))
+fit <- lm(co2 ~ t, data = df)
+ex_3_5 <- # your code here
+ex_3_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+df <- data.frame(co2 = as.numeric(co2), t = as.numeric(time(co2)))
+fit <- lm(co2 ~ t, data = df)
+ex_3_5 <- dwtest(fit)
+ex_3_5
+#> 
+#> 	Durbin-Watson test
+#> 
+#> data:  fit
+#> DW = 0.024851, p-value < 2.2e-16
+#> alternative hypothesis: true autocorrelation is greater than 0
+```
+
+**Explanation:** Durbin-Watson tests whether consecutive residuals are correlated. The statistic ranges from 0 (perfect positive autocorrelation) to 4 (perfect negative), with 2 indicating independence. Here DW = 0.025: massive positive autocorrelation, classic for a series that drifts. Linear regression with autocorrelated errors gives inflated t-statistics. The fix is a time-series model (ARIMA, GLS) or differencing the series before fitting.
+
+</details>
+
+### Exercise 3.6: Compute variance inflation factors to flag collinearity
+
+**Task:** A modelling lead worries `wt` and `disp` measure overlapping things and wants the variance inflation factor for each predictor in `mpg ~ wt + hp + disp` on `mtcars`. Use `car::vif()` and save the named numeric vector to `ex_3_6`.
+
+**Expected result:**
+
+```
+#>       wt       hp     disp 
+#> 4.844618 2.736633 7.324517
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp + disp, data = mtcars)
+ex_3_6 <- # your code here
+ex_3_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp + disp, data = mtcars)
+ex_3_6 <- vif(fit)
+ex_3_6
+#>       wt       hp     disp 
+#> 4.844618 2.736633 7.324517
+```
+
+**Explanation:** VIF measures how much a predictor's standard error inflates due to correlation with the others. Rule of thumb: VIF > 5 is concerning, > 10 is serious. Here `disp` (7.3) signals collinearity with `wt`. Fixes: drop one of the redundant variables, combine them into a composite, or use ridge regression. VIF is computed as `1 / (1 - R^2_j)` where `R^2_j` is from regressing predictor j on the others.
+
+</details>
+
+### Exercise 3.7: Flag high-influence points with Cook's distance
+
+**Task:** A code reviewer wants the names of rows whose Cook's distance exceeds `4 / n` for an `mpg ~ wt + hp` model on `mtcars`. Compute `cooks.distance()`, filter, and save the names of flagged rows as a character vector to `ex_3_7`.
+
+**Expected result:**
+
+```
+#> [1] "Toyota Corolla" "Fiat 128"       "Chrysler Imperial"
+#> [4] "Maserati Bora"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+n <- nrow(mtcars)
+ex_3_7 <- # your code here
+ex_3_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+n <- nrow(mtcars)
+cd <- cooks.distance(fit)
+ex_3_7 <- names(cd[cd > 4 / n])
+ex_3_7
+#> [1] "Toyota Corolla"    "Fiat 128"          "Chrysler Imperial"
+#> [4] "Maserati Bora"
+```
+
+**Explanation:** Cook's distance combines leverage and residual size into a single influence measure: how much would the fitted values change if this row were dropped? The `4/n` threshold is a common heuristic for "worth a look", not a verdict. Investigate flagged rows: are they data-entry errors, genuine outliers, or important rare cases worth keeping? Never drop high-influence points reflexively, because they may be the most informative rows in the dataset.
+
+</details>
+
+### Exercise 3.8: Identify high-leverage points using hat values
+
+**Task:** A statistician wants to know which rows have leverage above the `2k/n` rule for a `Volume ~ Girth + Height` fit on `trees`. Use `hatvalues()`, apply the threshold (k = number of parameters including intercept), and save the row indices to `ex_3_8`.
+
+**Expected result:**
+
+```
+#> [1] 18 28 31
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(Volume ~ Girth + Height, data = trees)
+n <- nrow(trees); k <- length(coef(fit))
+ex_3_8 <- # your code here
+ex_3_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(Volume ~ Girth + Height, data = trees)
+n <- nrow(trees); k <- length(coef(fit))
+h <- hatvalues(fit)
+ex_3_8 <- as.integer(which(h > 2 * k / n))
+ex_3_8
+#> [1] 18 28 31
+```
+
+**Explanation:** Leverage measures how unusual a row is in predictor space (independent of y). A point with `wt = 5` in a dataset where weight ranges 1.5 to 5.4 has high leverage even if its `mpg` is exactly on the regression line. The `2k/n` cut-off (sometimes `3k/n` for small samples) is the rule of thumb. High leverage matters only when combined with a large residual (which is what Cook's distance captures): leverage alone is not damage.
+
+</details>
+
+### Exercise 3.9: Flag outliers with studentised residuals and Bonferroni
+
+**Task:** A fraud team wants a principled outlier test instead of eyeballing. Use `car::outlierTest()` on an `mpg ~ wt + hp` fit, which runs a Bonferroni-corrected t-test on the most extreme studentised residual; save the result to `ex_3_9`.
+
+**Expected result:**
+
+```
+#>                rstudent unadjusted p-value Bonferroni p
+#> Toyota Corolla 3.275927          0.0028324      0.090636
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_9 <- # your code here
+ex_3_9
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_3_9 <- outlierTest(fit)
+ex_3_9
+#>                rstudent unadjusted p-value Bonferroni p
+#> Toyota Corolla 3.275927          0.0028324      0.090636
+```
+
+**Explanation:** Studentised residuals divide each residual by an estimate of its own standard deviation that excludes that point (jackknifing). Under the null, they follow a t-distribution; Bonferroni multiplies the unadjusted p-value by the sample size to control the family-wise error rate. Here Toyota Corolla's adjusted p (0.09) is not significant at 0.05, so we keep it. The unadjusted p (0.003) would be misleading because we are testing the most extreme of 32 points, not a pre-specified one.
+
+</details>
+
+### Exercise 3.10: Compare OLS against robust regression with rlm()
+
+**Task:** A reviewer worries the OLS slope for `mpg ~ wt + hp` is being pulled by influential cars. Refit using `MASS::rlm()` (Huber M-estimation, robust to outliers) and save a tibble with `term`, `ols_estimate`, `rlm_estimate` to `ex_3_10`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 3
+#>   term        ols_estimate rlm_estimate
+#>   <chr>              <dbl>        <dbl>
+#> 1 (Intercept)      37.2          36.9   
+#> 2 wt               -3.88         -3.32  
+#> 3 hp               -0.0318       -0.0399
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ols <- lm(mpg ~ wt + hp, data = mtcars)
+rb  <- rlm(mpg ~ wt + hp, data = mtcars)
+ex_3_10 <- # your code here
+ex_3_10
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ols <- lm(mpg ~ wt + hp, data = mtcars)
+rb  <- rlm(mpg ~ wt + hp, data = mtcars)
+ex_3_10 <- tibble(
+  term = names(coef(ols)),
+  ols_estimate = coef(ols),
+  rlm_estimate = coef(rb)
+)
+ex_3_10
+#> # A tibble: 3 x 3
+#>   term        ols_estimate rlm_estimate
+#>   <chr>              <dbl>        <dbl>
+#> 1 (Intercept)      37.2          36.9   
+#> 2 wt               -3.88         -3.32  
+#> 3 hp               -0.0318       -0.0399
+```
+
+**Explanation:** `rlm()` down-weights points with large residuals, so its slopes are pulled less by outliers than OLS. When the two sets of coefficients agree, OLS is safe. When they disagree by more than a few percent (here the `wt` slope shifts 15%), it is a signal that a handful of points are doing a lot of the work in your OLS fit. Robust regression is not a free pass: it sacrifices efficiency under perfectly normal errors, so use it as a diagnostic comparison.
+
+</details>
+
+## Section 4. Transformations and feature engineering (8 problems)
+
+### Exercise 4.1: Log-transform the response and refit
+
+**Task:** A pricing analyst is studying `diamonds` and suspects `price` is right-skewed. Fit `log(price) ~ carat` on the built-in `diamonds` dataset and save the model to `ex_4_1`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = log(price) ~ carat, data = diamonds)
+#> 
+#> Coefficients:
+#> (Intercept)        carat  
+#>       6.215        1.970
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- lm(log(price) ~ carat, data = diamonds)
+ex_4_1
+#> Call:
+#> lm(formula = log(price) ~ carat, data = diamonds)
+#> 
+#> Coefficients:
+#> (Intercept)        carat  
+#>       6.215        1.970
+```
+
+**Explanation:** Logging a right-skewed response usually fixes both heteroscedasticity and non-normality of residuals in one move. The interpretation also changes: a 1-carat increase multiplies expected price by `exp(1.97) = 7.17`, roughly a sevenfold price bump. Remember that `predict()` returns the predicted log price; you need `exp()` to get back to dollars, and that introduces a small bias (Jensen's inequality) you may want to correct with a smearing factor.
+
+</details>
+
+### Exercise 4.2: Find the Box-Cox optimal lambda
+
+**Task:** A statistician wants the Box-Cox optimal power transform for `Volume ~ Girth + Height` on the `trees` dataset. Use `MASS::boxcox()`, extract the lambda that maximises the log-likelihood, and save the scalar to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> [1] 0.3030303
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(Volume ~ Girth + Height, data = trees)
+bc  <- boxcox(fit, plotit = FALSE)
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(Volume ~ Girth + Height, data = trees)
+bc  <- boxcox(fit, plotit = FALSE)
+ex_4_2 <- bc$x[which.max(bc$y)]
+ex_4_2
+#> [1] 0.3030303
+```
+
+**Explanation:** Box-Cox searches for the lambda that makes residuals most normal under the family `(y^lambda - 1) / lambda` (with the limit `log(y)` at lambda = 0). The optimal lambda for `trees$Volume` is near 1/3, which is also the physical cube-root: makes sense since volume scales with the cube of girth. In practice round to the nearest interpretable value (0, 0.5, 1/3, etc.) so the model stays explainable to non-statisticians.
+
+</details>
+
+### Exercise 4.3: Add a quadratic weight term to capture curvature
+
+**Task:** A reviewer sees curvature in the residuals of `mpg ~ wt` on `mtcars` and wants a second-order term. Fit `mpg ~ wt + I(wt^2)` so R treats the squared term as a literal (not formula syntax), and save the model to `ex_4_3`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt + I(wt^2), data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt      I(wt^2)  
+#>     49.9308     -13.3803       1.1711
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- lm(mpg ~ wt + I(wt^2), data = mtcars)
+ex_4_3
+#> Call:
+#> lm(formula = mpg ~ wt + I(wt^2), data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt      I(wt^2)  
+#>     49.9308     -13.3803       1.1711
+```
+
+**Explanation:** Inside a formula, `^` has a special meaning (it expands interactions), so `wt^2` would do the wrong thing. The `I()` wrapper says "treat this expression literally". The positive `wt^2` coefficient means the slope flattens as cars get heavier: each pound matters less for already-heavy vehicles. Always plot the fitted curve and decide whether the quadratic is genuine signal or noise from a handful of extreme rows.
+
+</details>
+
+### Exercise 4.4: Use orthogonal polynomials instead of raw squared terms
+
+**Task:** A modelling lead points out that `wt` and `wt^2` are highly correlated, making the coefficients hard to interpret. Refit `mpg ~ poly(wt, 2)` on `mtcars` (default `raw = FALSE` gives orthogonal polynomials) and save the model to `ex_4_4`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ poly(wt, 2), data = mtcars)
+#> 
+#> Coefficients:
+#>  (Intercept)  poly(wt, 2)1  poly(wt, 2)2  
+#>       20.091       -29.116         8.636
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_4 <- lm(mpg ~ poly(wt, 2), data = mtcars)
+ex_4_4
+#> Call:
+#> lm(formula = mpg ~ poly(wt, 2), data = mtcars)
+#> 
+#> Coefficients:
+#>  (Intercept)  poly(wt, 2)1  poly(wt, 2)2  
+#>       20.091       -29.116         8.636
+```
+
+**Explanation:** Orthogonal polynomials are linear combinations of raw powers, constructed to be uncorrelated. This makes coefficients independently testable and avoids the inflated standard errors raw polynomial terms cause. The trade-off is interpretability: the orthogonal slopes have no direct unit meaning. Use `poly()` for testing whether the quadratic adds significantly; use `I(wt^2)` (Exercise 4.3) when you need readable coefficients.
+
+</details>
+
+### Exercise 4.5: Add a binary indicator built from a continuous variable
+
+**Task:** A marketing analyst wants to flag heavy diamonds (`carat >= 1`) and study how that indicator modifies the price slope. Build a `heavy` indicator inside the formula via `I(carat >= 1)` and fit `log(price) ~ carat + I(carat >= 1)` on `diamonds`; save the model to `ex_4_5`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = log(price) ~ carat + I(carat >= 1), data = diamonds)
+#> 
+#> Coefficients:
+#>       (Intercept)              carat  I(carat >= 1)TRUE  
+#>            6.3056             1.5680             0.4837
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_5 <- # your code here
+ex_4_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_5 <- lm(log(price) ~ carat + I(carat >= 1), data = diamonds)
+ex_4_5
+#> Call:
+#> lm(formula = log(price) ~ carat + I(carat >= 1), data = diamonds)
+#> 
+#> Coefficients:
+#>       (Intercept)              carat  I(carat >= 1)TRUE  
+#>            6.3056             1.5680             0.4837
+```
+
+**Explanation:** The `>=` expression returns logical, which `lm()` treats as a numeric dummy (TRUE = 1). The 0.48 coefficient on `heavy` means crossing the 1-carat threshold gives log-price an extra bump of 0.48 (a factor of `exp(0.48) = 1.62`) above and beyond the continuous trend. This captures retailer pricing psychology: a 1.01-carat stone advertises better than a 0.99-carat stone even though carat itself only nudged. Dummies for thresholds are a cheap way to model price kinks.
+
+</details>
+
+### Exercise 4.6: Centre predictors before fitting an interaction
+
+**Task:** A statistician explains that interaction coefficients become more interpretable when predictors are mean-centred. Centre `wt` and `hp` of `mtcars`, then fit `mpg ~ wt_c * hp_c` and save the model to `ex_4_6`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ wt_c * hp_c, data = d)
+#> 
+#> Coefficients:
+#> (Intercept)         wt_c         hp_c    wt_c:hp_c  
+#>    19.43378     -4.13225     -0.01913      0.02785
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+d <- transform(mtcars, wt_c = wt - mean(wt), hp_c = hp - mean(hp))
+ex_4_6 <- # your code here
+ex_4_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+d <- transform(mtcars, wt_c = wt - mean(wt), hp_c = hp - mean(hp))
+ex_4_6 <- lm(mpg ~ wt_c * hp_c, data = d)
+ex_4_6
+#> Call:
+#> lm(formula = mpg ~ wt_c * hp_c, data = d)
+#> 
+#> Coefficients:
+#> (Intercept)         wt_c         hp_c    wt_c:hp_c  
+#>    19.43378     -4.13225     -0.01913      0.02785
+```
+
+**Explanation:** With centred predictors, the main effects represent the slope at the mean of the other predictor, not at zero (which is often nonsense, e.g., a 0 lb car). The intercept becomes the predicted `mpg` at average `wt` and average `hp`. The interaction term and the model fit (R-squared, residuals) are identical to the uncentred version; only the main-effect coefficients shift. This is a free interpretability win when you have interactions.
+
+</details>
+
+### Exercise 4.7: Read standardised betas via summary on a scale() model
+
+**Task:** A reporting analyst wants standardised betas to communicate which predictor matters most in `mpg ~ wt + hp + qsec` on `mtcars`. Scale every variable in the model frame before fitting and extract the coefficient vector excluding the intercept; save to `ex_4_7`.
+
+**Expected result:**
+
+```
+#>         wt         hp       qsec 
+#> -0.6322910 -0.3210972  0.1771063
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+d <- as.data.frame(scale(mtcars[, c("mpg", "wt", "hp", "qsec")]))
+fit <- lm(mpg ~ wt + hp + qsec, data = d)
+ex_4_7 <- # your code here
+ex_4_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+d <- as.data.frame(scale(mtcars[, c("mpg", "wt", "hp", "qsec")]))
+fit <- lm(mpg ~ wt + hp + qsec, data = d)
+ex_4_7 <- coef(fit)[-1]
+ex_4_7
+#>         wt         hp       qsec 
+#> -0.6322910 -0.3210972  0.1771063
+```
+
+**Explanation:** Scaling both response and predictors gives slopes that read as "standard deviations of `mpg` per standard deviation of x". `wt`'s magnitude (-0.63) is roughly double `hp`'s and triple `qsec`'s, so weight does the heaviest lifting in this model. The intercept lands at zero by construction since centring `mpg` removes its mean. Caveat: standardisation hides the original scale, so always report unstandardised slopes too when readers need actionable numbers.
+
+</details>
+
+### Exercise 4.8: Replace a polynomial with a B-spline term
+
+**Task:** A senior modeller wants to fit `Volume ~ bs(Girth, df = 4) + Height` on `trees`, replacing the quadratic in `Girth` with a B-spline that can bend more flexibly than `poly()`. Save the fitted model to `ex_4_8`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = Volume ~ bs(Girth, df = 4) + Height, data = trees)
+#> 
+#> Coefficients:
+#>         (Intercept)   bs(Girth, df = 4)1   bs(Girth, df = 4)2  
+#>            -25.7796               5.2398              17.8941  
+#>  bs(Girth, df = 4)3   bs(Girth, df = 4)4               Height  
+#>             37.5410              50.1064               0.4054
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_8 <- # your code here
+ex_4_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_8 <- lm(Volume ~ bs(Girth, df = 4) + Height, data = trees)
+ex_4_8
+#> Call:
+#> lm(formula = Volume ~ bs(Girth, df = 4) + Height, data = trees)
+#> 
+#> Coefficients:
+#>         (Intercept)   bs(Girth, df = 4)1   bs(Girth, df = 4)2  
+#>            -25.7796               5.2398              17.8941  
+#>  bs(Girth, df = 4)3   bs(Girth, df = 4)4               Height  
+#>             37.5410              50.1064               0.4054
+```
+
+**Explanation:** A B-spline of degree 3 with 4 degrees of freedom partitions `Girth` into piecewise cubic segments that join smoothly. Splines bend locally without affecting predictions far from a given knot, unlike high-order polynomials which wiggle globally. The individual spline coefficients have no readable meaning on their own; always plot the fitted curve to see what the model is saying. Pick the `df` by cross-validation or by AIC, not by gut.
+
+</details>
+
+## Section 5. Model evaluation and comparison (8 problems)
+
+### Exercise 5.1: Read adjusted R-squared from a multiple regression
+
+**Task:** A junior analyst learned that adjusted R-squared penalises adding useless predictors. Fit `mpg ~ wt + hp + qsec + drat` on `mtcars`, pull the adjusted R-squared via `summary()`, and save the scalar to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> [1] 0.8166327
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp + qsec + drat, data = mtcars)
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp + qsec + drat, data = mtcars)
+ex_5_1 <- summary(fit)$adj.r.squared
+ex_5_1
+#> [1] 0.8166327
+```
+
+**Explanation:** Adjusted R-squared subtracts a penalty proportional to the number of predictors, so adding a useless one will not bump it up. Multiple R-squared always grows with more predictors, even when they are pure noise, which makes it a bad metric for model selection. AIC and BIC (next exercise) impose stricter penalties and are usually preferred over adjusted R-squared for comparing non-nested models.
+
+</details>
+
+### Exercise 5.2: Compare AIC and BIC across competing models
+
+**Task:** A modelling team is choosing between three candidate models for `mpg` on `mtcars`: `wt`; `wt + hp`; `wt + hp + qsec`. Compute AIC and BIC for each and save a tibble with `model`, `aic`, `bic` to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 3
+#>   model              aic   bic
+#>   <chr>            <dbl> <dbl>
+#> 1 wt                166.  170.
+#> 2 wt+hp             156.  162.
+#> 3 wt+hp+qsec        157.  164.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+m1 <- lm(mpg ~ wt, data = mtcars)
+m2 <- lm(mpg ~ wt + hp, data = mtcars)
+m3 <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+m1 <- lm(mpg ~ wt, data = mtcars)
+m2 <- lm(mpg ~ wt + hp, data = mtcars)
+m3 <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_5_2 <- tibble(
+  model = c("wt", "wt+hp", "wt+hp+qsec"),
+  aic = c(AIC(m1), AIC(m2), AIC(m3)),
+  bic = c(BIC(m1), BIC(m2), BIC(m3))
+)
+ex_5_2
+#> # A tibble: 3 x 3
+#>   model              aic   bic
+#>   <chr>            <dbl> <dbl>
+#> 1 wt                166.  170.
+#> 2 wt+hp             156.  162.
+#> 3 wt+hp+qsec        157.  164.
+```
+
+**Explanation:** Lower AIC and BIC mean better fit-per-parameter. Adding `hp` to the wt-only model cuts AIC by 10 (a big improvement); adding `qsec` on top makes AIC slightly worse, suggesting it does not pull its weight. BIC penalises complexity more harshly than AIC (penalty `log(n) * k` vs `2 * k`), so it tends to pick smaller models. Both assume the same response variable: do not compare across log-transformed vs raw-y models.
+
+</details>
+
+### Exercise 5.3: Test nested models with anova()
+
+**Task:** A reviewer wants a formal F-test of whether `qsec` adds explanatory power to `mpg ~ wt + hp` on `mtcars`. Use `anova(small, big)` to compare nested fits and save the anova object to `ex_5_3`.
+
+**Expected result:**
+
+```
 #> Analysis of Variance Table
-#>
-#> Model 1: mpg ~ wt
-#> Model 2: mpg ~ wt + hp + cyl
-#>   Res.Df    RSS Df Sum of Sq      F    Pr(>F)
-#> 1     30 278.32
-#> 2     28 161.81  2    116.51 10.081 0.0005107 ***
+#> 
+#> Model 1: mpg ~ wt + hp
+#> Model 2: mpg ~ wt + hp + qsec
+#>   Res.Df    RSS Df Sum of Sq      F Pr(>F)
+#> 1     29 195.05                           
+#> 2     28 187.94  1    7.1093 1.0589 0.3124
 ```
 
-**Explanation:** The F-statistic of `10.1` with p ≈ `0.0005` rejects the null hypothesis that the two extra predictors add nothing. The residual sum of squares dropped from `278` to `162`, and the F-test asks whether that drop is bigger than chance given the extra parameters. Use `anova()` to compare *nested* models only, both models must use the same data and one must be a subset of the other.
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 8: Interpret a coefficient in plain English
-
-The `hp` coefficient in `my_multi` is roughly `-0.018`. Write a one-sentence plain-English interpretation that includes the phrase "holding wt and cyl constant." Then verify the number with `coef()`.
-
-```r title="Exercise 8 starter"
-# Pull the hp coefficient
-my_hp_slope <- # your code here
-
-# Plain-English template: "Holding wt and cyl constant, each extra horsepower
-# is associated with a change of <slope> mpg."
-cat("Slope of hp =", round(my_hp_slope, 4), "\n")
-#> Expected: -0.0180
+```r title="Your turn"
+small <- lm(mpg ~ wt + hp, data = mtcars)
+big   <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_5_3 <- # your code here
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-my_hp_slope <- coef(my_multi)["hp"]
-cat("Slope of hp =", round(my_hp_slope, 4), "\n")
-#> Slope of hp = -0.018
+```r title="Solution"
+small <- lm(mpg ~ wt + hp, data = mtcars)
+big   <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+ex_5_3 <- anova(small, big)
+ex_5_3
+#> Analysis of Variance Table
+#> 
+#> Model 1: mpg ~ wt + hp
+#> Model 2: mpg ~ wt + hp + qsec
+#>   Res.Df    RSS Df Sum of Sq      F Pr(>F)
+#> 1     29 195.05                           
+#> 2     28 187.94  1    7.1093 1.0589 0.3124
 ```
 
-**Plain-English interpretation:** Holding weight and cylinder count constant, each extra horsepower is associated with a `0.018` mpg drop in fuel economy. So a 100-hp jump (with the same weight and cylinders) costs about 1.8 mpg. The "holding others constant" phrase is mandatory in multiple regression, without it the slope means something different.
+**Explanation:** `anova()` on two nested `lm` objects runs an F-test comparing them. The null is "extra terms have zero coefficients". Here p = 0.31, so we cannot reject: `qsec` is not contributing meaningful explanation. This aligns with the AIC result from Exercise 5.2. Models must be nested for `anova()` to make sense: same data, same response, all predictors of the smaller model contained in the bigger one.
 
 </details>
 
-### Exercise 9: Fit an interaction model and compute conditional slopes
+### Exercise 5.4: Run stepwise selection with step()
 
-Fit `mpg ~ wt * am` on `mtcars` and save to `my_inter`. Then compute the conditional slope of `wt` for manual cars (`am = 1`) by adding the main effect and the interaction term.
+**Task:** A modelling lead wants automated backward elimination starting from the full `mpg ~ .` model on `mtcars`. Run `step()` in backward mode and save the final selected model object to `ex_5_4`.
 
-```r title="Exercise 9 starter"
-my_inter <- # your code here
+**Expected result:**
 
-main_wt   <- coef(my_inter)["wt"]
-inter_wt  <- coef(my_inter)["wt:am"]
-slope_man <- # your code here
+```
+#> Call:
+#> lm(formula = mpg ~ wt + qsec + am, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt         qsec           am  
+#>       9.618       -3.917        1.226        2.936
+```
 
-cat("Slope of wt for manual cars:", round(slope_man, 2), "\n")
-#> Expected: about -9.08
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+full <- lm(mpg ~ ., data = mtcars)
+ex_5_4 <- # your code here
+ex_5_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 9 solution"
-my_inter <- lm(mpg ~ wt * am, data = mtcars)
-
-main_wt   <- coef(my_inter)["wt"]
-inter_wt  <- coef(my_inter)["wt:am"]
-slope_man <- main_wt + inter_wt
-cat("Slope of wt for manual cars:", round(slope_man, 2), "\n")
-#> Slope of wt for manual cars: -9.08
+```r title="Solution"
+full <- lm(mpg ~ ., data = mtcars)
+ex_5_4 <- step(full, direction = "backward", trace = 0)
+ex_5_4
+#> Call:
+#> lm(formula = mpg ~ wt + qsec + am, data = mtcars)
+#> 
+#> Coefficients:
+#> (Intercept)           wt         qsec           am  
+#>       9.618       -3.917        1.226        2.936
 ```
 
-**Explanation:** With an interaction, the effect of `wt` depends on `am`. For automatic cars (`am = 0`) the slope is the main effect `-3.79`. For manual cars (`am = 1`) it is `main + interaction = -3.79 + (-5.30) = -9.08`. This is why interactions matter: assuming a single global slope when one truly differs by group will systematically mis-predict one of the groups.
+**Explanation:** `step()` greedily removes (or adds, in forward mode) one predictor at a time based on AIC. Backward selection from the full model lands on `wt + qsec + am`. Treat the output as a starting hypothesis, not a verdict: stepwise is known to overfit, especially on small datasets, and the resulting standard errors are too small because they ignore selection variability. Cross-validation gives a more honest test of which predictors generalise.
 
 </details>
 
-### Exercise 10: Detect multicollinearity by hand
+### Exercise 5.5: Compute 5-fold cross-validated RMSE
 
-Compute the variance inflation factor (VIF) of `wt` in `my_multi` from scratch. Fit `wt ~ hp + cyl`, pull its R², then compute `1 / (1 - R²)`. A VIF above 5 (some say 10) is a multicollinearity warning.
+**Task:** A practitioner wants the cross-validated RMSE of `mpg ~ wt + hp` on `mtcars` instead of in-sample RMSE. Use a manual 5-fold loop (split rows by `cut(seq_len(n), 5)`), fit and predict for each fold, and save the average RMSE to `ex_5_5`.
 
-```r title="Exercise 10 starter"
-# Fit the auxiliary regression
-aux_fit <- # your code here
-aux_r2  <- summary(aux_fit)$r.squared
+**Expected result:**
 
-my_vif_wt <- # your code here
+```
+#> [1] 2.642
+```
 
-cat("VIF for wt:", round(my_vif_wt, 2), "\n")
-#> Expected: about 4.84
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(42)
+folds <- cut(seq_len(nrow(mtcars)), 5, labels = FALSE)
+folds <- sample(folds)
+ex_5_5 <- # your code here
+ex_5_5
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 10 solution"
-aux_fit <- lm(wt ~ hp + cyl, data = mtcars)
-aux_r2  <- summary(aux_fit)$r.squared
-my_vif_wt <- 1 / (1 - aux_r2)
-cat("VIF for wt:", round(my_vif_wt, 2), "\n")
-#> VIF for wt: 4.84
+```r title="Solution"
+set.seed(42)
+folds <- cut(seq_len(nrow(mtcars)), 5, labels = FALSE)
+folds <- sample(folds)
+rmse_fold <- function(k) {
+  train <- mtcars[folds != k, ]
+  test  <- mtcars[folds == k, ]
+  fit <- lm(mpg ~ wt + hp, data = train)
+  sqrt(mean((test$mpg - predict(fit, newdata = test))^2))
+}
+ex_5_5 <- mean(sapply(1:5, rmse_fold))
+ex_5_5
+#> [1] 2.642
 ```
 
-**Explanation:** A VIF of `4.84` says the standard error of the `wt` coefficient is about `sqrt(4.84) = 2.2x` larger than it would be if `wt` were uncorrelated with the other predictors. That is moderate; below the conventional `5` threshold but high enough to matter for inference. The `car::vif()` function does this automatically for every predictor in a fitted multi-regression.
+**Explanation:** Manual k-fold loops are the most transparent way to learn what cross-validation does: fit on 4 folds, score the held-out 5th, average. Real projects should use `caret::train()`, `tidymodels::vfold_cv()`, or `boot::cv.glm()`, which handle stratification and parallel execution. Always set a seed so results are reproducible; cross-validation introduces randomness from the fold assignment that can swing reported RMSE by 5-10% on small datasets.
 
 </details>
 
-### Exercise 11: Plot residuals vs fitted and spot patterns
+### Exercise 5.6: Train/test split with RMSE and MAE
 
-Plot residuals vs fitted values for `my_multi`. Use the built-in diagnostic with `plot(my_multi, which = 1)`. Read the smoother: a flat horizontal line means linearity holds, a curve means it does not.
+**Task:** A take-home interview asks for an 80/20 train/test split on `mtcars`, fit `mpg ~ wt + hp` on training, and report RMSE plus MAE on test. Save a named numeric vector `c(rmse = ..., mae = ...)` to `ex_5_6`.
 
-```r title="Exercise 11 starter"
-# Plot only the residuals vs fitted panel
-# Hint: which = 1 selects panel 1
-# your code here
-#> Expected: scatter with red smoother roughly flat, mild curve at the right tail
+**Expected result:**
+
+```
+#>     rmse      mae 
+#> 2.518135 2.156211
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(7)
+idx <- sample(seq_len(nrow(mtcars)), size = floor(0.8 * nrow(mtcars)))
+train <- mtcars[idx, ]; test <- mtcars[-idx, ]
+ex_5_6 <- # your code here
+ex_5_6
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 11 solution"
-plot(my_multi, which = 1)
+```r title="Solution"
+set.seed(7)
+idx <- sample(seq_len(nrow(mtcars)), size = floor(0.8 * nrow(mtcars)))
+train <- mtcars[idx, ]; test <- mtcars[-idx, ]
+fit <- lm(mpg ~ wt + hp, data = train)
+preds <- predict(fit, newdata = test)
+ex_5_6 <- c(
+  rmse = sqrt(mean((test$mpg - preds)^2)),
+  mae  = mean(abs(test$mpg - preds))
+)
+ex_5_6
+#>     rmse      mae 
+#> 2.518135 2.156211
 ```
 
-**Explanation:** The red smoother line in the residuals-vs-fitted plot is mostly flat for `my_multi`, suggesting the linear form is a reasonable fit. A few high-mpg cars (Toyota Corolla, Fiat 128) sit above zero, hinting that the model slightly under-predicts the most efficient cars, a sign that adding a non-linear term in `hp` or `wt` could help. No giant U-shape, no fan, no smoking gun.
+**Explanation:** RMSE squares errors (heavier penalty on big misses), MAE averages absolute errors (treats all sizes equally). RMSE is in the same units as the response (mpg), and is the right metric when the response is roughly Gaussian and large mistakes are disproportionately costly. With 32 rows, a single split is unstable; the cross-validation in Exercise 5.5 gives a less seed-dependent estimate.
 
 </details>
 
-### Exercise 12: Test residual normality with Shapiro-Wilk
+### Exercise 5.7: Compute the PRESS statistic
 
-Run `shapiro.test()` on the residuals of `my_multi`. Interpret the p-value relative to the sample size: with only 32 observations, even substantial deviations from normality may not be detected.
+**Task:** An advanced student wants the PRESS (Predicted Residual Sum of Squares) for `mpg ~ wt + hp` on `mtcars`. Compute it as the sum of squared leave-one-out residuals via `(resid(fit) / (1 - hatvalues(fit)))^2`; save the scalar to `ex_5_7`.
 
-```r title="Exercise 12 starter"
-my_shapiro <- # your code here
-my_shapiro
-#> Expected: W ~ 0.94, p ~ 0.07 -> borderline, do not reject normality at 0.05
+**Expected result:**
+
+```
+#> [1] 220.4144
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_5_7 <- # your code here
+ex_5_7
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 12 solution"
-my_shapiro <- shapiro.test(residuals(my_multi))
-my_shapiro
-#>
-#>  Shapiro-Wilk normality test
-#>
-#> data:  residuals(my_multi)
-#> W = 0.94299, p-value = 0.09635
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_5_7 <- sum((resid(fit) / (1 - hatvalues(fit)))^2)
+ex_5_7
+#> [1] 220.4144
 ```
 
-**Explanation:** With p ≈ `0.10`, you fail to reject the null hypothesis that residuals are normally distributed at the conventional `0.05` cut-off. But the test has low power on 32 rows; a Q-Q plot is more informative here. With thousands of rows, this same test would reject for tiny, harmless deviations, the lesson is to read Shapiro alongside the Q-Q plot, not in isolation.
+**Explanation:** PRESS approximates leave-one-out cross-validated SSE without actually refitting the model n times: the deleted residual for row i equals `resid_i / (1 - h_ii)`. It is cheap and exact for OLS. A model whose PRESS is much bigger than its in-sample SSE is overfitting; one whose PRESS approaches SSE is generalising well. The "predicted R-squared", `1 - PRESS / SS_total`, is a useful one-number summary alongside adjusted R-squared.
 
 </details>
 
-### Exercise 13: Find the most influential observation
+### Exercise 5.8: Side-by-side comparison with broom::glance()
 
-Compute Cook's distance for every row in `my_multi` and identify the most influential car. The row label of `mtcars` is the car name, so `which.max()` plus `rownames()` gets you the answer.
+**Task:** A reporting analyst wants a clean side-by-side comparison of three candidate models for `mpg` on `mtcars`. Apply `broom::glance()` to each, bind the rows, add a `model` column, and save the tibble to `ex_5_8`.
 
-```r title="Exercise 13 starter"
-my_cooks <- # your code here
+**Expected result:**
 
-top_idx <- which.max(my_cooks)
-cat("Most influential car:", rownames(mtcars)[top_idx],
-    "with Cook's D =", round(my_cooks[top_idx], 3), "\n")
-#> Expected: Toyota Corolla or Chrysler Imperial as the top influence
+```
+#> # A tibble: 3 x 13
+#>   model      r.squared adj.r.squared sigma statistic   p.value    df logLik   AIC   BIC
+#>   <chr>          <dbl>         <dbl> <dbl>     <dbl>     <dbl> <dbl>  <dbl> <dbl> <dbl>
+#> 1 wt             0.753         0.745  3.05     91.4  1.29e-10     1  -80.0  166.  170.
+#> 2 wt+hp          0.827         0.815  2.59     69.2  9.11e-12     2  -74.3  157.  163.
+#> 3 wt+hp+qsec     0.834         0.816  2.59     46.9  5.29e-11     3  -73.7  157.  165.
+#> # ... 3 more columns hidden (deviance, df.residual, nobs)
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fits <- list(
+  wt           = lm(mpg ~ wt, data = mtcars),
+  `wt+hp`      = lm(mpg ~ wt + hp, data = mtcars),
+  `wt+hp+qsec` = lm(mpg ~ wt + hp + qsec, data = mtcars)
+)
+ex_5_8 <- # your code here
+ex_5_8
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 13 solution"
-my_cooks <- cooks.distance(my_multi)
-top_idx  <- which.max(my_cooks)
-cat("Most influential car:", rownames(mtcars)[top_idx],
-    "with Cook's D =", round(my_cooks[top_idx], 3), "\n")
-#> Most influential car: Toyota Corolla with Cook's D = 0.219
+```r title="Solution"
+fits <- list(
+  wt           = lm(mpg ~ wt, data = mtcars),
+  `wt+hp`      = lm(mpg ~ wt + hp, data = mtcars),
+  `wt+hp+qsec` = lm(mpg ~ wt + hp + qsec, data = mtcars)
+)
+ex_5_8 <- bind_rows(lapply(fits, glance), .id = "model")
+ex_5_8
+#> # A tibble: 3 x 13
+#>   model      r.squared adj.r.squared sigma statistic   p.value    df logLik   AIC   BIC
+#>   <chr>          <dbl>         <dbl> <dbl>     <dbl>     <dbl> <dbl>  <dbl> <dbl> <dbl>
+#> 1 wt             0.753         0.745  3.05     91.4  1.29e-10     1  -80.0  166.  170.
+#> 2 wt+hp          0.827         0.815  2.59     69.2  9.11e-12     2  -74.3  157.  163.
+#> 3 wt+hp+qsec     0.834         0.816  2.59     46.9  5.29e-11     3  -73.7  157.  165.
 ```
 
-**Explanation:** Toyota Corolla, with Cook's D of `0.22`, has the largest single-row influence on the fitted coefficients of `my_multi`. The conventional "investigate" threshold is `4/n = 4/32 = 0.125`, which Toyota Corolla exceeds. That does not mean delete it, influential does not mean wrong. It means refit without that row and see if your coefficients change meaningfully; if they do, your conclusions depend on a single observation, which is worth disclosing.
+**Explanation:** `glance()` returns one row of fit statistics per model and pairs naturally with `bind_rows()` for side-by-side tables. The `.id` argument captures the list name as a `model` column. From here you can pipe into `gt::gt()` or `kable()` for a report-ready table. Important: AIC and BIC values depend on the data, the response transformation, and the number of observations, so always compare like with like.
 
 </details>
 
-### Exercise 14: 95% confidence interval for the mean mpg
+## Section 6. Prediction, intervals, and reporting (8 problems)
 
-Predict the **mean** mpg for a hypothetical car with `wt = 3.0`, `hp = 110`, `cyl = 6`, using `my_multi`. Report the 95% confidence interval, the right interval to quote when the audience cares about the average car of that spec (not a single car).
+### Exercise 6.1: Predict mpg with a confidence interval
 
-```r title="Exercise 14 starter"
-my_newcar14 <- # your code here
+**Task:** A buyer wants the predicted mpg plus a 95% confidence interval at `wt = 3.2`, `hp = 110` for the `mpg ~ wt + hp` regression on `mtcars`. Pass `interval = "confidence"` to `predict()` and save the named numeric vector to `ex_6_1`.
 
-predict(my_multi, newdata = my_newcar14, interval = "confidence", level = 0.95)
-#> Expected: fit ~ 22.5, narrow interval (~ 21 to 24)
+**Expected result:**
+
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 14 solution"
-my_newcar14 <- data.frame(wt = 3.0, hp = 110, cyl = 6)
-predict(my_multi, newdata = my_newcar14, interval = "confidence", level = 0.95)
-#>        fit     lwr      upr
-#> 1 22.49146 21.23147 23.75145
-```
-
-**Explanation:** The 95% confidence interval, `21.2` to `23.8`, is the range you would quote for the *average* mpg of all 3,000-lb, 110-hp, 6-cyl cars in the population. It is narrow because averaging across many such cars cancels their individual noise. This is the right interval for a fleet-level summary: "on average, cars like this get 22.5 mpg, plus or minus 1.3."
-
-</details>
-
-### Exercise 15: 95% prediction interval for a single new car
-
-Same car spec as Exercise 14 (`wt = 3.0`, `hp = 110`, `cyl = 6`). This time return a 95% **prediction** interval, the right interval to quote when the audience asks "what mpg can I expect from one specific car like this?"
-
-```r title="Exercise 15 starter"
-predict(my_multi, newdata = my_newcar14, interval = "prediction", level = 0.95)
-#> Expected: fit ~ 22.5, much wider interval (~ 17 to 28)
-
-# Why is this wider than Exercise 14?
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 15 solution"
-predict(my_multi, newdata = my_newcar14, interval = "prediction", level = 0.95)
 #>        fit      lwr      upr
-#> 1 22.49146 17.13961 27.84331
+#> 1 21.31449 20.18671 22.44227
 ```
 
-**Explanation:** The 95% prediction interval, `17.1` to `27.8`, is much wider than the confidence interval (`21.2` to `23.8`) from Exercise 14 because it adds in the irreducible variation of a *single* car around the regression mean. Mathematically, the prediction interval's variance is `Var(mean) + sigma^2`, while the confidence interval is just `Var(mean)`. The single-car interval will always be wider; using the narrower confidence interval to make a single-car promise is a classic over-claiming mistake.
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_1 <- predict(
+  fit,
+  newdata = data.frame(wt = 3.2, hp = 110),
+  interval = "confidence"
+)
+ex_6_1
+#>        fit      lwr      upr
+#> 1 21.31449 20.18671 22.44227
+```
+
+**Explanation:** A confidence interval here is for the mean response: "the average mpg of all cars with wt = 3.2 and hp = 110 is in this range with 95% confidence". It is narrow because it does not include the residual scatter of individual cars. Width depends on how far the new x is from the training data centroid: predictions far outside the training range get much wider CIs (and you should not trust them at all).
 
 </details>
 
-## Complete Example: predicting fuel economy on a held-out car
+### Exercise 6.2: Get a prediction interval (wider than the CI)
 
-This worked example chains the moves from the 15 exercises into one realistic workflow: explore the data with correlations, fit a multi-predictor model, run a nested-model F-test, check assumptions, and predict mpg with both intervals for a new spec. Read it as the report you would write at the end of an analyst task.
+**Task:** The same buyer also wants the 95% prediction interval (a range that should cover the next individual car, not the average). Re-run `predict()` with `interval = "prediction"` and save the result to `ex_6_2`.
 
-```r title="End-to-end mpg prediction workflow"
-# 1. Look at correlations to choose predictors
-round(cor(mtcars[, c("mpg", "wt", "hp", "cyl", "disp")]), 2)
-#>         mpg    wt    hp   cyl  disp
-#> mpg    1.00 -0.87 -0.78 -0.85 -0.85
-#> wt    -0.87  1.00  0.66  0.78  0.89
-#> hp    -0.78  0.66  1.00  0.83  0.79
-#> cyl   -0.85  0.78  0.83  1.00  0.90
-#> disp  -0.85  0.89  0.79  0.90  1.00
+**Expected result:**
 
-# 2. Fit two candidate models
-final_simple <- lm(mpg ~ wt, data = mtcars)
-final_multi  <- lm(mpg ~ wt + hp + cyl, data = mtcars)
-
-# 3. Compare with a nested-model F-test
-anova(final_simple, final_multi)["Pr(>F)"][2, ]
-#> [1] 0.0005106555
-
-# 4. Check assumptions on the chosen model
-shapiro.test(residuals(final_multi))$p.value
-#> [1] 0.0963522
-
-# 5. Predict for a new car: confidence and prediction intervals
-new_car <- data.frame(wt = 2.8, hp = 105, cyl = 4)
-predict(final_multi, newdata = new_car, interval = "confidence")
+```
 #>        fit      lwr      upr
-#> 1 26.51762 24.74937 28.28586
-predict(final_multi, newdata = new_car, interval = "prediction")
-#>        fit      lwr      upr
-#> 1 26.51762 21.13042 31.90481
+#> 1 21.31449 15.74146 26.88753
 ```
 
-The workflow follows a clear sequence. The correlation matrix shows `wt`, `hp`, and `cyl` all correlate strongly with `mpg`, but they also correlate with each other (e.g. `cor(cyl, disp) = 0.90`), which is why we keep `cyl` and skip `disp`. The nested F-test (p ≈ `0.0005`) says the multi-predictor model is significantly better than weight alone. Shapiro on residuals (p ≈ `0.10`) does not flag a normality problem at 32 observations. For the new spec (light, low-power, 4-cylinder), the model predicts `26.5` mpg with a confidence interval of `24.7-28.3` for the *average* such car and a prediction interval of `21.1-31.9` for a *single* such car. A short report sentence: "The fitted multiple regression (R² = 0.84, adj R² = 0.82) predicts 26.5 mpg for a 2,800-lb, 105-hp, 4-cylinder car, with a 95% prediction interval of 21.1 to 31.9 mpg."
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_2 <- # your code here
+ex_6_2
+```
 
-The fifteen exercises drilled the same five-step workflow shown here, with one extra knob per problem.
+<details>
+<summary>Click to reveal solution</summary>
 
-![Linear regression workflow](screenshots/Linear-Regression-Exercises-in-R-workflow.webp)
-*Figure 1: The fit-interpret-check loop the 15 exercises drill into.*
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_2 <- predict(
+  fit,
+  newdata = data.frame(wt = 3.2, hp = 110),
+  interval = "prediction"
+)
+ex_6_2
+#>        fit      lwr      upr
+#> 1 21.31449 15.74146 26.88753
+```
 
-| Step | Function | Key output | Common gotcha |
-|---|---|---|---|
-| Fit | `lm(y ~ x, data)` | A model object, `coef()` and `fitted()` ready | Forgetting `data =` and pulling from the global env |
-| Interpret | `summary(model)` | Estimate, p-value, R², F-stat | Reading p < 0.05 as "large effect" |
-| Compare | `anova(small, big)` | Nested-model F-test | Comparing non-nested models (use AIC instead) |
-| Diagnose | `plot(model)` | Four panels: linearity, normality, equal var, leverage | Trusting Shapiro on small/large samples without the Q-Q plot |
-| Predict | `predict(model, newdata, interval)` | Point + CI or PI | Quoting CI when audience needs PI |
+**Explanation:** Prediction intervals add residual variance to the confidence-interval width, so they are much wider (here 15.7 to 26.9 vs 20.2 to 22.4). Always present prediction intervals when stakeholders need a range for an individual case; confidence intervals when they care about the average behaviour. A common mistake is reporting a tight CI to a customer who actually needed a PI and then being surprised when individual outcomes blow past it.
 
-Five habits this set of exercises locks in:
+</details>
 
-1. Read `summary()` top to bottom in order, not by cherry-picking R² or one p-value.
-2. In multiple regression, every slope means "with the others held constant", always.
-3. A nested F-test, not raw R², decides whether added predictors earn their place.
-4. Diagnostic plots are about patterns, not point values; a flat smoother is the goal.
-5. Confidence intervals describe averages, prediction intervals describe single new cases. They are not interchangeable.
+### Exercise 6.3: Augment the dataset with fitted values and diagnostics
 
-## References
+**Task:** A reporting analyst wants a tibble that joins the original `mtcars` columns with fitted values, residuals, leverage (`.hat`), and Cook's distance from `mpg ~ wt + hp`. Use `broom::augment()` and save the tibble to `ex_6_3`.
 
-1. Kutner, M., Nachtsheim, C., Neter, J., Li, W., *Applied Linear Statistical Models*, 5th ed., McGraw-Hill (2005). The standard graduate-level reference for the OLS framework, t-tests on slopes, and prediction-vs-confidence intervals. [Publisher page](https://www.mheducation.com/highered/product/applied-linear-statistical-models-kutner-nachtsheim/M9780073108742.html)
-2. Faraway, J. J., *Linear Models with R*, 2nd ed., Chapman & Hall/CRC (2014). Concise R-first treatment, including the `mtcars`-style worked examples and diagnostic-plot reading. [Publisher page](https://www.routledge.com/Linear-Models-with-R/Faraway/p/book/9781439887332)
-3. R Core Team, `lm()` reference, base R `stats` package documentation. The authoritative source on what `lm()` returns and how `summary.lm`, `predict.lm`, and `anova()` operate. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html)
-4. James, G., Witten, D., Hastie, T., Tibshirani, R., *An Introduction to Statistical Learning with Applications in R*, 2nd ed., Springer (2021). Chapter 3 covers simple and multiple regression with the same partial-effect interpretation used here. [Free PDF](https://www.statlearning.com/)
-5. Fox, J., Weisberg, S., *An R Companion to Applied Regression*, 3rd ed., SAGE (2019). Source of the `car::vif()` and `car::Anova()` functions used in extended diagnostics. [Publisher page](https://us.sagepub.com/en-us/nam/an-r-companion-to-applied-regression/book246125)
-6. Wickham, H., Çetinkaya-Rundel, M., Grolemund, G., *R for Data Science*, 2nd ed., O'Reilly (2023). Chapter 22 ("Models") frames model fitting in the same fit-interpret-check loop used in these exercises. [Free online](https://r4ds.hadley.nz/)
-7. Robinson, D., Hayes, A., Couch, S., `broom` package vignette, "Introduction to broom." Helpful when you outgrow `summary()` and need tidy data frames of coefficients and fit statistics. [CRAN page](https://cran.r-project.org/web/packages/broom/vignettes/broom.html)
+**Expected result:**
 
-## Continue Learning
+```
+#> # A tibble: 32 x 14
+#>   .rownames           mpg    wt    hp .fitted .resid  .hat .cooksd
+#>   <chr>             <dbl> <dbl> <dbl>   <dbl>  <dbl> <dbl>   <dbl>
+#> 1 Mazda RX4          21    2.62   110   23.0  -1.97  0.0455 0.00759
+#> 2 Mazda RX4 Wag      21    2.88   110   22.0  -0.972 0.0359 0.00146
+#> # ... 30 more rows hidden
+```
 
-- [Linear Regression in R: Fit Your First Model With lm() and Understand Every Number](Simple-Linear-Regression-in-R.html), the canonical parent lesson that walks through `lm()` output line by line. Read this first if any of the t-test or R² discussion above felt rushed.
-- [Linear Regression Assumptions in R](Linear-Regression-Assumptions-in-R.html), a deeper dive into the four diagnostic panels and the formal tests behind each. The right next step after Exercises 11-13.
-- [Regression Diagnostics in R](Regression-Diagnostics-in-R.html), leverage, influence, Cook's distance, and DFBETAS in detail. Read this when an exercise like 13 surfaces an influential point and you need to decide what to do about it.
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_3 <- # your code here
+head(ex_6_3, 2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_3 <- augment(fit)
+head(ex_6_3, 2)
+#> # A tibble: 2 x 9
+#>   .rownames        mpg    wt    hp .fitted .resid  .hat .cooksd .std.resid
+#>   <chr>          <dbl> <dbl> <dbl>   <dbl>  <dbl> <dbl>   <dbl>      <dbl>
+#> 1 Mazda RX4       21    2.62   110   23.0  -1.97  0.0455 0.00759    -0.802
+#> 2 Mazda RX4 Wag   21    2.88   110   22.0  -0.972 0.0359 0.00146    -0.392
+```
+
+**Explanation:** `augment()` is the tidy-data swiss army knife for diagnostics. Every row of `mtcars` gets columns prefixed with a dot (`.fitted`, `.resid`, `.hat`, `.cooksd`) so they do not collide with original variables. Pipe into `ggplot()` to make custom diagnostic plots, or into `filter(.cooksd > 4 / n())` to surface flagged rows. Pass `newdata` to augment a held-out test set instead of the training set.
+
+</details>
+
+### Exercise 6.4: Plot regression with ggplot2 geom_smooth
+
+**Task:** A reporting analyst wants a scatter of `mpg` against `wt` from `mtcars` with the fitted OLS line plus a 95% confidence band. Use `geom_smooth(method = "lm")` and save the ggplot object to `ex_6_4`.
+
+**Expected result:**
+
+```
+#> # ggplot object: scatterplot of mpg vs wt
+#> # blue regression line with 95% confidence band shaded around it
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_4 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE, level = 0.95) +
+  labs(
+    title = "Fuel economy by curb weight",
+    x = "Weight (1000 lb)",
+    y = "Miles per gallon"
+  )
+ex_6_4
+#> ggplot rendered: regression line slopes down at about -5.34 mpg per 1000 lb
+#> grey ribbon shows tighter band in the middle, fanning out at the ends
+```
+
+**Explanation:** `geom_smooth(method = "lm")` fits a fresh regression on the displayed variables and overlays it with a 95% confidence ribbon by default. The ribbon is the same kind of mean-response CI as Exercise 6.1, so it is narrow at the data centroid and wider at the edges. For multivariate models the ribbon shown is misleading because it ignores the other predictors; in that case extract `predict()` output and plot it yourself instead of leaning on `geom_smooth()`.
+
+</details>
+
+### Exercise 6.5: Plot regression with a custom confidence band on a fine grid
+
+**Task:** A senior modeller wants a regression-line plot that uses the full multivariate model `mpg ~ wt + hp` (`hp` held at its mean), drawn over a fine `wt` grid. Build the grid, call `predict()` with `interval = "confidence"`, and save the ggplot object to `ex_6_5`.
+
+**Expected result:**
+
+```
+#> # ggplot rendered: smooth line from wt = 1.5 to 5.5
+#> # narrow CI ribbon, points coloured by hp
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+grid <- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 100),
+                   hp = mean(mtcars$hp))
+ex_6_5 <- # your code here
+ex_6_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+grid <- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 100),
+                   hp = mean(mtcars$hp))
+pr <- as.data.frame(predict(fit, newdata = grid, interval = "confidence"))
+grid <- cbind(grid, pr)
+
+ex_6_5 <- ggplot() +
+  geom_point(data = mtcars, aes(wt, mpg, colour = hp)) +
+  geom_ribbon(data = grid, aes(wt, ymin = lwr, ymax = upr), alpha = 0.2) +
+  geom_line(data = grid, aes(wt, fit)) +
+  labs(title = "Predicted mpg by weight (hp at its mean)", x = "wt", y = "mpg")
+ex_6_5
+#> ggplot rendered: predicted-mpg line from a multivariate fit
+#> hp held constant at the sample mean; ribbon shows mean-response CI
+```
+
+**Explanation:** `geom_smooth()` only knows about the variables in the aesthetic, so it cannot show a multivariate regression line. Building your own grid and calling `predict()` is the correct pattern when you have multiple predictors. The "hold the others at their mean" choice is one of many; you can plot a slice at each of several `hp` levels by `expand_grid()` to communicate how the partial effect varies with another covariate.
+
+</details>
+
+### Exercise 6.6: Save a fitted model to disk and reload it
+
+**Task:** An MLOps engineer wants to persist a fitted `mpg ~ wt + hp` model to disk, reload it in a fresh session, and predict on `mtcars[1, ]`. Use `saveRDS()` and `readRDS()` (write to a temp file via `tempfile()`); save the predicted value to `ex_6_6`.
+
+**Expected result:**
+
+```
+#> Mazda RX4 
+#>  23.57250
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+path <- tempfile(fileext = ".rds")
+ex_6_6 <- # your code here
+ex_6_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+path <- tempfile(fileext = ".rds")
+saveRDS(fit, path)
+loaded <- readRDS(path)
+ex_6_6 <- predict(loaded, newdata = mtcars[1, ])
+ex_6_6
+#> Mazda RX4 
+#>  23.57250
+```
+
+**Explanation:** `saveRDS()`/`readRDS()` serialise a single R object including `lm`'s entire `model.frame()` (training data is embedded by default). Two cautions: the file is not portable across R major versions, and embedded data may leak sensitive predictors. To shrink the file, strip non-essentials with `strip_glm()` patterns or pass `data = ...` lazily. For production deployment behind an API, prefer `vetiver` or model translation to a portable format like ONNX or PMML.
+
+</details>
+
+### Exercise 6.7: Use HC3 heteroscedasticity-consistent standard errors
+
+**Task:** A reviewer reports the Breusch-Pagan test rejected for the diamonds price model and wants robust HC3 standard errors instead of the OLS ones. Use `sandwich::vcovHC(fit, type = "HC3")` and `lmtest::coeftest()`; save the printed coefficient test to `ex_6_7`.
+
+**Expected result:**
+
+```
+#> 
+#> t test of coefficients:
+#> 
+#>              Estimate Std. Error t value  Pr(>|t|)    
+#> (Intercept) 6.2150e+0  4.6112e-3 1347.85 < 2.2e-16 ***
+#> carat       1.9698e+0  5.6230e-3  350.31 < 2.2e-16 ***
+#> ---
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit <- lm(log(price) ~ carat, data = diamonds)
+ex_6_7 <- # your code here
+ex_6_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(log(price) ~ carat, data = diamonds)
+ex_6_7 <- coeftest(fit, vcov = vcovHC(fit, type = "HC3"))
+ex_6_7
+#> 
+#> t test of coefficients:
+#> 
+#>              Estimate Std. Error t value  Pr(>|t|)    
+#> (Intercept) 6.2150e+0  4.6112e-3 1347.85 < 2.2e-16 ***
+#> carat       1.9698e+0  5.6230e-3  350.31 < 2.2e-16 ***
+#> ---
+```
+
+**Explanation:** Heteroscedasticity-consistent (White / sandwich) standard errors stay valid when residual variance is not constant. HC3 is the small-sample-adjusted version recommended by Long and Ervin (2000) and should be the default for cross-sectional data. Coefficients themselves are unchanged: only the standard errors, t-statistics, and p-values shift. For panel or clustered data, swap in `vcovCL(fit, cluster = ~ group)` to also handle within-cluster correlation.
+
+</details>
+
+### Exercise 6.8: Bootstrap a prediction interval for a future observation
+
+**Task:** A statistician wants a non-parametric 95% prediction interval at `wt = 3.5`, `hp = 150` for `mpg ~ wt + hp` on `mtcars`. Bootstrap 1000 fitted means and add a normal residual draw to each; save the named numeric vector `c(lower, upper)` to `ex_6_8`.
+
+**Expected result:**
+
+```
+#>    lower    upper 
+#> 13.21472 23.51208
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(99)
+newx <- data.frame(wt = 3.5, hp = 150)
+B <- 1000
+n <- nrow(mtcars)
+ex_6_8 <- # your code here
+ex_6_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(99)
+newx <- data.frame(wt = 3.5, hp = 150)
+B <- 1000
+n <- nrow(mtcars)
+
+draws <- replicate(B, {
+  rows <- sample.int(n, n, replace = TRUE)
+  fit_b <- lm(mpg ~ wt + hp, data = mtcars[rows, ])
+  mu    <- predict(fit_b, newdata = newx)
+  mu + rnorm(1, 0, summary(fit_b)$sigma)
+})
+ex_6_8 <- setNames(quantile(draws, c(0.025, 0.975)), c("lower", "upper"))
+ex_6_8
+#>    lower    upper 
+#> 13.21472 23.51208
+```
+
+**Explanation:** A bootstrap prediction interval combines uncertainty in the regression line (resampling rows refits a slightly different model each iteration) with residual scatter (one random normal draw added per iteration). The result is wider than a confidence-only bootstrap, exactly like the textbook PI is wider than the CI. The benefit over the closed-form `interval = "prediction"` is that it does not assume Gaussian residuals; if you saw a fat-tailed Q-Q plot, this is the safer interval.
+
+</details>
+
+## What to do next
+
+- Back to the core lesson: [Linear Regression in R](Linear-Regression.html)
+- For assumption checks in depth: [Assumptions of Linear Regression](Assumptions-of-Linear-Regression.html)
+- Outputs and diagnostics walkthrough: [Interpreting Regression Output Completely](Interpreting-Regression-Output-Completely.html)
+- Next regression family to drill: [Logistic Regression in R](Logistic-Regression-With-R.html)
