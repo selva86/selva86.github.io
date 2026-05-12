@@ -1,561 +1,681 @@
 ---
-title: "Advanced R Exercises: 10 Functional Programming Practice Problems, Solved Step-by-Step"
+title: "Functional Programming R Exercises: 18 Practice Problems"
 slug: "R-Functional-Programming-Exercises"
-description: "Practice functional programming in R with 10 hands-on exercises, pure functions, closures, map, reduce, composition. Starter code and worked solutions."
-keywords: "R functional programming exercises, R map reduce exercises, functional programming practice R, R closures exercises, higher-order functions exercises R, R practice problems functional, purrr exercises R, R Reduce Filter exercises"
+description: "Functional programming R exercises with solutions: 18 hands-on problems on higher-order functions, map, reduce, closures, function factories, and purrr."
+keywords: "functional programming R exercises, purrr exercises, higher-order functions R, closures R, map reduce R, function factories R"
 mathjax: false
 webr: true
-date: "2026-04-12"
-curriculum_id: "E11.1"
+date: "2026-05-12"
 post_type: "EX"
-sidebar_title: "Functional Programming (10 problems)"
-auto_link_terms: "functional programming exercises|R functional programming exercises|FP exercises R|functional programming practice problems"
-auto_link_case_sensitive: false
+sidebar_title: "Functional Programming Exercises"
+sidebar_order: 150
 fr_parent: "Functional-Programming-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "functional programming exercises|higher-order functions in r|purrr exercises|closures in r|map and reduce in r"
+auto_link_case_sensitive: false
+target_keyword: "functional programming R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Advanced R Exercises: 10 Functional Programming Practice Problems, Solved Step-by-Step
+# Functional Programming R Exercises: 18 Practice Problems
 
-<p class="lead">Sharpen your functional programming skills in R with 10 hands-on exercises covering pure functions, first-class functions, higher-order operations (<code>map</code>, <code>filter</code>, <code>reduce</code>), immutability, closures, and pipeline composition, each with starter code and a fully worked solution.</p>
+<p class="lead">Eighteen runnable practice problems on functional programming in R, covering higher-order functions, the apply and map families, Reduce, closures, function factories, composition, partial application, and recursion. Solutions are hidden behind a reveal so you can solve before peeking.</p>
 
-These exercises follow the same progression as the [Functional Programming in R](Functional-Programming-in-R.html) tutorial. Work through them in order, earlier problems build habits you need for the later ones. Type your answer before opening the solution; the struggle is where the learning happens.
+Run the setup block once before attempting any exercise. Each problem is self-contained and assigns its result to `ex_N_M`, so you can check your answer side-by-side with the printed expected output.
 
-## How Should You Use These Exercises?
-
-Every code block on this page shares a single R session, so variables you create in one exercise carry forward to the next. Let's confirm that with a quick warm-up.
-
-```r title="Session warm-up check"
-fp_ready <- "Session is live — let's go!"
-fp_ready
-#> [1] "Session is live — let's go!"
+```r title="Run this once before any exercise"
+library(purrr)
+library(dplyr)
 ```
 
-That variable now exists for the rest of this page. Each exercise gives you a **starter block** with a skeleton and expected output, plus a collapsible **worked solution** with a line-by-line explanation. Aim to solve it yourself first.
+## Section 1. First-class and higher-order functions (3 problems)
 
-[NOTE]
-**These exercises assume you know the five FP ideas from the parent tutorial.** If terms like "pure function", "first-class", or "higher-order function" feel unfamiliar, read [Functional Programming in R](Functional-Programming-in-R.html) first and come back.
+### Exercise 1.1: Type-check a mixed list with sapply
 
-## Exercise 1: Can You Write a Pure Function That Scales a Vector?
+**Task:** A code reviewer is auditing type-safety in a script and needs the class of every element in a heterogeneous list. Use base R `sapply()` to apply `class()` across each element of `list(a = c(1.5, 2.5), b = "hi", c = TRUE)`. The result should be a named character vector. Save it to `ex_1_1`.
 
-A pure function takes its inputs and returns a result, no globals, no side effects, same input always gives the same output. Your job: write `scale_between(x, low, high)` that rescales a numeric vector `x` to fall within `[low, high]`.
+**Expected result:**
 
-```r title="Exercise: pure scalebetween function"
-# Write scale_between() — a pure function
-scale_between <- function(x, low, high) {
-  # your code here
-}
+```
+#>           a           b           c
+#>   "numeric" "character"   "logical"
+```
 
-# Test:
-scale_between(c(10, 20, 30, 40, 50), 0, 1)
-#> Expected: 0.00 0.25 0.50 0.75 1.00
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="scalebetween solution"
-scale_between <- function(x, low, high) {
-  scaled <- (x - min(x)) / (max(x) - min(x))
-  scaled * (high - low) + low
-}
-
-scale_between(c(10, 20, 30, 40, 50), 0, 1)
-#> [1] 0.00 0.25 0.50 0.75 1.00
-
-scale_between(c(10, 20, 30, 40, 50), 0, 100)
-#> [1]   0  25  50  75 100
+```r title="Solution"
+ex_1_1 <- sapply(list(a = c(1.5, 2.5), b = "hi", c = TRUE), class)
+ex_1_1
+#>           a           b           c
+#>   "numeric" "character"   "logical"
 ```
 
-**Explanation:** First we normalise `x` to the 0-1 range by subtracting the minimum and dividing by the range. Then we stretch it to `[low, high]` by multiplying by the target width and adding `low`. The function touches nothing outside its own body, pure by construction.
+**Explanation:** `sapply()` treats a function as a value: you pass `class` (no parentheses) and it gets invoked on each list element. Because every result is a length-one character, `sapply()` simplifies the output to a named vector instead of returning a list. If you wanted to preserve list shape, `lapply()` is the safer choice and `vapply(lst, class, character(1))` is the strictest.
 
 </details>
 
-## Exercise 2: Can You Spot and Fix the Impure Function?
+### Exercise 1.2: Return a function from a function
 
-The function below tracks a running total using `<<-`, which writes to the global environment. That makes it impure, calling it twice with the same input gives different results. Rewrite it so the same inputs always produce the same output.
+**Task:** A finance team analyst wants a reusable currency-formatter generator. Write `make_formatter(prefix)` that returns a single-argument function which pastes `prefix` and a number rounded to two decimals. Use the returned function to format `1234.5678` with prefix `"$"` and save the resulting string to `ex_1_2`.
 
-```r title="Exercise: rewrite impure function"
-# Impure version — DO NOT use this pattern
-total <- 0
-add_and_track <- function(value) {
-  total <<- total + value
-  total
-}
+**Expected result:**
 
-add_and_track(5)
-#> [1] 5
-add_and_track(5)
-#> [1] 10   # same input, different output!
+```
+#> [1] "$1234.57"
+```
 
-# Rewrite as a PURE function:
-add_pure <- function(current_total, value) {
-  # your code here
-}
+**Difficulty:** Intermediate
 
-# Test:
-add_pure(0, 5)
-#> Expected: 5
-add_pure(0, 5)
-#> Expected: 5  (same input, same output!)
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Pure-add solution"
-add_pure <- function(current_total, value) {
-  current_total + value
+```r title="Solution"
+make_formatter <- function(prefix) {
+  function(x) paste0(prefix, format(round(x, 2), nsmall = 2))
 }
-
-add_pure(0, 5)
-#> [1] 5
-add_pure(0, 5)
-#> [1] 5
-
-# Chain calls to build a running total without any global state:
-0 |> add_pure(5) |> add_pure(10) |> add_pure(3)
-#> [1] 18
+dollar <- make_formatter("$")
+ex_1_2 <- dollar(1234.5678)
+ex_1_2
+#> [1] "$1234.57"
 ```
 
-**Explanation:** The impure version hid state in a global variable, making the output depend on *when* you call it. The pure version takes the current total as an explicit argument, so the output depends only on the inputs. To accumulate, you chain calls or use `Reduce`, the state travels through the function, not around it.
+**Explanation:** Returning a function turns `prefix` into part of the inner function's enclosing environment. That captured value persists for every later call, which is the essence of a closure. The same pattern produces `euro <- make_formatter("EUR ")` for free, with no copy-paste. `format(..., nsmall = 2)` keeps trailing zeros (so `12.50` does not collapse to `12.5`).
 
 </details>
 
-[KEY INSIGHT]
-**The `<<-` operator is a code smell in functional R.** Every time you see `<<-`, it means a function is reaching outside its own scope to change something. Replace that hidden state with an explicit argument and the function becomes testable, predictable, and safe to run in parallel.
+### Exercise 1.3: Anonymous functions with the backslash shorthand
 
-## Exercise 3: Can You Store Functions in a List and Dispatch by Name?
+**Task:** Use the base R `\(x) ...` anonymous function shorthand together with `sapply()` to compute the cube of each integer from 1 to 6. The result should simplify to a numeric vector of length six. Save it to `ex_1_3`.
 
-In R, functions are first-class values, you can store them in variables, lists, or pass them as arguments. Create a named list of four summary statistics and write a dispatcher function.
+**Expected result:**
 
-```r title="Exercise: dispatch stats by name"
-# Create a named list of summary functions:
-# "mean", "median", "sd", "iqr"
-# Then write summarise_with(x, stat_name) that looks up the
-# function by name and applies it to x.
+```
+#> [1]   1   8  27  64 125 216
+```
 
-summarise_with <- function(x, stat_name) {
-  # your code here
-}
+**Difficulty:** Beginner
 
-# Tests:
-summarise_with(1:100, "mean")
-#> Expected: 50.5
-summarise_with(1:100, "median")
-#> Expected: 50.5
-summarise_with(1:100, "sd")
-#> Expected: 29.01149
-summarise_with(1:100, "iqr")
-#> Expected: 49.5
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Stats-dispatch solution"
-stat_funs <- list(
-  mean   = mean,
-  median = median,
-  sd     = sd,
-  iqr    = IQR
-)
-
-summarise_with <- function(x, stat_name) {
-  stat_funs[[stat_name]](x)
-}
-
-summarise_with(1:100, "mean")
-#> [1] 50.5
-summarise_with(1:100, "median")
-#> [1] 50.5
-summarise_with(1:100, "sd")
-#> [1] 29.01149
-summarise_with(1:100, "iqr")
-#> [1] 49.5
+```r title="Solution"
+ex_1_3 <- sapply(1:6, \(x) x^3)
+ex_1_3
+#> [1]   1   8  27  64 125 216
 ```
 
-**Explanation:** `stat_funs` is a named list where each element is a function. `stat_funs[[stat_name]]` retrieves the function by name, and the trailing `(x)` calls it. This pattern is called "dispatch by name", it replaces long `if`/`else` chains with a clean lookup.
+**Explanation:** The `\(x)` lambda syntax (added in R 4.1) is identical to `function(x)` but two characters cheaper, which matters when you have many short callbacks. Use it for one-off helpers you would not reuse: anything you would name (like `cube`) deserves a top-level `function()` binding so it shows up in stack traces.
 
 </details>
 
-## Exercise 4: Can You Build a Function Factory for Power Functions?
+## Section 2. The map family in base R and purrr (4 problems)
 
-A function factory is a function that *returns* a new function. The returned function "closes over" (remembers) the variables from its creation environment. Write `make_power(n)` that returns a function raising its argument to the `n`th power.
+### Exercise 2.1: One-line column audit with sapply over mtcars
 
-```r title="Exercise: makepower factory"
-# Write the factory:
-make_power <- function(n) {
-  # return a function that raises x to the nth power
-}
+**Task:** A reporting analyst wants a quick audit of every numeric column in `mtcars`. Use `sapply()` to compute the median of each column. Because all 11 columns are numeric and length-32, the result should simplify to a named numeric vector. Save it to `ex_2_1`.
 
-# Use it to create specialised functions:
-square <- make_power(2)
-cube   <- make_power(3)
+**Expected result:**
 
-# Tests:
-square(5)
-#> Expected: 25
-cube(3)
-#> Expected: 27
-make_power(0.5)(16)
-#> Expected: 4
+```
+#>     mpg     cyl    disp      hp    drat      wt    qsec      vs      am    gear    carb
+#>  19.200   6.000 196.300 123.000   3.695   3.325  17.710   0.000   0.000   4.000   2.000
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="makepower solution"
-make_power <- function(n) {
-  function(x) x^n
-}
-
-square <- make_power(2)
-cube   <- make_power(3)
-
-square(5)
-#> [1] 25
-cube(3)
-#> [1] 27
-make_power(0.5)(16)
-#> [1] 4
+```r title="Solution"
+ex_2_1 <- sapply(mtcars, median)
+ex_2_1
+#>     mpg     cyl    disp      hp    drat      wt    qsec      vs      am    gear    carb
+#>  19.200   6.000 196.300 123.000   3.695   3.325  17.710   0.000   0.000   4.000   2.000
 ```
 
-**Explanation:** `make_power(2)` creates a new function whose body is `x^n`, where `n` is locked to `2` in the enclosing environment. That binding persists even after `make_power` finishes. This is a **closure**, the returned function "closes over" `n`. The `0.5` test shows that square roots are just power-0.5, and the factory handles that without any special case.
+**Explanation:** A data frame is internally a list of columns, so `sapply()` iterates column-by-column. Because the per-column result is always a single numeric value, the output collapses to a named vector. For type-stable production code prefer `vapply(mtcars, median, numeric(1))`: if any column ever returns something unexpected, `vapply()` fails loudly instead of silently switching to a list.
 
 </details>
 
-[TIP]
-**Closures capture the environment, not the value at call time.** If you modify the captured variable later (e.g., via a loop index), every closure sees the latest value. When building closures in a loop, use `force(n)` inside the factory to lock in the current value.
+### Exercise 2.2: Column maxima with purrr map_dbl handling NAs
 
-## Exercise 5: Can You Replace a For Loop With sapply?
+**Task:** A platform engineer is profiling a daily data export and needs the maximum value of each column in `airquality`, several of which contain `NA`. Use `purrr::map_dbl()` together with an anonymous function that passes `na.rm = TRUE` to `max()`. Save the resulting named numeric vector to `ex_2_2`.
 
-Higher-order functions like `sapply` replace explicit loops with a single, declarative call. Below is a for loop that z-score normalises each column of a data frame. Rewrite it as a one-liner using `sapply`.
+**Expected result:**
 
-```r title="Exercise: replace for-loop with sapply"
-df <- data.frame(
-  height = c(170, 180, 160, 175, 165),
-  weight = c(65, 80, 55, 72, 60),
-  age    = c(25, 30, 22, 28, 35)
-)
+```
+#>   Ozone Solar.R    Wind    Temp   Month     Day
+#>   168.0   334.0    20.7    97.0     9.0    31.0
+```
 
-# For-loop version (rewrite this):
-df_z <- df
-for (col in names(df)) {
-  df_z[[col]] <- (df[[col]] - mean(df[[col]])) / sd(df[[col]])
-}
-round(df_z, 2)
+**Difficulty:** Intermediate
 
-# Your one-liner using sapply:
-# df_z <- ???
-#> Expected (first row): height=0.00, weight=-0.42, age=-0.49
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="sapply z-score solution"
-df_z <- as.data.frame(sapply(df, \(col) (col - mean(col)) / sd(col)))
-round(df_z, 2)
-#>   height weight   age
-#> 1   0.00  -0.42 -0.49
-#> 2   1.26   1.05  0.49
-#> 3  -1.26  -1.37 -1.08
-#> 4   0.63   0.32  0.10
-#> 5  -0.63  -0.58  0.98
+```r title="Solution"
+ex_2_2 <- map_dbl(airquality, \(col) max(col, na.rm = TRUE))
+ex_2_2
+#>   Ozone Solar.R    Wind    Temp   Month     Day
+#>   168.0   334.0    20.7    97.0     9.0    31.0
 ```
 
-**Explanation:** `sapply(df, fun)` applies the anonymous function to each column and simplifies the result to a matrix. Wrapping it in `as.data.frame()` gives back a data frame. One line replaces four. More importantly, the intent, "normalise each column", is visible at a glance, while the loop buries it in index bookkeeping.
+**Explanation:** `map_dbl()` is the type-stable variant of `map()`: it guarantees a double vector or errors at the first non-numeric result. The `\(col)` lambda is needed only because `max()` takes the extra `na.rm` argument; for the bare `max` case `map_dbl(airquality, max)` would also work but would return `NA` for any column containing missing values.
 
 </details>
 
-## Exercise 6: Can You Chain Filter and Reduce to Solve a Data Problem?
+### Exercise 2.3: Walk paired vectors with map2_dbl
 
-`Filter` keeps elements that satisfy a predicate. `Reduce` collapses a sequence into a single value using a binary function. Combine them: given a mixed list, keep only the positive numbers and compute their running product.
+**Task:** The growth team has paired before/after revenue figures for three campaigns and wants the percent change per campaign. Given `before <- c(100, 120, 80)` and `after <- c(140, 110, 95)`, use `map2_dbl()` to compute `(after - before) / before * 100`. Save the numeric vector to `ex_2_3`.
 
-```r title="Exercise: Filter and Reduce product"
-mixed <- list("a", -3, 7, "hello", 2, -1, 5, TRUE, 4)
+**Expected result:**
 
-# Keep only positive numbers, then compute their product.
-# Use Filter() and Reduce() — no manual loops.
+```
+#> [1]  40.00000  -8.33333  18.75000
+```
 
-# your code here
-#> Expected: 280   (7 * 2 * 5 * 4)
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+before <- c(100, 120, 80)
+after  <- c(140, 110, 95)
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Filter-Reduce product solution"
-positives <- Filter(\(x) is.numeric(x) && x > 0, mixed)
-product <- Reduce(`*`, positives)
-product
-#> [1] 280
-
-# Or as a pipeline:
-mixed |>
-  Filter(f = \(x) is.numeric(x) && x > 0) |>
-  Reduce(f = `*`)
-#> [1] 280
+```r title="Solution"
+before <- c(100, 120, 80)
+after  <- c(140, 110, 95)
+ex_2_3 <- map2_dbl(before, after, \(b, a) (a - b) / b * 100)
+ex_2_3
+#> [1]  40.00000  -8.33333  18.75000
 ```
 
-**Explanation:** `Filter` applies the predicate to each element. Strings fail `is.numeric()`, negatives fail `x > 0`, and `TRUE` is technically numeric but not `> 0` in the way we want (it equals 1, so the predicate passes, if you want to exclude it, add `!is.logical(x)`). `Reduce` then folds `*` across the surviving values: `7 * 2 = 14`, `14 * 5 = 70`, `70 * 4 = 280`.
+**Explanation:** `map2_*()` is the right call when two inputs must move in lockstep: it errors if the vectors differ in length, which would mask a bug if you used vectorised arithmetic alone. For three or more parallel inputs you would graduate to `pmap_dbl()` and pass a list. The plain vectorised form `(after - before) / before * 100` works here too, but `map2_dbl()` makes the iteration explicit.
 
 </details>
 
-[WARNING]
-**Reduce() on an empty vector throws an error.** If your Filter might return nothing, pass `accumulate = FALSE` (the default) and provide an `init` value: `Reduce(\`*\`, x, init = 1)`. The `init` acts as the identity element and also saves you from the empty-input crash.
+### Exercise 2.4: Total price across many parallel vectors with pmap_dbl
 
-## Exercise 7: Can You Write Your Own Map From Scratch?
+**Task:** A pricing analyst has three parallel vectors describing line items: `qty <- c(2, 5, 1, 4)`, `unit_price <- c(9.99, 4.50, 19.95, 12.00)`, and `tax_rate <- c(0.08, 0.08, 0.0, 0.10)`. Use `pmap_dbl()` to compute the per-line total `qty * unit_price * (1 + tax_rate)`. Save the numeric vector to `ex_2_4`.
 
-The best way to understand a higher-order function is to build one. Implement `my_map(x, f)` that applies `f` to every element of `x` and returns a list, without using `lapply`, `sapply`, `Map`, `purrr::map`, or any apply variant.
+**Expected result:**
 
-```r title="Exercise: write mymap from scratch"
-my_map <- function(x, f) {
-  # your code here — no apply/map functions allowed!
-}
+```
+#> [1] 21.5784 24.3000 19.9500 52.8000
+```
 
-# Tests:
-my_map(1:5, \(n) n^2)
-#> Expected: list(1, 4, 9, 16, 25)
+**Difficulty:** Intermediate
 
-my_map(c("hello", "world"), toupper)
-#> Expected: list("HELLO", "WORLD")
+```r title="Your turn"
+qty        <- c(2, 5, 1, 4)
+unit_price <- c(9.99, 4.50, 19.95, 12.00)
+tax_rate   <- c(0.08, 0.08, 0.0, 0.10)
+ex_2_4 <- # your code here
+ex_2_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="mymap solution"
-my_map <- function(x, f) {
-  result <- vector("list", length(x))
-  for (i in seq_along(x)) {
-    result[[i]] <- f(x[[i]])
-  }
-  result
-}
+```r title="Solution"
+qty        <- c(2, 5, 1, 4)
+unit_price <- c(9.99, 4.50, 19.95, 12.00)
+tax_rate   <- c(0.08, 0.08, 0.0, 0.10)
+ex_2_4 <- pmap_dbl(list(qty, unit_price, tax_rate),
+                   \(q, p, t) q * p * (1 + t))
+ex_2_4
+#> [1] 21.5784 24.3000 19.9500 52.8000
+```
 
-my_map(1:5, \(n) n^2)
+**Explanation:** `pmap_*()` takes a single list of equal-length vectors and binds the i-th element of each to the lambda's positional arguments. It scales to any number of inputs, unlike `map2_*()`. A common alternative is to bind columns into a tibble and call `pmap_dbl(df, \(q, p, t) ...)`: the column names then become the parameter names, which reads cleanly when the vectors have meaningful labels.
+
+</details>
+
+## Section 3. Reduce and accumulate (3 problems)
+
+### Exercise 3.1: Intersect three customer lists with Reduce
+
+**Task:** An audit team has three customer-ID vectors pulled from three different systems and needs the IDs present in all three. Given `lst <- list(c(1,2,3,4,5), c(2,3,5,7,8), c(2,3,5,9))`, apply base R `Reduce()` with `intersect` to compute the common IDs. Save the resulting numeric vector to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> [1] 2 3 5
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+lst <- list(c(1,2,3,4,5), c(2,3,5,7,8), c(2,3,5,9))
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+lst <- list(c(1,2,3,4,5), c(2,3,5,7,8), c(2,3,5,9))
+ex_3_1 <- Reduce(intersect, lst)
+ex_3_1
+#> [1] 2 3 5
+```
+
+**Explanation:** `Reduce()` collapses a list by folding a binary function pairwise: it computes `intersect(lst[[1]], lst[[2]])` first, then intersects the result with `lst[[3]]`. This generalises to N lists with zero loop code. The pattern works for any associative binary op: `Reduce(union, ...)`, `Reduce("+", ...)`, `Reduce(merge, list_of_dfs)`, and so on.
+
+</details>
+
+### Exercise 3.2: Compounded wealth multiplier with accumulate
+
+**Task:** A finance team analyst needs the cumulative compounded return factor after each period for a series of period returns. Given `r <- c(0.05, -0.02, 0.03, 0.01)`, use `purrr::accumulate()` with the binary function `\(acc, x) acc * (1 + x)` and `.init = 1` so the result includes the starting wealth of 1. Save the numeric vector to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> [1] 1.000000 1.050000 1.029000 1.059870 1.070469
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+r <- c(0.05, -0.02, 0.03, 0.01)
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+r <- c(0.05, -0.02, 0.03, 0.01)
+ex_3_2 <- accumulate(r, \(acc, x) acc * (1 + x), .init = 1)
+ex_3_2
+#> [1] 1.000000 1.050000 1.029000 1.059870 1.070469
+```
+
+**Explanation:** Where `reduce()` keeps only the final value, `accumulate()` returns every intermediate state, which is exactly what cumulative wealth or running totals require. The `.init = 1` argument seeds the fold with a starting wealth, so the output has length five for an input of four returns. A vectorised shortcut for this specific case is `cumprod(1 + r)`, but the accumulate form generalises to any non-trivial state update rule.
+
+</details>
+
+### Exercise 3.3: Right-associative subtraction with Reduce(right = TRUE)
+
+**Task:** A code reviewer wants to demonstrate operator associativity by reducing the binary subtraction operator from right to left across the vector `c(10, 4, 2, 1)`. Use base R `Reduce()` with `right = TRUE` so the computation becomes `10 - (4 - (2 - 1))`. Save the integer result to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> [1] 7
+#> # equivalent to: 10 - (4 - (2 - 1))
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- Reduce("-", c(10, 4, 2, 1), right = TRUE)
+ex_3_3
+#> [1] 7
+```
+
+**Explanation:** Subtraction is not associative: left-to-right gives `((10 - 4) - 2) - 1 = 3`, but `right = TRUE` evaluates `2 - 1 = 1` first, then `4 - 1 = 3`, then `10 - 3 = 7`. The same flag matters for any non-associative op (division, string concatenation order). It is also faster than building the expression manually with `do.call()` because Reduce avoids intermediate allocations.
+
+</details>
+
+## Section 4. Filter, keep, and discard (2 problems)
+
+### Exercise 4.1: Keep only the numeric elements of a mixed list
+
+**Task:** A data engineer is profiling a mixed list of column-summary objects and needs only the numeric ones for further math. Given `lst <- list(1, "two", 3, "four", 5)`, use `purrr::keep()` with the predicate `is.numeric` to retain only the numeric elements. Save the filtered list (not a vector) to `ex_4_1`.
+
+**Expected result:**
+
+```
 #> [[1]]
 #> [1] 1
 #>
 #> [[2]]
-#> [1] 4
+#> [1] 3
 #>
 #> [[3]]
-#> [1] 9
-#>
-#> [[4]]
-#> [1] 16
-#>
-#> [[5]]
-#> [1] 25
+#> [1] 5
+```
 
-my_map(c("hello", "world"), toupper)
+**Difficulty:** Beginner
+
+```r title="Your turn"
+lst <- list(1, "two", 3, "four", 5)
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+lst <- list(1, "two", 3, "four", 5)
+ex_4_1 <- keep(lst, is.numeric)
+ex_4_1
 #> [[1]]
-#> [1] "HELLO"
+#> [1] 1
 #>
 #> [[2]]
-#> [1] "WORLD"
+#> [1] 3
+#>
+#> [[3]]
+#> [1] 5
 ```
 
-**Explanation:** We pre-allocate a list with `vector("list", length(x))` to avoid growing the list inside the loop (which is slow). `seq_along(x)` generates indices safely even if `x` is empty. Then we apply `f` to each element and store the result. This is essentially what `lapply` does internally in C, you've just written the R version.
+**Explanation:** `keep()` and `discard()` are the inverse of each other and accept any predicate that returns a logical scalar per element. They preserve the input container shape: a list in, a list out, so you can still feed the result into another `map()`. The base R equivalent is `Filter(is.numeric, lst)`, which behaves identically and ships with every R install.
 
 </details>
 
-[KEY INSIGHT]
-**Every higher-order function is hiding a loop.** The value of `sapply`, `Filter`, and `Reduce` isn't that they avoid loops, it's that they give the loop a *name*. When you see `sapply`, you know "one call per element, collect results." When you see a raw `for` loop, you have to read the body to know what pattern it follows.
+### Exercise 4.2: Discard short campaign names with a custom predicate
 
-## Exercise 8: Can You Prove That Copy-on-Modify Keeps Your Data Safe?
+**Task:** A marketing analyst is cleaning campaign names and wants to drop any name with fewer than five characters. Given `names <- c("spring", "ad", "summer-sale", "fy", "winter-promo")`, use `purrr::discard()` with predicate `\(x) nchar(x) < 5` to remove the short names. Save the surviving character vector to `ex_4_2`.
 
-R's copy-on-modify rule means a function cannot corrupt the data you pass in. Write a function `mangle(df)` that sorts the rows, renames a column, and adds a new column, then prove the original data frame is identical before and after the call.
+**Expected result:**
 
-```r title="Exercise: copy-on-modify proof"
-original_df <- data.frame(
-  name  = c("Zara", "Ali", "Mia"),
-  score = c(88, 95, 72)
-)
+```
+#> [1] "spring"       "summer-sale"  "winter-promo"
+```
 
-# Write mangle() — it should modify the data in at least 3 ways:
-mangle <- function(df) {
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+names <- c("spring", "ad", "summer-sale", "fy", "winter-promo")
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+names <- c("spring", "ad", "summer-sale", "fy", "winter-promo")
+ex_4_2 <- discard(names, \(x) nchar(x) < 5)
+ex_4_2
+#> [1] "spring"       "summer-sale"  "winter-promo"
+```
+
+**Explanation:** A predicate is just a function returning `TRUE` or `FALSE` per element. Here the lambda `\(x) nchar(x) < 5` works on each string. The vectorised base alternative is `names[nchar(names) >= 5]`, which is faster on large vectors but less composable if you later chain through a pipeline of `keep()` / `discard()` / `map()` steps with mixed predicates.
+
+</details>
+
+## Section 5. Closures and function factories (3 problems)
+
+### Exercise 5.1: A counter that remembers its state across calls
+
+**Task:** A junior analyst is learning R's environment model and wants a counter that remembers state between calls. Write `make_counter()` that returns a function which increments a private counter starting at zero and returns the new value. Call the returned counter three times and save the third returned value to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> [1] 3
+#> # counter has been called three times
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+make_counter <- function() {
   # your code here
 }
-
-# Proof:
-before <- original_df
-result <- mangle(original_df)
-
-# Show that original_df is unchanged:
-identical(original_df, before)
-#> Expected: TRUE
+counter <- make_counter()
+counter(); counter()
+ex_5_1 <- counter()
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Copy-on-modify solution"
-mangle <- function(df) {
-  df <- df[order(df$name), ]          # sort rows
-  names(df)[2] <- "points"            # rename column
-  df$grade <- ifelse(df$points >= 90, "A", "B")  # add column
-  df
+```r title="Solution"
+make_counter <- function() {
+  count <- 0
+  function() {
+    count <<- count + 1
+    count
+  }
 }
-
-before <- original_df
-result <- mangle(original_df)
-
-result
-#>   name points grade
-#> 2  Ali     95     A
-#> 3  Mia     72     B
-#> 1 Zara     88     B
-
-identical(original_df, before)
-#> [1] TRUE
-
-original_df
-#>   name score
-#> 1 Zara    88
-#> 2  Ali    95
-#> 3  Mia    72
+counter <- make_counter()
+counter(); counter()
+ex_5_1 <- counter()
+ex_5_1
+#> [1] 3
 ```
 
-**Explanation:** Inside `mangle`, every modification triggers R's copy-on-modify: the `df` inside the function becomes a private copy the moment we sort, rename, or add a column. The caller's `original_df` is never touched. This is why functional R code is safe for data analysis, mistakes inside a function cannot retroactively poison your source data.
+**Explanation:** The `<<-` super-assignment writes to `count` in the enclosing function's environment instead of creating a new local binding. That captured environment is what makes the counter persist between calls. Each call to `make_counter()` produces an independent counter with its own private state, which is the closure idiom for object-without-class encapsulation.
 
 </details>
 
-## Exercise 9: Can You Compose Three Functions Into a Single Pipeline?
+### Exercise 5.2: Power-of-N function factory
 
-Function composition means chaining small, focused functions together. Below are three helpers that each do one text-cleaning step. Combine them into a single pipeline using `|>` that takes a messy character vector and returns a clean one.
+**Task:** A statistician wants a small family of monomial functions for hand-crafted polynomial features. Write `power(n)` that returns a function which raises its argument to the `n`-th power. Use it to build a cubing function called `cube`, apply it to the value `4`, and save the numeric result to `ex_5_2`.
 
-```r title="Exercise: compose three cleaners"
-messy <- c("  Hello, World!  ", "R is GREAT!!!", "   functional Programming.  ")
+**Expected result:**
 
-# The three steps (already defined):
-# 1. trimws()       — remove leading/trailing whitespace
-# 2. tolower()      — convert to lowercase
-# 3. Remove all punctuation
+```
+#> [1] 64
+#> # cube(4) is 4 raised to the 3rd power
+```
 
-# Write a pipeline that applies all three:
-# cleaned <- ???
+**Difficulty:** Intermediate
 
-#> Expected: "hello world"  "r is great"  "functional programming"
+```r title="Your turn"
+power <- function(n) {
+  # your code here
+}
+cube <- power(3)
+ex_5_2 <- cube(4)
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Three-cleaners solution"
-cleaned <- messy |>
-  trimws() |>
-  tolower() |>
-  gsub(pattern = "[[:punct:]]", replacement = "", x = _)
-
-cleaned
-#> [1] "hello world"            "r is great"
-#> [3] "functional programming"
+```r title="Solution"
+power <- function(n) {
+  function(x) x^n
+}
+cube <- power(3)
+ex_5_2 <- cube(4)
+ex_5_2
+#> [1] 64
 ```
 
-**Explanation:** The native pipe `|>` passes the left-hand result as the first argument of the next function. `trimws()` and `tolower()` both take a character vector as their first argument, so they work directly. `gsub` needs the input as its third argument (`x`), so we use the `_` placeholder to tell the pipe where to put it. Each function does one thing; the pipe composes them into a readable left-to-right flow.
+**Explanation:** Function factories let you parameterise a family of functions with shared logic. `square <- power(2)`, `cube <- power(3)`, and `quartic <- power(4)` all share one definition. The risk is lazy evaluation: if `n` were itself a complex expression, it would not be evaluated until the inner function is called. Use `force(n)` inside the factory if you build many factories in a loop to lock in the value early.
 
 </details>
 
-[TIP]
-**The native pipe's `_` placeholder works only in named arguments.** You can write `gsub(pattern = "[[:punct:]]", replacement = "", x = _)` but not `gsub("[[:punct:]]", "", _)`. If you need positional placeholders, use magrittr's `%>%` with `.` instead.
+### Exercise 5.3: Memoized Fibonacci with a closure-private cache
 
-## Exercise 10: Can You Build a Memoised Fibonacci Function?
+**Task:** An ops engineer is benchmarking recursive computations and wants a memoized Fibonacci that caches previously seen values in a closure-private environment. Write `memo_fib()` that returns a function computing `fib(n)` and caching every result it computes. Use the returned function to compute `fib(20)` and save the integer result to `ex_5_3`.
 
-Memoisation caches the results of expensive function calls so repeated calls with the same input return instantly. The naive recursive Fibonacci is painfully slow for large `n` because it recomputes the same values over and over. Build a memoised version using a closure.
+**Expected result:**
 
-```r title="Exercise: memoised Fibonacci"
-# Naive version (slow for n > 30):
-fib_naive <- function(n) {
-  if (n <= 1) return(n)
-  fib_naive(n - 1) + fib_naive(n - 2)
+```
+#> [1] 6765
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+memo_fib <- function() {
+  # your code here
 }
-fib_naive(10)
-#> [1] 55
-
-# Write a memoised version using a closure:
-make_fib_memo <- function() {
-  # create a cache environment
-  # return a function that checks cache before computing
-}
-
-fib <- make_fib_memo()
-
-# Tests:
-fib(10)
-#> Expected: 55
-fib(30)
-#> Expected: 832040
-fib(50)
-#> Expected: 12586269025
+fib <- memo_fib()
+ex_5_3 <- fib(20)
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Memoised-Fibonacci solution"
-make_fib_memo <- function() {
-  cache <- new.env(parent = emptyenv())
-
-  fib_inner <- function(n) {
-    key <- as.character(n)
-    if (exists(key, envir = cache)) {
-      return(get(key, envir = cache))
-    }
-    val <- if (n <= 1) n else fib_inner(n - 1) + fib_inner(n - 2)
-    assign(key, val, envir = cache)
+```r title="Solution"
+memo_fib <- function() {
+  cache <- c(0, 1)
+  function(n) {
+    if (n + 1 <= length(cache)) return(cache[n + 1])
+    val <- Recall(n - 1) + Recall(n - 2)
+    cache[n + 1] <<- val
     val
   }
-
-  fib_inner
 }
-
-fib <- make_fib_memo()
-
-fib(10)
-#> [1] 55
-fib(30)
-#> [1] 832040
-fib(50)
-#> [1] 12586269025
+fib <- memo_fib()
+ex_5_3 <- fib(20)
+ex_5_3
+#> [1] 6765
 ```
 
-**Explanation:** `make_fib_memo` creates an environment (`cache`) that lives as long as the returned function does, this is a closure in action. On each call, `fib_inner` first checks if the result is already cached. If yes, it returns instantly. If no, it computes the value recursively, stores it in `cache`, and returns it. The naive version computes `fib(30)` with over a billion recursive calls; the memoised version computes each value exactly once, 30 calls total.
+**Explanation:** The naive recursive Fibonacci recomputes the same subproblems exponentially many times. Storing results in a closure-private `cache` reduces it to linear work. `Recall()` refers to the currently executing function, which is robust to renaming the returned function later. The `<<-` writes the new value into the enclosing environment so the next call sees the updated cache.
 
 </details>
 
-[KEY INSIGHT]
-**Memoisation turns exponential time into linear time for overlapping subproblems.** The cache is just an environment (R's native hash map), and the closure keeps it private, no global variables, no side effects visible to the caller. This pattern works for any pure function with expensive, repeated computations: API calls, file parsing, or matrix factorisation.
+## Section 6. Composition, partial application, and recursion (3 problems)
 
-## Summary
+### Exercise 6.1: Compose round-and-stringify into one function
 
-| Exercise | Concept | Key Takeaway |
-|---|---|---|
-| 1 | Pure functions | Same input, same output, no side effects |
-| 2 | Pure vs impure | Replace `<<-` with explicit arguments |
-| 3 | First-class functions | Store functions in lists for clean dispatch |
-| 4 | Function factories | Closures capture their enclosing environment |
-| 5 | Map (sapply) | Replace column-wise loops with one declarative call |
-| 6 | Filter + Reduce | Chain higher-order functions for complex logic |
-| 7 | Build your own map | Understanding HOFs = understanding the loop they hide |
-| 8 | Immutability | Copy-on-modify guarantees your data stays safe |
-| 9 | Composition | Pipes chain small functions into readable flows |
-| 10 | Memoisation | Closures + caching = exponential → linear performance |
+**Task:** A data engineer wants a one-step "round to two decimals, then stringify" formatter. Use `purrr::compose()` (which applies functions right-to-left by default) to combine `\(x) round(x, 2)` and `as.character` into a single function. Apply it to `3.14159` and save the resulting character string to `ex_6_1`.
 
-## References
+**Expected result:**
 
-1. Wickham, H., *Advanced R*, 2nd Edition. Chapter 6: Functions. [Link](https://adv-r.hadley.nz/functions.html)
-2. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-3. Wickham, H., *Advanced R*, 2nd Edition. Chapter 10: Function Factories. [Link](https://adv-r.hadley.nz/function-factories.html)
-4. purrr package documentation, Functional programming tools for R. [Link](https://purrr.tidyverse.org/)
-5. R Core Team, base R `Reduce`, `Filter`, `Map`, and `Position` reference. [Link](https://rdrr.io/r/base/funprog.html)
-6. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+```
+#> [1] "3.14"
+```
 
-## Continue Learning
+**Difficulty:** Intermediate
 
-- [Functional Programming in R](Functional-Programming-in-R.html), the parent tutorial covering all five concepts these exercises test.
-- [Base R's Functional Triad: Reduce(), Filter(), Map()](Reduce-Filter-Map-in-R.html), deep dive into the three base R higher-order functions used in exercises 6 and 7.
-- [purrr map() Variants](purrr-map-Variants.html), typed map alternatives when you want vectors instead of lists.
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fmt <- compose(as.character, \(x) round(x, 2))
+ex_6_1 <- fmt(3.14159)
+ex_6_1
+#> [1] "3.14"
+```
+
+**Explanation:** `compose(f, g)` returns a new function equivalent to `function(x) f(g(x))`: rightmost arg runs first. Composition is useful when you want to pass a single pre-built pipeline as a callback to `map()` or `apply()` without redefining the lambda each time. Pass `.dir = "forward"` if you prefer left-to-right reading order, which mirrors the magrittr pipe.
+
+</details>
+
+### Exercise 6.2: Partial application baking in na.rm = TRUE
+
+**Task:** A reporting analyst always wants to drop missing values when summarising columns and is tired of typing `na.rm = TRUE` everywhere. Use `purrr::partial()` to create `mean_na` from `mean` with `na.rm = TRUE` pre-baked. Apply `mean_na` to `c(1, 2, NA, 4, 5)` and save the numeric result to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> [1] 3
+#> # NA dropped, mean of c(1, 2, 4, 5)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+mean_na <- # your code here
+ex_6_2 <- mean_na(c(1, 2, NA, 4, 5))
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mean_na <- partial(mean, na.rm = TRUE)
+ex_6_2 <- mean_na(c(1, 2, NA, 4, 5))
+ex_6_2
+#> [1] 3
+```
+
+**Explanation:** `partial()` fixes a subset of arguments and returns a new function awaiting the rest. It is the canonical way to remove keyword-argument boilerplate from callbacks: `map_dbl(df, mean_na)` reads cleaner than `map_dbl(df, \(x) mean(x, na.rm = TRUE))`. Internally `partial()` constructs a function whose default args are the pre-supplied values, so call-site overrides still work.
+
+</details>
+
+### Exercise 6.3: Recursive sum with an accumulator argument
+
+**Task:** A hackathon participant wants to implement summation recursively to practice functional thinking and tail-call style. Write `rec_sum(x, acc = 0)` that recursively sums a numeric vector by peeling off the first element each call and adding it to the running accumulator. Apply it to `1:100` and save the integer result to `ex_6_3`.
+
+**Expected result:**
+
+```
+#> [1] 5050
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+rec_sum <- function(x, acc = 0) {
+  # your code here
+}
+ex_6_3 <- rec_sum(1:100)
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+rec_sum <- function(x, acc = 0) {
+  if (length(x) == 0) return(acc)
+  rec_sum(x[-1], acc + x[1])
+}
+ex_6_3 <- rec_sum(1:100)
+ex_6_3
+#> [1] 5050
+```
+
+**Explanation:** The accumulator pattern turns recursion into a tail call (the recursive call is the final operation), which is the functional alternative to a `for` loop with a running total. R does not actually optimise tail calls, so this version will hit the default stack limit around `1:5000`. For real work prefer the vectorised `sum(x)`: the recursive form is here to illustrate the structure, not to replace base arithmetic.
+
+</details>
+
+## What to do next
+
+- Read the parent guide at [Functional Programming in R](Functional-Programming-in-R.html) for deeper theory on first-class functions, closures, and composition.
+- For more apply-family drills move on to [Apply Family Exercises in R](Apply-Family-Exercises-in-R.html).
+- For data-wrangling practice that uses these patterns at scale try [dplyr Exercises in R](dplyr-Exercises-in-R.html).
+- If you want a workflow-oriented sequel, the [purrr Exercises in R](purrr-Exercises-in-R.html) hub focuses specifically on the tidyverse map family.
