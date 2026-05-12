@@ -45,7 +45,7 @@ ALLOWED_DATASETS = {
     "Loblolly", "trees", "Nile", "EuStockMarkets", "co2", "WWWusage",
 }
 
-TIER_MIN_EXERCISES = {1: 45, 2: 25, 3: 15}
+TIER_MIN_EXERCISES = {1: 45, 2: 25, 3: 15, 4: 15, 5: 15, 6: 15}
 
 # Tier inference from sidebar_order range (set by write skill) — fallback
 def infer_tier(fm):
@@ -428,7 +428,7 @@ def main():
     ap = argparse.ArgumentParser(description="Exercise hub quality gate")
     ap.add_argument("path", nargs="?", help="path to exercise markdown")
     ap.add_argument("--all", action="store_true", help="run on every EX post in posts/")
-    ap.add_argument("--tier", type=int, choices=[1, 2, 3], help="override tier (else inferred)")
+    ap.add_argument("--tier", type=int, choices=[1, 2, 3, 4, 5, 6], help="override tier (else inferred)")
     ap.add_argument("--json", action="store_true", help="machine-readable output")
     args = ap.parse_args()
 
