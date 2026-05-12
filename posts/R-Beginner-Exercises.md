@@ -1,7 +1,7 @@
 ---
-title: "R Beginner Exercises: 30 Practice Problems for Newcomers"
+title: "R Beginner Exercises: 30 Hands-on Practice Problems"
 slug: "R-Beginner-Exercises"
-description: "Thirty hands-on R beginner exercises: vectors, data frames, subsetting, summaries, control flow, and base plots. Hidden solutions, runnable in the browser."
+description: "Thirty beginner R exercises with hidden solutions: vectors, data frames, subsetting, summaries, control flow, functions, and base plots. Runnable in the browser."
 keywords: "R for beginners exercises, R basics practice, R beginner problems, learn R exercises, R intro exercises, R practice problems"
 mathjax: false
 webr: true
@@ -17,26 +17,27 @@ sibling_block_enabled: false
 difficulty: "Beginner"
 ---
 
-# R Beginner Exercises: 30 Practice Problems for Newcomers
+# R Beginner Exercises: 30 Hands-on Practice Problems
 
-<p class="lead">Thirty short, hands-on R practice problems covering vectors, data frames, subsetting, summary statistics, control flow, custom functions, and base plotting. Every exercise has a Task, the exact expected output, and a hidden worked solution with explanation.</p>
+<p class="lead">Thirty short R practice problems built for newcomers. Every exercise gives you a clear task, the exact expected output, and a hidden worked solution with an explanation. Topics covered: vectors, data frames, subsetting, summary statistics, control flow, custom functions, and base plotting.</p>
 
 ```r title="Run this once before any exercise"
-library(datasets)   # mtcars, iris, airquality
-library(graphics)   # base plot, hist, boxplot, barplot
-library(stats)      # mean, sd, lm, aggregate
+library(datasets)   # mtcars, iris, airquality, ChickWeight
+library(graphics)   # plot, hist, boxplot, barplot, pie
+library(stats)      # mean, sd, var, cor, lm, aggregate, quantile
 ```
 
 ## Section 1. Vectors and arithmetic (5 problems)
 
-### Exercise 1.1: Build a numeric sequence and reverse it
+### Exercise 1.1: Build a numeric vector and check its type
 
-**Task:** Use the colon operator to create a numeric vector containing the integers from 1 to 10, then reverse the order so the result reads 10 down to 1. Save the reversed vector to `ex_1_1` and print it to the console.
+**Task:** Use the `c()` constructor to build a numeric vector holding the five values 4, 9, 16, 25, 36. Then call `class()` on the vector to confirm R stored it as numeric, not integer. Save the vector itself to `ex_1_1` and print it.
 
 **Expected result:**
 
 ```
-#>  [1] 10  9  8  7  6  5  4  3  2  1
+#> [1]  4  9 16 25 36
+#> [1] "numeric"
 ```
 
 **Difficulty:** Beginner
@@ -44,29 +45,32 @@ library(stats)      # mean, sd, lm, aggregate
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
+class(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_1 <- rev(1:10)
+ex_1_1 <- c(4, 9, 16, 25, 36)
 ex_1_1
-#>  [1] 10  9  8  7  6  5  4  3  2  1
+#> [1]  4  9 16 25 36
+class(ex_1_1)
+#> [1] "numeric"
 ```
 
-**Explanation:** `rev()` flips any vector end-to-end and works on numeric, character, or logical vectors alike. You could also write `10:1` directly for this specific case, but `rev()` is the general-purpose tool when the source vector is computed elsewhere. A common beginner mistake is writing `1:10[length(1:10):1]`, which is verbose and prone to off-by-one errors.
+**Explanation:** Bare numeric literals default to "numeric" (double precision), even when every value is a whole number. To force the integer type, append `L`: `c(4L, 9L, 16L, 25L, 36L)`. The distinction matters when you interact with C, Rcpp, or database drivers that care about column types. For most analysis code numeric is the right default.
 
 </details>
 
-### Exercise 1.2: Element-wise arithmetic with vector recycling
+### Exercise 1.2: Sum of squares from 1 to 100
 
-**Task:** Take the vector `c(2, 4, 6, 8, 10)` and add the shorter vector `c(1, 2)` element-wise. R recycles the shorter vector to match the longer length. Save the resulting numeric vector to `ex_1_2` and print it.
+**Task:** A student verifying the closed-form formula wants to check that the sum of squares from 1 to 100 equals 338350. Compute the sum using a vectorized expression (no loop) by squaring the sequence `1:100` and passing it to `sum()`. Save the resulting scalar to `ex_1_2`.
 
 **Expected result:**
 
 ```
-#> [1]  3  6  7 10 11
+#> [1] 338350
 ```
 
 **Difficulty:** Beginner
@@ -80,30 +84,28 @@ ex_1_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_2 <- c(2, 4, 6, 8, 10) + c(1, 2)
+ex_1_2 <- sum((1:100)^2)
 ex_1_2
-#> [1]  3  6  7 10 11
+#> [1] 338350
 ```
 
-**Explanation:** Recycling repeats the shorter vector: `(2+1, 4+2, 6+1, 8+2, 10+1)`. R issues a warning only when the longer length is not a clean multiple of the shorter one. Recycling is convenient for adding a scalar to a vector but can hide bugs when lengths drift apart, so always sanity-check the output dimension after arithmetic.
+**Explanation:** `1:100` produces an integer sequence, `^2` squares each element in place, and `sum()` collapses the result to a scalar. The whole expression runs in a single C-level loop, which is far faster than an explicit R `for` loop accumulating into a variable. The closed-form formula n(n+1)(2n+1)/6 confirms the answer: 100 * 101 * 201 / 6.
 
 </details>
 
-### Exercise 1.3: Index into a vector by position and by name
+### Exercise 1.3: Find numbers divisible by both 3 and 5
 
-**Task:** Create a named numeric vector `prices <- c(apple=120, mango=60, orange=80, grape=200)`, then extract the prices for "mango" and "grape" by name (not by position) into a new vector. Save the two-element vector to `ex_1_3` and print it.
+**Task:** From the integers 1 to 50, find the elements that are divisible by both 3 and 5 (so divisible by 15). Combine two logical conditions with `&` inside a single subsetting expression and save the resulting integer vector to `ex_1_3`.
 
 **Expected result:**
 
 ```
-#> mango grape
-#>    60   200
+#> [1] 15 30 45
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
-prices <- c(apple = 120, mango = 60, orange = 80, grape = 200)
 ex_1_3 <- # your code here
 ex_1_3
 ```
@@ -112,32 +114,30 @@ ex_1_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-prices <- c(apple = 120, mango = 60, orange = 80, grape = 200)
-ex_1_3 <- prices[c("mango", "grape")]
+x <- 1:50
+ex_1_3 <- x[x %% 3 == 0 & x %% 5 == 0]
 ex_1_3
-#> mango grape
-#>    60   200
+#> [1] 15 30 45
 ```
 
-**Explanation:** Named indexing is more robust than positional indexing because it does not break when the source vector is reordered or extended. The character vector inside `[]` looks up matching names. If a name is missing the result contains `NA` with name `<NA>`, which is a useful sentinel when validating input.
+**Explanation:** `%%` is the modulo operator; `x %% 3 == 0` is a length-50 logical vector that is TRUE on multiples of 3. Combining two such vectors with `&` gives an element-wise AND, and bracketing keeps the TRUE positions. Use `|` for OR, and `xor()` for exclusive OR. This idiom replaces verbose `for` loops with explicit `if` checks.
 
 </details>
 
-### Exercise 1.4: Compute total inventory value with vectorized multiplication
+### Exercise 1.4: Extract the three largest values from a vector
 
-**Task:** A grocer has inventory counts `c(10, 5, 8, 3)` and unit prices `c(120, 60, 80, 200)` for four fruits. Compute the total inventory value as a single number using vectorized multiplication and `sum()`. Save the total to `ex_1_4` and print it.
+**Task:** A retail analyst preparing a weekly top-sellers report has the vector `sales <- c(220, 175, 410, 95, 360, 280, 410, 130)`. Return the three largest values in descending order using `sort()` and bracket subsetting. Save the resulting length-three numeric vector to `ex_1_4`.
 
 **Expected result:**
 
 ```
-#> [1] 2740
+#> [1] 410 410 360
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
-counts <- c(10, 5, 8, 3)
-prices <- c(120, 60, 80, 200)
+sales <- c(220, 175, 410, 95, 360, 280, 410, 130)
 ex_1_4 <- # your code here
 ex_1_4
 ```
@@ -146,30 +146,30 @@ ex_1_4
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-counts <- c(10, 5, 8, 3)
-prices <- c(120, 60, 80, 200)
-ex_1_4 <- sum(counts * prices)
+sales <- c(220, 175, 410, 95, 360, 280, 410, 130)
+ex_1_4 <- sort(sales, decreasing = TRUE)[1:3]
 ex_1_4
-#> [1] 2740
+#> [1] 410 410 360
 ```
 
-**Explanation:** Vectorized arithmetic is one of R's defining strengths: `counts * prices` produces a length-4 element-wise product, and `sum()` collapses it to a scalar. The equivalent `for` loop would be five lines and noticeably slower on large vectors. The same idea generalizes to dot products, weighted means (`sum(w*x) / sum(w)`), and many statistical formulas.
+**Explanation:** `sort()` returns the values themselves, in this case repeating 410 because there are two ties. If you needed the positions instead, use `order(sales, decreasing = TRUE)[1:3]`, which returns indices. For very large vectors `head(sort(...), 3)` is no faster than slicing with `[1:3]`; both still sort the whole vector. A partial sort via `sort.int(..., partial = ...)` is faster when N is huge.
 
 </details>
 
-### Exercise 1.5: Generate a regular sequence with seq()
+### Exercise 1.5: Generate indices with seq_along
 
-**Task:** Use `seq()` to generate a numeric vector running from 0 to 1 in steps of 0.1, producing exactly eleven values inclusive of both endpoints. Save the sequence to `ex_1_5` and print it.
+**Task:** Use `seq_along()` to produce an integer index vector for the character vector `cities <- c("Mumbai", "Delhi", "Bengaluru", "Chennai")`. The output should run from 1 to the length of the input, matching the position of each element. Save the resulting indices to `ex_1_5`.
 
 **Expected result:**
 
 ```
-#>  [1] 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+#> [1] 1 2 3 4
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
+cities <- c("Mumbai", "Delhi", "Bengaluru", "Chennai")
 ex_1_5 <- # your code here
 ex_1_5
 ```
@@ -178,62 +178,66 @@ ex_1_5
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_1_5 <- seq(0, 1, by = 0.1)
+cities <- c("Mumbai", "Delhi", "Bengaluru", "Chennai")
+ex_1_5 <- seq_along(cities)
 ex_1_5
-#>  [1] 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0
+#> [1] 1 2 3 4
 ```
 
-**Explanation:** `seq()` accepts either `by =` (step size) or `length.out =` (target length). For this problem `seq(0, 1, length.out = 11)` is equivalent. Prefer `length.out =` when you care about getting exactly N points (for plotting axes, simulation grids); prefer `by =` when the step size is the meaningful quantity (time intervals, percentage thresholds).
+**Explanation:** `seq_along(x)` is safer than `1:length(x)` because it returns an empty integer vector when `x` is empty, whereas `1:length(x)` returns `c(1, 0)` and silently iterates twice. Always prefer `seq_along()` (or `seq_len(n)`) inside `for` loops over `1:length(x)`. This single substitution prevents the most common off-by-one bug in beginner R code.
 
 </details>
 
 ## Section 2. Data frames and built-in datasets (5 problems)
 
-### Exercise 2.1: Inspect the structure of a data frame
+### Exercise 2.1: Build a data frame from parallel vectors
 
-**Task:** Use `str()` to inspect the structure of the built-in `mtcars` data frame so you can see column names, types, and the first few values. Save the data frame itself unchanged to `ex_2_1` so the next exercises can reuse it.
+**Task:** A marketing analyst is logging a small campaign experiment. Build a data frame with three columns: `channel` (vector of "email", "social", "search"), `clicks` (210, 540, 780), and `cost` (45, 120, 300). Save the resulting three-row data frame to `ex_2_1` and print it.
 
 **Expected result:**
 
 ```
-#> 'data.frame':    32 obs. of  11 variables:
-#>  $ mpg : num  21 21 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2 ...
-#>  $ cyl : num  6 6 4 6 8 6 8 4 4 6 ...
-#>  $ disp: num  160 160 108 258 360 ...
-#>  ...
+#>   channel clicks cost
+#> 1   email    210   45
+#> 2  social    540  120
+#> 3  search    780  300
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
-str(ex_2_1)
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_1 <- mtcars
-str(ex_2_1)
-#> 'data.frame':    32 obs. of  11 variables:
-#>  $ mpg : num  21 21 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2 ...
-#>  $ cyl : num  6 6 4 6 8 6 8 4 4 6 ...
-#>  ...
+ex_2_1 <- data.frame(
+  channel = c("email", "social", "search"),
+  clicks  = c(210, 540, 780),
+  cost    = c(45, 120, 300)
+)
+ex_2_1
+#>   channel clicks cost
+#> 1   email    210   45
+#> 2  social    540  120
+#> 3  search    780  300
 ```
 
-**Explanation:** `str()` is the fastest way to learn what an unknown object looks like: shape, types, and a snippet of values. For very wide objects use `str(x, max.level = 1)` to suppress nested detail. `glimpse()` from the tibble package offers a horizontal variant that is easier to scan when many columns share a wide screen.
+**Explanation:** `data.frame()` takes named vector arguments; each vector becomes a column. Since R 4.0 character columns are kept as character by default (older R versions auto-converted to factor, which surprised many beginners). All input vectors must share a length or be a length-one recyclable scalar. The tibble equivalent `tibble::tibble()` skips row names and prints more compactly.
 
 </details>
 
-### Exercise 2.2: Get the dimensions of a data frame
+### Exercise 2.2: Look at the dimensions of a built-in dataset
 
-**Task:** Use a single base-R function to return both the number of rows and the number of columns of `iris` as a length-two integer vector. Save the dimensions to `ex_2_2` and print them.
+**Task:** Inspect the `ChickWeight` dataset (a base R dataset on chick growth experiments) by reporting its row and column counts as a length-two integer vector using a single function call. Save the dimensions to `ex_2_2` and print them.
 
 **Expected result:**
 
 ```
-#> [1] 150   5
+#> [1] 578   4
 ```
 
 **Difficulty:** Beginner
@@ -247,69 +251,72 @@ ex_2_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_2 <- dim(iris)
+ex_2_2 <- dim(ChickWeight)
 ex_2_2
-#> [1] 150   5
+#> [1] 578   4
 ```
 
-**Explanation:** `dim()` returns rows then columns in a single call. `nrow()` and `ncol()` give each dimension separately. For a vector `dim()` returns `NULL`; use `length()` instead. Knowing the shape early in any analysis prevents silent bugs from accidental row drops or column duplications.
+**Explanation:** `dim()` returns rows first, columns second, consistent with how R indexes `[row, column]`. The separate helpers `nrow()` and `ncol()` return each piece individually. On a matrix `dim()` works identically; on a plain vector it returns `NULL`, so use `length()` for one-dimensional objects. Always check dimensions before joins or column-wise operations to catch silent shape bugs.
 
 </details>
 
-### Exercise 2.3: Show the first six rows of a data frame
+### Exercise 2.3: Add a computed column with a vectorized expression
 
-**Task:** Use `head()` with its default arguments to show the first six rows of the `airquality` dataset (which has missing values in the first few rows). Save the returned data frame to `ex_2_3` and print it.
+**Task:** A motoring magazine writing in metric units wants to add a `wt_kg` column to `mtcars` that converts the imperial `wt` column (thousands of pounds) to kilograms by multiplying by 453.592. Add the column and save the resulting wider data frame to `ex_2_3`.
 
 **Expected result:**
 
 ```
-#>   Ozone Solar.R Wind Temp Month Day
-#> 1    41     190  7.4   67     5   1
-#> 2    36     118  8.0   72     5   2
-#> 3    12     149 12.6   74     5   3
-#> 4    18     313 11.5   62     5   4
-#> 5    NA      NA 14.3   56     5   5
-#> 6    28      NA 14.9   66     5   6
+#>                    mpg cyl disp  hp drat   wt ... wt_kg
+#> Mazda RX4         21.0   6  160 110 3.90 2.62 ... 1188.4
+#> Mazda RX4 Wag     21.0   6  160 110 3.90 2.88 ... 1304.0
+#> Datsun 710        22.8   4  108  93 3.85 2.32 ... 1052.3
+#> ...
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
-ex_2_3 <- # your code here
-ex_2_3
+ex_2_3 <- mtcars
+ex_2_3$wt_kg <- # your code here
+head(ex_2_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_3 <- head(airquality)
-ex_2_3
-#>   Ozone Solar.R Wind Temp Month Day
-#> 1    41     190  7.4   67     5   1
-#> 2    36     118  8.0   72     5   2
+ex_2_3 <- mtcars
+ex_2_3$wt_kg <- ex_2_3$wt * 453.592
+head(ex_2_3[, c("wt", "wt_kg")])
+#>                    wt    wt_kg
+#> Mazda RX4        2.620 1188.41
+#> Mazda RX4 Wag    2.875 1303.55
+#> Datsun 710       2.320 1052.33
 #> ...
 ```
 
-**Explanation:** `head()` defaults to six rows; pass `n = 20` for a deeper peek or `n = -10` to drop the last ten rows. `tail()` is the symmetric counterpart. These two functions are the right reflex when first opening any unfamiliar dataset and are far cheaper than printing the whole frame.
+**Explanation:** Assigning to `df$newcol <- value` either creates a column or overwrites it in place. The right-hand expression must be either a scalar (which gets recycled) or a vector with the same length as `nrow(df)`. The dplyr equivalent is `mutate(mtcars, wt_kg = wt * 453.592)`, which is friendlier inside a pipe chain. Both produce identical results.
 
 </details>
 
-### Exercise 2.4: Extract a single column as a vector
+### Exercise 2.4: Append a row with rbind
 
-**Task:** Extract the `mpg` column from `mtcars` as a plain numeric vector (not a one-column data frame) using the dollar-sign operator. Save the resulting numeric vector to `ex_2_4` and print it.
+**Task:** Starting from the small inventory data frame `inv <- data.frame(item = c("pen", "notebook"), qty = c(40, 15))`, append a new row containing item "stapler" and qty 8 using `rbind()`. Save the resulting three-row data frame to `ex_2_4`.
 
 **Expected result:**
 
 ```
-#>  [1] 21.0 21.0 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2 17.8 16.4 17.3 15.2
-#> [15] 10.4 10.4 14.7 32.4 30.4 33.9 21.5 15.5 15.2 13.3 19.2 27.3 26.0 30.4
-#> [29] 15.8 19.7 15.0 21.4
+#>       item qty
+#> 1      pen  40
+#> 2 notebook  15
+#> 3  stapler   8
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
+inv <- data.frame(item = c("pen", "notebook"), qty = c(40, 15))
 ex_2_4 <- # your code here
 ex_2_4
 ```
@@ -318,170 +325,162 @@ ex_2_4
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_4 <- mtcars$mpg
+inv <- data.frame(item = c("pen", "notebook"), qty = c(40, 15))
+ex_2_4 <- rbind(inv, data.frame(item = "stapler", qty = 8))
 ex_2_4
-#>  [1] 21.0 21.0 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2 17.8 16.4 17.3 15.2
-#> ...
+#>       item qty
+#> 1      pen  40
+#> 2 notebook  15
+#> 3  stapler   8
 ```
 
-**Explanation:** The `$` operator returns a vector when the column is a single atomic type. The double-bracket alternative `mtcars[["mpg"]]` does the same thing and is the preferred form when the column name is held in a variable: `col <- "mpg"; mtcars[[col]]`. Using single brackets `mtcars["mpg"]` returns a one-column data frame, which is a different (and often unwanted) type.
+**Explanation:** `rbind()` requires that the new row match column names and types. Passing a bare named list or a vector works but is fragile; wrapping in `data.frame()` is the safest pattern. For repeated appending inside a loop, prefer collecting rows in a list and calling `do.call(rbind, list_of_rows)` once at the end. dplyr's `bind_rows()` is more tolerant of missing columns and aligns by name.
 
 </details>
 
-### Exercise 2.5: Count rows that match a condition
+### Exercise 2.5: Convert a factor column to character
 
-**Task:** Use `sum()` on a logical vector to count how many rows in `iris` have `Sepal.Length` strictly greater than 5. The trick is that `TRUE` coerces to `1` and `FALSE` to `0` inside `sum()`. Save the count to `ex_2_5`.
+**Task:** The `iris` dataset stores `Species` as a factor. For downstream string manipulation you often need it as plain character. Convert the column with `as.character()` and save the resulting length-150 character vector to `ex_2_5`. Print the first six values to verify.
 
 **Expected result:**
 
 ```
-#> [1] 118
+#> [1] "setosa" "setosa" "setosa" "setosa" "setosa" "setosa"
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
-ex_2_5
+head(ex_2_5)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_2_5 <- sum(iris$Sepal.Length > 5)
-ex_2_5
-#> [1] 118
+ex_2_5 <- as.character(iris$Species)
+head(ex_2_5)
+#> [1] "setosa" "setosa" "setosa" "setosa" "setosa" "setosa"
 ```
 
-**Explanation:** `iris$Sepal.Length > 5` returns a length-150 logical vector; `sum()` adds up the TRUEs. Swap `sum()` for `mean()` to get the proportion (here `0.787`). For NA-containing columns add `na.rm = TRUE` or the result silently becomes NA. This counting idiom replaces verbose `length(which(...))` and is faster.
+**Explanation:** Factors are stored internally as integer codes with a `levels` attribute; `as.character()` looks up each code and returns the label. A common trap is calling `as.numeric(factor_var)`, which returns the underlying integer codes (1, 2, 3), not the original numeric values. To recover the original numbers from a numeric factor, write `as.numeric(as.character(factor_var))`.
 
 </details>
 
 ## Section 3. Subsetting and filtering (5 problems)
 
-### Exercise 3.1: Select multiple columns of a data frame by name
+### Exercise 3.1: Drop a column with negative indexing
 
-**Task:** From `mtcars`, select only the `mpg`, `cyl`, and `hp` columns into a new data frame using bracket notation with a character vector of column names. Preserve the original row order and row names. Save the column subset to `ex_3_1`.
+**Task:** Return a version of `mtcars` that excludes the `carb` column (the last column) using negative integer indexing inside bracket notation. Keep every other column and every row. Save the resulting ten-column data frame to `ex_3_1` and verify with `ncol()`.
 
 **Expected result:**
 
 ```
-#>                    mpg cyl  hp
-#> Mazda RX4         21.0   6 110
-#> Mazda RX4 Wag     21.0   6 110
-#> Datsun 710        22.8   4  93
-#> Hornet 4 Drive    21.4   6 110
-#> Hornet Sportabout 18.7   8 175
-#> ...
+#> [1] 10
+#> [1] "carb" not in column names: TRUE
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
-head(ex_3_1)
+ncol(ex_3_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_1 <- mtcars[, c("mpg", "cyl", "hp")]
-head(ex_3_1)
-#>                    mpg cyl  hp
-#> Mazda RX4         21.0   6 110
-#> ...
+ex_3_1 <- mtcars[, -which(names(mtcars) == "carb")]
+ncol(ex_3_1)
+#> [1] 10
+cat("\"carb\" not in column names:", !"carb" %in% names(ex_3_1), "\n")
+#> "carb" not in column names: TRUE
 ```
 
-**Explanation:** Inside `[ , ]` the comma separates row and column selectors. An empty row slot keeps every row; the character vector picks columns by name. `subset(mtcars, select = c(mpg, cyl, hp))` is an alternative that uses non-standard evaluation, but bracket subsetting is more predictable inside functions and packages.
+**Explanation:** Negative integers inside `[ , ]` mean "exclude these positions". Looking up the position by name with `which(names(df) == "carb")` is robust if the column order ever changes. A simpler alternative is `mtcars[, names(mtcars) != "carb"]`, which uses a logical vector. dplyr's `select(mtcars, -carb)` is the cleanest one-liner once you graduate from base R.
 
 </details>
 
-### Exercise 3.2: Filter rows using a logical condition
+### Exercise 3.2: Filter rows with subset() and the formula style
 
-**Task:** Filter `mtcars` to keep only the rows where `cyl` equals 4 (four-cylinder cars). Use bracket-based subsetting with a logical condition on the rows; remember the trailing comma to keep all columns. Save the subset to `ex_3_2`.
+**Task:** A horticulturist studying `iris` wants only the flowers with `Sepal.Width` greater than 3.5 across all species. Use `subset()` so you can refer to column names without the `$` prefix. Save the filtered data frame to `ex_3_2` and report its row count with `nrow()`.
 
 **Expected result:**
 
 ```
-#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
-#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
-#> Merc 240D      24.4   4 146.7  62 3.69 2.870 20.00  1  0    4    2
-#> Merc 230       22.8   4 140.8  95 3.92 2.870 22.90  1  0    4    2
-#> ...
-#> # 11 rows total
-```
-
-**Difficulty:** Beginner
-
-```r title="Your turn"
-ex_3_2 <- # your code here
-head(ex_3_2)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_3_2 <- mtcars[mtcars$cyl == 4, ]
-head(ex_3_2)
-#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
-#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
-#> ...
-```
-
-**Explanation:** The condition `mtcars$cyl == 4` is a length-32 logical vector; bracketing with it keeps the TRUE rows. Forgetting the trailing comma is the single most common bug here: `mtcars[mtcars$cyl == 4]` selects a column named `FALSE`/`TRUE` and returns garbage. dplyr's `filter(mtcars, cyl == 4)` is the tidy equivalent.
-
-</details>
-
-### Exercise 3.3: Combine two filter conditions with logical AND
-
-**Task:** From `mtcars`, keep only the rows where `mpg` is greater than 20 AND `wt` is less than 3 (efficient and lightweight cars). Use the element-wise `&` operator inside bracket subsetting and save the resulting data frame to `ex_3_3`.
-
-**Expected result:**
-
-```
-#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4      21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4
-#> Mazda RX4 Wag  21.0   6 160.0 110 3.90 2.875 17.02  0  1    4    4
-#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
-#> ...
+#> [1] 20
+#> rows removed: 130
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
-ex_3_3 <- # your code here
-head(ex_3_3)
+ex_3_2 <- # your code here
+nrow(ex_3_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_3 <- mtcars[mtcars$mpg > 20 & mtcars$wt < 3, ]
-head(ex_3_3)
-#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
-#> Mazda RX4      21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4
-#> ...
+ex_3_2 <- subset(iris, Sepal.Width > 3.5)
+nrow(ex_3_2)
+#> [1] 20
+cat("rows removed:", nrow(iris) - nrow(ex_3_2), "\n")
+#> rows removed: 130
 ```
 
-**Explanation:** `&` is the element-wise vector AND used inside subsetting. The double form `&&` is short-circuit and only evaluates the first element, so it is wrong here and would silently keep just the first matching row. The same pairing exists for OR: `|` (vector) versus `||` (scalar). Keep the single-symbol forms inside `[ ]` and the double forms inside `if ()` conditions.
+**Explanation:** `subset()` evaluates its condition in the context of the data frame, so `Sepal.Width` resolves without `iris$`. Inside packages and functions this non-standard evaluation can backfire if a column name matches a variable in scope; in those cases prefer `iris[iris$Sepal.Width > 3.5, ]`. dplyr's `filter()` is the modern replacement and behaves predictably inside functions when paired with `.data$Sepal.Width`.
 
 </details>
 
-### Exercise 3.4: Drop missing values with na.omit
+### Exercise 3.3: Match a category against a set with %in%
 
-**Task:** The `airquality` data frame contains NAs in `Ozone` and `Solar.R`. Use `na.omit()` to drop every row with at least one NA in any column, then verify with `nrow()` that the cleaned data frame has 111 rows. Save the cleaned data frame to `ex_3_4`.
+**Task:** From `mtcars` keep only cars whose number of `gear` values is either 4 or 5 (so a two-element set). Use the `%in%` operator inside row-bracket subsetting. Save the filtered data frame to `ex_3_3` and report the row count.
 
 **Expected result:**
 
 ```
-#> [1] 111
+#> [1] 17
+#> gears kept: 4 5
 ```
 
 **Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+nrow(ex_3_3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- mtcars[mtcars$gear %in% c(4, 5), ]
+nrow(ex_3_3)
+#> [1] 17
+cat("gears kept:", sort(unique(ex_3_3$gear)), "\n")
+#> gears kept: 4 5
+```
+
+**Explanation:** `%in%` returns a logical vector the same length as the left-hand side, with TRUE where the element matches any value in the right-hand set. It is the vector-friendly substitute for chaining `==` with `|`: `cyl == 4 | cyl == 5 | cyl == 6` becomes `cyl %in% c(4, 5, 6)`. To exclude a set, negate the result with `!`: `!(gear %in% c(4, 5))`.
+
+</details>
+
+### Exercise 3.4: Find rows where a column is missing
+
+**Task:** The `airquality` dataset has NAs in its `Ozone` column. Return only the rows where `Ozone` is missing using `is.na()` inside row-bracket subsetting. Save the resulting subset to `ex_3_4` and verify the count with `nrow()`.
+
+**Expected result:**
+
+```
+#> [1] 37
+#> total rows in airquality: 153
+```
+
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -492,60 +491,67 @@ nrow(ex_3_4)
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_4 <- na.omit(airquality)
+ex_3_4 <- airquality[is.na(airquality$Ozone), ]
 nrow(ex_3_4)
-#> [1] 111
+#> [1] 37
+cat("total rows in airquality:", nrow(airquality), "\n")
+#> total rows in airquality: 153
 ```
 
-**Explanation:** `na.omit()` is row-wise: any row with a single NA in any column is dropped. To target specific columns instead, use `airquality[complete.cases(airquality[, c("Ozone", "Solar.R")]), ]`. Always check how many rows you lose; dropping 28% of a dataset (as here) can bias downstream analyses if missingness is not random.
+**Explanation:** Use `is.na()` to test for NA, never `== NA`, because any comparison with NA returns NA (not TRUE or FALSE) and the subset silently keeps zero rows. The complement is `!is.na(col)` for the non-missing rows. For multiple columns, combine with `&` and `|` as needed, or use `complete.cases(df[, cols])` to check several columns at once.
 
 </details>
 
-### Exercise 3.5: Find the row with the maximum value
+### Exercise 3.5: Order a data frame by a column
 
-**Task:** Find the row number in `mtcars` that contains the highest `hp` value, then return that single row as a data frame. Use `which.max()` to locate the index and bracket subsetting to extract the row. Save the row to `ex_3_5`.
+**Task:** Sort the entire `mtcars` data frame in descending order by `mpg` so the most fuel-efficient car ends up in row one. Use `order()` to compute the row indices and bracket subsetting to reorder. Save the reordered data frame to `ex_3_5` and inspect the top three rows with `head(..., 3)`.
 
 **Expected result:**
 
 ```
-#>               mpg cyl disp  hp drat   wt qsec vs am gear carb
-#> Maserati Bora  15   8  301 335 3.54 3.57 14.6  0  1    5    8
+#>                 mpg cyl disp hp drat    wt qsec vs am gear carb
+#> Toyota Corolla 33.9   4 71.1 65 4.22 1.835 19.9  1  1    4    1
+#> Fiat 128       32.4   4 78.7 66 4.08 2.200 19.5  1  1    4    1
+#> Honda Civic    30.4   4 75.7 52 4.93 1.615 18.5  1  1    4    2
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
-ex_3_5
+head(ex_3_5, 3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_3_5 <- mtcars[which.max(mtcars$hp), ]
-ex_3_5
-#>               mpg cyl disp  hp drat   wt qsec vs am gear carb
-#> Maserati Bora  15   8  301 335 3.54 3.57 14.6  0  1    5    8
+ex_3_5 <- mtcars[order(mtcars$mpg, decreasing = TRUE), ]
+head(ex_3_5, 3)
+#>                 mpg cyl disp hp drat    wt qsec vs am gear carb
+#> Toyota Corolla 33.9   4 71.1 65 4.22 1.835 19.9  1  1    4    1
+#> Fiat 128       32.4   4 78.7 66 4.08 2.200 19.5  1  1    4    1
+#> Honda Civic    30.4   4 75.7 52 4.93 1.615 18.5  1  1    4    2
 ```
 
-**Explanation:** `which.max()` returns the position of the first maximum; `which.min()` does the symmetric job. If two cars tied for top horsepower, only the first would surface. To grab all ties use `mtcars[mtcars$hp == max(mtcars$hp), ]`. Combining `which.max()` with bracket subsetting is the idiomatic way to look up the "row of interest" without sorting the whole frame.
+**Explanation:** `order(x)` returns the permutation of indices that would sort `x` ascending; pass `decreasing = TRUE` to flip. Multi-key sorting works by passing several vectors: `order(cyl, -mpg)` sorts by cylinder ascending, breaking ties on descending mpg. `sort()` sorts the values themselves but does not reorder companion columns, so for tabular data `order()` is the right tool.
 
 </details>
 
 ## Section 4. Summaries and basic statistics (5 problems)
 
-### Exercise 4.1: Compute the mean with NA handling
+### Exercise 4.1: Mean and standard deviation of a column
 
-**Task:** Compute the mean of the `Ozone` column in `airquality`. Because the column contains missing values you must pass `na.rm = TRUE`, otherwise the result is NA. Save the resulting numeric scalar to `ex_4_1` and print it.
+**Task:** Compute the arithmetic mean and the sample standard deviation of `mtcars$mpg` and combine the two values into a named numeric vector with names `"mean"` and `"sd"`. Save the resulting length-two named vector to `ex_4_1` and print it.
 
 **Expected result:**
 
 ```
-#> [1] 42.12931
+#>      mean        sd
+#> 20.09063   6.02695
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -556,27 +562,28 @@ ex_4_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_1 <- mean(airquality$Ozone, na.rm = TRUE)
+ex_4_1 <- c(mean = mean(mtcars$mpg), sd = sd(mtcars$mpg))
 ex_4_1
-#> [1] 42.12931
+#>      mean        sd
+#> 20.09063   6.02695
 ```
 
-**Explanation:** Without `na.rm = TRUE` the result is `NA`, because any single NA poisons the computation. The same flag is accepted by `sd()`, `median()`, `var()`, `min()`, `max()`, and `quantile()`. Forgetting it is one of the top three causes of mysterious NA propagation in beginner R code; make it a habit on any column that might contain missingness.
+**Explanation:** `sd()` in R divides by n minus 1 (sample standard deviation), which is the unbiased estimator. If you actually need the population standard deviation (divide by n), multiply by `sqrt((n-1)/n)`. Naming vector elements with `c(name = value, ...)` is a fast way to keep labels next to numbers. For multiple columns, `sapply(mtcars, function(x) c(mean = mean(x), sd = sd(x)))` returns a tidy two-row matrix.
 
 </details>
 
-### Exercise 4.2: Get a five-number summary of a column
+### Exercise 4.2: Quantiles at custom probabilities
 
-**Task:** Use `summary()` on the `mpg` column of `mtcars` to get the minimum, 1st quartile, median, mean, 3rd quartile, and maximum in a single call. Save the resulting summary object to `ex_4_2` and print it.
+**Task:** A risk analyst preparing a stress test wants the 5th, 50th, and 95th percentiles of the `Wind` column in `airquality`. Pass the probabilities as a numeric vector to `quantile()` and remove NAs. Save the resulting length-three named vector to `ex_4_2` and print it.
 
 **Expected result:**
 
 ```
-#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
-#>   10.40   15.43   19.20   20.09   22.80   33.90
+#>   5%   50%   95%
+#> 3.45  9.70 16.40
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -587,28 +594,28 @@ ex_4_2
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_2 <- summary(mtcars$mpg)
+ex_4_2 <- quantile(airquality$Wind, probs = c(0.05, 0.50, 0.95), na.rm = TRUE)
 ex_4_2
-#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
-#>   10.40   15.43   19.20   20.09   22.80   33.90
+#>   5%   50%   95%
+#> 3.45  9.70 16.40
 ```
 
-**Explanation:** `summary()` is overloaded: on a numeric vector it returns the six-number summary, on a data frame it returns one summary per column, on a fitted model object it returns coefficients and goodness-of-fit. This polymorphism is what makes `summary()` the universal first step after loading any object. For NA-containing columns it also reports a count of NAs.
+**Explanation:** Without `na.rm = TRUE`, even a single NA propagates and the result is NA across the board. The `probs` argument can take any vector in [0, 1]. R has nine different `type` options for how interpolation between observed values is done; `type = 7` is the default and the only one most users will ever need. For extreme tails on small samples consider a parametric model instead of empirical quantiles.
 
 </details>
 
-### Exercise 4.3: Build a frequency table of a categorical column
+### Exercise 4.3: Group means with tapply
 
-**Task:** The `iris` dataset has a factor column `Species` with three levels. Use `table()` to count how many flowers belong to each species. Save the resulting one-dimensional frequency table to `ex_4_3` and print it.
+**Task:** Compute the mean `mpg` for each level of `cyl` in `mtcars` using `tapply()`. The output should be a named numeric vector with one element per cylinder count (4, 6, 8). Save the resulting vector to `ex_4_3` and print it.
 
 **Expected result:**
 
 ```
-#>     setosa versicolor  virginica
-#>         50         50         50
+#>        4        6        8
+#> 26.66364 19.74286 15.10000
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -619,28 +626,27 @@ ex_4_3
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_3 <- table(iris$Species)
+ex_4_3 <- tapply(mtcars$mpg, mtcars$cyl, mean)
 ex_4_3
-#>     setosa versicolor  virginica
-#>         50         50         50
+#>        4        6        8
+#> 26.66364 19.74286 15.10000
 ```
 
-**Explanation:** `table()` returns a named integer vector with one count per level. Pass two columns to get a contingency table: `table(mtcars$cyl, mtcars$gear)`. Wrap with `prop.table()` to convert counts to proportions; `prop.table(..., margin = 1)` normalizes by row. This trio (`table`, `prop.table`, `margin.table`) covers most beginner cross-tab needs.
+**Explanation:** `tapply(X, INDEX, FUN)` splits `X` by `INDEX` and applies `FUN` to each group. The output is a vector when there is one grouping variable and an array when there are several. The modern equivalent in dplyr is `mtcars |> group_by(cyl) |> summarise(mean(mpg))`, which returns a tibble instead of a named vector. `aggregate()` is a halfway alternative that returns a data frame in base R.
 
 </details>
 
-### Exercise 4.4: Compute the mean of every numeric column
+### Exercise 4.4: Correlation between two columns
 
-**Task:** Use `colMeans()` to compute the mean of every numeric column in `mtcars` (all 11 columns are numeric). Save the resulting named numeric vector to `ex_4_4` and print it.
+**Task:** Compute the Pearson correlation coefficient between `hp` (horsepower) and `mpg` (miles per gallon) in `mtcars`. The value should be negative since heavier-engine cars typically consume more fuel. Save the resulting single numeric scalar to `ex_4_4` and print it.
 
 **Expected result:**
 
 ```
-#>      mpg      cyl     disp       hp     drat       wt     qsec       vs       am     gear     carb
-#> 20.09063  6.18750 230.72188 146.68750  3.59656  3.21725 17.84875  0.43750  0.40625  3.68750  2.81250
+#> [1] -0.7761684
 ```
 
-**Difficulty:** Intermediate
+**Difficulty:** Beginner
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -651,27 +657,27 @@ ex_4_4
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_4 <- colMeans(mtcars)
+ex_4_4 <- cor(mtcars$hp, mtcars$mpg)
 ex_4_4
-#>      mpg      cyl     disp       hp     drat       wt     qsec       vs       am     gear     carb
-#> 20.09063  6.18750 230.72188 146.68750  3.59656  3.21725 17.84875  0.43750  0.40625  3.68750  2.81250
+#> [1] -0.7761684
 ```
 
-**Explanation:** `colMeans()` is fast because it works on a numeric matrix backbone; if any column were non-numeric it would error. The general-purpose alternative is `sapply(mtcars, mean)`, which silently returns NA (with warning) for non-numeric columns. Use `colMeans()` when you know the frame is numeric, `sapply()` when types are mixed.
+**Explanation:** `cor()` defaults to Pearson, which measures linear association. For monotonic but non-linear relationships pass `method = "spearman"`. To get a correlation matrix for many columns at once, call `cor(mtcars)`. Correlation does not imply causation, and a correlation near zero only rules out linear association; non-linear dependence can still be strong (think of a parabola, which has Pearson cor ~ 0).
 
 </details>
 
-### Exercise 4.5: Compare medians across groups with aggregate
+### Exercise 4.5: Cross-tabulate two categorical columns
 
-**Task:** Compute the median `Sepal.Length` separately for each `Species` in `iris` using `aggregate()` with the formula interface. The result should be a small three-row data frame with one row per species. Save it to `ex_4_5`.
+**Task:** Build a contingency table that cross-tabulates `mtcars$cyl` against `mtcars$gear`, showing how many cars share each combination. Use `table()` with both columns. Save the resulting two-dimensional table to `ex_4_5` and print it.
 
 **Expected result:**
 
 ```
-#>      Species Sepal.Length
-#> 1     setosa          5.0
-#> 2 versicolor          5.9
-#> 3  virginica          6.5
+#>      gear
+#> cyl    3  4  5
+#>   4    1  8  2
+#>   6    2  4  1
+#>   8   12  0  2
 ```
 
 **Difficulty:** Intermediate
@@ -685,180 +691,193 @@ ex_4_5
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_4_5 <- aggregate(Sepal.Length ~ Species, data = iris, FUN = median)
+ex_4_5 <- table(cyl = mtcars$cyl, gear = mtcars$gear)
 ex_4_5
-#>      Species Sepal.Length
-#> 1     setosa          5.0
-#> 2 versicolor          5.9
-#> 3  virginica          6.5
+#>      gear
+#> cyl    3  4  5
+#>   4    1  8  2
+#>   6    2  4  1
+#>   8   12  0  2
 ```
 
-**Explanation:** The formula `y ~ x` reads "y broken down by x" and is shared across `lm()`, `boxplot()`, `aggregate()`, and many model functions. Pass any reducer via `FUN =`: `mean`, `sd`, `length`, or a custom function. The dplyr equivalent `iris |> group_by(Species) |> summarise(med = median(Sepal.Length))` is the modern alternative once you graduate from base R.
+**Explanation:** Passing two arguments to `table()` produces a row-by-column matrix; naming each argument labels the dimensions of the output. Wrap the result in `prop.table()` to convert counts to proportions, and pass `margin = 1` (rows) or `margin = 2` (columns) to normalize by one axis. For inferential tests, feed the table to `chisq.test()` or `fisher.test()` directly.
 
 </details>
 
 ## Section 5. Control flow and functions (5 problems)
 
-### Exercise 5.1: Classify a single number with if/else
+### Exercise 5.1: Vectorized branching with ifelse
 
-**Task:** Write an `if/else if/else` block that takes the number `x <- -7` and returns the character string "positive", "negative", or "zero" depending on its sign. Assign the returned string to `ex_5_1` and print it.
-
-**Expected result:**
-
-```
-#> [1] "negative"
-```
-
-**Difficulty:** Beginner
-
-```r title="Your turn"
-x <- -7
-ex_5_1 <- # your if/else here
-ex_5_1
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-x <- -7
-ex_5_1 <- if (x > 0) {
-  "positive"
-} else if (x < 0) {
-  "negative"
-} else {
-  "zero"
-}
-ex_5_1
-#> [1] "negative"
-```
-
-**Explanation:** `if` in R is an expression: it returns the value of the matching branch, so you can assign the whole construct directly. Note that `if` only works on a length-one logical; pass it a vector and you get a warning plus only the first element used. For vectors use `ifelse()` (Exercise 5.3) or `dplyr::case_when()`.
-
-</details>
-
-### Exercise 5.2: Compute factorial with a for loop
-
-**Task:** Use a `for` loop to compute the factorial of 6 (i.e., 1*2*3*4*5*6 = 720). Initialize an accumulator at 1, multiply it by each integer from 1 to 6 inside the loop, and save the final accumulated value to `ex_5_2`.
+**Task:** Given the temperature vector `temps <- c(18, 25, 31, 12, 29, 36, 22)` (in Celsius), label each element as "cold" (below 20), "warm" (20 to 29), or "hot" (30 or above). Use a nested `ifelse()` call. Save the resulting length-seven character vector to `ex_5_1` and print it.
 
 **Expected result:**
 
 ```
-#> [1] 720
-```
-
-**Difficulty:** Beginner
-
-```r title="Your turn"
-ex_5_2 <- 1
-for (i in 1:6) {
-  # update ex_5_2 here
-}
-ex_5_2
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_5_2 <- 1
-for (i in 1:6) {
-  ex_5_2 <- ex_5_2 * i
-}
-ex_5_2
-#> [1] 720
-```
-
-**Explanation:** The for loop is the most explicit way to express iteration but is rarely the fastest. The vectorized one-liner `prod(1:6)` is shorter and faster, and the built-in `factorial(6)` is shorter still. Use loops when the iteration depends on previous results in a way that resists vectorization; otherwise prefer the vector form.
-
-</details>
-
-### Exercise 5.3: Vectorize sign classification with ifelse
-
-**Task:** Take the vector `nums <- c(-3, 0, 4, -1, 5, 0)` and use the vectorized `ifelse()` to label each element as "neg", "zero", or "pos". Handle the three cases with a nested `ifelse`. Save the resulting character vector to `ex_5_3`.
-
-**Expected result:**
-
-```
-#> [1] "neg"  "zero" "pos"  "neg"  "pos"  "zero"
+#> [1] "cold" "warm" "hot"  "cold" "warm" "hot"  "warm"
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
-nums <- c(-3, 0, 4, -1, 5, 0)
-ex_5_3 <- # your nested ifelse here
-ex_5_3
+temps <- c(18, 25, 31, 12, 29, 36, 22)
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-nums <- c(-3, 0, 4, -1, 5, 0)
-ex_5_3 <- ifelse(nums < 0, "neg",
-                 ifelse(nums == 0, "zero", "pos"))
-ex_5_3
-#> [1] "neg"  "zero" "pos"  "neg"  "pos"  "zero"
+temps <- c(18, 25, 31, 12, 29, 36, 22)
+ex_5_1 <- ifelse(temps < 20, "cold",
+                 ifelse(temps < 30, "warm", "hot"))
+ex_5_1
+#> [1] "cold" "warm" "hot"  "cold" "warm" "hot"  "warm"
 ```
 
-**Explanation:** `ifelse(test, yes, no)` evaluates `test` as a vector and returns a vector of the same length, picking from `yes` or `no` element-by-element. Nesting it handles three or more cases but quickly becomes hard to read. `dplyr::case_when()` reads top-to-bottom and scales much better when you have four or more branches.
+**Explanation:** `ifelse()` is vectorized, evaluating the condition once per element of the input and picking from the matching branch. Nesting it works for three or more buckets but becomes hard to read past three levels. For four or more conditions, `dplyr::case_when()` is dramatically cleaner because each branch is on its own line, top to bottom, first match wins.
 
 </details>
 
-### Exercise 5.4: Write a function that returns the spread of a vector
+### Exercise 5.2: Write a function with default arguments
 
-**Task:** Define a function called `vector_span` that takes one numeric vector argument and returns the difference between its maximum and minimum (i.e., `max(x) - min(x)`). Test it on `mtcars$mpg` and save the resulting numeric scalar to `ex_5_4`.
+**Task:** Define a function `bmi` that takes `weight_kg` and `height_m` and returns the body mass index as `weight_kg / height_m^2`. Give `height_m` a default of 1.7 so a single-argument call uses the average height. Test it with `bmi(70)` and save the resulting numeric scalar to `ex_5_2`.
 
 **Expected result:**
 
 ```
-#> [1] 23.5
+#> [1] 24.22145
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
-vector_span <- function(x) {
+bmi <- function(weight_kg, height_m = 1.7) {
   # your code here
 }
-ex_5_4 <- vector_span(mtcars$mpg)
-ex_5_4
+ex_5_2 <- bmi(70)
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-vector_span <- function(x) {
-  max(x) - min(x)
+bmi <- function(weight_kg, height_m = 1.7) {
+  weight_kg / height_m^2
 }
-ex_5_4 <- vector_span(mtcars$mpg)
-ex_5_4
-#> [1] 23.5
+ex_5_2 <- bmi(70)
+ex_5_2
+#> [1] 24.22145
 ```
 
-**Explanation:** A function body returns the value of its last expression, so no explicit `return()` is needed. The built-in `range(x)` returns both endpoints as a length-two vector; `diff(range(x))` is a one-liner equivalent to `vector_span(x)`. Wrapping logic in a named function pays off once you start calling the same calculation in multiple places.
+**Explanation:** Default values are evaluated lazily, only when the parameter is actually used inside the function body. That means a default can reference other parameters: `function(x, y = x * 2)`. Named arguments make calls self-documenting: `bmi(weight_kg = 70, height_m = 1.82)` is clearer than positional `bmi(70, 1.82)`. Keep the most commonly varied argument first.
 
 </details>
 
-### Exercise 5.5: Use a while loop to find the first power of two greater than 1000
+### Exercise 5.3: Guard a function against bad input with stop
 
-**Task:** Use a `while` loop starting from 1, doubling each iteration, that stops as soon as the value exceeds 1000. Save the first value that exceeds 1000 to `ex_5_5`. Hint: 2^10 = 1024 is the answer you should land on.
+**Task:** Write a function `safe_log` that returns `log(x)` when `x` is strictly positive and calls `stop("x must be positive")` otherwise. Test it on `safe_log(7.389)` (the value of e squared) and save the resulting numeric scalar to `ex_5_3`.
 
 **Expected result:**
 
 ```
-#> [1] 1024
+#> [1] 2.000128
 ```
 
 **Difficulty:** Intermediate
 
 ```r title="Your turn"
-ex_5_5 <- 1
-while (ex_5_5 <= 1000) {
-  # update ex_5_5 here
+safe_log <- function(x) {
+  # your code here
 }
+ex_5_3 <- safe_log(7.389)
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+safe_log <- function(x) {
+  if (x <= 0) stop("x must be positive")
+  log(x)
+}
+ex_5_3 <- safe_log(7.389)
+ex_5_3
+#> [1] 2.000128
+```
+
+**Explanation:** `stop()` throws an error and halts execution, which is the right reflex for invalid input that downstream code cannot recover from. Use `warning()` when the situation is suspicious but the code can continue with sensible defaults, and `message()` for purely informational text. Catch errors at the call site with `tryCatch()` if the caller wants to recover; `try()` is the older, less flexible alternative.
+
+</details>
+
+### Exercise 5.4: Repeat with break to find the first match
+
+**Task:** Use a `repeat` loop to draw integers between 1 and 100 with `sample(1:100, 1)`, stopping as soon as you draw an integer greater than 95. To make the result reproducible call `set.seed(42)` first. Save the first qualifying integer to `ex_5_4`.
+
+**Expected result:**
+
+```
+#> [1] 97
+#> [1] "qualifying integer found"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(42)
+ex_5_4 <- NULL
+repeat {
+  draw <- sample(1:100, 1)
+  # break out when draw exceeds 95
+}
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(42)
+ex_5_4 <- NULL
+repeat {
+  draw <- sample(1:100, 1)
+  if (draw > 95) {
+    ex_5_4 <- draw
+    break
+  }
+}
+ex_5_4
+#> [1] 97
+if (ex_5_4 > 95) "qualifying integer found"
+#> [1] "qualifying integer found"
+```
+
+**Explanation:** `repeat` has no built-in exit condition, so an explicit `break` is mandatory. Without one the loop runs forever. `repeat` is the right choice when the stopping condition depends on values generated inside the body (rejection sampling, retry loops). For known iteration counts use `for`; for a condition on a quantity computed before each iteration, use `while`.
+
+</details>
+
+### Exercise 5.5: Build a closure that remembers its counter
+
+**Task:** Write a constructor `make_counter` that returns a function which, each time it is called, returns the count of how many times it has been called so far. Build one counter, call it three times, and save the final returned value to `ex_5_5`.
+
+**Expected result:**
+
+```
+#> [1] 3
+#> independent counter starts fresh: 1
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+make_counter <- function() {
+  # your code here
+}
+counter <- make_counter()
+counter(); counter()
+ex_5_5 <- counter()
 ex_5_5
 ```
 
@@ -866,35 +885,44 @@ ex_5_5
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_5_5 <- 1
-while (ex_5_5 <= 1000) {
-  ex_5_5 <- ex_5_5 * 2
+make_counter <- function() {
+  count <- 0
+  function() {
+    count <<- count + 1
+    count
+  }
 }
+counter <- make_counter()
+counter(); counter()
+ex_5_5 <- counter()
 ex_5_5
-#> [1] 1024
+#> [1] 3
+fresh <- make_counter()
+cat("independent counter starts fresh:", fresh(), "\n")
+#> independent counter starts fresh: 1
 ```
 
-**Explanation:** `while` runs as long as its condition is TRUE, then exits when the condition becomes FALSE. Because the loop body runs once after the threshold is crossed, the saved value is the first one strictly above 1000, not the last one below. Always include something inside the body that can flip the condition or you risk an infinite loop; for known iteration counts prefer `for`.
+**Explanation:** The inner function "closes over" the `count` variable from its enclosing environment, preserving state across calls. The double-arrow `<<-` writes to the parent environment instead of creating a new local binding. Closures are the building block for stateful objects without an OOP system, and they power packages like rlang and purrr. Each call to `make_counter()` returns an independent counter.
 
 </details>
 
 ## Section 6. Plotting and quick visuals (5 problems)
 
-### Exercise 6.1: Draw a scatter plot of two columns
+### Exercise 6.1: Draw a scatter plot with colored groups
 
-**Task:** Use base R `plot()` to draw a scatter plot of `mpg` (y-axis) against `wt` (x-axis) from `mtcars`, with axis labels matching the column names. Save the marker string `"scatter drawn"` to `ex_6_1` so the variable exists for grading.
+**Task:** Draw a scatter plot of `Sepal.Length` against `Petal.Length` from `iris`, coloring the points by `Species`. Pass the factor to the `col` argument so each species gets its own automatic color. Save the marker string `"colored scatter drawn"` to `ex_6_1`.
 
 **Expected result:**
 
 ```
-# Scatter plot: x-axis 'wt' (1.5 to 5.5), y-axis 'mpg' (10 to 35), 32 points; clear downward trend
-#> [1] "scatter drawn"
+# Scatter plot: x-axis Petal.Length 1 to 7, y-axis Sepal.Length 4.5 to 8, three color clusters
+#> [1] "colored scatter drawn"
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
-plot(mtcars$wt, mtcars$mpg, xlab = "wt", ylab = "mpg")
+plot(iris$Petal.Length, iris$Sepal.Length, col = iris$Species)
 ex_6_1 <- # your code here
 ex_6_1
 ```
@@ -903,143 +931,143 @@ ex_6_1
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-plot(mtcars$wt, mtcars$mpg, xlab = "wt", ylab = "mpg")
-ex_6_1 <- "scatter drawn"
+plot(iris$Petal.Length, iris$Sepal.Length,
+     col = iris$Species, pch = 19,
+     xlab = "Petal.Length", ylab = "Sepal.Length")
+legend("topleft", legend = levels(iris$Species),
+       col = 1:3, pch = 19)
+ex_6_1 <- "colored scatter drawn"
 ex_6_1
-#> [1] "scatter drawn"
+#> [1] "colored scatter drawn"
 ```
 
-**Explanation:** Base `plot()` is the fastest way to inspect a relationship during exploratory work; one call gives you points, axes, and labels. It returns invisibly (you cannot assign the chart to a variable like ggplot2 objects), which is why we store a marker string. For publication-quality figures, layered ggplot2 code is more flexible, but base plot stays unbeaten for the first look.
+**Explanation:** Base R turns a factor into its integer codes (1, 2, 3) when you pass it to `col`, picking colors from the default palette. `pch = 19` switches to solid filled circles. Always add a `legend()` manually because base graphics will not generate one automatically. The ggplot2 alternative `aes(color = Species)` handles legends automatically and is the right choice when figures need polishing.
 
 </details>
 
-### Exercise 6.2: Draw a histogram and capture its bins
+### Exercise 6.2: Compare distributions with side-by-side histograms
 
-**Task:** Use `hist()` to draw a histogram of `mtcars$mpg` with 10 break points. Save the histogram object that `hist()` returns invisibly to `ex_6_2`; that object holds breaks, counts, and densities so you can inspect bin contents later.
+**Task:** Draw two histograms on the same plotting region using `par(mfrow = c(1, 2))`: the first of `mtcars$mpg`, the second of `mtcars$hp`. Save the marker string `"two histograms drawn"` to `ex_6_2` so the variable exists for grading.
 
 **Expected result:**
 
 ```
-# Histogram: x-axis mpg (10 to 35), y-axis frequency, ~10 bars peaking near 15-20
-#> List of 6
-#>  $ breaks  : num [1:11] 10 12 14 16 18 20 22 24 26 28 ...
-#>  $ counts  : int [1:10] 4 5 5 ...
+# Two histograms side by side, mpg (10-35) on left, hp (50-340) on right
+#> [1] "two histograms drawn"
 ```
 
-**Difficulty:** Beginner
+**Difficulty:** Intermediate
 
 ```r title="Your turn"
+par(mfrow = c(1, 2))
+hist(mtcars$mpg, main = "mpg")
+hist(mtcars$hp, main = "hp")
+par(mfrow = c(1, 1))
 ex_6_2 <- # your code here
-str(ex_6_2)
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_6_2 <- hist(mtcars$mpg, breaks = 10)
-str(ex_6_2)
-#> List of 6
-#>  $ breaks  : num [1:11] 10 12 14 16 18 20 22 24 26 28 ...
-#>  $ counts  : int [1:10] 4 5 5 ...
+par(mfrow = c(1, 2))
+hist(mtcars$mpg, main = "mpg")
+hist(mtcars$hp, main = "hp")
+par(mfrow = c(1, 1))
+ex_6_2 <- "two histograms drawn"
+ex_6_2
+#> [1] "two histograms drawn"
 ```
 
-**Explanation:** `hist()` does double duty: it draws the chart and returns a list describing the bins. Adjust granularity with `breaks = 5` for a coarser view or `breaks = 30` for a finer one. Pass `freq = FALSE` to plot densities instead of counts; that scaling is what you want when overlaying a probability density curve.
+**Explanation:** `par(mfrow = c(rows, cols))` splits the plotting region into a grid that fills row by row; `par(mfcol = ...)` fills column by column instead. Reset to `c(1, 1)` after the multi-panel block, otherwise subsequent plots inherit the layout and surprise you. For richer arrangements the `layout()` function supports unequal panel sizes, and `patchwork` does the same for ggplot2 grobs.
 
 </details>
 
-### Exercise 6.3: Add a regression line to a scatter plot
+### Exercise 6.3: Draw a pie chart from a category count
 
-**Task:** Draw a scatter plot of `mpg` versus `wt` from `mtcars`, fit a simple linear model with `lm(mpg ~ wt, data = mtcars)`, then overlay the regression line using `abline()`. Save the fitted model object to `ex_6_3` and print its coefficients.
+**Task:** Build a one-dimensional frequency table of `mtcars$gear` (counts of cars with three, four, and five gears) and pass it to `pie()` to render a pie chart with the gear counts as labels. Save the underlying frequency table to `ex_6_3`.
 
 **Expected result:**
 
 ```
-# Scatter plot with a downward red line through the cloud of points
-#> Coefficients:
-#> (Intercept)           wt
-#>      37.285       -5.344
-```
-
-**Difficulty:** Intermediate
-
-```r title="Your turn"
-plot(mtcars$wt, mtcars$mpg, xlab = "wt", ylab = "mpg")
-ex_6_3 <- # fit the model here
-abline(ex_6_3, col = "red")
-ex_6_3
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-plot(mtcars$wt, mtcars$mpg, xlab = "wt", ylab = "mpg")
-ex_6_3 <- lm(mpg ~ wt, data = mtcars)
-abline(ex_6_3, col = "red")
-ex_6_3
-#> Coefficients:
-#> (Intercept)           wt
-#>      37.285       -5.344
-```
-
-**Explanation:** `abline()` accepts a fitted model with exactly one predictor and pulls intercept and slope automatically. For multi-predictor models you need to construct a prediction grid and call `lines()` instead. Storing the model in `ex_6_3` lets you call `summary(ex_6_3)` afterwards to inspect the residual standard error and R-squared.
-
-</details>
-
-### Exercise 6.4: Draw a boxplot grouped by a categorical column
-
-**Task:** Use the formula interface of `boxplot()` to draw `Sepal.Length` from `iris` grouped by `Species`, producing one box per species. Save the printed list of bin statistics that `boxplot()` returns invisibly to `ex_6_4`.
-
-**Expected result:**
-
-```
-# Three side-by-side boxplots, medians 5.0 / 5.9 / 6.5 from left to right
-#> List of 6
-#>  $ stats: num [1:5, 1:3] 4.3 4.8 5 5.2 5.8 ...
-#>  $ n    : num [1:3] 50 50 50
-```
-
-**Difficulty:** Intermediate
-
-```r title="Your turn"
-ex_6_4 <- # your code here
-str(ex_6_4)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Solution"
-ex_6_4 <- boxplot(Sepal.Length ~ Species, data = iris)
-str(ex_6_4)
-#> List of 6
-#>  $ stats: num [1:5, 1:3] 4.3 4.8 5 5.2 5.8 ...
-#>  $ n    : num [1:3] 50 50 50
-```
-
-**Explanation:** The formula `Sepal.Length ~ Species` mirrors what you would pass to `lm()` or `aggregate()`, which is a deliberate consistency in base R. The returned list exposes `stats` (lower whisker, Q1, median, Q3, upper whisker) per group plus outliers, so you can replicate or annotate the chart programmatically without re-computing the quantiles.
-
-</details>
-
-### Exercise 6.5: Draw a bar chart from a frequency table
-
-**Task:** Build a frequency table of `mtcars$cyl` (counts of 4-, 6-, and 8-cylinder cars) using `table()`, then pass that table to `barplot()` to render a vertical bar chart with the cylinder counts as labels. Save the table itself to `ex_6_5`.
-
-**Expected result:**
-
-```
-# Three vertical bars labelled 4, 6, 8 with heights 11, 7, 14
-#>
-#>  4  6  8
-#> 11  7 14
+# Pie chart with three slices labelled 3, 4, 5
+#>  3  4  5
+#> 15 12  5
 ```
 
 **Difficulty:** Beginner
 
 ```r title="Your turn"
-ex_6_5 <- # build the table here
-barplot(ex_6_5)
+ex_6_3 <- # build the table here
+pie(ex_6_3)
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- table(mtcars$gear)
+pie(ex_6_3)
+ex_6_3
+#>  3  4  5
+#> 15 12  5
+```
+
+**Explanation:** `pie()` accepts a numeric vector of counts and uses its names for labels; passing a `table` object gives you names for free. Pie charts are notoriously hard for humans to read accurately; for two or more slices a bar chart with `barplot()` is almost always preferable. Reach for a pie only with two or three slices and when communicating composition is the primary goal.
+
+</details>
+
+### Exercise 6.4: Visualize all pairs of columns with pairs()
+
+**Task:** Use `pairs()` to draw a scatter plot matrix of the first four columns of `iris` (Sepal.Length, Sepal.Width, Petal.Length, Petal.Width). This gives a quick overview of every bivariate relationship at once. Save the marker string `"pairs matrix drawn"` to `ex_6_4`.
+
+**Expected result:**
+
+```
+# 4-by-4 grid of scatter plots, diagonal blank, strong correlations between petal length and width
+#> [1] "pairs matrix drawn"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+pairs(iris[, 1:4])
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pairs(iris[, 1:4], col = iris$Species, pch = 19)
+ex_6_4 <- "pairs matrix drawn"
+ex_6_4
+#> [1] "pairs matrix drawn"
+```
+
+**Explanation:** `pairs()` is the fastest way to spot strong linear relationships and outliers before fitting any model. The function takes either a data frame or a matrix and renders each pair on a separate panel. Coloring by a categorical variable (`col = Species`) often reveals that an apparent overall correlation is actually a group artifact. `GGally::ggpairs()` is the ggplot2 cousin with richer panels.
+
+</details>
+
+### Exercise 6.5: Draw multiple time series with matplot
+
+**Task:** The `EuStockMarkets` time series matrix contains daily closing prices for four European indices (DAX, SMI, CAC, FTSE). Draw all four series on a single plot with `matplot()` so each column gets its own line. Save the marker string `"matplot drawn"` to `ex_6_5`.
+
+**Expected result:**
+
+```
+# Four overlapping line series rising together over 1860 trading days, with a legend area
+#> [1] "matplot drawn"
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+matplot(EuStockMarkets, type = "l")
+ex_6_5 <- # your code here
 ex_6_5
 ```
 
@@ -1047,21 +1075,22 @@ ex_6_5
 <summary>Click to reveal solution</summary>
 
 ```r title="Solution"
-ex_6_5 <- table(mtcars$cyl)
-barplot(ex_6_5)
+matplot(EuStockMarkets, type = "l", lty = 1,
+        col = 1:4, xlab = "trading day", ylab = "index value")
+legend("topleft", legend = colnames(EuStockMarkets),
+       col = 1:4, lty = 1)
+ex_6_5 <- "matplot drawn"
 ex_6_5
-#>
-#>  4  6  8
-#> 11  7 14
+#> [1] "matplot drawn"
 ```
 
-**Explanation:** `barplot()` accepts either a numeric vector of heights or a `table` object; passing a named table is the cleanest way to get axis labels for free. For a horizontal version pass `horiz = TRUE`; for proportions wrap with `prop.table()` first. ggplot2's `geom_bar()` is the more flexible alternative once you outgrow base graphics.
+**Explanation:** `matplot()` plots each column of a matrix against a common x-axis, perfect for wide-format time series. `type = "l"` selects lines (use `"b"` for lines plus points). `lty = 1` forces a solid line across all series so they are distinguished only by color, which is usually easier to read than mixing line types. For long-format data, `ggplot2::geom_line(aes(group = series, color = series))` is the tidy alternative.
 
 </details>
 
 ## What to do next
 
-- Move from beginner to package-based wrangling with [dplyr Exercises in R](dplyr-Exercises-in-R.html).
-- Practice cleaner plotting with [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html).
-- Get a wider hands-on tour with the [R for Data Science Exercises](R-for-Data-Science-Exercises.html).
-- Build statistical reasoning step by step with the [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html).
+- Move on to package-based wrangling with [dplyr Exercises in R](dplyr-Exercises-in-R.html).
+- Layer a cleaner visualization grammar in [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html).
+- Practice the full transformation toolkit in [Data Wrangling Exercises in R](Data-Wrangling-Exercises-in-R.html).
+- Build statistical reasoning step by step with [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html).
