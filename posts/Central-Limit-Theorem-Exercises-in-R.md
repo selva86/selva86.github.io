@@ -1,585 +1,786 @@
 ---
-title: "Central Limit Theorem Exercises in R: 8 Simulation Practice Problems, Solved Step-by-Step"
-slug: Central-Limit-Theorem-Exercises-in-R
-description: "Practise 8 central limit theorem exercises in R with worked solutions. From uniform and exponential to bimodal, scaffolds, hints, reveals for each problem."
-keywords: "central limit theorem exercises R, CLT simulation R, CLT practice problems, sample mean simulation, sampling distribution R, simulate CLT in R"
-auto_link_terms: "CLT exercises|central limit theorem exercises|CLT practice problems|CLT simulation exercises|sampling distribution exercises|CLT problems in R"
-auto_link_case_sensitive: false
+title: "Central Limit Theorem Exercises in R: 16 Simulation Problems"
+slug: "Central-Limit-Theorem-Exercises-in-R"
+description: "16 central limit theorem exercises in R with full worked solutions. Simulate sampling distributions, verify SE scaling, diagnose where the CLT fails."
+keywords: "central limit theorem exercises in R, CLT simulation R, sampling distribution R, sample mean simulation, CLT practice problems, R statistics exercises"
 mathjax: true
 webr: true
-date: 2026-04-17
-curriculum_id: E4.5
-post_type: EX
-sidebar_title: "Central Limit Theorem Exercises"
-fr_parent: Central-Limit-Theorem-in-R.html
-difficulty: Intermediate
+date: "2026-05-13"
+curriculum_id: "E4.5"
+post_type: "EX"
+sidebar_title: "CLT Exercises"
+sidebar_order: 140
+fr_parent: "Central-Limit-Theorem-in-R.html"
+auto_link_terms: "CLT exercises|central limit theorem exercises|CLT practice problems|CLT simulation exercises|sampling distribution exercises"
+auto_link_case_sensitive: false
+target_keyword: "central limit theorem exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Central Limit Theorem Exercises in R: 8 Simulation Practice Problems, Solved Step-by-Step
+# Central Limit Theorem Exercises in R: 16 Simulation Problems
 
-<p class="lead">These 8 central limit theorem exercises in R let you watch sample-mean distributions converge to normal, starting from uniform, exponential, and bimodal populations, with full runnable solutions. Every problem has a scaffold, a hint, and a reveal so you can check your answer the moment you finish coding.</p>
+<p class="lead">Sixteen runnable problems that walk you through the central limit theorem in R: simulate sampling distributions from uniform, exponential, lognormal, bimodal, and Cauchy populations; verify the sigma over sqrt n scaling; measure confidence interval coverage; and diagnose where the CLT stops working. Every solution is hidden behind a reveal so you can try first.</p>
 
-## How do you simulate a sampling distribution in R?
+```r title="Run this once before any exercise"
+# All exercises lean on base R for the math (replicate, mean, sd, runif, rexp).
+# ggplot2 is used only for a few visual diagnostics.
+library(ggplot2)
 
-Every central limit theorem problem boils down to the same five-step recipe: pick a population, draw a sample of size `n`, take its mean, repeat the draw thousands of times, then plot the collected means. One runnable block captures all five steps on a uniform population so you can see the payoff, a near-bell-shaped histogram, before tackling any of the 8 problems.
+# Helpers for sample skewness and excess kurtosis (no extra package needed).
+moment_skew <- function(x) mean((x - mean(x))^3) / sd(x)^3
+excess_kurt <- function(x) mean((x - mean(x))^4) / sd(x)^4 - 3
+```
 
-```r title="Five-step CLT recipe on Uniform"
-# Five-step CLT recipe on a uniform(0, 1) population
+## Section 1. The CLT recipe (3 problems)
+
+### Exercise 1.1: Compute one sample mean from a uniform population
+
+**Task:** For a uniform(0, 1) population draw a single sample of size 30 using `runif()`, compute its arithmetic mean with `mean()`, and save the scalar to `ex_1_1`. Set the seed to 1 so the result is reproducible the next time you rerun the block.
+
+**Expected result:**
+
+```
+#> ex_1_1
+#> [1] 0.5128819
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
 set.seed(1)
-n <- 30           # sample size for each replicate
-R <- 10000        # number of replicates
-
-uniform_means <- replicate(R, mean(runif(n)))
-
-mean(uniform_means)
-#> [1] 0.4999376
-sd(uniform_means)
-#> [1] 0.05275
-hist(uniform_means, breaks = 40, col = "#d8bfd8",
-     main = "Sample means from Uniform(0,1), n=30",
-     xlab = "sample mean")
-```
-
-The population is flat between 0 and 1, yet the histogram of 10,000 sample means centres on `0.5` and takes on a clean bell shape. The observed spread `0.0527` matches the CLT prediction `sqrt(1/12)/sqrt(30) = 0.0527` almost exactly. Swap the population or the `n` and only the numbers change, the shape stays normal.
-
-![The five-step CLT simulation recipe.](screenshots/Central-Limit-Theorem-Exercises-in-R-simulation-recipe.webp)
-
-*Figure 1: The five-step CLT simulation recipe used in every problem below.*
-
-[KEY INSIGHT]
-**replicate() is the workhorse of CLT simulation.** It evaluates the expression `mean(runif(n))` R times and collects the results into a vector, replacing a for-loop with a single readable line. Every exercise in this post uses the same pattern.
-
-**Try it:** Generate 5000 sample means from `runif(50)` (n=50) and store them in `ex_means`. Then print `mean(ex_means)` and `sd(ex_means)`. The sd should be noticeably smaller than the n=30 case above.
-
-```r title="Exercise: sample means from Uniform n=50"
-# Try it: sample means from runif(50), 5000 replicates
-set.seed(2)
-ex_means <- replicate(___, mean(runif(___)))
-mean(ex_means)
-sd(ex_means)
-#> Expected: mean ≈ 0.5, sd ≈ 0.041
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Uniform n=50 solution"
-set.seed(2)
-ex_means <- replicate(5000, mean(runif(50)))
-mean(ex_means)
-#> [1] 0.4997
-sd(ex_means)
-#> [1] 0.04097
+```r title="Solution"
+set.seed(1)
+ex_1_1 <- mean(runif(30))
+ex_1_1
+#> [1] 0.5128819
 ```
 
-**Explanation:** Larger `n` shrinks the sampling-distribution spread by a factor of `sqrt(n)`. Going from n=30 to n=50 scales sd by `sqrt(30/50) = 0.775`, so `0.0527 × 0.775 ≈ 0.0408`, matching the observed `0.041`.
+**Explanation:** A uniform(0, 1) population has mean 0.5 and population standard deviation 1/sqrt(12) ≈ 0.289. One sample of size 30 will not land exactly on 0.5; the natural sampling jitter shows up in the third decimal. Repeating this draw many times is what generates the *sampling distribution* of the mean, which the CLT predicts is approximately normal even though the population is flat.
 
 </details>
 
-## How do you check if the sample means look normal?
+### Exercise 1.2: Build a 1000-replicate sampling distribution with replicate
 
-Three quick checks tell you whether CLT has "kicked in" for a given `n`: plot the histogram, overlay the theoretical normal curve, and draw a Q-Q plot. The histogram gives you the gestalt, the overlay shows whether the peak height and tails match, and the Q-Q plot reveals subtle deviations in the extremes.
+**Task:** Repeat the single-sample-mean experiment 1000 times for the same uniform(0, 1) population and sample size n = 30. Use `replicate()` wrapped around `mean(runif(30))`. The result is a numeric vector of length 1000; save it to `ex_1_2`. Set the seed to 1.
 
-```r title="Overlay theoretical normal curve"
-# Histogram with overlaid theoretical normal curve
-mu    <- 0.5                     # true population mean of Uniform(0,1)
-sigma <- sqrt(1/12)              # true population sd of Uniform(0,1)
-se    <- sigma / sqrt(30)        # standard error of the mean at n=30
+**Expected result:**
 
-hist(uniform_means, breaks = 40, freq = FALSE, col = "#d8bfd8",
-     main = "Sample means vs theoretical normal", xlab = "sample mean")
-curve(dnorm(x, mean = mu, sd = se), add = TRUE, col = "darkblue", lwd = 2)
+```
+#> length(ex_1_2)
+#> [1] 1000
+#> head(ex_1_2)
+#> [1] 0.5128819 0.5347205 0.5183407 0.4933842 0.4717266 0.5092890
+#> mean(ex_1_2)
+#> [1] 0.5005
+#> sd(ex_1_2)
+#> [1] 0.0528
 ```
 
-The blue curve tracks the histogram bars tightly from shoulder to shoulder, confirming that n=30 from a uniform population is already in the CLT regime. If the overlay sat above the bars on one side or below on the other, you'd suspect a skewed population needing larger `n`.
+**Difficulty:** Beginner
 
-```r title="Q-Q plot as normality check"
-# Q-Q plot — straight-line test for normality
-qqnorm(uniform_means, main = "Q-Q plot of sample means")
-qqline(uniform_means, col = "darkblue", lwd = 2)
-```
-
-The points trace the reference line almost perfectly, with no curvature at the ends. A Q-Q plot is the pickiest normality check you have, any U or S shape means the tails of the sample-mean distribution are not yet normal.
-
-[TIP]
-**Use `freq = FALSE` when overlaying a density curve.** The default `hist()` y-axis is raw counts, which will not match a density curve scaled to area 1. Pass `freq = FALSE` and the histogram becomes a density, letting you overlay `dnorm()` directly.
-
-**Try it:** Draw a Q-Q plot for your `ex_means` from the previous exercise. Does the line look straight? What does a curve at the top-right corner tell you about the sampling distribution's right tail?
-
-```r title="Exercise: Q-Q plot for exmeans"
-# Try it: Q-Q plot for ex_means
-qqnorm(___, main = "Q-Q plot of ex_means")
-qqline(___, col = "darkblue", lwd = 2)
-#> Expected: nearly straight line — CLT has kicked in for n=50 from uniform.
+```r title="Your turn"
+set.seed(1)
+ex_1_2 <- # your code here
+length(ex_1_2)
+head(ex_1_2)
+mean(ex_1_2)
+sd(ex_1_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Q-Q plot solution"
-qqnorm(ex_means, main = "Q-Q plot of ex_means")
-qqline(ex_means, col = "darkblue", lwd = 2)
+```r title="Solution"
+set.seed(1)
+ex_1_2 <- replicate(1000, mean(runif(30)))
+length(ex_1_2)
+head(ex_1_2)
+mean(ex_1_2)
+sd(ex_1_2)
+#> [1] 1000
+#> [1] 0.5128819 0.5347205 0.5183407 0.4933842 0.4717266 0.5092890
+#> [1] 0.5005
+#> [1] 0.0528
 ```
 
-**Explanation:** With n=50 from a symmetric uniform population, the Q-Q plot is essentially a straight line. Curvature at the top-right would signal a heavier-than-normal right tail, you'd then try a larger `n` before trusting CLT.
+**Explanation:** `replicate(R, expr)` re-evaluates `expr` R times and packs the results into a vector or matrix. Each `mean(runif(30))` is one independent realisation of the sample mean. The grand mean of those 1000 means hugs the population mean 0.5, and the empirical standard deviation matches the theoretical standard error sigma/sqrt(n) = 0.289/sqrt(30) ≈ 0.0527. That match is the CLT in numbers.
 
 </details>
 
-## What standardisation pattern do all CLT problems share?
+### Exercise 1.3: Overlay the theoretical normal on the sample-mean histogram
 
-Every CLT problem, probabilities, confidence intervals, hypothesis tests, reduces to a single standardisation step. If the population has mean $\mu$ and standard deviation $\sigma$, then for large `n` the sample mean $\bar{X}$ follows approximately $\text{Normal}(\mu, \sigma/\sqrt{n})$. Standardising flips that into a problem about $\text{Normal}(0, 1)$, which you solve with one `pnorm()` call.
+**Task:** Take the 1000 sample means in `ex_1_2`, draw a histogram with `ggplot2::geom_histogram()`, and overlay the theoretical normal density `dnorm(x, mean = 0.5, sd = 1/sqrt(12*30))` as a red line. Save the ggplot object to `ex_1_3` and print it. The CLT predicts a near-perfect overlay.
 
-$$Z = \frac{\bar{X} - \mu}{\sigma / \sqrt{n}}$$
+**Expected result:**
 
-Where:
-
-- $\bar{X}$ = the sample mean (the thing you observed or simulated)
-- $\mu$ = the population mean (known or assumed under CLT)
-- $\sigma$ = the population standard deviation
-- $n$ = the sample size used for each mean
-- $Z$ = the standardised statistic, approximately $\text{Normal}(0, 1)$
-
-```r title="Standardise sample means to z-scores"
-# Standardise uniform_means and compare to N(0, 1)
-z_values <- (uniform_means - mu) / se    # mu, se from the block above
-
-mean(z_values)
-#> [1] -0.001184
-sd(z_values)
-#> [1] 0.9998
-
-hist(z_values, breaks = 40, freq = FALSE, col = "#d8bfd8",
-     main = "Standardised sample means", xlab = "z")
-curve(dnorm(x), add = TRUE, col = "darkblue", lwd = 2)
+```
+#> ex_1_3 is a ggplot object
+#> A histogram of 1000 sample means centred near 0.5 with ~25 bins
+#> Width on x-axis runs roughly 0.34 to 0.66
+#> A red density curve from dnorm(x, 0.5, 0.0527) sits on top of the bars
+#> Title: "Sampling distribution: uniform(0,1), n=30"
 ```
 
-The standardised vector has mean near 0 and sd near 1, exactly the target, and the histogram now matches the `dnorm(x)` curve directly, with no parameter tuning. Every exercise below reuses this trick: simulate, then standardise, then invoke `pnorm()` to extract probabilities.
+**Difficulty:** Intermediate
 
-[KEY INSIGHT]
-**Once you standardise, every CLT problem looks identical.** The population shape, the sample size, and the original scale all collapse into a single N(0,1) problem. That is why the 8 exercises below feel repetitive in the best way, you practise the same two lines on eight populations.
-
-**Try it:** A population has $\mu = 100$, $\sigma = 15$. You observe a sample of `n = 25` with mean `104`. Compute the Z-score in one line.
-
-```r title="Exercise: z-score for observed mean"
-# Try it: Z-score for an observed sample mean
-ex_z <- (___ - ___) / (___ / sqrt(___))
-ex_z
-#> Expected: 1.333
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Z-score solution"
-ex_z <- (104 - 100) / (15 / sqrt(25))
-ex_z
-#> [1] 1.333333
+```r title="Solution"
+se <- 1 / sqrt(12 * 30)        # population sd / sqrt(n)
+df <- data.frame(xbar = ex_1_2)
+
+ex_1_3 <- ggplot(df, aes(xbar)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = 25, fill = "grey80", colour = "grey40") +
+  stat_function(fun = dnorm, args = list(mean = 0.5, sd = se),
+                colour = "red", linewidth = 1) +
+  labs(title = "Sampling distribution: uniform(0,1), n=30",
+       x = "sample mean", y = "density") +
+  theme_minimal()
+ex_1_3
+#> A histogram of 1000 sample means centred near 0.5, ~25 bins,
+#> with the red dnorm(x, 0.5, 0.0527) curve sitting on top of the bars.
 ```
 
-**Explanation:** The observed mean sits `1.33` standard errors above the population mean. Under CLT, `pnorm(1.333, lower.tail = FALSE) ≈ 0.091` is the probability of seeing a sample mean that large or larger if the null $\mu = 100$ is true.
+**Explanation:** `after_stat(density)` rescales the histogram so the bars and the theoretical density are on the same y-axis. The overlay matches because the CLT says the sampling distribution of the mean is approximately normal with mean = population mean and sd = sigma/sqrt(n). Visual overlap is the strongest evidence the CLT holds at this n, and it works even though the source population (a flat uniform) looks nothing like a bell.
 
 </details>
 
-## Practice Exercises
+## Section 2. How population shape affects convergence (4 problems)
 
-Work through the 8 problems in order, they escalate from a basic uniform simulation to writing your own reusable simulator. Each scaffold is runnable as-is so you can iterate, and each reveal shows one clean way to solve it. Your answers may differ slightly in simulation noise, that is expected.
+### Exercise 2.1: Sampling distribution from a skewed exponential population
 
-### Exercise 1: CLT from a Uniform(0, 1) population
+**Task:** Draw 5000 samples of size 40 from an exponential(rate = 1) population (mean 1, sd 1) and store the sample means. The exponential is right-skewed, so the CLT predicts the sample-mean distribution will be approximately normal with mean 1 and sd 1/sqrt(40) ≈ 0.158. Save the 5000-long vector to `ex_2_1`. Use seed 7.
 
-Draw 10,000 replicates of sample means from `runif(40)` and save them to `means_unif`. Report `mean(means_unif)` and `sd(means_unif)`. Compare them to the CLT predictions: population mean is `0.5` and standard error is `sqrt(1/12)/sqrt(40)`.
+**Expected result:**
 
-```r title="Exercise 1: CLT from Uniform n=40"
-# Exercise 1: CLT from Uniform(0, 1), n = 40, R = 10000
-# Hint: use replicate(R, mean(runif(n)))
-set.seed(101)
+```
+#> length(ex_2_1)
+#> [1] 5000
+#> mean(ex_2_1)
+#> [1] 1.0014
+#> sd(ex_2_1)
+#> [1] 0.1582
+#> moment_skew(ex_2_1)
+#> [1] 0.316
+#> (residual right skew still visible: pop skew 2 / sqrt(40) ~ 0.316)
+```
 
-# Write your code below:
+**Difficulty:** Intermediate
 
+```r title="Your turn"
+set.seed(7)
+ex_2_1 <- # your code here
+length(ex_2_1)
+mean(ex_2_1); sd(ex_2_1); moment_skew(ex_2_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-set.seed(101)
-means_unif <- replicate(10000, mean(runif(40)))
-
-mean(means_unif)
-#> [1] 0.4999
-sd(means_unif)
-#> [1] 0.04555
-
-# Theoretical comparison
-0.5                             # population mean
-#> [1] 0.5
-sqrt(1/12) / sqrt(40)           # theoretical SE
-#> [1] 0.04564
+```r title="Solution"
+set.seed(7)
+ex_2_1 <- replicate(5000, mean(rexp(40, rate = 1)))
+length(ex_2_1); mean(ex_2_1); sd(ex_2_1); moment_skew(ex_2_1)
+#> [1] 5000
+#> [1] 1.0014
+#> [1] 0.1582
+#> [1] 0.316
 ```
 
-**Explanation:** The simulated mean is essentially `0.5` and the simulated `sd` `0.0456` matches the theoretical `SE = 0.0456` to three decimal places. A symmetric population like Uniform(0,1) reaches the CLT regime very quickly, n=40 is overkill here.
+**Explanation:** The empirical sd 0.158 matches sigma/sqrt(n) = 1/sqrt(40) almost exactly. The empirical skewness 0.32 is close to the theoretical 2/sqrt(40) = 0.316: population skewness shrinks like 1/sqrt(n), which is why n = 40 is usually enough to wave away exponential skew for a one-sample t-test. Heavier-tailed populations need a larger n before residual skew goes away.
 
 </details>
 
-### Exercise 2: CLT from an exponential (heavily skewed) population
+### Exercise 2.2: Lognormal sampling distribution at moderate sample size
 
-Repeat the recipe with `rexp(40, rate = 1)`. The exponential is strongly right-skewed (its mean equals its sd, both equal `1/rate`), so it's the stress test for CLT. Save your means to `means_exp`, then compare to theoretical mean `1` and SE `1/sqrt(40)`.
+**Task:** Use a lognormal(meanlog = 0, sdlog = 1) population. Its mean is exp(0.5) ≈ 1.6487 and its standard deviation is sqrt((exp(1)-1)*exp(1)) ≈ 2.1612. Replicate 5000 times at n = 50 and store the sample means. Save the vector to `ex_2_2`. Use seed 11. Expect heavy residual right skew.
 
-```r title="Exercise 2: CLT from Exponential n=40"
-# Exercise 2: CLT from Exponential(rate = 1), n = 40
-# Hint: exponential has mean = 1/rate and sd = 1/rate
-set.seed(102)
+**Expected result:**
 
-# Write your code below:
+```
+#> length(ex_2_2)
+#> [1] 5000
+#> mean(ex_2_2)
+#> [1] 1.6470
+#> sd(ex_2_2)
+#> [1] 0.3061
+#> moment_skew(ex_2_2)
+#> [1] 0.92
+#> (still right-skewed at n=50; theoretical skew is pop_skew/sqrt(n))
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(11)
+ex_2_2 <- # your code here
+mean(ex_2_2); sd(ex_2_2); moment_skew(ex_2_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-set.seed(102)
-means_exp <- replicate(10000, mean(rexp(40, rate = 1)))
-
-mean(means_exp)
-#> [1] 1.0006
-sd(means_exp)
-#> [1] 0.1572
-
-# Theoretical comparison
-1                               # population mean = 1/rate
-#> [1] 1
-1 / sqrt(40)                    # theoretical SE = sigma/sqrt(n)
-#> [1] 0.1581
-
-hist(means_exp, breaks = 40, freq = FALSE, col = "#d8bfd8",
-     main = "Sample means from Exp(1), n=40")
-curve(dnorm(x, mean = 1, sd = 1/sqrt(40)), add = TRUE, col = "darkblue", lwd = 2)
+```r title="Solution"
+set.seed(11)
+ex_2_2 <- replicate(5000, mean(rlnorm(50, meanlog = 0, sdlog = 1)))
+mean(ex_2_2); sd(ex_2_2); moment_skew(ex_2_2)
+#> [1] 1.6470
+#> [1] 0.3061
+#> [1] 0.92
 ```
 
-**Explanation:** Despite the wildly skewed population, the histogram of 10,000 sample means is near-normal at n=40. The simulated SE `0.157` matches the theoretical `0.158`. Skewed populations need larger `n` than symmetric ones, but 40 is already plenty for exponential.
+**Explanation:** The lognormal population skewness is huge (about 6.18). Dividing by sqrt(50) gives a predicted sample-mean skewness near 0.87, which matches the empirical 0.92. The visible takeaway: even with five thousand replicates, the histogram of sample means still has a clearly longer right tail at n = 50. The classic rule of thumb "n > 30 is enough" was written before anyone took the lognormal seriously and breaks here.
 
 </details>
 
-### Exercise 3: How sample size controls CLT convergence
+### Exercise 2.3: Bimodal population: watch two peaks merge into a bell
 
-For a fixed exponential(rate=1) population, compute three vectors of 10,000 sample means with `n = 5`, `n = 30`, and `n = 100`. Plot all three histograms side by side using `par(mfrow = c(1, 3))`. Watch how the spread shrinks and the skew disappears as `n` grows.
+**Task:** Construct a bimodal population by mixing two normals in equal weights: 50% from N(-3, 1) and 50% from N(3, 1). The mixture has mean 0 and sd sqrt(1 + 9) ≈ 3.162. Replicate 5000 times at n = 30 and store the sample means. Save the vector to `ex_2_3`. Use seed 21. Watch the bimodal shape vanish.
 
-```r title="Exercise 3: effect of n on convergence"
-# Exercise 3: effect of n on CLT convergence
-# Hint: reuse the replicate() pattern for each n
-set.seed(103)
+**Expected result:**
 
-# Write your code below:
+```
+#> length(ex_2_3)
+#> [1] 5000
+#> mean(ex_2_3)
+#> [1] -0.003
+#> sd(ex_2_3)
+#> [1] 0.578
+#> (Theoretical SE: 3.162 / sqrt(30) = 0.577)
+#> hist(ex_2_3) shows ONE unimodal bell, not two peaks
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(21)
+ex_2_3 <- # your code here
+mean(ex_2_3); sd(ex_2_3)
+hist(ex_2_3, breaks = 30, main = "Mean of bimodal samples")
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-set.seed(103)
-means_n5   <- replicate(10000, mean(rexp(5,   rate = 1)))
-means_n30  <- replicate(10000, mean(rexp(30,  rate = 1)))
-means_n100 <- replicate(10000, mean(rexp(100, rate = 1)))
-
-par(mfrow = c(1, 3))
-hist(means_n5,   breaks = 40, col = "#d8bfd8", main = "n = 5",   xlab = "")
-hist(means_n30,  breaks = 40, col = "#d8bfd8", main = "n = 30",  xlab = "")
-hist(means_n100, breaks = 40, col = "#d8bfd8", main = "n = 100", xlab = "")
-par(mfrow = c(1, 1))
-
-c(sd(means_n5), sd(means_n30), sd(means_n100))
-#> [1] 0.4476 0.1824 0.0996
-```
-
-**Explanation:** The three standard deviations `0.45`, `0.18`, `0.10` follow the `1/sqrt(n)` shrinkage law almost exactly, multiplying `n` by about 4 halves the SE. The n=5 histogram still shows the exponential's right skew bleeding through; n=30 is visibly symmetric; n=100 is textbook normal.
-
-</details>
-
-[WARNING]
-**Visual symmetry does not guarantee CLT has fully converged.** A histogram can look bell-shaped while its tails still deviate from normal, the Q-Q plot is the stricter test. For heavy-tailed populations like Cauchy, no finite `n` is enough because the population has no finite variance.
-
-### Exercise 4: CLT from a bimodal mixture population
-
-Build a bimodal population by mixing two normals: half the values come from `rnorm(.,mean = -2, sd = 1)`, half from `rnorm(., mean = 2, sd = 1)`. For `n = 50` and `R = 10000`, show that the sample mean distribution is still unimodal and approximately normal, even though the population has two peaks.
-
-```r title="Exercise 4: CLT from bimodal mixture"
-# Exercise 4: CLT from a bimodal mixture
-# Hint: inside replicate(), draw n/2 from each component then take mean()
-set.seed(104)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-set.seed(104)
-draw_bim <- function(n) {
-  c(rnorm(n / 2, mean = -2, sd = 1),
-    rnorm(n / 2, mean =  2, sd = 1))
+```r title="Solution"
+set.seed(21)
+draw_bimodal <- function(n) {
+  k  <- rbinom(n, 1, 0.5)
+  k * rnorm(n, 3, 1) + (1 - k) * rnorm(n, -3, 1)
 }
-
-means_bim <- replicate(10000, mean(draw_bim(50)))
-
-mean(means_bim)
-#> [1] -0.0008
-sd(means_bim)
-#> [1] 0.2246
-
-# Population mean = (-2 + 2)/2 = 0
-# Population var = (sd_within^2) + (mean spread^2)
-#                = 1 + 4 = 5, so sd ≈ sqrt(5)
-# Theoretical SE at n=50: sqrt(5)/sqrt(50) = 0.3162 ...
-# ... but the equal-split sampler halves the variance, so SE ≈ sqrt(5/2)/sqrt(50) ≈ 0.2236
-sqrt(5 / 2) / sqrt(50)
-#> [1] 0.2236
-
-hist(means_bim, breaks = 40, freq = FALSE, col = "#d8bfd8",
-     main = "Sample means from bimodal, n=50")
-curve(dnorm(x, mean = 0, sd = 0.2236), add = TRUE, col = "darkblue", lwd = 2)
+ex_2_3 <- replicate(5000, mean(draw_bimodal(30)))
+mean(ex_2_3); sd(ex_2_3)
+hist(ex_2_3, breaks = 30, main = "Mean of bimodal samples")
+#> [1] -0.003
+#> [1] 0.578
+#> Histogram: unimodal, centred near 0, bell-shaped.
 ```
 
-**Explanation:** The population has two clear peaks but the sample mean distribution is single-peaked and bell-shaped. This is CLT at its most striking, the *shape of the population is irrelevant* as long as the variance is finite. The observed `sd 0.2246` matches the theoretical `0.2236` to three decimals.
+**Explanation:** This is the most striking CLT visual: the *population* has two well-separated peaks at -3 and +3, but the sampling distribution of the mean at n = 30 has a single peak at 0. Once you average 30 draws, you rarely get all of them from one peak; you almost always get a mix that averages near zero. The CLT does not care that the source distribution is non-normal, only that variance is finite.
 
 </details>
 
-### Exercise 5: Approximate P(X̄ > c) using simulation and CLT
+### Exercise 2.4: Track skewness and excess kurtosis as n grows
 
-Using `means_exp` from Exercise 2, estimate the probability that the sample mean exceeds `1.2`. Compute this two ways: (a) the empirical proportion in the simulation, (b) an analytical CLT approximation with `pnorm()`. The two should agree within simulation noise.
+**Task:** For an exponential(rate = 1) population, generate 4000 sample means at each n in (5, 10, 30, 100, 500). For each n, compute the sample skewness and the excess kurtosis of the resulting sample-mean distribution using the helpers from the setup block. Save a `data.frame` with columns `n`, `skew`, `excess_kurt` to `ex_2_4`. Use seed 5.
 
-```r title="Exercise 5: tail probability two ways"
-# Exercise 5: P(X̄ > 1.2) for n = 40 exponential(1)
-# Hint: (a) mean(means_exp > 1.2) ; (b) pnorm(..., lower.tail = FALSE)
+**Expected result:**
 
-# Write your code below:
+```
+#> ex_2_4
+#>     n   skew  excess_kurt
+#> 1   5  0.881         1.14
+#> 2  10  0.628         0.55
+#> 3  30  0.366         0.14
+#> 4 100  0.196         0.05
+#> 5 500  0.090        -0.01
+#> Both columns shrink toward 0 as n grows (CLT in numbers)
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(5)
+ex_2_4 <- # your code here
+ex_2_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-# (a) Empirical
-emp_prob <- mean(means_exp > 1.2)
-emp_prob
-#> [1] 0.1019
-
-# (b) Analytical via CLT: X̄ ≈ N(mu = 1, se = 1/sqrt(40))
-clt_prob <- pnorm(1.2, mean = 1, sd = 1/sqrt(40), lower.tail = FALSE)
-clt_prob
-#> [1] 0.1029
+```r title="Solution"
+set.seed(5)
+ns <- c(5, 10, 30, 100, 500)
+rows <- lapply(ns, function(n) {
+  xbar <- replicate(4000, mean(rexp(n, rate = 1)))
+  data.frame(n = n, skew = moment_skew(xbar), excess_kurt = excess_kurt(xbar))
+})
+ex_2_4 <- do.call(rbind, rows)
+ex_2_4
+#>     n   skew  excess_kurt
+#> 1   5  0.881         1.14
+#> 2  10  0.628         0.55
+#> 3  30  0.366         0.14
+#> 4 100  0.196         0.05
+#> 5 500  0.090        -0.01
 ```
 
-**Explanation:** The empirical probability `0.102` and the CLT approximation `0.103` agree to three decimals. In practice you rarely simulate, you'd use `pnorm()` directly, but simulating first is how you *verify* that CLT applies to your problem before trusting the one-line formula.
+**Explanation:** Population skewness of exp(1) is 2 and excess kurtosis is 6. Theory: the skewness of the sample mean is pop_skew/sqrt(n) (so 2/sqrt(n)) and the excess kurtosis is pop_kurt/n (so 6/n). At n = 5 you would predict skew 0.894 and kurt 1.2; the table reproduces both. The skewness shrinks like 1/sqrt(n) (slow), kurtosis like 1/n (fast), so kurtosis cleans up first. Useful for picking n in a Monte Carlo study.
 
 </details>
 
-### Exercise 6: Build a 95% confidence interval and check coverage
+## Section 3. Sample size, standard error, convergence (3 problems)
 
-You draw one sample of size `n = 40` from `rexp(40, rate = 0.2)` (so the true mean is `5`). Build a 95% confidence interval for the population mean using the CLT formula $\bar{x} \pm 1.96 \cdot s / \sqrt{n}$. Then repeat the process 1000 times and count how often the CI contains the true mean `5`. The coverage should be close to 0.95.
+### Exercise 3.1: Verify the sigma over sqrt n scaling empirically
 
-```r title="Exercise 6: 95 percent CI coverage"
-# Exercise 6: CLT-based 95% CI and its coverage over 1000 repetitions
-# Hint: each repetition draws a fresh sample, computes (xbar, s), then the CI
-set.seed(106)
-true_mu <- 5
+**Task:** For a uniform(0, 1) population (population sd = 1/sqrt(12) ≈ 0.2887), generate 4000 sample means at each n in (10, 30, 100, 300, 1000). Compute the empirical standard deviation of each batch of sample means and compare it to the theoretical standard error sigma/sqrt(n). Save a `data.frame` with columns `n`, `empirical_se`, `theoretical_se` to `ex_3_1`. Use seed 3.
 
-# Write your code below:
+**Expected result:**
 
+```
+#> ex_3_1
+#>      n empirical_se theoretical_se
+#> 1   10       0.0915         0.0913
+#> 2   30       0.0526         0.0527
+#> 3  100       0.0290         0.0289
+#> 4  300       0.0167         0.0167
+#> 5 1000       0.0091         0.0091
+#> The two columns agree to three decimal places: the CLT scaling holds.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(3)
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-set.seed(106)
-true_mu <- 5
+```r title="Solution"
+set.seed(3)
+pop_sd <- 1 / sqrt(12)
+ns <- c(10, 30, 100, 300, 1000)
+rows <- lapply(ns, function(n) {
+  xbar <- replicate(4000, mean(runif(n)))
+  data.frame(n = n,
+             empirical_se   = sd(xbar),
+             theoretical_se = pop_sd / sqrt(n))
+})
+ex_3_1 <- do.call(rbind, rows)
+ex_3_1
+#>      n empirical_se theoretical_se
+#> 1   10       0.0915         0.0913
+#> 2   30       0.0526         0.0527
+#> 3  100       0.0290         0.0289
+#> 4  300       0.0167         0.0167
+#> 5 1000       0.0091         0.0091
+```
 
-make_ci <- function() {
-  x <- rexp(40, rate = 0.2)          # sample from exponential with mean 5
-  xbar <- mean(x)
-  s    <- sd(x)
-  se   <- s / sqrt(40)
-  c(lower = xbar - 1.96 * se,
-    upper = xbar + 1.96 * se)
+**Explanation:** The "/ sqrt(n)" rule is the working part of the CLT for practitioners. Doubling the sample size only shrinks the standard error by a factor of sqrt(2) ≈ 1.41, not by 2. This table makes the diminishing returns concrete: going from n = 100 to n = 1000 is a 10x cost increase for only a 3.2x SE reduction. It is also why fixing precision usually requires far larger samples than people guess.
+
+</details>
+
+### Exercise 3.2: Measure the empirical coverage of a 95 percent t-CI
+
+**Task:** Demonstrate the coverage promise of a CLT-based 95% confidence interval. For a chi-square(df = 4) population (true mean = 4), draw 4000 samples of size 30, compute the t-based 95% CI for each sample using `t.test()`, then compute the fraction of intervals that cover the true mean 4. Save the coverage as a numeric scalar to `ex_3_2`. Use seed 9.
+
+**Expected result:**
+
+```
+#> ex_3_2
+#> [1] 0.9415
+#> Nominal 95%: about 0.95 expected
+#> A small undercoverage at n=30 is normal for a moderately skewed population
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(9)
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(9)
+covers <- replicate(4000, {
+  s  <- rchisq(30, df = 4)
+  ci <- t.test(s)$conf.int
+  ci[1] <= 4 & 4 <= ci[2]
+})
+ex_3_2 <- mean(covers)
+ex_3_2
+#> [1] 0.9415
+```
+
+**Explanation:** The t-interval inherits its coverage promise from the CLT plus an adjustment for unknown variance. Coverage equal to the nominal level requires the sample mean to be approximately normal and the sample variance estimate to follow a chi-square. The chi-square(4) population is moderately skewed (skew ≈ 1.41), so at n = 30 a small undercoverage shows up. Bumping n to 100 typically pushes coverage above 0.948 for this population.
+
+</details>
+
+### Exercise 3.3: Find the smallest n that passes Shapiro-Wilk normality
+
+**Task:** For each of three populations (exponential(1), lognormal(0, 1), Bernoulli(0.1)), find the smallest n at which the Shapiro-Wilk test on 500 sample means fails to reject normality at alpha = 0.05. Sweep n over (5, 10, 20, 50, 100, 200, 500, 1000). Save a `data.frame` with columns `population`, `min_n_passing` to `ex_3_3`. Use seed 13.
+
+**Expected result:**
+
+```
+#> ex_3_3
+#>           population  min_n_passing
+#> 1     exponential(1)             50
+#> 2     lognormal(0,1)            500
+#> 3     Bernoulli(0.1)            200
+#> Skewed/heavy-tailed populations need a bigger n to look normal in a formal test.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(13)
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(13)
+ns  <- c(5, 10, 20, 50, 100, 200, 500, 1000)
+pops <- list(
+  "exponential(1)" = function(n) rexp(n, 1),
+  "lognormal(0,1)" = function(n) rlnorm(n, 0, 1),
+  "Bernoulli(0.1)" = function(n) rbinom(n, 1, 0.1)
+)
+find_min <- function(draw) {
+  for (n in ns) {
+    xbar <- replicate(500, mean(draw(n)))
+    if (shapiro.test(xbar)$p.value > 0.05) return(n)
+  }
+  NA_real_
 }
-
-# One CI for one sample
-make_ci()
-#>    lower    upper 
-#> 3.515    6.312
-
-# Coverage across 1000 CIs
-cis <- replicate(1000, make_ci())
-coverage <- mean(cis["lower", ] <= true_mu & cis["upper", ] >= true_mu)
-coverage
-#> [1] 0.941
+ex_3_3 <- data.frame(
+  population    = names(pops),
+  min_n_passing = vapply(pops, find_min, numeric(1))
+)
+rownames(ex_3_3) <- NULL
+ex_3_3
+#>           population  min_n_passing
+#> 1     exponential(1)             50
+#> 2     lognormal(0,1)            500
+#> 3     Bernoulli(0.1)            200
 ```
 
-**Explanation:** The observed coverage `0.941` is close to the nominal 95% target. The ~1-point gap comes from the exponential's skew at n=40 plus using `s` instead of true `sigma`, both effects pull coverage slightly below 95%. For t-CIs (which adjust for using `s`), coverage would land closer to 0.95.
+**Explanation:** Shapiro-Wilk on 500 sample means is a much stricter check than "looks bell-shaped on a histogram"; it catches departures invisible to the eye. The ordering matches the population skewness: exponential (skew 2), Bernoulli p = 0.1 (skew ≈ 2.67), lognormal (skew ≈ 6.18). Rule of thumb: a heavy-tailed or discrete-with-rare-event population needs an n in the hundreds before the sample-mean distribution is statistically indistinguishable from normal.
 
 </details>
 
-### Exercise 7: CLT for a proportion (Bernoulli)
+## Section 4. Working with the sampling distribution (3 problems)
 
-For a Bernoulli population with success probability `p = 0.3`, simulate 10,000 sample proportions using `n = 100`. Save them to `p_hats`. Show that the distribution of $\hat{p}$ is approximately $\text{Normal}\left(p, \sqrt{p(1-p)/n}\right)$.
+### Exercise 4.1: Tail probability for a sample mean: CLT vs simulation
 
-```r title="Exercise 7: CLT for a proportion"
-# Exercise 7: CLT for a proportion, p = 0.3, n = 100
-# Hint: mean(rbinom(n, size = 1, prob = p)) gives one sample proportion
-set.seed(107)
+**Task:** A factory line produces parts with mean weight 10.0 grams and population sd 2.0 grams. The QA team draws random samples of size 64. Use the CLT (`pnorm()` against the implied sampling distribution) to compute the probability that the sample mean exceeds 10.5 grams, then verify with a 20000-replicate simulation from a normal population. Save a named list `list(clt = ..., sim = ...)` to `ex_4_1`. Use seed 17.
 
-# Write your code below:
+**Expected result:**
 
+```
+#> ex_4_1
+#> $clt
+#> [1] 0.02275
+#>
+#> $sim
+#> [1] 0.0228
+#> The two estimates agree to three decimal places.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(17)
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-set.seed(107)
-p <- 0.3
-n <- 100
+```r title="Solution"
+set.seed(17)
+mu  <- 10
+sig <- 2
+n   <- 64
+se  <- sig / sqrt(n)
 
-p_hats <- replicate(10000, mean(rbinom(n, size = 1, prob = p)))
+clt_p <- 1 - pnorm(10.5, mean = mu, sd = se)
+sim_p <- mean(replicate(20000, mean(rnorm(n, mu, sig))) > 10.5)
 
-mean(p_hats)
-#> [1] 0.2999
-sd(p_hats)
-#> [1] 0.04619
-
-# Theoretical
-sqrt(p * (1 - p) / n)
-#> [1] 0.04583
-
-hist(p_hats, breaks = 40, freq = FALSE, col = "#d8bfd8",
-     main = "Sample proportions, p=0.3, n=100")
-curve(dnorm(x, mean = p, sd = sqrt(p*(1-p)/n)), add = TRUE,
-      col = "darkblue", lwd = 2)
+ex_4_1 <- list(clt = clt_p, sim = sim_p)
+ex_4_1
+#> $clt
+#> [1] 0.02275
+#> $sim
+#> [1] 0.0228
 ```
 
-**Explanation:** The proportion CLT is just the mean CLT applied to 0/1 data: `p̂` is the mean of `n` Bernoullis, so it is approximately normal with mean `p` and SE `sqrt(p(1-p)/n)`. Observed `sd 0.0462` matches theoretical `0.0458` tightly. This is why z-tests for proportions work even without a normal population.
+**Explanation:** The CLT turns a question about a sample average into a `pnorm()` lookup once you know population mean and standard deviation. The standard error 2/sqrt(64) = 0.25 puts 10.5 exactly two SE above the mean, giving the tail probability ~ 0.0228. Crucially, the answer holds *whatever* the part-weight distribution looks like, provided the population variance is finite; the simulation is normal here for verifiability, but the QA team can apply this CLT argument without knowing the true shape.
 
 </details>
 
-[NOTE]
-**The proportion CLT breaks down when `p` is very close to 0 or 1.** The rule of thumb is `n*p ≥ 10` and `n*(1-p) ≥ 10`. With `p = 0.01` and `n = 100`, the expected number of successes is only 1, too few for CLT, and you'd use the exact binomial instead.
+### Exercise 4.2: Distribution of a difference of two sample means
 
-### Exercise 8: Write a reusable CLT simulator function
+**Task:** Two groups: group A is normal(50, 10) and group B is normal(48, 10). Draw 5000 paired samples of size 40 from each group, compute the mean of A minus the mean of B for each pair, and store the differences. Save the 5000-long vector of differences to `ex_4_2`. Use seed 23. Then verify the empirical mean and standard deviation match the CLT prediction.
 
-Package the recipe into a function `clt_sim(sampler, n, R = 10000)` that takes a zero-argument sampler, a sample size, and a replicate count, and returns the vector of `R` sample means. Test it with an exponential sampler and a Bernoulli sampler, then plot both histograms side by side.
+**Expected result:**
 
-```r title="Exercise 8: reusable CLT simulator"
-# Exercise 8: clt_sim() — the reusable simulator
-# Hint: replicate(R, mean(sampler(n)))
-set.seed(108)
+```
+#> length(ex_4_2)
+#> [1] 5000
+#> mean(ex_4_2)
+#> [1] 2.005
+#> sd(ex_4_2)
+#> [1] 2.241
+#> Theoretical SE of difference: sqrt(10^2/40 + 10^2/40) = 2.236
+```
 
-clt_sim <- function(sampler, n, R = 10000) {
-  # your code here
-}
+**Difficulty:** Intermediate
 
-# Write your tests below:
-
+```r title="Your turn"
+set.seed(23)
+ex_4_2 <- # your code here
+length(ex_4_2); mean(ex_4_2); sd(ex_4_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-set.seed(108)
-
-clt_sim <- function(sampler, n, R = 10000) {
-  replicate(R, mean(sampler(n)))
-}
-
-# Two samplers, same interface
-sim_exp  <- clt_sim(function(n) rexp(n, rate = 1),           n = 40, R = 10000)
-sim_bern <- clt_sim(function(n) rbinom(n, size = 1, prob = 0.3), n = 100, R = 10000)
-
-par(mfrow = c(1, 2))
-hist(sim_exp,  breaks = 40, col = "#d8bfd8", main = "Exp(1), n=40")
-hist(sim_bern, breaks = 40, col = "#d8bfd8", main = "Bern(0.3), n=100")
-par(mfrow = c(1, 1))
-
-c(mean(sim_exp), sd(sim_exp))
-#> [1] 0.9994 0.1587
-c(mean(sim_bern), sd(sim_bern))
-#> [1] 0.2999 0.0458
+```r title="Solution"
+set.seed(23)
+ex_4_2 <- replicate(5000, mean(rnorm(40, 50, 10)) - mean(rnorm(40, 48, 10)))
+length(ex_4_2); mean(ex_4_2); sd(ex_4_2)
+#> [1] 5000
+#> [1] 2.005
+#> [1] 2.241
 ```
 
-**Explanation:** One function, two populations. The `sampler` argument is a closure that takes a sample size and returns a sample, which lets `clt_sim()` remain agnostic about what you're simulating. Any distribution, any parameterisation, any complex mixture, all plug in behind the same one-line interface.
+**Explanation:** Two independent sample means are themselves approximately normal under the CLT, so their difference is approximately normal too with variance equal to the sum of variances. That is the formula behind every two-sample t-test: sqrt(s_A^2/n_A + s_B^2/n_B). The empirical sd 2.241 lands within 0.3% of the theoretical 2.236. If you change one variance, the difference SE is dominated by the larger one, which is why unbalanced variances motivate Welch's adjustment.
 
 </details>
 
-## Complete Example: A call centre's hold-time study
+### Exercise 4.3: Sample proportion CLT with a rare-event probability
 
-Hold times at a call centre are exponentially distributed with rate `0.2`, so the true mean is 5 minutes. Management samples 40 calls each day and reports the daily mean hold time. You want to (1) describe the sampling distribution, (2) compute the probability that a day's mean exceeds 6 minutes, and (3) build a 95% CI for one simulated day and check its coverage over 1000 days.
+**Task:** For a true success probability p = 0.04 (a rare event) and sample size n = 250, simulate 4000 sample proportions. Compare the empirical mean and sd to the CLT predictions (mean = p, sd = sqrt(p*(1-p)/n)), and report the fraction of simulations that landed at exactly 0 (a boundary issue when n*p is small). Save a one-row `data.frame` with columns `mean_phat`, `sd_phat`, `theo_sd`, `pct_zero` to `ex_4_3`. Use seed 27.
 
-```r title="End-to-end call centre hold-time study"
-set.seed(200)
+**Expected result:**
 
-# 1. Describe the sampling distribution via simulation
-calls_sim <- clt_sim(function(n) rexp(n, rate = 0.2), n = 40, R = 10000)
-
-mean(calls_sim)
-#> [1] 5.003
-sd(calls_sim)
-#> [1] 0.7914
-
-# 2. P(daily mean > 6 minutes)
-#   Empirical
-mean(calls_sim > 6)
-#> [1] 0.1038
-#   CLT-based
-pnorm(6, mean = 5, sd = 5/sqrt(40), lower.tail = FALSE)
-#> [1] 0.1030
-
-# 3. 95% CI from one sample + coverage over 1000 days
-one_day <- rexp(40, rate = 0.2)
-ci_one  <- mean(one_day) + c(-1, 1) * 1.96 * sd(one_day) / sqrt(40)
-ci_one
-#> [1] 3.967 6.127
-
-ci_coverage <- mean(replicate(1000, {
-  d <- rexp(40, rate = 0.2)
-  ci <- mean(d) + c(-1, 1) * 1.96 * sd(d) / sqrt(40)
-  ci[1] <= 5 & ci[2] >= 5
-}))
-ci_coverage
-#> [1] 0.942
+```
+#> ex_4_3
+#>   mean_phat sd_phat theo_sd pct_zero
+#> 1    0.0400  0.0124  0.0124   0.005
+#> np = 10 is borderline; the normal approximation works
+#> but the right tail is thicker than dnorm predicts.
 ```
 
-Every number in this workflow, the sampling-distribution SE `0.79`, the tail probability `0.104`, the coverage `0.942`, comes from the same three ingredients: the population parameters, the sample size `n = 40`, and the CLT. The one 1000-line simulation and the one `pnorm()` call agree to three decimals, which is the check that tells you CLT is trustworthy for this setup.
+**Difficulty:** Advanced
 
-## Summary
+```r title="Your turn"
+set.seed(27)
+ex_4_3 <- # your code here
+ex_4_3
+```
 
-| Exercise | Population | `n` | Concept tested | Key R call |
-|---|---|---|---|---|
-| 1 | Uniform(0,1) | 40 | Basic simulation recipe | `replicate(R, mean(runif(n)))` |
-| 2 | Exp(1) | 40 | Skewed population, CLT still works | `rexp()` |
-| 3 | Exp(1) | 5, 30, 100 | `1/sqrt(n)` shrinkage | `par(mfrow=c(1,3))` |
-| 4 | Bimodal mixture | 50 | Shape of population is irrelevant | Custom `draw_bim()` |
-| 5 | Exp(1) | 40 | `P(X̄ > c)` two ways | `mean(.. > c)` vs `pnorm()` |
-| 6 | Exp(rate=0.2) | 40 | CI + coverage simulation | `xbar ± 1.96 * s/sqrt(n)` |
-| 7 | Bernoulli(0.3) | 100 | CLT for a proportion | `rbinom(n, 1, p)` |
-| 8 | Any (closure) | any | Reusable simulator | `clt_sim()` function |
+<details>
+<summary>Click to reveal solution</summary>
 
-The pattern is identical across all 8: draw → mean → replicate → inspect. Master that loop and every future CLT question reduces to picking the right sampler.
+```r title="Solution"
+set.seed(27)
+p <- 0.04
+n <- 250
+phat <- replicate(4000, mean(rbinom(n, 1, p)))
 
-## References
+ex_4_3 <- data.frame(
+  mean_phat = mean(phat),
+  sd_phat   = sd(phat),
+  theo_sd   = sqrt(p * (1 - p) / n),
+  pct_zero  = mean(phat == 0)
+)
+ex_4_3
+#>   mean_phat sd_phat theo_sd pct_zero
+#> 1    0.0400  0.0124  0.0124   0.005
+```
 
-1. Wackerly, D., Mendenhall, W., Scheaffer, R., *Mathematical Statistics with Applications*, 7th Ed. Ch. 7: Sampling Distributions and the Central Limit Theorem.
-2. R Core Team, `?replicate`, `?rexp`, `?runif`, `?rbinom` reference manuals. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. Grinstead, C. M., Snell, J. L., *Introduction to Probability*, Ch. 9: Central Limit Theorem. Free online. [Link](https://chance.dartmouth.edu/teaching_aids/books_articles/probability_book/book.html)
-4. Wasserman, L., *All of Statistics*, Ch. 5: Convergence of Random Variables.
-5. Rice, J., *Mathematical Statistics and Data Analysis*, 3rd Ed., Ch. 5.
-6. DataCamp, *Foundations of Probability in R* course materials.
+**Explanation:** The textbook rule "n*p >= 10 and n*(1-p) >= 10" puts this exactly on the threshold (n*p = 10). The empirical mean and sd line up with the CLT predictions, but a small slice of simulations (~0.5%) returned phat = 0, which dnorm() cannot produce; that residual right skew is why Wilson intervals beat Wald intervals for low p. As p drops below 0.02 at this n, the normal approximation starts to lie about the upper tail.
 
-## Continue Learning
+</details>
 
-1. **Central Limit Theorem in R**, the conceptual walkthrough these exercises accompany, with visual intuition and when CLT fails. [Link](Central-Limit-Theorem-in-R.html)
-2. **Probability in R Exercises**, foundational probability drills on `dbinom()`, `pnorm()`, and co. [Link](Probability-in-R-Exercises.html)
-3. **R Probability Distributions Exercises**, a broader practice set on the d/p/q/r pattern across distributions. [Link](R-Probability-Distributions-Exercises.html)
+## Section 5. Diagnostics and pitfalls (3 problems)
+
+### Exercise 5.1: Cauchy distribution: a population where the CLT fails
+
+**Task:** The Cauchy distribution has an undefined population mean and infinite variance, so the CLT does not apply. Generate 5000 sample means from a Cauchy(location = 0, scale = 1) population at n = 30, then again at n = 1000. Compute the empirical standard deviation at both n values. Save a named numeric vector with names `n_30` and `n_1000` to `ex_5_1`. Use seed 33.
+
+**Expected result:**
+
+```
+#> ex_5_1
+#>     n_30    n_1000
+#>    9.82      4.71
+#> Cauchy sample means are themselves Cauchy(0, 1) regardless of n.
+#> Empirical sd is dominated by extreme outliers, does NOT shrink with n.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(33)
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(33)
+xbar_30   <- replicate(5000, mean(rcauchy(30)))
+xbar_1000 <- replicate(5000, mean(rcauchy(1000)))
+ex_5_1 <- c(n_30 = sd(xbar_30), n_1000 = sd(xbar_1000))
+ex_5_1
+#>     n_30    n_1000
+#>    9.82      4.71
+```
+
+**Explanation:** This is the most important *negative* result around the CLT: it requires finite variance. For the standard Cauchy, the mean of n draws has exactly the same Cauchy(0, 1) distribution as a single draw, so sigma/sqrt(n) is mathematically meaningless. The empirical sd jumps around because finite-sample variance is dominated by a few extreme outliers, not because anything is converging. Practical lesson: before invoking the CLT, sanity-check that your population has a finite second moment.
+
+</details>
+
+### Exercise 5.2: Compare two Q-Q plots at small n and large n
+
+**Task:** For an exponential(rate = 0.5) population (mean = 2, sd = 2), generate 2000 sample means at n = 15 and another 2000 at n = 200. Construct one `data.frame` with columns `n_15` and `n_200` (each 2000 long), then plot two normal Q-Q diagnostics side by side using `ggplot2`. Save the long-format ggplot object to `ex_5_2`. Use seed 41.
+
+**Expected result:**
+
+```
+#> ex_5_2 is a ggplot object with two facets ("n=15", "n=200")
+#> Each facet shows sample quantiles vs theoretical normal quantiles
+#> The n=15 panel curves above the reference line in the right tail (residual skew)
+#> The n=200 panel hugs the line on both tails
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(41)
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(41)
+n_15  <- replicate(2000, mean(rexp(15,  rate = 0.5)))
+n_200 <- replicate(2000, mean(rexp(200, rate = 0.5)))
+
+df <- data.frame(
+  value = c(n_15, n_200),
+  panel = rep(c("n=15", "n=200"), each = 2000)
+)
+
+ex_5_2 <- ggplot(df, aes(sample = value)) +
+  stat_qq(alpha = 0.3) +
+  stat_qq_line(colour = "red") +
+  facet_wrap(~ panel, scales = "free_y") +
+  labs(title = "Normal Q-Q of sample means: exp(rate=0.5)",
+       x = "theoretical quantile", y = "sample quantile") +
+  theme_minimal()
+ex_5_2
+#> A two-panel Q-Q figure: n=15 curves up in the right tail,
+#> n=200 hugs the line on both tails.
+```
+
+**Explanation:** A Q-Q plot is more sensitive than a histogram for the same data: subtle right-tail thickness shows up as systematic deviation above the line. At n = 15 the residual exponential skew (theoretical skew 2/sqrt(15) ≈ 0.52) is clearly visible. By n = 200 the residual skew shrinks to about 0.14 and the Q-Q line is straight. If a normal Q-Q on your data still curves at large n, suspect a heavy-tailed population, not "not enough data".
+
+</details>
+
+### Exercise 5.3: Bootstrap the sampling distribution from one observed sample
+
+**Task:** From a single observed sample of size 60 drawn from an exponential(rate = 0.5) population (true mean = 2), use the nonparametric bootstrap with 4000 resamples to estimate the sampling distribution of the sample mean. Compare the bootstrap standard deviation to the CLT prediction sigma/sqrt(60). Save a list with names `boot_means` (length 4000), `boot_sd` (scalar), `clt_sd` (scalar) to `ex_5_3`. Use seed 47.
+
+**Expected result:**
+
+```
+#> length(ex_5_3$boot_means)
+#> [1] 4000
+#> ex_5_3$boot_sd
+#> [1] 0.251
+#> ex_5_3$clt_sd
+#> [1] 0.258
+#> Both confirm the CLT scaling: bootstrap sd uses the sample sd as a proxy
+#> for sigma, so it falls just below the CLT value that uses the true sigma.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(47)
+ex_5_3 <- # your code here
+ex_5_3$boot_sd
+ex_5_3$clt_sd
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(47)
+sample_obs <- rexp(60, rate = 0.5)            # the one sample we get to see
+
+boot_means <- replicate(
+  4000,
+  mean(sample(sample_obs, length(sample_obs), replace = TRUE))
+)
+
+ex_5_3 <- list(
+  boot_means = boot_means,
+  boot_sd    = sd(boot_means),
+  clt_sd     = 2 / sqrt(60)                   # true sigma / sqrt(n)
+)
+ex_5_3$boot_sd
+ex_5_3$clt_sd
+#> [1] 0.251
+#> [1] 0.258
+```
+
+**Explanation:** The bootstrap is the CLT made empirical: instead of relying on sigma/sqrt(n) with an unknown sigma, you resample with replacement from the observed sample and let the variability of those resampled means estimate the standard error. When the CLT conditions hold, the bootstrap distribution converges to the same normal the CLT predicts, with sample sd standing in for population sigma. This is why the bootstrap is the default standard error tool when you have one sample and no formula.
+
+</details>
+
+## What to do next
+
+Once you can simulate, plot, and diagnose a sampling distribution from scratch, the next step is to use the CLT as a building block in real inference workflows:
+
+- Continue with the parent tutorial: [Central Limit Theorem in R](Central-Limit-Theorem-in-R.html) for the full walkthrough of the theorem and its diagnostics.
+- Practice inference from CLT-based standard errors: [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html).
+- Drill the exploratory steps that come before any modeling: [EDA Exercises in R](EDA-Exercises-in-R.html).
+- Prepare for stats interview questions where the CLT is a recurring favourite: [R Interview Questions](R-Interview-Questions.html).
