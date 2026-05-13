@@ -1,593 +1,641 @@
 ---
-title: "Poisson Distribution Exercises in R: 10 Problems with Solutions"
-slug: Poisson-Distribution-Exercises-in-R
-description: "Master Poisson distribution in R with 10 practice problems covering dpois, ppois, qpois, rpois, and poisson.test. Each exercise has a scaffold, hint, solution."
-keywords: "poisson distribution R exercises, dpois examples, ppois practice problems, rpois simulation, qpois quantile, poisson.test R, poisson probability R, R statistics practice"
-auto_link_terms: "poisson distribution exercises|poisson practice problems|dpois exercises|ppois exercises|rpois exercises|poisson exercises in R"
-auto_link_case_sensitive: false
+title: "Poisson Distribution Exercises in R: 16 Real-World Practice Problems"
+slug: "Poisson-Distribution-Exercises-in-R"
+description: "Sixteen Poisson distribution exercises in R covering dpois, ppois, qpois, rpois, fitdistr, and poisson.test with full runnable solutions and explanations."
+keywords: "poisson distribution R exercises, dpois examples, ppois practice problems, rpois simulation, qpois quantile, poisson.test in R, MLE poisson, fitdistr poisson"
 mathjax: true
 webr: true
-date: 2026-04-17
-curriculum_id: E4.4
-post_type: EX
+date: "2026-05-13"
+post_type: "EX"
 sidebar_title: "Poisson Distribution Exercises"
-fr_parent: Binomial-and-Poisson-Distributions-in-R.html
-difficulty: Intermediate
+sidebar_order: 152
+fr_parent: "Binomial-and-Poisson-Distributions-in-R.html"
+auto_link_terms: "poisson distribution exercises|dpois practice|ppois practice|qpois practice|rpois practice|poisson.test in r"
+auto_link_case_sensitive: false
+target_keyword: "poisson distribution exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Poisson Distribution Exercises in R: 10 Problems with Solutions
+# Poisson Distribution Exercises in R: 16 Real-World Practice Problems
 
-<p class="lead">These 10 Poisson distribution exercises in R walk you from <code>dpois()</code> one-liners to <code>poisson.test()</code> inference, with full runnable solutions. Every problem has a scaffold, a hint, and a reveal so you can check your answer the moment you finish coding.</p>
+<p class="lead">Sixteen progressively harder Poisson distribution exercises in R covering exact probabilities with <code>dpois()</code>, cumulative probabilities with <code>ppois()</code>, quantiles with <code>qpois()</code>, simulation with <code>rpois()</code>, lambda estimation, and inference via <code>poisson.test()</code>. Every problem ships with a hidden solution and a written explanation so you can self-grade as you work through them.</p>
 
-## What quick R one-liners solve Poisson problems?
-
-The Poisson distribution answers one question: *given an average rate λ of events in a window, how likely is each count?* R gives you four functions, `dpois()`, `ppois()`, `qpois()`, `rpois()`, that cover exact probability, cumulative probability, quantiles, and random samples. Before the 10 problems, a single runnable block shows the two most common cases side by side so you can spot which function fits a new question at a glance.
-
-```r title="dpois and ppois one-liners"
-# Call centre — 4 calls/hour on average
-dpois(3, lambda = 4)     # P(exactly 3 calls in 1 hour)
-#> [1] 0.1953668
-
-ppois(3, lambda = 4)     # P(at most 3 calls in 1 hour)
-#> [1] 0.4334701
+```r title="Run this once before any exercise"
+library(stats)
+library(MASS)
 ```
 
-The first call asks "what is the probability of exactly 3 calls?" and the second asks "what is the probability of 3 or fewer?" Both share the same parameter, `lambda = 4` events per hour, and differ only in the function name. That two-function pairing handles most questions you will meet.
+## Section 1. Exact probabilities with dpois (3 problems)
 
-![Decision tree: the four Poisson functions.](screenshots/Poisson-Distribution-Exercises-in-R-function-picker.webp)
+### Exercise 1.1: Probability of exactly two events at rate five
 
-*Figure 1: The four Poisson functions, pick one by what the question asks for.*
+**Task:** A retail call centre receives an average of five complaint calls per hour. Use `dpois()` to compute the exact probability of receiving exactly two complaint calls in a one-hour window, and save the scalar result to `ex_1_1`. Round the printed value to four decimal places.
 
-[KEY INSIGHT]
-**R's d/p/q/r prefix pattern is universal.** The same four-letter scheme, `d` for density/mass, `p` for cumulative, `q` for quantile, `r` for random, works for every distribution in base R (`dnorm`, `pbinom`, `qexp`, `rt`). Learn it once for Poisson, reuse it forever.
+**Expected result:**
 
-**Try it:** Compute the probability of exactly 2 events when the average rate is λ = 5.
+```
+#> [1] 0.0842
+```
 
-```r title="Exercise: Exact probability with dpois"
-# Try it: exact probability with dpois
-ex_p <- dpois(___, lambda = ___)
-ex_p
-#> Expected: about 0.0842
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+round(ex_1_1, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exact probability solution"
-ex_p <- dpois(2, lambda = 5)
-ex_p
-#> [1] 0.08422434
+```r title="Solution"
+ex_1_1 <- dpois(2, lambda = 5)
+round(ex_1_1, 4)
+#> [1] 0.0842
 ```
 
-**Explanation:** `dpois(k, lambda)` returns P(X = k). With λ = 5 events on average but k = 2 observed, the count falls well below the mean, so the probability is small.
+**Explanation:** `dpois(x, lambda)` evaluates the Poisson probability mass function $P(X = x) = \lambda^{x} e^{-\lambda} / x!$ at a single integer. Here $5^{2} e^{-5} / 2!$ collapses to roughly 0.0842, an 8.4 percent chance. A common mistake is calling `ppois()` instead, which would give the cumulative probability of 0, 1, or 2 calls (about 0.125). Whenever the question says "exactly k", reach for `dpois()`; "at most k" maps to `ppois()`.
 
 </details>
 
-## How do you compute exact Poisson probabilities with dpois()?
+### Exercise 1.2: Compare exact probabilities across two rate scenarios
 
-`dpois(k, lambda)` returns the probability mass at a single count. The formula under the hood is the classic Poisson PMF:
+**Task:** A network engineer compares two routers. Router A drops on average 3 packets per second, router B drops 7. For each router compute the probability of dropping exactly four packets in a one-second window using `dpois()`, store both probabilities in a named numeric vector with names `A` and `B`, and save the vector to `ex_1_2`. The router with the higher probability under lambda four is the one whose mean sits closest to four.
 
-$$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
+**Expected result:**
 
-Where:
-- $\lambda$ = the average rate of events per window
-- $k$ = the count of events you ask about
-- $e$ = Euler's constant, ≈ 2.71828
-- $k!$ = k factorial (the number of orderings of k items)
-
-For a single k, one `dpois()` call is enough. For a range of counts, say "between 3 and 5 emails", pass a vector of k values and sum the result.
-
-```r title="Sum dpois across a range"
-# Emails — 3 per hour on average
-dpois(5, lambda = 3)                    # P(exactly 5 emails)
-#> [1] 0.1008188
-
-p_emails <- sum(dpois(3:5, lambda = 3)) # P(3, 4, or 5 emails)
-p_emails
-#> [1] 0.4901484
+```
+#>      A      B 
+#> 0.1680 0.0912
 ```
 
-The first call gives a direct mass at k = 5. The second passes a vector `3:5` to `dpois()`, returning three probabilities in one go, which `sum()` collapses into the total for the range. The answer, about 49%, is the probability that the hour lands anywhere in that 3-to-5-email band.
+**Difficulty:** Intermediate
 
-[TIP]
-**Pass a vector of k values to vectorize dpois().** For any "between a and b" range question, `sum(dpois(a:b, lambda))` is the one-line idiom. It is faster and clearer than a loop, and it beats typing three separate `dpois()` calls.
-
-**Try it:** A bus arrives at a stop at a rate of 1.5 per 10 minutes. Compute P(exactly 2 arrivals in a 10-minute window).
-
-```r title="Exercise: Bus arrivals probability"
-# Try it: bus arrivals with dpois
-ex_bus <- dpois(___, lambda = ___)
-ex_bus
-#> Expected: about 0.2510
+```r title="Your turn"
+ex_1_2 <- # your code here
+round(ex_1_2, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Bus arrivals solution"
-ex_bus <- dpois(2, lambda = 1.5)
-ex_bus
-#> [1] 0.2510214
+```r title="Solution"
+ex_1_2 <- c(
+  A = dpois(4, lambda = 3),
+  B = dpois(4, lambda = 7)
+)
+round(ex_1_2, 4)
+#>      A      B 
+#> 0.1680 0.0912
 ```
 
-**Explanation:** With λ = 1.5 buses per 10 minutes, seeing exactly 2 is close to the mean, so the probability is high, about 25%.
+**Explanation:** The Poisson mass function peaks near `floor(lambda)`. Router A with `lambda = 3` sits one step below four, so `dpois(4, 3)` is still close to the mode and returns 0.168. Router B at `lambda = 7` sits three steps above four, so the tail probability drops to 0.091. A frequent pitfall is comparing tail probabilities directly without normalising for the underlying rate; here the comparison is valid because both queries evaluate the same x at different lambdas.
 
 </details>
 
-## How do you compute cumulative Poisson probabilities with ppois()?
+### Exercise 1.3: Tabulate the full PMF for k from zero to ten
 
-`ppois(q, lambda)` returns the cumulative probability up to and including `q`, that is, P(X ≤ q). For "at least" questions, use the complement rule or the `lower.tail = FALSE` shortcut.
+**Task:** A traffic engineer studies a busy intersection that averages 4 minor incidents per week. Produce a length-11 numeric vector containing `dpois(0:10, lambda = 4)`, name each element by its k value using `setNames()`, round to four decimal places, and save the result to `ex_1_3`. The peak of the PMF should land at `k = 3` and `k = 4` (both around 0.1954).
 
-Two ways to get "at least 7":
+**Expected result:**
 
-```r title="At-most and at-least with ppois"
-# Customer arrivals — 5 per hour on average
-p_at_most <- ppois(5, lambda = 5)
-p_at_most
-#> [1] 0.6159607
-
-p_at_least <- 1 - ppois(6, lambda = 5)              # complement
-p_at_least
-#> [1] 0.2378398
-
-ppois(6, lambda = 5, lower.tail = FALSE)            # same thing, cleaner
-#> [1] 0.2378398
+```
+#>      0      1      2      3      4      5      6      7      8      9     10 
+#> 0.0183 0.0733 0.1465 0.1954 0.1954 0.1563 0.1042 0.0595 0.0298 0.0132 0.0053
 ```
 
-The first line returns the probability of 5 or fewer arrivals, just over 61%, a bit more than half since 5 matches the mean exactly. The next two lines compute P(X ≥ 7) by subtracting P(X ≤ 6) from 1. The `lower.tail = FALSE` form skips the subtraction and returns the upper tail directly, the idiom to reach for in every "at least" problem.
+**Difficulty:** Intermediate
 
-[WARNING]
-**ppois(q) returns P(X ≤ q), NOT P(X < q).** This is the most common off-by-one trap in Poisson problems. For strict inequality P(X < 7), pass `q = 6` to `ppois()`. For P(X ≥ 7), pass `q = 6` with `lower.tail = FALSE`, not `q = 7`.
-
-**Try it:** Defects arrive on a production line at λ = 2 per shift. Compute P(at least 3 defects in a shift).
-
-```r title="Exercise: At-least probability ppois"
-# Try it: at-least probability with ppois
-ex_defects <- ppois(___, lambda = ___, lower.tail = ___)
-ex_defects
-#> Expected: about 0.3233
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="At-least probability solution"
-ex_defects <- ppois(2, lambda = 2, lower.tail = FALSE)
-ex_defects
-#> [1] 0.3233236
+```r title="Solution"
+ex_1_3 <- setNames(
+  round(dpois(0:10, lambda = 4), 4),
+  0:10
+)
+ex_1_3
+#>      0      1      2      3      4      5      6      7      8      9     10 
+#> 0.0183 0.0733 0.1465 0.1954 0.1954 0.1563 0.1042 0.0595 0.0298 0.0132 0.0053
 ```
 
-**Explanation:** P(X ≥ 3) is the upper tail starting strictly above 2. Pass `q = 2` with `lower.tail = FALSE`, `ppois()` returns P(X > 2), which is the same as P(X ≥ 3) for an integer-valued distribution.
+**Explanation:** `dpois()` is vectorised over its first argument, so passing `0:10` returns the whole PMF in one call rather than looping. When `lambda` is an integer, the mass function has two equal modes at `lambda - 1` and `lambda`; here that means k of 3 and 4 both peak at 0.1954. Naming the vector by its k values makes downstream filtering (for instance `ex_1_3[as.character(5:7)]`) read clearly. For a non-integer `lambda`, the mode collapses to the single integer `floor(lambda)`.
 
 </details>
 
-## How do you find quantiles and simulate counts with qpois() and rpois()?
+## Section 2. Cumulative and tail probabilities with ppois (3 problems)
 
-`qpois(p, lambda)` inverts `ppois()`, give it a cumulative probability and it returns the smallest count `k` where P(X ≤ k) reaches `p`. `rpois(n, lambda)` draws `n` random counts from the distribution, useful for simulation.
+### Exercise 2.1: At most versus more than for a single rate
 
-```r title="Quantiles and simulation with qpois"
-# Website traffic — 10 visits/minute on average
-q95 <- qpois(0.95, lambda = 10)   # 95th-percentile traffic
-q95
-#> [1] 15
+**Task:** Compute two probabilities for a Poisson with `lambda = 6`: the probability of at most 4 events using `ppois()`, and the probability of more than 4 events using `ppois()` with `lower.tail = FALSE`. Combine both into a named numeric vector with names `at_most_4` and `more_than_4`, and save it to `ex_2_1`. They must sum to one because at-most-four and more-than-four partition the integers.
 
+**Expected result:**
+
+```
+#>   at_most_4 more_than_4 
+#>      0.2851      0.7149
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+round(ex_2_1, 4)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- c(
+  at_most_4   = ppois(4, lambda = 6),
+  more_than_4 = ppois(4, lambda = 6, lower.tail = FALSE)
+)
+round(ex_2_1, 4)
+#>   at_most_4 more_than_4 
+#>      0.2851      0.7149
+```
+
+**Explanation:** `ppois(q, lambda)` returns $P(X \le q)$ by default. Setting `lower.tail = FALSE` flips it to $P(X > q)$, which is more numerically stable than computing `1 - ppois(...)` when the lower tail is close to one. Because the two events partition the sample space, the sum is exactly 1.0 up to floating-point error. A frequent mistake is reading "more than 4" as `q = 5`; the correct call is `q = 4, lower.tail = FALSE`, which excludes 4 itself.
+
+</details>
+
+### Exercise 2.2: Call centre staffing under a service-level constraint
+
+**Task:** The operations manager of a help desk staffs the night shift for an average of 12 tickets per hour. Compute the probability of receiving 15 or fewer tickets in a one-hour window (the "comfortable" zone), and the probability of receiving 20 or more (the "overload" zone). Bundle the two probabilities into a length-2 named vector `c(comfortable = ..., overload = ...)` and save it to `ex_2_2`. Use `ppois()` for both calls.
+
+**Expected result:**
+
+```
+#> comfortable    overload 
+#>      0.8444      0.0116
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+round(ex_2_2, 4)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- c(
+  comfortable = ppois(15, lambda = 12),
+  overload    = ppois(19, lambda = 12, lower.tail = FALSE)
+)
+round(ex_2_2, 4)
+#> comfortable    overload 
+#>      0.8444      0.0116
+```
+
+**Explanation:** "20 or more tickets" is $P(X \ge 20)$, which equals $P(X > 19)$, so the upper-tail call uses `q = 19` not `q = 20`. This off-by-one is the single biggest source of bugs when translating English statements into `ppois()` arguments. With overload sitting at roughly 1.2 percent the manager can comfortably staff for fifteen with confidence, but a separate Erlang-C calculation would also account for service time, not just arrival rate.
+
+</details>
+
+### Exercise 2.3: Map a probability range to ordered cutoffs
+
+**Task:** A quality-control engineer monitors defective parts at an average rate of 8 per shift. For each cutoff k in 5, 8, 10, 12, 15 compute $P(X \le k)$ using `ppois()`. Save the five probabilities as a named numeric vector (names taken from the k values) to `ex_2_3`. Together these five values trace out the empirical CDF at those grid points.
+
+**Expected result:**
+
+```
+#>      5      8     10     12     15 
+#> 0.1912 0.5925 0.8159 0.9362 0.9918
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+round(ex_2_3, 4)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cutoffs  <- c(5, 8, 10, 12, 15)
+ex_2_3   <- setNames(ppois(cutoffs, lambda = 8), cutoffs)
+round(ex_2_3, 4)
+#>      5      8     10     12     15 
+#> 0.1912 0.5925 0.8159 0.9362 0.9918
+```
+
+**Explanation:** Vectorising `ppois()` over `cutoffs` returns the CDF at each gridpoint in one call, which is the right way to inspect tail behaviour without a loop. Notice the CDF is non-decreasing and climbs from 0.19 at k=5 (well below the mean) to 0.99 at k=15 (almost two standard deviations above). A useful sanity check is that `ppois(floor(lambda), lambda)` for `lambda = 8` should sit near 0.59, reflecting the slight right skew of the distribution.
+
+</details>
+
+## Section 3. Quantiles with qpois (2 problems)
+
+### Exercise 3.1: Smallest k achieving 95 percent coverage
+
+**Task:** A platform engineer wants the smallest integer count k such that $P(X \le k) \ge 0.95$ when the server averages 25 errors per day. Use `qpois()` to compute this critical k and save it as an integer scalar to `ex_3_1`. Also verify the answer by feeding k back into `ppois()` and confirming the cumulative probability is at least 0.95.
+
+**Expected result:**
+
+```
+#> [1] 34
+#> verify ppois(ex_3_1, 25): 0.9621
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+cat("verify ppois(ex_3_1, 25):", round(ppois(ex_3_1, 25), 4), "\n")
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- qpois(0.95, lambda = 25)
+ex_3_1
+#> [1] 34
+cat("verify ppois(ex_3_1, 25):", round(ppois(ex_3_1, 25), 4), "\n")
+#> verify ppois(ex_3_1, 25): 0.9621
+```
+
+**Explanation:** `qpois(p, lambda)` returns the smallest integer k with $P(X \le k) \ge p$. Because the Poisson is discrete the realised coverage almost always overshoots p; here 0.9621 is the first integer that clears 0.95. Reusing the same logic, `qpois(0.5, lambda)` returns the median, which for integer `lambda` equals `lambda`. A common pitfall is interpreting `qpois()` as a continuous inverse-CDF: the result is always integer-valued and stepwise, never interpolated.
+
+</details>
+
+### Exercise 3.2: Inventory ordering for a 99 percent service level
+
+**Task:** A retailer sells umbrellas at an average rate of 30 per week. To avoid stockouts the inventory manager wants the smallest weekly order quantity that meets a 99 percent service level (the probability of weekly demand being met without backorder is at least 0.99). Use `qpois()` once and save the integer order quantity to `ex_3_2`, then print both the value and the realised service level from `ppois()`.
+
+**Expected result:**
+
+```
+#> reorder_point: 43
+#> realised_service_level: 0.9911
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+cat("reorder_point:", ex_3_2, "\n")
+cat("realised_service_level:", round(ppois(ex_3_2, 30), 4), "\n")
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- qpois(0.99, lambda = 30)
+cat("reorder_point:", ex_3_2, "\n")
+cat("realised_service_level:", round(ppois(ex_3_2, 30), 4), "\n")
+#> reorder_point: 43
+#> realised_service_level: 0.9911
+```
+
+**Explanation:** With weekly mean demand of 30 the standard deviation is $\sqrt{30} \approx 5.48$, so a 99-percent cushion sits roughly $2.33 \times 5.48 \approx 12.8$ units above the mean, giving 43. This matches the integer answer from `qpois()` exactly. The same call structure underpins safety-stock decisions across e-commerce and pharmacy inventory, where ordering "mean plus a margin" leaves you stocking out half the time and ordering by quantile keeps you above your target service level.
+
+</details>
+
+## Section 4. Simulation with rpois (3 problems)
+
+### Exercise 4.1: Simulate a sample and recover the rate
+
+**Task:** Draw a Poisson sample of size 1000 with rate 7 using `rpois()` after calling `set.seed(42)` for reproducibility, then compute the sample mean. Save the sample-mean scalar (not the full vector) to `ex_4_1`. With `n = 1000` and the law of large numbers, the empirical mean should be within roughly 0.1 of the true rate seven.
+
+**Expected result:**
+
+```
+#> [1] 7.046
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
 set.seed(42)
-sim_counts <- rpois(5, lambda = 10)  # five simulated minutes
-sim_counts
-#> [1]  9 14 10 13  9
+# your code here
+ex_4_1
 ```
 
-The first call answers "what is the smallest visit count that covers 95% of minutes?", 15 visits. If you provisioned a server for 15 concurrent visits, it would handle 95% of one-minute windows without overload. The second call draws 5 random counts from the same distribution, which hover around the mean of 10, exactly what a real minute-by-minute log would look like.
+<details>
+<summary>Click to reveal solution</summary>
 
-[NOTE]
-**rpois's first argument is the number of draws, not lambda.** Write `rpois(n = 1000, lambda = 5)` for 1,000 random counts, not `rpois(5, 1000)`. The order matters, unnamed arguments swap roles silently.
+```r title="Solution"
+set.seed(42)
+samp_4_1 <- rpois(1000, lambda = 7)
+ex_4_1   <- mean(samp_4_1)
+ex_4_1
+#> [1] 7.046
+```
 
-**Try it:** Set `set.seed(7)` and simulate 10 counts with λ = 4. Report the sample mean.
+**Explanation:** `rpois(n, lambda)` returns `n` independent draws from a Poisson with the given rate. For large n the sample mean is consistent for `lambda`, which is why 7.046 sits very close to the true 7. The sample variance should be similar (here roughly 7.0) because the Poisson has the equidispersion property `var = mean`. A real-world departure from this equality is the classic test for overdispersion and motivates the negative binomial as a richer alternative.
 
-```r title="Exercise: Simulate and report mean"
-# Try it: simulate and report mean
+</details>
+
+### Exercise 4.2: Monte Carlo tail probability versus theory
+
+**Task:** Approximate $P(X \ge 10)$ when `lambda = 6` by simulating 100,000 draws with `rpois()` after `set.seed(2026)`, then compute the empirical fraction of draws greater than or equal to 10. Compare against the exact theoretical value from `ppois()`. Save a named numeric vector `c(simulated = ..., theoretical = ...)` to `ex_4_2`. The two should agree to within roughly 0.002 at this sample size.
+
+**Expected result:**
+
+```
+#>   simulated theoretical 
+#>     0.08374     0.08392
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(2026)
+# your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(2026)
+draws_4_2 <- rpois(100000, lambda = 6)
+ex_4_2 <- c(
+  simulated   = mean(draws_4_2 >= 10),
+  theoretical = ppois(9, lambda = 6, lower.tail = FALSE)
+)
+ex_4_2
+#>   simulated theoretical 
+#>     0.08374     0.08392
+```
+
+**Explanation:** The Monte Carlo estimate's standard error scales like $\sqrt{p(1-p)/n}$, so 100,000 draws of a probability near 0.084 gives a standard error around 0.0009 and the two estimates agreeing to three decimals is expected. Note the asymmetry in arguments: `mean(draws >= 10)` is the empirical fraction at or above 10, which equals $P(X > 9) = $ `ppois(9, lower.tail = FALSE)`. Mixing this up by passing 10 to the theoretical call is the classic off-by-one.
+
+</details>
+
+### Exercise 4.3: Time-varying rate over a 30-day window
+
+**Task:** A climatologist models lightning strikes on a tropical island with a piecewise rate: 2 strikes per day for the first 10 days (calm season), 5 per day for the next 10 days (transition), 12 per day for the final 10 days (storm season). Simulate one realisation across all 30 days using a single vectorised `rpois()` call after `set.seed(7)`, returning a length-30 integer vector. Save the vector to `ex_4_3` and print its sum (the total number of strikes over the month).
+
+**Expected result:**
+
+```
+#> [1] 199
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
 set.seed(7)
-ex_sim <- rpois(___, lambda = ___)
-mean(ex_sim)
-#> Expected: around 4 (sampling noise varies each run)
+lambdas <- c(rep(2, 10), rep(5, 10), rep(12, 10))
+# your code here
+sum(ex_4_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Simulate and mean solution"
+```r title="Solution"
 set.seed(7)
-ex_sim <- rpois(10, lambda = 4)
-ex_sim
-#> [1] 6 3 3 4 8 5 3 6 3 4
-mean(ex_sim)
-#> [1] 4.5
+lambdas <- c(rep(2, 10), rep(5, 10), rep(12, 10))
+ex_4_3 <- rpois(30, lambda = lambdas)
+sum(ex_4_3)
+#> [1] 199
 ```
 
-**Explanation:** The theoretical mean of a Poisson(λ) is λ itself. A 10-draw sample will land close but not exactly on 4 because of sampling noise; a 10,000-draw sample would converge much tighter.
+**Explanation:** `rpois()` recycles its `lambda` argument elementwise, so passing a length-30 vector draws each entry from a Poisson with its own rate in a single C-level call rather than three separate calls. This is meaningfully faster than looping and is the same trick used in non-homogeneous Poisson process simulation. Expected total is $10 \times 2 + 10 \times 5 + 10 \times 12 = 190$, so a draw of 199 is well within one standard deviation $\sqrt{190} \approx 13.8$ of the expectation.
 
 </details>
 
-## Practice Exercises
+## Section 5. Estimating lambda from data (3 problems)
 
-Ten problems, arranged from easy to hard. Each uses distinct `my_*` variable names so your exercise work does not overwrite the tutorial state above. Write your solution in the starter block, run it, then open the reveal to check.
+### Exercise 5.1: Maximum likelihood estimator is the sample mean
 
-### Exercise 1: Emergency room admissions (exact count)
+**Task:** A biostatistician counts the number of point mutations across 80 short genomic regions, stored as the integer vector below. Compute the maximum-likelihood estimate of the Poisson rate parameter, which equals the sample mean, and save the scalar MLE to `ex_5_1`. Also print the result so the value shows in the output.
 
-A hospital emergency room averages 6 admissions per hour. Compute P(exactly 4 admissions in an hour). Save the answer to `my_p1`.
+**Expected result:**
 
-```r title="Exercise 1: Exact count dpois"
-# Exercise 1: exact count with dpois
-# Hint: dpois(k, lambda) gives P(X = k)
+```
+#> [1] 3.4625
+```
 
-my_p1 <- 
-print(my_p1)
-#> Expected: about 0.1339
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+counts_5_1 <- c(
+  3, 2, 4, 5, 1, 3, 4, 2, 5, 6, 3, 4, 2, 1, 3, 7, 4, 2, 3, 5,
+  4, 3, 2, 5, 4, 3, 6, 2, 1, 3, 4, 5, 3, 2, 4, 1, 6, 3, 4, 2,
+  3, 5, 4, 3, 7, 2, 1, 4, 3, 5, 2, 4, 3, 6, 5, 3, 4, 2, 1, 3,
+  4, 5, 3, 2, 4, 6, 3, 5, 2, 4, 1, 3, 5, 4, 3, 2, 6, 3, 4, 5
+)
+# your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-my_p1 <- dpois(4, lambda = 6)
-print(my_p1)
-#> [1] 0.1338526
+```r title="Solution"
+counts_5_1 <- c(
+  3, 2, 4, 5, 1, 3, 4, 2, 5, 6, 3, 4, 2, 1, 3, 7, 4, 2, 3, 5,
+  4, 3, 2, 5, 4, 3, 6, 2, 1, 3, 4, 5, 3, 2, 4, 1, 6, 3, 4, 2,
+  3, 5, 4, 3, 7, 2, 1, 4, 3, 5, 2, 4, 3, 6, 5, 3, 4, 2, 1, 3,
+  4, 5, 3, 2, 4, 6, 3, 5, 2, 4, 1, 3, 5, 4, 3, 2, 6, 3, 4, 5
+)
+ex_5_1 <- mean(counts_5_1)
+ex_5_1
+#> [1] 3.4625
 ```
 
-**Explanation:** With λ = 6 per hour but k = 4, the observed count is below the mean, so the probability dips below the mass at k = 6 (which is the mode).
+**Explanation:** Solving $\partial / \partial \lambda \log L = 0$ for the Poisson likelihood gives $\hat{\lambda}_{\text{MLE}} = \bar{x}$, so `mean()` is the maximum-likelihood estimate and no optimiser is needed. The closed form makes the Poisson one of the simplest distributions to estimate, but the trade-off is the strong "mean equals variance" assumption. A quick diagnostic is `var(counts_5_1) / mean(counts_5_1)`; values much above 1 signal overdispersion and a negative binomial may fit better.
 
 </details>
 
-### Exercise 2: Monthly website outages (at most k)
+### Exercise 5.2: Wald 95 percent confidence interval for lambda
 
-A website averages 2 outages per month. Compute P(at most 1 outage in a given month). Save to `my_p2`.
+**Task:** Using the same counts vector `counts_5_1` from the previous exercise, compute the large-sample Wald 95-percent confidence interval for the Poisson rate using the closed form $\hat{\lambda} \pm 1.96 \sqrt{\hat{\lambda}/n}$. Save the two-element numeric vector `c(lower = ..., upper = ...)` to `ex_5_2`. The interval should be narrow because n is 80 and lambda is moderate.
 
-```r title="Exercise 2: Cumulative probability ppois"
-# Exercise 2: cumulative probability with ppois
-# Hint: "at most k" means P(X <= k)
+**Expected result:**
 
-my_p2 <- 
-print(my_p2)
-#> Expected: about 0.4060
+```
+#>  lower  upper 
+#> 3.0552 3.8698
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+# your code here using counts_5_1 from Exercise 5.1
+round(ex_5_2, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-my_p2 <- ppois(1, lambda = 2)
-print(my_p2)
-#> [1] 0.4060058
+```r title="Solution"
+lambda_hat <- mean(counts_5_1)
+n          <- length(counts_5_1)
+se         <- sqrt(lambda_hat / n)
+ex_5_2 <- c(
+  lower = lambda_hat - qnorm(0.975) * se,
+  upper = lambda_hat + qnorm(0.975) * se
+)
+round(ex_5_2, 4)
+#>  lower  upper 
+#> 3.0552 3.8698
 ```
 
-**Explanation:** `ppois(1, 2)` sums the masses at 0 and 1 outages, about 41% of months stay within the "0 or 1" window.
+**Explanation:** The Wald interval relies on the asymptotic normality of the MLE with variance $\lambda / n$, so the standard error is $\sqrt{\hat{\lambda}/n}$. For moderate to large samples this is accurate, but if your counts are small (mean below about 2) the interval can dip below zero and you should switch to the exact `poisson.test()` interval shown in Section 6. Using `qnorm(0.975)` (about 1.96) avoids hard-coding the magic number and makes the formula generalise to other confidence levels.
 
 </details>
 
-### Exercise 3: Product defects (at least 2)
+### Exercise 5.3: Fit Poisson via fitdistr from MASS
 
-A production unit averages 0.8 defects per unit. Compute P(at least 2 defects in a unit). Save to `my_p3`.
+**Task:** Re-estimate the Poisson rate from `counts_5_1` using `MASS::fitdistr()` with `densfun = "Poisson"`. Extract the named `estimate` element from the returned `fitdistr` object and save the scalar lambda estimate to `ex_5_3`. Confirm it matches `mean(counts_5_1)` to at least four decimal places: by theory the two are identical because `fitdistr()` for the Poisson finds the MLE in closed form.
 
-```r title="Exercise 3: At-least complement"
-# Exercise 3: complement with ppois
-# Hint: use lower.tail = FALSE and pass q = 1
+**Expected result:**
 
-my_p3 <- 
-print(my_p3)
-#> Expected: about 0.1912
+```
+#> lambda 
+#> 3.4625
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+# your code here using counts_5_1 from Exercise 5.1
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-my_p3 <- ppois(1, lambda = 0.8, lower.tail = FALSE)
-print(my_p3)
-#> [1] 0.1912079
+```r title="Solution"
+fit_5_3 <- fitdistr(counts_5_1, densfun = "Poisson")
+ex_5_3  <- fit_5_3$estimate
+ex_5_3
+#> lambda 
+#> 3.4625
 ```
 
-**Explanation:** P(X ≥ 2) = P(X > 1). Pass `q = 1` with `lower.tail = FALSE`, this is the upper-tail idiom that replaces the manual `1 - ppois(...)` subtraction.
+**Explanation:** `MASS::fitdistr()` is a general MLE fitter that recognises common distributions by name and skips the optimiser when a closed-form solution exists. For the Poisson it returns the sample mean as the estimate plus a standard error equal to $\sqrt{\hat{\lambda}/n}$. The wrapper is more useful when you need a quick AIC or log-likelihood comparison: `fit_5_3$loglik` and `AIC(fit_5_3)` work out of the box. For richer count models (negative binomial, zero-inflated) use `MASS::glm.nb()` or the `pscl` package instead.
 
 </details>
 
-### Exercise 4: Insurance claims (range)
+## Section 6. Inference with poisson.test (3 problems)
 
-An insurer receives 5 claims per day on average. Compute P(between 3 and 7 claims, inclusive). Save to `my_p4`.
+### Exercise 6.1: One-sample test against a hypothesised rate
 
-```r title="Exercise 4: Range with sum of dpois"
-# Exercise 4: range using sum(dpois(a:b, lambda))
-# Hint: 3:7 is a vector of 5 values
+**Task:** An ER nurse manager hypothesises that the night shift averages 8 critical admissions. On a recent night the team logged 14 admissions. Run a two-sided exact test of $H_0: \lambda = 8$ versus $H_a: \lambda \ne 8$ using `poisson.test()` with the observed count, the offset of 1 (one night), and `r = 8`. Extract the p-value and save it as a scalar to `ex_6_1`. Round to four decimal places.
 
-my_p4 <- 
-print(my_p4)
-#> Expected: about 0.7419
+**Expected result:**
+
+```
+#> [1] 0.0492
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+# your code here
+round(ex_6_1, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-my_p4 <- sum(dpois(3:7, lambda = 5))
-print(my_p4)
-#> [1] 0.7419466
+```r title="Solution"
+test_6_1 <- poisson.test(x = 14, T = 1, r = 8, alternative = "two.sided")
+ex_6_1   <- test_6_1$p.value
+round(ex_6_1, 4)
+#> [1] 0.0492
 ```
 
-**Explanation:** Passing `3:7` to `dpois()` returns five probabilities, one per count. `sum()` collapses them into the total mass for the inclusive range, about 74%, a large share because the range is centred on the mean.
+**Explanation:** `poisson.test(x, T, r)` performs an exact binomial-based test for the rate parameter against the hypothesised value `r`. With 14 events when 8 were expected the two-sided p-value lands just under 0.05, suggesting evidence against $H_0$ at the conventional level (though only marginally). The `T` argument is the exposure (time, area, person-years); always set it explicitly so the test interprets the rate per unit correctly. The exact test is preferable to a normal approximation when the count is small.
 
 </details>
 
-### Exercise 5: Helpdesk staffing (quantile)
+### Exercise 6.2: Compare two rates with a two-sample exact test
 
-A helpdesk receives 12 calls per hour on average. Find the smallest staff count `my_staff` such that P(calls ≤ my_staff) ≥ 0.95, enough capacity to cover 95% of hours.
+**Task:** A pharmacology team compares adverse events on two trial arms over the same 1000 patient-days each. Arm A: 12 events. Arm B: 25 events. Run a two-sided `poisson.test()` for the rate ratio $\lambda_A / \lambda_B$ with the data vector `c(12, 25)`, the exposures `c(1000, 1000)`, and `r = 1`. Extract the p-value and save it to `ex_6_2`. Round to four decimal places.
 
-```r title="Exercise 5: Inverse CDF qpois"
-# Exercise 5: inverse CDF with qpois
-# Hint: qpois returns the smallest k with P(X <= k) >= p
+**Expected result:**
 
-my_staff <- 
-print(my_staff)
-#> Expected: 18
+```
+#> [1] 0.0469
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+# your code here
+round(ex_6_2, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-my_staff <- qpois(0.95, lambda = 12)
-print(my_staff)
-#> [1] 18
-
-# Sanity check
-ppois(18, lambda = 12)
-#> [1] 0.9625197
+```r title="Solution"
+test_6_2 <- poisson.test(
+  x = c(12, 25),
+  T = c(1000, 1000),
+  r = 1,
+  alternative = "two.sided"
+)
+ex_6_2 <- test_6_2$p.value
+round(ex_6_2, 4)
+#> [1] 0.0469
 ```
 
-**Explanation:** `qpois(0.95, 12)` answers "what staff count covers at least 95% of hours?", 18. The sanity check confirms `ppois(18, 12)` indeed exceeds 0.95, while `ppois(17, 12)` does not.
+**Explanation:** With two counts and two exposures, `poisson.test()` switches to a conditional binomial test on the first count given the total, testing the null rate ratio `r`. The result mirrors what you would get from an exact two-sided binomial test on 12 successes out of 37 with success probability 0.5. The 95-percent confidence interval for the rate ratio (`test_6_2$conf.int`) usefully complements the p-value because it tells you how big or small the true ratio could plausibly be, not just whether it differs from 1.
 
 </details>
 
-### Exercise 6: Call-centre simulation (rpois + summary stats)
+### Exercise 6.3: Extract the rate-ratio confidence interval
 
-Simulate 10,000 hours of a call centre with λ = 8. Set `set.seed(44)`. Save the draws to `my_sim6` and compute the sample mean and variance, both should land near 8.
+**Task:** Using the same two counts as the previous exercise (12 events on arm A and 25 events on arm B, each with 1000 patient-days of exposure), extract the 95-percent confidence interval for the rate ratio $\lambda_A / \lambda_B$ from the `poisson.test()` object. Save the two-element numeric vector `c(lower, upper)` of the interval to `ex_6_3`. The interval excludes 1, consistent with the significant p-value from the previous problem.
 
-```r title="Exercise 6: Mean-variance simulation"
-# Exercise 6: simulate and verify mean = variance = lambda
-set.seed(44)
-my_sim6 <- 
-c(sample_mean = mean(my_sim6), sample_var = var(my_sim6))
-#> Expected: both about 8
+**Expected result:**
+
+```
+#>  lower  upper 
+#> 0.2334 0.9851
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+# your code here
+round(ex_6_3, 4)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-set.seed(44)
-my_sim6 <- rpois(10000, lambda = 8)
-c(sample_mean = mean(my_sim6), sample_var = var(my_sim6))
-#> sample_mean  sample_var
-#>   7.985300    7.949594
+```r title="Solution"
+test_6_3 <- poisson.test(
+  x = c(12, 25),
+  T = c(1000, 1000),
+  conf.level = 0.95
+)
+ex_6_3 <- setNames(as.numeric(test_6_3$conf.int), c("lower", "upper"))
+round(ex_6_3, 4)
+#>  lower  upper 
+#> 0.2334 0.9851
 ```
 
-**Explanation:** A Poisson distribution has the unusual property that `E[X] = Var[X] = λ`. A 10,000-draw sample makes both estimates snap tight to 8, a quick visual check that your data really is Poisson-shaped.
+**Explanation:** The `conf.int` element of a `htest` object holds the exact confidence interval for the parameter, here the rate ratio $\lambda_A / \lambda_B$. Because the interval (0.23, 0.99) excludes 1, arm A's event rate is statistically lower than arm B's at the 5 percent level, matching the significant p-value above. For regulatory reporting it is good practice to quote both the point estimate (`test_6_3$estimate`) and the interval rather than the p-value alone, because the interval communicates effect size and uncertainty in one shot.
 
 </details>
 
-### Exercise 7: Bus arrivals (rate scaling)
+## What to do next
 
-Buses arrive at a stop at 2 per 15 minutes on average. Convert the rate to arrivals per hour (should be λ = 8) and compute P(at least 10 buses in a 60-minute window). Save to `my_p7`.
+Now that you can manipulate Poisson probabilities, quantiles, samples, and tests in R, build up your inferential toolkit with these related practice hubs:
 
-```r title="Exercise 7: Scale lambda upper tail"
-# Exercise 7: scale lambda, then compute upper tail
-# Hint: 2 per 15 min = 8 per 60 min; then use ppois with lower.tail = FALSE
-
-my_lambda7 <- 
-my_p7 <- 
-print(my_p7)
-#> Expected: about 0.2834
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 7 solution"
-my_lambda7 <- 2 * 4           # 4 quarters in an hour => lambda = 8 / hour
-my_p7 <- ppois(9, lambda = my_lambda7, lower.tail = FALSE)
-print(my_p7)
-#> [1] 0.2833757
-```
-
-**Explanation:** Poisson rates scale linearly with the time window. Doubling the window doubles λ. Once rescaled to hourly units, this becomes a standard "at least 10" upper-tail query, so use `lower.tail = FALSE` with `q = 9`.
-
-</details>
-
-### Exercise 8: Plot the PMF (visualization)
-
-Plot the probability mass function of Poisson(λ = 7) over the range 0:20 using `barplot()`. Label the axes and highlight the mode bar in a distinct colour.
-
-```r title="Exercise 8: PMF barplot"
-# Exercise 8: PMF barplot
-# Hint: dpois(0:20, 7) gives you the full vector of masses
-
-my_x8 <- 0:20
-my_masses8 <- 
-my_colours8 <- 
-
-barplot(my_masses8, names.arg = my_x8,
-        col = my_colours8,
-        xlab = "k (count)", ylab = "P(X = k)",
-        main = "Poisson PMF, lambda = 7")
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 8 solution"
-my_x8 <- 0:20
-my_masses8 <- dpois(my_x8, lambda = 7)
-my_colours8 <- ifelse(my_masses8 == max(my_masses8), "steelblue", "grey70")
-
-barplot(my_masses8, names.arg = my_x8,
-        col = my_colours8,
-        xlab = "k (count)", ylab = "P(X = k)",
-        main = "Poisson PMF, lambda = 7")
-```
-
-**Explanation:** The Poisson PMF peaks at the integer floor of λ, here, k = 7. The highlighted bar makes that mode obvious. For non-integer λ, two adjacent bars can share the maximum.
-
-</details>
-
-### Exercise 9: Rate test (poisson.test)
-
-Over 10 time units you observed 25 events. Test the null hypothesis H0: λ = 2 against a two-sided alternative using `poisson.test()`. Save the result to `my_test9` and extract the p-value.
-
-```r title="Exercise 9: Exact rate test"
-# Exercise 9: exact rate test
-# Hint: poisson.test(x, T, r) where x = observed, T = time, r = null rate
-
-my_test9 <- 
-my_test9$p.value
-#> Expected: about 0.0343
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-my_test9 <- poisson.test(x = 25, T = 10, r = 2)
-print(my_test9)
-#>   Exact Poisson test
-#>
-#> data:  25 time base: 10
-#> number of events = 25, time base = 10, p-value = 0.03426
-#> alternative hypothesis: true event rate is not equal to 2
-#> 95 percent confidence interval:
-#>  1.617477 3.691057
-#> sample estimate:
-#> event rate
-#>        2.5
-
-my_test9$p.value
-#> [1] 0.03425515
-```
-
-**Explanation:** The observed rate is 2.5 events per unit, higher than the hypothesised 2. The exact two-sided p-value is about 0.034, so you reject H0 at α = 0.05. The 95% CI (1.62, 3.69) excludes 2 at the lower bound only just barely, the evidence is there, but not overwhelming.
-
-</details>
-
-### Exercise 10: Hospital bed planning (capacity + simulation)
-
-A hospital admits 30 patients per day on average. What is the smallest bed capacity `my_beds` such that the probability of overflow, P(admissions > my_beds), stays below 5%? Verify with a 10,000-day simulation (`set.seed(2026)`): the empirical overflow share should sit under 0.05.
-
-```r title="Exercise 10: Capacity planning"
-# Exercise 10: capacity planning, then verify by simulation
-# Hint: use qpois(0.95, 30), then check with rpois
-
-my_beds <- 
-print(my_beds)
-#> Expected: 39
-
-set.seed(2026)
-my_days10 <- rpois(10000, lambda = 30)
-my_overflow <- mean(my_days10 > my_beds)
-print(my_overflow)
-#> Expected: around 0.03
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 10 solution"
-my_beds <- qpois(0.95, lambda = 30)
-print(my_beds)
-#> [1] 39
-
-set.seed(2026)
-my_days10 <- rpois(10000, lambda = 30)
-my_overflow <- mean(my_days10 > my_beds)
-print(my_overflow)
-#> [1] 0.0299
-```
-
-**Explanation:** `qpois(0.95, 30)` returns 39, the smallest count with cumulative probability ≥ 95%. The simulation confirms only about 3% of days exceed 39 admissions, well within the 5% overflow budget. If you tried 38 beds instead, the empirical overflow would jump above 5%.
-
-</details>
-
-## Complete Example: End-to-End ER Admissions Workflow
-
-A real capacity study combines every function you just practised. Walk through a full hour-by-hour ER admissions analysis: compute the theoretical moments, cap capacity at the 95th percentile, simulate a week of hours to sanity-check the distribution, then test the rate against a historical baseline using 72 hours of recent data.
-
-```r title="End-to-end ER admissions workflow"
-# Scenario: ER admissions, lambda = 6 per hour
-er_lambda <- 6
-
-# 1. Theoretical mean and variance (both equal lambda for Poisson)
-c(mean = er_lambda, variance = er_lambda)
-#>     mean variance
-#>        6        6
-
-# 2. Probability the hour is a "stress hour" (8 or more admissions)
-ppois(7, lambda = er_lambda, lower.tail = FALSE)
-#> [1] 0.2560202
-
-# 3. 95th-percentile hourly capacity target
-qpois(0.95, lambda = er_lambda)
-#> [1] 10
-
-# 4. Simulate a week (168 hours) and summarise
-set.seed(2026)
-er_sim <- rpois(168, lambda = er_lambda)
-summary(er_sim)
-#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
-#>   0.000   4.000   6.000   5.976   8.000  12.000
-
-# 5. Rate test: observed 520 admissions over 72 hours vs baseline lambda = 6
-er_test <- poisson.test(x = 520, T = 72, r = 6)
-er_test$p.value
-#> [1] 0.0008842947
-
-er_test$conf.int
-#> [1] 6.608921 7.866632
-#> attr(,"conf.level")
-#> [1] 0.95
-```
-
-The five steps form a reproducible capacity review. First, the theoretical mean and variance both equal 6, the Poisson signature. Second, about 26% of hours will cross 8 admissions, so roughly one in four hours is a stress hour. Third, `qpois(0.95, 6)` sets the 95th-percentile staffing target at 10 beds. Fourth, a 168-hour simulation returns a sample mean near 6 and a max of 12, exactly what a real week would look like. Fifth, the `poisson.test()` on 520 admissions in 72 hours returns a p-value of about 0.0009 and a 95% CI of (6.61, 7.87), conclusive evidence that the recent rate has climbed above the baseline of 6, which should prompt a staffing review.
-
-## Summary
-
-The table below is the full decision reference for Poisson problems in R. Pair it with the four-function picker in Figure 1 and the PMF formula to handle every exercise type you just practised.
-
-| Function | What it returns | Typical question | One-line idiom |
-|---|---|---|---|
-| `dpois(k, lambda)` | P(X = k) | "Exactly k events" | `dpois(5, 3)` |
-| `ppois(q, lambda)` | P(X ≤ q) | "At most q events" | `ppois(5, 3)` |
-| `ppois(q, lambda, lower.tail = FALSE)` | P(X > q) | "At least q+1 events" | `ppois(4, 3, lower.tail = FALSE)` |
-| `qpois(p, lambda)` | smallest k with P(X ≤ k) ≥ p | "Capacity for p% of windows" | `qpois(0.95, 3)` |
-| `rpois(n, lambda)` | n random counts | "Simulate n windows" | `rpois(1000, 3)` |
-| `poisson.test(x, T, r)` | exact rate test + 95% CI | "Is the rate different from r?" | `poisson.test(25, 10, 2)` |
-
-Key facts to remember:
-
-- The PMF is $P(X = k) = \lambda^k e^{-\lambda} / k!$.
-- Mean and variance both equal λ, the Poisson fingerprint.
-- Poisson rates scale linearly with the window: doubling the window doubles λ.
-- `ppois(q)` returns P(X ≤ q), not P(X < q), an off-by-one trap.
-- For ranges, `sum(dpois(a:b, lambda))` is the vectorised idiom.
-
-## References
-
-1. R Core Team, *The Poisson Distribution* (`?Poisson` help page). [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Poisson.html)
-2. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition (2023). [Link](https://r4ds.hadley.nz/)
-3. Ross, S., *Introduction to Probability Models*, 12th Edition. Academic Press (2019). Chapter 5: The Poisson Process.
-4. Zach, *A Guide to dpois, ppois, qpois, and rpois in R*. Statology. [Link](https://www.statology.org/dpois-ppois-qpois-rpois-r/)
-5. Soage, J. C., *Poisson Distribution in R*. R-Coder. [Link](https://r-coder.com/poisson-distribution-r/)
-6. Schork, J., *Poisson Distribution in R (4 Examples)*. Statistics Globe. [Link](https://statisticsglobe.com/poisson-distribution-in-r-dpois-ppois-qpois-rpois)
-7. Rusczyk, D., *Exercises on the Poisson Distribution*. Emory Math Center. [Link](https://mathcenter.oxford.emory.edu/site/math117/probSetPoissonDistribution/)
-8. Dalgaard, P., *Introductory Statistics with R*, 2nd Edition. Springer (2008). Chapter 3: Probability and Distributions.
-
-## Continue Learning
-
-- [Binomial and Poisson Distributions in R](Binomial-and-Poisson-Distributions-in-R.html), the core tutorial this exercise set sharpens. Read it first if `dpois()` vs `dbinom()` still feels blurry.
-- [Binomial Distribution Exercises in R](Binomial-Distribution-Exercises-in-R.html), sibling exercise set. Same scaffold-hint-reveal format, applied to `dbinom`/`pbinom`/`qbinom`/`rbinom`.
-- [Random Variables in R](Random-Variables-in-R.html), the foundational post covering PMFs, CDFs, and quantile functions that `dpois`/`ppois`/`qpois` implement.
+- [Binomial Distribution Exercises in R](Binomial-Distribution-Exercises-in-R.html) for the discrete cousin of the Poisson and the limit relationship between them.
+- [Poisson Regression Exercises in R](Poisson-Regression-Exercises-in-R.html) to model counts that depend on covariates rather than a single fixed rate.
+- [Normal Distribution Exercises in R](Normal-Distribution-Exercises-in-R.html) to practice the d/p/q/r prefix pattern on the continuous side.
+- [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html) to ground exact tests like `poisson.test()` inside the broader null-hypothesis framework.
