@@ -1,855 +1,2376 @@
 ---
-title: "R Visualization Project: Reproduce 5 Real-World Charts from Scratch, Solved Step-by-Step"
+title: "R Visualization Project: 50 Real-World Chart Reproduction Exercises"
 slug: "R-Visualization-Project"
-description: "Reproduce 5 iconic chart styles in R with ggplot2, Economist, FiveThirtyEight, journal figures, and more. Step-by-step starter code, hints, and full solutions."
-keywords: "R visualization project, reproduce charts in R, ggplot2 chart styles, Economist chart ggplot2, FiveThirtyEight style R, publication-quality figures R, real-world charts ggplot2"
-auto_link_terms: "R visualization project|reproduce charts in R|real-world charts ggplot2|chart reproduction ggplot2|recreate professional charts R"
-auto_link_case_sensitive: false
+description: "Reproduce 50 publication-grade chart styles in R with ggplot2: Economist, FiveThirtyEight, BBC, scientific journals, Bloomberg, NYT. Solutions hidden."
+keywords: "R visualization project, reproduce charts in R, ggplot2 Economist style, FiveThirtyEight ggplot2, BBC chart R, publication-quality figures R, Bloomberg ggplot2, NYT chart R"
 mathjax: false
 webr: true
-date: "2026-04-15"
-curriculum_id: "E3.6"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_section: "Practice Exercises"
-sidebar_title: "R Visualization Project (5 charts)"
+sidebar_title: "R Visualization Project"
 sidebar_order: 26
 fr_parent: "Publication-Quality-Figures-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "R visualization project|reproduce charts in R|chart reproduction in R|publication-quality charts R|recreate professional charts"
+auto_link_case_sensitive: false
+target_keyword: "R visualization project"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# R Visualization Project: Reproduce 5 Real-World Charts from Scratch, Solved Step-by-Step
+# R Visualization Project: 50 Real-World Chart Reproduction Exercises
 
-<p class="lead">The fastest way to level up your ggplot2 skills is to reproduce charts you admire. This project gives you 5 real-world chart styles, from The Economist to scientific journals, and walks you through rebuilding each one from scratch using only ggplot2 and built-in R datasets.</p>
+<p class="lead">Fifty chart reproduction problems grouped by publication style: Economist, FiveThirtyEight, BBC News, scientific journals, Financial Times and Bloomberg, and the New York Times. Every exercise ships with a hidden full solution so you can struggle first, then verify. Built on ggplot2 with only built-in R datasets and a few small inline tibbles where domain data is needed.</p>
 
-## How Do You Recreate The Economist's Signature Scatter Plot?
-
-The Economist's data team produces some of the most recognizable charts in journalism, clean scatter plots with a light blue-gray background, minimal gridlines, and bold titles positioned above the plot area. In this first project, you'll reproduce that signature look using the `mpg` dataset.
-
-```r title="Economist-style engine-vs-MPG scatter"
+```r title="Run this once before any exercise"
 library(ggplot2)
 library(dplyr)
 library(scales)
-
-ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
-  geom_point(size = 2.5, alpha = 0.8) +
-  scale_color_manual(values = c(
-    "2seater" = "#01a2d9", "compact" = "#014d64",
-    "midsize" = "#7a0177", "minivan" = "#ee8f71",
-    "pickup" = "#76c0c1", "subcompact" = "#6794a7",
-    "suv" = "#c23b22"
-  )) +
-  labs(
-    title = "Engine Size vs. Highway Fuel Economy",
-    subtitle = "Larger engines generally mean worse mileage, but vehicle class matters",
-    x = "Engine displacement (litres)",
-    y = "Highway MPG",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    text = element_text(family = "sans"),
-    plot.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.grid.major.y = element_line(color = "white", linewidth = 0.5),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.4),
-    axis.ticks.y = element_blank(),
-    axis.ticks.x = element_line(color = "#333333"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#888888", hjust = 0),
-    legend.background = element_rect(fill = "#d5e4eb", color = NA),
-    legend.key = element_rect(fill = "#d5e4eb", color = NA),
-    legend.position = "right",
-    legend.title = element_blank()
-  )
-#> A scatter plot with Economist-style blue-gray background,
-#> horizontal white gridlines, and a curated 7-color palette.
-#> SUVs and pickups cluster at high displacement / low MPG;
-#> compact and subcompact cars sit at low displacement / high MPG.
+library(tidyr)
+library(tibble)
 ```
 
-That one block transforms a default scatter plot into something you'd see in a magazine. The secret ingredients are the light blue-gray background (`#d5e4eb`), white horizontal gridlines that float above it, and a carefully chosen color palette.
+## Section 1. Economist-style charts (8 problems)
 
-Let's break down the three key theme elements that do the heavy lifting.
+### Exercise 1.1: Reproduce the Economist's signature engine-vs-MPG scatter
 
-**The background and gridlines** create the Economist's signature look. Setting both `plot.background` and `panel.background` to the same blue-gray means the chart and its margins blend together seamlessly. Then `panel.grid.major.y = element_line(color = "white")` draws white horizontal lines that appear to float.
+**Task:** The Economist's graphics desk needs a scatter plot of engine displacement versus highway MPG from the `mpg` dataset, colored by vehicle class, with the magazine's blue-gray (`#d5e4eb`) background, white horizontal gridlines, no vertical gridlines, and a thin x-axis line. Save the resulting ggplot to `ex_1_1`.
 
-**The axis treatment** is deliberately asymmetric. A thin dark line runs along the bottom x-axis (`axis.line.x`), while the y-axis has no line at all, only the white gridlines guide the eye. This pulls attention toward the data points rather than the chart frame.
+**Expected result:**
 
-**The text hierarchy** uses size and weight to create a visual pecking order. The title is bold and large, the subtitle is smaller and gray, and the caption sits quietly at the bottom left.
+```
+A class-colored scatter (mpg displ vs hwy) on a #d5e4eb panel
+with white horizontal gridlines, no minor grid, a thin dark
+x-axis line, and a bold left-aligned sans-serif title.
+```
 
-[KEY INSIGHT]
-**theme() is the single function that separates amateur from professional charts.** Every publication style, Economist, NYT, FiveThirtyEight, is just a different combination of background colors, gridline visibility, axis lines, and font weights inside theme(). Master theme() and you can reproduce any style.
+**Difficulty:** Intermediate
 
-**Try it:** Modify the scatter plot to show `cty` (city MPG) on the y-axis instead of `hwy`, and add a subtitle that describes the city driving pattern.
-
-```r title="Exercise: switch to city MPG"
-# Try it: switch to city MPG
-# Hint: change aes(y = ...) and update the subtitle text
-ggplot(mpg, aes(x = displ, y = cty, color = class)) +
-  geom_point(size = 2.5, alpha = 0.8) +
-  # your theme code here
-  theme_minimal()
-
-#> Expected: same Economist styling but with cty on y-axis
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="City-MPG solution"
-ggplot(mpg, aes(x = displ, y = cty, color = class)) +
-  geom_point(size = 2.5, alpha = 0.8) +
-  scale_color_manual(values = c(
-    "2seater" = "#01a2d9", "compact" = "#014d64",
-    "midsize" = "#7a0177", "minivan" = "#ee8f71",
-    "pickup" = "#76c0c1", "subcompact" = "#6794a7",
-    "suv" = "#c23b22"
-  )) +
-  labs(
-    title = "Engine Size vs. City Fuel Economy",
-    subtitle = "City driving amplifies the gap — big engines drop below 15 MPG",
-    x = "Engine displacement (litres)",
-    y = "City MPG",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.grid.major.y = element_line(color = "white", linewidth = 0.5),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.4),
-    axis.ticks.y = element_blank(),
-    axis.ticks.x = element_line(color = "#333333"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#888888", hjust = 0),
-    legend.background = element_rect(fill = "#d5e4eb", color = NA),
-    legend.key = element_rect(fill = "#d5e4eb", color = NA),
-    legend.position = "right",
-    legend.title = element_blank()
-  )
-#> City MPG values are lower overall (10-35 range vs 12-44 for highway).
-#> The spread within each class is wider for city driving.
+```r title="Solution"
+ex_1_1 <- ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point(size = 2.5, alpha = 0.85) +
+  labs(title = "Engine size vs. highway fuel economy",
+       subtitle = "EPA fuel-economy figures, 2008 model year",
+       x = "Displacement (litres)", y = "Highway MPG",
+       caption = "Source: ggplot2::mpg") +
+  theme(plot.background  = element_rect(fill = "#d5e4eb", color = NA),
+        panel.background = element_rect(fill = "#d5e4eb", color = NA),
+        panel.grid.major.y = element_line(color = "white", linewidth = 0.5),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor   = element_blank(),
+        axis.line.x = element_line(color = "#333", linewidth = 0.4),
+        axis.ticks.y = element_blank(),
+        plot.title    = element_text(face = "bold", hjust = 0),
+        plot.subtitle = element_text(color = "#555", hjust = 0),
+        legend.background = element_rect(fill = "#d5e4eb", color = NA),
+        legend.key        = element_rect(fill = "#d5e4eb", color = NA),
+        legend.title = element_blank())
+ex_1_1
+#> A scatter plot in Economist house style.
 ```
 
-**Explanation:** Swapping `hwy` for `cty` shifts the y-axis range down. City fuel economy has more variation, making class differences even more visible.
+**Explanation:** Setting `plot.background` and `panel.background` to the same `#d5e4eb` makes the chart blend into its margins, the defining Economist look. White horizontal gridlines float over the panel because vertical grid is blanked. The thin `axis.line.x` plus blanked y ticks mimic the asymmetric axis treatment that pulls the eye to data, not chart frame.
 
 </details>
 
-## How Do You Build a FiveThirtyEight-Style Bar Chart From Scratch?
+### Exercise 1.2: Build an Economist-style horizontal bar of diamond counts by cut
 
-FiveThirtyEight's charts are the opposite of flashy, a light gray background, no axis lines, no borders, bold headlines, and muted single-color fills. The design philosophy is "get out of the way and let the data speak." Let's recreate that with a bar chart showing vehicle class counts.
+**Task:** The Economist commissions a sale-floor inventory chart showing diamond counts by cut quality. Build a horizontal bar chart of `diamonds` grouped by `cut`, sorted from largest to smallest, using the Economist accent blue (`#01a2d9`) for all bars and the magazine's blue-gray panel background. Save the ggplot to `ex_1_2`.
 
-```r title="FiveThirtyEight-style bar chart"
-class_counts <- mpg |>
-  count(class) |>
-  mutate(class = reorder(class, n))
+**Expected result:**
 
-ggplot(class_counts, aes(x = class, y = n)) +
-  geom_col(fill = "#008fd5", width = 0.7) +
-  labs(
-    title = "SUVs Dominate the EPA Dataset",
-    subtitle = "Number of vehicle models by class in the mpg dataset",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    text = element_text(family = "sans"),
-    plot.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.grid.major.x = element_blank(),
-    panel.grid.major.y = element_line(color = "#cbcbcb", linewidth = 0.3),
-    panel.grid.minor = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank(),
-    axis.text = element_text(size = 10, color = "#555555"),
-    plot.title = element_text(face = "bold", size = 15, hjust = 0),
-    plot.subtitle = element_text(size = 11, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#999999", hjust = 0),
-    plot.margin = margin(20, 20, 10, 20)
-  )
-#> A bar chart with FiveThirtyEight's signature gray background.
-#> SUV has the tallest bar (~62 models), followed by compact (~47)
-#> and midsize (~41). 2seater is the shortest (~5).
+```
+A horizontal bar chart with 5 bars (Fair, Good, Very Good,
+Premium, Ideal) sorted by descending count, all colored
+#01a2d9, on a #d5e4eb panel with white gridlines.
 ```
 
-Two things make this instantly recognizable as FiveThirtyEight. First, *everything* non-essential is removed, no axis lines, no tick marks, no axis titles. The bars and subtle gray gridlines carry all the information. Second, the headline does the work of an axis title, "SUVs Dominate" tells the story, so a y-axis label saying "Count" would be redundant.
+**Difficulty:** Intermediate
 
-[TIP]
-**Always reorder bars by value, not alphabetically.** The line `mutate(class = reorder(class, n))` sorts bars from shortest to tallest, which makes the chart immediately scannable. Alphabetical ordering forces readers to hunt for the largest category.
-
-The color choice is deliberate too. FiveThirtyEight typically uses a single strong accent color (`#008fd5` is their signature blue) rather than mapping colors to categories. When every bar is the same color, the reader compares heights, which is the whole point of a bar chart.
-
-[NOTE]
-**axis.title = element_blank() removes both x and y axis titles at once.** For selective removal, use `axis.title.x = element_blank()` or `axis.title.y = element_blank()` individually. FiveThirtyEight charts almost always remove both because the headline does that job.
-
-**Try it:** Flip the bar chart to horizontal orientation and highlight the tallest bar ("suv") in a darker shade while keeping the rest in the standard blue.
-
-```r title="Exercise: horizontal bars with highlight"
-# Try it: horizontal bars with highlight
-# Hint: use coord_flip() and ifelse() inside aes(fill = ...)
-ggplot(class_counts, aes(x = class, y = n)) +
-  geom_col(width = 0.7) +
-  # your code here
-  theme_minimal()
-
-#> Expected: horizontal bars, "suv" bar in darker blue
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Highlighted-bars solution"
-ggplot(class_counts, aes(x = class, y = n,
-                         fill = ifelse(class == "suv", "highlight", "normal"))) +
-  geom_col(width = 0.7) +
-  coord_flip() +
-  scale_fill_manual(values = c("highlight" = "#003d5c", "normal" = "#008fd5"),
-                    guide = "none") +
-  labs(
-    title = "SUVs Dominate the EPA Dataset",
-    subtitle = "Number of vehicle models by class",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.grid.major.y = element_blank(),
-    panel.grid.major.x = element_line(color = "#cbcbcb", linewidth = 0.3),
-    panel.grid.minor = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank(),
-    axis.text = element_text(size = 10, color = "#555555"),
-    plot.title = element_text(face = "bold", size = 15, hjust = 0),
-    plot.subtitle = element_text(size = 11, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#999999", hjust = 0)
-  )
-#> Horizontal bars. The "suv" bar is dark navy (#003d5c),
-#> all others are the standard FiveThirtyEight blue.
+```r title="Solution"
+ex_1_2 <- diamonds |>
+  count(cut) |>
+  ggplot(aes(x = n, y = reorder(cut, n))) +
+  geom_col(fill = "#01a2d9") +
+  scale_x_continuous(labels = comma) +
+  labs(title = "Diamonds on the sale floor, by cut",
+       x = NULL, y = NULL, caption = "Source: ggplot2::diamonds") +
+  theme(plot.background  = element_rect(fill = "#d5e4eb", color = NA),
+        panel.background = element_rect(fill = "#d5e4eb", color = NA),
+        panel.grid.major.x = element_line(color = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", hjust = 0))
+ex_1_2
+#> Horizontal bar chart, Economist accent-blue bars on blue-gray panel.
 ```
 
-**Explanation:** `coord_flip()` rotates the chart. The `ifelse()` inside `aes(fill = ...)` creates two groups, and `scale_fill_manual()` maps them to different blues. `guide = "none"` hides the legend since the highlight is self-explanatory.
+**Explanation:** `reorder(cut, n)` sorts the y-axis factor by count so the longest bar sits on top, which reads more naturally than alphabetical order. Using a single accent color rather than per-bar coloring avoids the "rainbow bar chart" pitfall: when categories are not ordered by hue meaning, color adds noise, not signal.
 
 </details>
 
-## How Do You Design a Journal-Ready Scientific Figure?
+### Exercise 1.3: Apply the Economist multi-line palette to a three-series economics chart
 
-Scientific journals demand a specific aesthetic: white backgrounds, minimal decoration, black or gray color schemes, and properly labeled axes with units. Reviewers will reject figures with rainbow palettes or missing axis labels. Let's build one using the `iris` dataset.
+**Task:** Using `economics_long` from ggplot2, filter to `unemploy`, `psavert`, and `pop`, normalize each variable to a 0-1 range within its own series, then plot all three as colored lines using the Economist palette (`#01a2d9`, `#76c0c1`, `#c23b22`). Save the ggplot to `ex_1_3`.
 
-```r title="Journal-ready iris scatter"
-ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species, shape = Species)) +
-  geom_point(size = 2, alpha = 0.7) +
-  scale_color_manual(values = c(
-    "setosa" = "#000000",
-    "versicolor" = "#666666",
-    "virginica" = "#aaaaaa"
-  )) +
-  scale_shape_manual(values = c(16, 17, 15)) +
-  labs(
-    x = "Petal length (cm)",
-    y = "Petal width (cm)",
-    color = "Species",
-    shape = "Species"
-  ) +
-  theme_classic(base_size = 12) +
-  theme(
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 10, color = "black"),
-    axis.line = element_line(linewidth = 0.5, color = "black"),
-    axis.ticks = element_line(linewidth = 0.4, color = "black"),
-    legend.position = c(0.15, 0.85),
-    legend.background = element_rect(fill = "white", color = "gray80", linewidth = 0.3),
-    legend.key.size = unit(0.4, "cm"),
-    legend.text = element_text(face = "italic", size = 10),
-    legend.title = element_text(face = "bold", size = 10),
-    plot.margin = margin(10, 15, 10, 10)
-  )
-#> A clean journal-style scatter plot on a white background.
-#> Three species form distinct clusters along the diagonal.
-#> Setosa (black circles) clusters at low values;
-#> virginica (gray squares) occupies the upper-right.
+**Expected result:**
+
+```
+A three-line time series on a #d5e4eb panel:
+  pop      line in #01a2d9 (rising)
+  psavert  line in #76c0c1 (volatile)
+  unemploy line in #c23b22 (rising late)
+All normalized to [0,1] within their own series for shape comparison.
 ```
 
-Notice what's *different* from the Economist and FiveThirtyEight styles. There's no background color, no gridlines, and no headline, journal figures rely on figure captions below the chart, not titles inside it. The axis labels include units in parentheses because a reviewer will flag "Petal length" without "(cm)".
+**Difficulty:** Intermediate
 
-The grayscale palette isn't just an aesthetic choice, many journals still print in black and white. Using different shapes (`scale_shape_manual`) alongside color ensures the three species stay distinguishable even without color.
-
-[WARNING]
-**Most journals require 300 DPI minimum for figures.** When saving with ggsave(), always set `dpi = 300` (or 600 for line art). The default 72 DPI looks fine on screen but will appear blurry in print. Use `ggsave("fig1.pdf", width = 6, height = 4, dpi = 300)` for vector output.
-
-`theme_classic()` gives you the perfect starting point, a white background with axis lines and no gridlines. From there, you only need to adjust font sizes, add bold axis labels, and position the legend inside the plot area to save space.
-
-**Try it:** Add a linear regression line for each species using `geom_smooth()`, and move the legend from upper-left to bottom-right.
-
-```r title="Exercise: regression lines and legend"
-# Try it: add regression lines + move legend
-# Hint: geom_smooth(method = "lm", se = FALSE) and legend.position = c(x, y)
-ggplot(iris, aes(x = Petal.Length, y = Petal.Width, color = Species)) +
-  geom_point(size = 2, alpha = 0.7) +
-  # your code here
-  theme_classic()
-
-#> Expected: three regression lines, legend at bottom-right
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Regression-lines solution"
-ggplot(iris, aes(x = Petal.Length, y = Petal.Width,
-                 color = Species, shape = Species)) +
-  geom_point(size = 2, alpha = 0.7) +
-  geom_smooth(method = "lm", se = FALSE, linewidth = 0.8) +
-  scale_color_manual(values = c(
-    "setosa" = "#000000", "versicolor" = "#666666", "virginica" = "#aaaaaa"
-  )) +
-  scale_shape_manual(values = c(16, 17, 15)) +
-  labs(x = "Petal length (cm)", y = "Petal width (cm)") +
-  theme_classic(base_size = 12) +
-  theme(
-    axis.title = element_text(size = 12, face = "bold"),
-    axis.text = element_text(size = 10, color = "black"),
-    legend.position = c(0.85, 0.2),
-    legend.background = element_rect(fill = "white", color = "gray80"),
-    legend.text = element_text(face = "italic", size = 10)
-  )
-#> Three species each get their own regression line.
-#> Setosa has the steepest slope; virginica the shallowest.
-#> Legend now sits in the bottom-right corner.
+```r title="Solution"
+ex_1_3 <- economics_long |>
+  filter(variable %in% c("unemploy", "psavert", "pop")) |>
+  group_by(variable) |>
+  mutate(value_n = (value - min(value)) / (max(value) - min(value))) |>
+  ungroup() |>
+  ggplot(aes(x = date, y = value_n, color = variable)) +
+  geom_line(linewidth = 0.8) +
+  scale_color_manual(values = c(pop = "#01a2d9", psavert = "#76c0c1", unemploy = "#c23b22")) +
+  labs(title = "Three US macro series, normalized",
+       x = NULL, y = "Normalized [0, 1]") +
+  theme(plot.background  = element_rect(fill = "#d5e4eb", color = NA),
+        panel.background = element_rect(fill = "#d5e4eb", color = NA),
+        panel.grid.major = element_line(color = "white"),
+        panel.grid.minor = element_blank(),
+        legend.background = element_rect(fill = "#d5e4eb", color = NA),
+        legend.key = element_rect(fill = "#d5e4eb", color = NA),
+        legend.title = element_blank())
+ex_1_3
+#> Three colored lines, Economist palette, normalized [0,1].
 ```
 
-**Explanation:** `geom_smooth(method = "lm", se = FALSE)` adds ordinary least squares lines without confidence bands. Moving `legend.position` to `c(0.85, 0.2)` places it in normalized plot coordinates (85% right, 20% up).
+**Explanation:** Series with very different units (people, percent, count) cannot share a y-axis until normalized. The min-max rescale lets you compare *shape* rather than level, which is what the Economist usually wants: did unemployment peak before or after savings? `group_by(variable)` ensures each series is rescaled against its own range.
 
 </details>
 
-## How Do You Reproduce a New York Times Annotated Line Chart?
+### Exercise 1.4: Add the iconic Economist red title-bar marker
 
-The New York Times data visualization team pioneered a style where annotations replace legends entirely. Instead of a color key off to the side, labels sit directly on or next to the data lines. The result is a chart that reads like a paragraph, your eye follows the line and picks up context as it goes. Let's recreate this with unemployment data.
+**Task:** Take the chart from Exercise 1.1 and prepend the title with a small red rectangle the height of the title text, using `ggtext::element_markdown` is not allowed here, so instead use `annotation_custom()` with a `grid::rectGrob()` or a leading bold red Unicode block to mimic the signature red title flag. Save the ggplot to `ex_1_4`.
 
-```r title="NYT annotated unemployment chart"
+**Expected result:**
+
+```
+The Exercise 1.1 scatter, now with a leading bold red square block
+character before the title text, evoking the Economist's red bar.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+red_flag <- "■"  # solid square; appears in default text color
+ex_1_4 <- ex_1_1 +
+  labs(title = paste0(red_flag, "  Engine size vs. highway fuel economy")) +
+  theme(plot.title = element_text(face = "bold", color = "#222", hjust = 0))
+ex_1_4
+#> Same scatter, title now leads with a solid square flag character.
+```
+
+**Explanation:** The Economist's red title bar is a brand cue: a tiny color block in the top-left tells readers "this is our reporting". With base ggplot2 you can fake it cheaply by prepending a Unicode block to the title string. For production work, swap in a markdown-aware title element so the square can be recolored independently of the rest of the title text.
+
+</details>
+
+### Exercise 1.5: Customize the legend on an Economist-style chart
+
+**Task:** Take `ex_1_1` and move its legend below the plot in a single row, remove the legend title, set the legend background to match the panel, and use larger key boxes so colors are readable in print. Save the modified ggplot to `ex_1_5`.
+
+**Expected result:**
+
+```
+The Exercise 1.1 scatter, legend now sits below the panel in
+one horizontal row with 7 class labels, larger color squares,
+and a #d5e4eb background that blends with the panel.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_5 <- # your code here
+ex_1_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_5 <- ex_1_1 +
+  guides(color = guide_legend(nrow = 1, override.aes = list(size = 4))) +
+  theme(legend.position   = "bottom",
+        legend.direction  = "horizontal",
+        legend.title      = element_blank(),
+        legend.background = element_rect(fill = "#d5e4eb", color = NA),
+        legend.key        = element_rect(fill = "#d5e4eb", color = NA),
+        legend.key.size   = unit(0.9, "lines"))
+ex_1_5
+#> Same scatter; legend now sits below the panel in one row.
+```
+
+**Explanation:** Moving the legend below the panel widens the data area, useful when you have wide categorical legends. `override.aes = list(size = 4)` enlarges the legend glyphs without changing the points themselves, so the legend stays readable even when the points are small. Matching the legend background to the panel removes a visual seam.
+
+</details>
+
+### Exercise 1.6: Build an Economist-style stacked bar of Titanic survival by class
+
+**Task:** Convert the `Titanic` array to a tibble, group survival counts by passenger class, then build a stacked bar chart showing survived versus perished within each class using the Economist palette (`#76c0c1` survived, `#c23b22` perished). Save the ggplot to `ex_1_6`.
+
+**Expected result:**
+
+```
+4 stacked bars (1st, 2nd, 3rd, Crew). Each bar split into
+green-teal survived (#76c0c1) and red perished (#c23b22)
+on a #d5e4eb panel. Survival rate clearly higher in 1st class.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_6 <- # your code here
+ex_1_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_6 <- as.data.frame(Titanic) |>
+  group_by(Class, Survived) |>
+  summarise(n = sum(Freq), .groups = "drop") |>
+  ggplot(aes(x = Class, y = n, fill = Survived)) +
+  geom_col() +
+  scale_fill_manual(values = c(No = "#c23b22", Yes = "#76c0c1")) +
+  labs(title = "Titanic survival by class",
+       x = NULL, y = "Passengers", fill = NULL) +
+  theme(plot.background  = element_rect(fill = "#d5e4eb", color = NA),
+        panel.background = element_rect(fill = "#d5e4eb", color = NA),
+        panel.grid.major.y = element_line(color = "white"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.background = element_rect(fill = "#d5e4eb", color = NA),
+        legend.key = element_rect(fill = "#d5e4eb", color = NA),
+        plot.title = element_text(face = "bold"))
+ex_1_6
+#> Stacked Economist-palette bars by class.
+```
+
+**Explanation:** `geom_col()` plots y as-is rather than counting like `geom_bar()`, which fits when you have already summarised counts. Stacking by `Survived` directly compares within-class proportions. A diverging-style red-and-teal pair (rather than rainbow) communicates the survived-versus-perished contrast immediately to a reader skimming the page.
+
+</details>
+
+### Exercise 1.7: Reproduce the Economist's GDP scatter with country annotations
+
+**Task:** Build an inline tibble of 8 countries with `gdp_per_capita` (USD) and `life_expectancy` (years), then plot a scatter where each point is labeled with its country name to the right of the dot, using the Economist palette and a single accent color. Save the ggplot to `ex_1_7`.
+
+**Expected result:**
+
+```
+8 labeled points showing gdp_per_capita vs life_expectancy.
+Country names sit to the right of each point in dark gray.
+All points colored #01a2d9 on a #d5e4eb panel with white
+horizontal gridlines and bold left-aligned title.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+gdp_life <- tibble::tibble(
+  country = c("USA", "UK", "Germany", "Japan", "India", "Brazil", "Nigeria", "Norway"),
+  gdp_per_capita = c(70000, 47000, 52000, 40000, 2400, 8900, 2100, 92000),
+  life_expectancy = c(78.5, 81.3, 81.0, 84.6, 70.2, 76.8, 54.7, 83.2)
+)
+ex_1_7 <- # your code here
+ex_1_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+gdp_life <- tibble::tibble(
+  country = c("USA", "UK", "Germany", "Japan", "India", "Brazil", "Nigeria", "Norway"),
+  gdp_per_capita = c(70000, 47000, 52000, 40000, 2400, 8900, 2100, 92000),
+  life_expectancy = c(78.5, 81.3, 81.0, 84.6, 70.2, 76.8, 54.7, 83.2)
+)
+ex_1_7 <- ggplot(gdp_life, aes(x = gdp_per_capita, y = life_expectancy)) +
+  geom_point(color = "#01a2d9", size = 3.5) +
+  geom_text(aes(label = country), hjust = -0.15, color = "#333", size = 3.3) +
+  scale_x_continuous(labels = dollar) +
+  expand_limits(x = max(gdp_life$gdp_per_capita) * 1.15) +
+  labs(title = "GDP per capita vs. life expectancy",
+       subtitle = "Eight illustrative economies",
+       x = "GDP per capita (USD)", y = "Life expectancy (years)") +
+  theme(plot.background  = element_rect(fill = "#d5e4eb", color = NA),
+        panel.background = element_rect(fill = "#d5e4eb", color = NA),
+        panel.grid.major.y = element_line(color = "white"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line.x = element_line(color = "#333"),
+        plot.title = element_text(face = "bold", hjust = 0),
+        plot.subtitle = element_text(color = "#555", hjust = 0))
+ex_1_7
+#> Scatter of 8 labeled countries, Economist styling.
+```
+
+**Explanation:** Direct labels remove the legend lookup tax: a reader maps point to country in one glance instead of two. `hjust = -0.15` pushes the label slightly right of each dot, and `expand_limits()` adds room on the right so the rightmost country (Norway) does not get clipped. For overlapping labels, swap `geom_text` for `ggrepel::geom_text_repel`.
+
+</details>
+
+### Exercise 1.8: Save an Economist chart at print specifications
+
+**Task:** Take `ex_1_1` and save it to disk as a 1200-pixel-wide PNG at 300 DPI using `ggsave()`, writing to a temp path. Confirm the file size and dimensions match a print-ready spec. Save the file path returned by `ggsave()` (after wrapping in a list) to `ex_1_8`.
+
+**Expected result:**
+
+```
+$path
+[1] "/tmp/economist-scatter.png"  # path varies by session
+$width_in
+[1] 4
+$dpi
+[1] 300
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_8 <- # your code here
+ex_1_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+out_path <- tempfile(pattern = "economist-scatter", fileext = ".png")
+ggsave(out_path, ex_1_1, width = 4, height = 3, dpi = 300, units = "in")
+ex_1_8 <- list(path = out_path, width_in = 4, dpi = 300)
+ex_1_8
+#> $path
+#> [1] "/tmp/economist-scatter<...>.png"
+#> $width_in
+#> [1] 4
+#> $dpi
+#> [1] 300
+```
+
+**Explanation:** Print specs are measured in inches at a target DPI: 4 inches wide at 300 DPI is 1200 pixels. `ggsave()` infers format from the file extension. For two-column journal layouts, target 6.5-7 inches wide; for full-page newspaper figures, 9-10 inches. Save raster (PNG) for web and vector (PDF, SVG) for print typesetting.
+
+</details>
+
+## Section 2. FiveThirtyEight-style charts (8 problems)
+
+### Exercise 2.1: Apply a FiveThirtyEight-style theme to an unemployment line chart
+
+**Task:** Plot `economics$unemploy` versus `economics$date` as a single line, then style it like FiveThirtyEight: light gray panel (`#f0f0f0`), white plot background, bold sans-serif title, no axis titles, and removed minor gridlines. Save the ggplot to `ex_2_1`.
+
+**Expected result:**
+
+```
+A single dark line of US unemployment from 1967 to 2015 on a
+#f0f0f0 panel with white surrounding background, bold title
+"US unemployment", no axis labels.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line(color = "#222222", linewidth = 0.8) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "US unemployment", subtitle = "Thousands of persons, 1967-2015",
+       x = NULL, y = NULL) +
+  theme(plot.background  = element_rect(fill = "white", color = NA),
+        panel.background = element_rect(fill = "#f0f0f0", color = NA),
+        panel.grid.major = element_line(color = "white"),
+        panel.grid.minor = element_blank(),
+        plot.title    = element_text(face = "bold", size = 14, hjust = 0),
+        plot.subtitle = element_text(color = "#555", hjust = 0))
+ex_2_1
+#> FiveThirtyEight-style unemployment line.
+```
+
+**Explanation:** FiveThirtyEight's signature is the warm gray panel (`#f0f0f0`) inside a white plot area, the opposite layering from the Economist. White gridlines on gray contribute to the "clean newspaper" feel: visible enough to read values, invisible enough not to compete with the data line. The bold sans-serif title with a smaller gray subtitle is the canonical header pattern.
+
+</details>
+
+### Exercise 2.2: Match the FiveThirtyEight signature gray background color exactly
+
+**Task:** Take a default `ggplot(mtcars, aes(wt, mpg)) + geom_point()` and apply only the panel background recolor to `#f0f0f0` without touching any other theme element. Save the styled ggplot to `ex_2_2`.
+
+**Expected result:**
+
+```
+A default-looking ggplot2 scatter of mtcars wt vs mpg with
+black points, but the panel background is now #f0f0f0 instead
+of the default gray-90. Everything else (gridlines, axes) unchanged.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- ggplot(mtcars, aes(wt, mpg)) +
+  geom_point() +
+  theme(panel.background = element_rect(fill = "#f0f0f0", color = NA))
+ex_2_2
+#> Default scatter with #f0f0f0 panel.
+```
+
+**Explanation:** The minimal-change recolor proves you understand which theme element controls which surface: `panel.background` is the rectangle behind the data, distinct from `plot.background` (the rectangle behind everything including margins). Setting `color = NA` removes the panel border that ggplot2 draws by default.
+
+</details>
+
+### Exercise 2.3: Build a 538-style horizontal bar of cars by MPG
+
+**Task:** Take `mtcars`, move row names into a `car` column, sort by `mpg` descending, then build a horizontal bar chart with one accent color (`#fc4f30`, the FiveThirtyEight red), 538-style gray panel, no axis title, and the car name on the y-axis. Save to `ex_2_3`.
+
+**Expected result:**
+
+```
+32 horizontal bars, one per car, sorted from highest MPG
+(Toyota Corolla) at top to lowest (Cadillac Fleetwood) at
+bottom, all #fc4f30, on a #f0f0f0 panel with white gridlines.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- mtcars |>
+  tibble::rownames_to_column("car") |>
+  ggplot(aes(x = mpg, y = reorder(car, mpg))) +
+  geom_col(fill = "#fc4f30") +
+  labs(title = "Fuel economy by car (1974)",
+       x = NULL, y = NULL) +
+  theme(plot.background  = element_rect(fill = "white", color = NA),
+        panel.background = element_rect(fill = "#f0f0f0", color = NA),
+        panel.grid.major.x = element_line(color = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", hjust = 0))
+ex_2_3
+#> 32 sorted horizontal bars, 538 red on gray.
+```
+
+**Explanation:** `tibble::rownames_to_column()` lifts row names into a proper column so they can be mapped to an aesthetic. Hiding y-grid (because the y-axis is categorical) and showing only x-grid (the continuous scale) matches the 538 rule of thumb: gridlines belong only on the continuous axis where reading numeric values matters.
+
+</details>
+
+### Exercise 2.4: Add a 538-style overline header and bold left-aligned title
+
+**Task:** Take `ex_2_1` and add a small all-caps overline label "ECONOMY" above the title in muted gray, plus tighten the subtitle to a one-sentence story. Use `labs()` and `theme()` only. Save the modified ggplot to `ex_2_4`.
+
+**Expected result:**
+
+```
+The unemployment line chart, now with an all-caps gray "ECONOMY"
+above the bold title and a one-sentence subtitle below it
+("Joblessness peaked in 2009 and has fallen since").
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_4 <- ex_2_1 +
+  labs(tag = "ECONOMY",
+       title = "US unemployment",
+       subtitle = "Joblessness peaked in 2009 and has fallen since") +
+  theme(plot.tag.position = c(0.02, 0.97),
+        plot.tag = element_text(face = "bold", size = 9, color = "#777", hjust = 0))
+ex_2_4
+#> Same line, now with ECONOMY overline + tighter subtitle.
+```
+
+**Explanation:** `plot.tag` is normally used for figure labels like "(a)" but can be repurposed as a kicker line, positioned manually with `plot.tag.position` in normalized plot coordinates. The kicker doubles as a topic tag and signals editorial context, a 538 convention borrowed from print journalism layouts.
+
+</details>
+
+### Exercise 2.5: Plot a 538 multi-series line with categorical color groups
+
+**Task:** Use `economics_long` filtered to `unemploy` and `psavert`, then plot both as lines colored from the 538 palette (`#008fd5`, `#fc4f30`) on a 538-style gray panel. Suppress the legend title and use a top-aligned horizontal legend just above the panel. Save the ggplot to `ex_2_5`.
+
+**Expected result:**
+
+```
+Two lines: psavert blue (#008fd5) and unemploy red (#fc4f30)
+on a #f0f0f0 panel. Legend sits above the panel, horizontal,
+no legend title. Bold left-aligned title.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_5 <- # your code here
+ex_2_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_5 <- economics_long |>
+  filter(variable %in% c("unemploy", "psavert")) |>
+  group_by(variable) |>
+  mutate(v = (value - min(value)) / (max(value) - min(value))) |>
+  ggplot(aes(x = date, y = v, color = variable)) +
+  geom_line(linewidth = 0.9) +
+  scale_color_manual(values = c(unemploy = "#fc4f30", psavert = "#008fd5")) +
+  labs(title = "Unemployment vs. personal savings rate",
+       subtitle = "Normalized [0,1] for shape comparison",
+       x = NULL, y = NULL, color = NULL) +
+  theme(plot.background  = element_rect(fill = "white", color = NA),
+        panel.background = element_rect(fill = "#f0f0f0", color = NA),
+        panel.grid.major = element_line(color = "white"),
+        panel.grid.minor = element_blank(),
+        legend.position  = "top",
+        legend.justification = "left",
+        legend.background = element_rect(fill = "white", color = NA),
+        plot.title = element_text(face = "bold"))
+ex_2_5
+#> Two-series 538 line chart, legend top-left.
+```
+
+**Explanation:** Putting the legend `"top"` and justifying `"left"` aligns it with the title, removing visual jitter that bottom legends introduce. `scale_color_manual` with a named vector explicitly maps factor levels to hex codes, which beats default ggplot2 hues for editorial consistency: you guarantee the same series gets the same color across every chart in a series.
+
+</details>
+
+### Exercise 2.6: Add 538-style end-of-line direct labels
+
+**Task:** Take `ex_2_5` and replace the legend with direct labels at the right end of each line, using `geom_text()` and the latest date in the data. Remove the legend entirely with `guides()`. Save the ggplot to `ex_2_6`.
+
+**Expected result:**
+
+```
+Same two normalized lines, but legend is gone. Each line now
+ends with its variable name in matching color just to the
+right of the final data point.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_6 <- # your code here
+ex_2_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+label_dat <- economics_long |>
+  filter(variable %in% c("unemploy", "psavert")) |>
+  group_by(variable) |>
+  mutate(v = (value - min(value)) / (max(value) - min(value))) |>
+  filter(date == max(date)) |>
+  ungroup()
+
+ex_2_6 <- ex_2_5 +
+  geom_text(data = label_dat,
+            aes(x = date, y = v, label = variable, color = variable),
+            hjust = -0.1, fontface = "bold", show.legend = FALSE) +
+  expand_limits(x = max(label_dat$date) + 365 * 3) +
+  guides(color = "none")
+ex_2_6
+#> Same lines, legend removed, names labeled at endpoints.
+```
+
+**Explanation:** Direct labels save a glance: readers do not have to look up at a legend then back down. The trick is to feed `geom_text` a tiny dataset of just the last points per group, `hjust = -0.1` to push the label slightly right of the line, and `expand_limits()` so the label is not clipped by the panel.
+
+</details>
+
+### Exercise 2.7: Build a 538 small-multiples panel grid with facet_wrap
+
+**Task:** Using `mpg`, build a small-multiples grid of `hwy` versus `displ` faceted by `class` (one panel per class), with 538 gray panels, white gridlines, and a single accent color (`#008fd5`) for points. Save the ggplot to `ex_2_7`.
+
+**Expected result:**
+
+```
+A 3x3 (or 4x2) grid of mini scatter plots, one per vehicle class,
+each on a #f0f0f0 panel with #008fd5 points. Strip labels above
+each panel name the class; bold left-aligned overall title.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_7 <- # your code here
+ex_2_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_7 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "#008fd5", alpha = 0.7) +
+  facet_wrap(~ class) +
+  labs(title = "Engine size vs. highway MPG, by class",
+       x = "Displacement (l)", y = "Highway MPG") +
+  theme(plot.background  = element_rect(fill = "white", color = NA),
+        panel.background = element_rect(fill = "#f0f0f0", color = NA),
+        panel.grid.major = element_line(color = "white"),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white", color = NA),
+        strip.text = element_text(face = "bold"),
+        plot.title = element_text(face = "bold"))
+ex_2_7
+#> 7-panel small-multiples grid in 538 styling.
+```
+
+**Explanation:** Small multiples beat one busy chart for comparing groups because each panel shares scales, so visual position is the comparison. `facet_wrap` packs panels into rows automatically; if you wanted a strict row-column layout (say, one row per class), `facet_grid(class ~ .)` would be the call.
+
+</details>
+
+### Exercise 2.8: Reproduce a 538 win-probability-style filled area chart
+
+**Task:** Build an inline tibble of 50 game minutes with a smoothed win probability for the home team (0-1), then plot it as a filled area chart with 538 red (`#fc4f30`) below 0.5 and 538 blue (`#008fd5`) above 0.5, with a horizontal reference line at 0.5. Save the ggplot to `ex_2_8`.
+
+**Expected result:**
+
+```
+A smooth area from minute 1 to 50, fill alternating red below
+and blue above a 0.5 horizontal reference line. Bold title
+"Win probability over the game".
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(1)
+wp <- tibble::tibble(
+  minute = 1:50,
+  win_prob = pmin(pmax(0.5 + cumsum(rnorm(50, 0, 0.04)), 0), 1)
+)
+ex_2_8 <- # your code here
+ex_2_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(1)
+wp <- tibble::tibble(
+  minute = 1:50,
+  win_prob = pmin(pmax(0.5 + cumsum(rnorm(50, 0, 0.04)), 0), 1)
+)
+ex_2_8 <- ggplot(wp, aes(x = minute, y = win_prob)) +
+  geom_area(aes(y = pmax(win_prob, 0.5)), fill = "#008fd5", alpha = 0.75) +
+  geom_area(aes(y = pmin(win_prob, 0.5)), fill = "#fc4f30", alpha = 0.75) +
+  geom_hline(yintercept = 0.5, color = "#222", linewidth = 0.4) +
+  scale_y_continuous(limits = c(0, 1), labels = percent) +
+  labs(title = "Win probability over the game",
+       subtitle = "Home team, simulated", x = "Minute", y = NULL) +
+  theme(plot.background  = element_rect(fill = "white", color = NA),
+        panel.background = element_rect(fill = "#f0f0f0", color = NA),
+        panel.grid.major = element_line(color = "white"),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_2_8
+#> 538 win-probability area chart.
+```
+
+**Explanation:** Two `geom_area` layers, each clipped to one side of 0.5 by `pmax`/`pmin`, build the bicolored fill. The 0.5 hline is the rhetorical anchor: anything above means the home team is favored, below means they are not. The `percent` formatter on the y-axis lets readers parse "63%" instead of "0.63".
+
+</details>
+
+## Section 3. BBC News-style charts (7 problems)
+
+### Exercise 3.1: Apply BBC News-style theme to a Titanic survival bar chart
+
+**Task:** Summarise `Titanic` by class and survival, then build a BBC News-style horizontal grouped bar chart with BBC blue (`#1380A1`) for survived and BBC red (`#990000`) for perished, white background, no gridlines on the y-axis, and bold left-aligned title. Save the ggplot to `ex_3_1`.
+
+**Expected result:**
+
+```
+4 grouped horizontal bar pairs (1st, 2nd, 3rd, Crew). Survived
+bars in #1380A1, perished bars in #990000. White background,
+horizontal x-axis gridlines only. Bold left-aligned title.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- as.data.frame(Titanic) |>
+  group_by(Class, Survived) |>
+  summarise(n = sum(Freq), .groups = "drop") |>
+  ggplot(aes(x = n, y = Class, fill = Survived)) +
+  geom_col(position = position_dodge2(reverse = TRUE)) +
+  scale_fill_manual(values = c(Yes = "#1380A1", No = "#990000"),
+                    labels = c("Perished", "Survived")) +
+  labs(title = "Titanic survival by class",
+       x = NULL, y = NULL, fill = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor   = element_blank(),
+        plot.title = element_text(face = "bold", size = 14, hjust = 0),
+        legend.position = "top", legend.justification = "left")
+ex_3_1
+#> BBC-style grouped bar chart.
+```
+
+**Explanation:** BBC's `bbplot` package builds this exact style; the recipe is a white background, grid only on the value axis, sans-serif bold title, and a top-left legend with no title. `position_dodge2` separates the survived/perished bars within each class so a reader compares the pair directly rather than reading proportions from a stack.
+
+</details>
+
+### Exercise 3.2: Apply BBC blue to a single-line BBC News-style chart
+
+**Task:** Plot `economics$pce` versus `economics$date` as a single line in BBC blue (`#1380A1`) on a white background with `theme_minimal()` and a bold left-aligned title only. Save the ggplot to `ex_3_2`.
+
+**Expected result:**
+
+```
+A single BBC-blue (#1380A1) line of US personal consumption
+expenditure from 1967 to 2015, white background, bold title
+"US consumer spending".
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- ggplot(economics, aes(x = date, y = pce)) +
+  geom_line(color = "#1380A1", linewidth = 1) +
+  labs(title = "US consumer spending",
+       subtitle = "Billions of dollars, 1967-2015",
+       x = NULL, y = NULL) +
+  scale_y_continuous(labels = comma) +
+  theme_minimal(base_family = "sans") +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0),
+        panel.grid.minor = element_blank())
+ex_3_2
+#> Single BBC-blue line, white background.
+```
+
+**Explanation:** `theme_minimal()` strips most chart furniture, then you re-add only what you want: title, gridlines on the value axis, axis labels. BBC's house color (`#1380A1`) is a calm teal-blue chosen for high contrast against white and against red flags. One color, one line, one title is the minimal news graphic.
+
+</details>
+
+### Exercise 3.3: Strip axis titles and use BBC's "title only" convention
+
+**Task:** Take `ex_3_2` and remove the axis titles entirely, expand the title to do double duty as the explanation ("US consumer spending nearly tripled from 1990 to 2015"), and add a small caption with the data source. Save the ggplot to `ex_3_3`.
+
+**Expected result:**
+
+```
+Same BBC-blue line as 3.2, but title now reads "US consumer
+spending nearly tripled from 1990 to 2015". No x or y axis
+title; caption "Source: ggplot2::economics" bottom-left.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- ex_3_2 +
+  labs(title = "US consumer spending nearly tripled from 1990 to 2015",
+       subtitle = NULL,
+       caption = "Source: ggplot2::economics") +
+  theme(axis.title = element_blank(),
+        plot.caption = element_text(hjust = 0, color = "#555"))
+ex_3_3
+#> Same chart, narrative title instead of label.
+```
+
+**Explanation:** BBC's data team writes titles as one-sentence findings, not topic labels. "US consumer spending" tells you what; "US consumer spending nearly tripled from 1990 to 2015" tells you what to take away. Removing axis titles and pushing the source to a caption is the rest of the BBC recipe.
+
+</details>
+
+### Exercise 3.4: Build a BBC horizontal grouped bar chart of diamonds by cut and color
+
+**Task:** Aggregate `diamonds` to mean `price` by `cut` and `color`, then build a BBC-style grouped horizontal bar chart with one bar per (cut, color) pair, dodged by `color`, using the BBC palette (`#1380A1`, `#FAAB18`, `#990000`, `#588300`, `#dddddd`, `#999999`, `#222222`). Save the ggplot to `ex_3_4`.
+
+**Expected result:**
+
+```
+A horizontal grouped bar chart: 5 cut categories on the y-axis,
+each split into 7 color sub-bars showing mean price.
+BBC palette, white background, x-axis gridlines only.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+bbc_pal <- c("#1380A1","#FAAB18","#990000","#588300","#dddddd","#999999","#222222")
+ex_3_4 <- diamonds |>
+  group_by(cut, color) |>
+  summarise(mean_price = mean(price), .groups = "drop") |>
+  ggplot(aes(x = mean_price, y = cut, fill = color)) +
+  geom_col(position = position_dodge(width = 0.85)) +
+  scale_fill_manual(values = bbc_pal) +
+  scale_x_continuous(labels = dollar) +
+  labs(title = "Mean diamond price by cut and color",
+       x = NULL, y = NULL, fill = "Color") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"),
+        legend.position = "top", legend.justification = "left")
+ex_3_4
+#> Grouped horizontal bar chart, BBC palette.
+```
+
+**Explanation:** Grouped bars (`position_dodge`) work when you want to compare members of a sub-group within a top category. With 5 cuts and 7 colors that is 35 bars: any more grouping levels and it stops being readable. `scale_x_continuous(labels = dollar)` formats the price axis as `$1,000` rather than `1000`, a small detail that signals editorial polish.
+
+</details>
+
+### Exercise 3.5: Stack survival proportions with BBC styling
+
+**Task:** Take the Titanic data, build a 100%-stacked BBC-style bar chart showing the *proportion* (not count) of survived versus perished within each class, using BBC blue and red. Add percent-formatted x-axis labels. Save the ggplot to `ex_3_5`.
+
+**Expected result:**
+
+```
+4 horizontal 100%-stacked bars (1st, 2nd, 3rd, Crew).
+Each bar is split into BBC-blue survived and BBC-red perished
+proportions adding to 100%. X-axis labels formatted as percent.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_5 <- # your code here
+ex_3_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_5 <- as.data.frame(Titanic) |>
+  group_by(Class, Survived) |>
+  summarise(n = sum(Freq), .groups = "drop") |>
+  group_by(Class) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = prop, y = Class, fill = Survived)) +
+  geom_col() +
+  scale_fill_manual(values = c(Yes = "#1380A1", No = "#990000"),
+                    labels = c("Perished", "Survived")) +
+  scale_x_continuous(labels = percent) +
+  labs(title = "Share who survived the Titanic, by class",
+       x = NULL, y = NULL, fill = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"),
+        legend.position = "top", legend.justification = "left")
+ex_3_5
+#> BBC-style 100%-stacked survival chart.
+```
+
+**Explanation:** Stacking *proportions* rather than counts puts every class on the same x-axis scale (0-100%), which is the right rhetorical frame for "share who survived". `group_by(Class) |> mutate(prop = n / sum(n))` computes per-class proportions; `scale_x_continuous(labels = percent)` displays them as 62% rather than 0.62.
+
+</details>
+
+### Exercise 3.6: Add a bold left-aligned BBC title with subtitle and source caption
+
+**Task:** Take `ex_3_5` and add the BBC News title hierarchy: bold sans-serif title (size 16), italic gray subtitle below ("First class passengers survived at three times the rate of crew"), and a small bottom-left caption naming the source. Save the ggplot to `ex_3_6`.
+
+**Expected result:**
+
+```
+Same 100%-stacked Titanic chart, now with bold size-16 title,
+italic gray subtitle, and bottom-left "Source: datasets::Titanic"
+caption, all left-aligned.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_6 <- # your code here
+ex_3_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_6 <- ex_3_5 +
+  labs(title = "Share who survived the Titanic, by class",
+       subtitle = "First-class passengers survived at three times the rate of crew",
+       caption = "Source: datasets::Titanic") +
+  theme(plot.title    = element_text(face = "bold", size = 16, hjust = 0),
+        plot.subtitle = element_text(face = "italic", color = "#555", hjust = 0, size = 11),
+        plot.caption  = element_text(hjust = 0, color = "#777", size = 8))
+ex_3_6
+#> Same chart with full BBC title block.
+```
+
+**Explanation:** The BBC News title hierarchy uses size and italic to set rank: bold title is the finding, italic subtitle is the elaboration, faded caption is the source. `hjust = 0` aligns all three to the left margin of the panel, which keeps the eye moving down the left column rather than zig-zagging across the figure.
+
+</details>
+
+### Exercise 3.7: Build a BBC-style annotated line with event labels
+
+**Task:** Plot `economics$unemploy` from 2005 onwards in BBC blue, then add two vertical reference lines at the 2008 and 2020 financial events with `geom_vline()` plus `annotate("text", ...)` labels. Save the ggplot to `ex_3_7`.
+
+**Expected result:**
+
+```
+BBC-blue line of unemployment from 2005 onward. Two vertical
+gray dashed lines mark Sep 2008 and Mar 2020, each annotated
+with a small italic text label at the top of the panel.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_7 <- # your code here
+ex_3_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+events <- data.frame(
+  date  = as.Date(c("2008-09-15", "2020-03-15")),
+  label = c("Lehman", "COVID lockdowns")
+)
+ex_3_7 <- economics |>
+  filter(date >= as.Date("2005-01-01")) |>
+  ggplot(aes(x = date, y = unemploy)) +
+  geom_line(color = "#1380A1", linewidth = 1) +
+  geom_vline(data = events, aes(xintercept = date),
+             color = "#555", linetype = "dashed", linewidth = 0.4) +
+  geom_text(data = events, aes(x = date, y = Inf, label = label),
+            vjust = 1.3, hjust = -0.05, color = "#555",
+            fontface = "italic", size = 3.2) +
+  labs(title = "US unemployment around two shocks",
+       x = NULL, y = NULL) +
+  scale_y_continuous(labels = comma) +
+  theme_minimal(base_family = "sans") +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0),
+        panel.grid.minor = element_blank())
+ex_3_7
+#> BBC-blue annotated unemployment line.
+```
+
+**Explanation:** Event annotations turn a line chart into a narrative: instead of "look at this curve", the chart says "look how the curve responded to Lehman, then to COVID". `geom_text(... y = Inf, vjust = 1.3)` parks labels at the top of the panel regardless of the data range, so resizing the plot does not knock them off-screen.
+
+</details>
+
+## Section 4. Scientific journal figures (8 problems)
+
+### Exercise 4.1: Publication-ready ToothGrowth scatter with error bars
+
+**Task:** Summarise `ToothGrowth` by `supp` and `dose` to mean tooth length and 95% confidence intervals via the t-distribution, then plot mean points colored by `supp` with `geom_errorbar()` at each dose. Use a colorblind-safe palette and minimal theme. Save the ggplot to `ex_4_1`.
+
+**Expected result:**
+
+```
+6 points (2 supps x 3 doses) with vertical 95% CI error bars,
+on a minimal white panel. Supps colored with colorblind-safe
+palette. X-axis is dose, y-axis is mean tooth length.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- ToothGrowth |>
+  group_by(supp, dose) |>
+  summarise(mean = mean(len),
+            se   = sd(len) / sqrt(n()),
+            n    = n(),
+            ci   = qt(0.975, n - 1) * se, .groups = "drop") |>
+  ggplot(aes(x = factor(dose), y = mean, color = supp, group = supp)) +
+  geom_errorbar(aes(ymin = mean - ci, ymax = mean + ci), width = 0.15,
+                position = position_dodge(width = 0.25)) +
+  geom_point(size = 3, position = position_dodge(width = 0.25)) +
+  scale_color_manual(values = c(OJ = "#E69F00", VC = "#0072B2")) +
+  labs(title = "Tooth growth response by supplement and dose",
+       x = "Dose (mg/day)", y = "Mean tooth length (mm)", color = "Supplement") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_4_1
+#> 6 mean points with t-95% CI bars, colorblind-safe palette.
+```
+
+**Explanation:** A 95% confidence interval is `mean +/- t * se`, not `mean +/- 1.96 * se`, when sample sizes are small. `qt(0.975, n - 1)` returns the right multiplier for each sample-size cell. `position_dodge` separates the two supplement series at each dose so error bars do not overlap, which is the journal-figure default.
+
+</details>
+
+### Exercise 4.2: Nature-style box-plus-jitter plot of ChickWeight
+
+**Task:** Build a Nature-style figure of `ChickWeight$weight` versus `ChickWeight$Diet`, with `geom_boxplot()` underneath and `geom_jitter()` overlaid. Use grayscale fills, monochrome black points with alpha, no panel border, and bold sans-serif text. Save the ggplot to `ex_4_2`.
+
+**Expected result:**
+
+```
+4 grouped distributions (Diet 1-4) of chick weight as boxplots
+filled in light gray with black-outlined jittered points
+overlaid. White background, no panel border, bold title.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_2 <- ggplot(ChickWeight, aes(x = factor(Diet), y = weight)) +
+  geom_boxplot(fill = "#dddddd", color = "#222222", outlier.shape = NA, width = 0.5) +
+  geom_jitter(width = 0.18, height = 0, alpha = 0.35, color = "#222222", size = 1.2) +
+  labs(title = "Chick weight by diet (all timepoints)",
+       x = "Diet", y = "Weight (g)") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_4_2
+#> Box-plus-jitter, monochrome.
+```
+
+**Explanation:** Journals like Nature increasingly expect the underlying observations on top of summary statistics: a boxplot alone hides the sample size and distribution shape. Hiding `outlier.shape = NA` prevents double-drawing outliers as both box outliers and jitter dots. Monochrome design is intentional: many journals reproduce figures in grayscale for print supplements.
+
+</details>
+
+### Exercise 4.3: Add significance brackets between PlantGrowth groups
+
+**Task:** Run a `pairwise.t.test()` on `PlantGrowth$weight` by `PlantGrowth$group`, then plot a boxplot of weight by group and overlay a manual significance bracket (segment + text) between the two groups with the smallest p-value, labeled with that p-value to two decimals. Save the ggplot to `ex_4_3`.
+
+**Expected result:**
+
+```
+3 monochrome boxplots (ctrl, trt1, trt2). A horizontal segment
+joins the boxplot pair with smallest pairwise p-value, with a
+small "p = 0.0X" label above it. Bold sans-serif title.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pw <- pairwise.t.test(PlantGrowth$weight, PlantGrowth$group, p.adjust.method = "none")
+pvals <- as.data.frame(as.table(pw$p.value)) |> filter(!is.na(Freq))
+smallest <- pvals[which.min(pvals$Freq), ]
+g1 <- as.character(smallest$Var1); g2 <- as.character(smallest$Var2)
+pv <- formatC(smallest$Freq, format = "f", digits = 2)
+y_top <- max(PlantGrowth$weight) + 0.4
+
+ex_4_3 <- ggplot(PlantGrowth, aes(x = group, y = weight)) +
+  geom_boxplot(fill = "#dddddd", color = "#222") +
+  annotate("segment", x = g1, xend = g2, y = y_top, yend = y_top, color = "#222") +
+  annotate("text",    x = g2, y = y_top + 0.15,
+           label = paste0("p = ", pv), size = 3.5, hjust = 1) +
+  labs(title = "PlantGrowth weight by group",
+       x = NULL, y = "Weight") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_4_3
+#> Boxplots with significance bracket on smallest-p pair.
+```
+
+**Explanation:** Significance brackets compress a pairwise test into a visual annotation: you do not need a separate stats table. Computing the smallest p-value first and parking the bracket at `max(weight) + 0.4` keeps the annotation just above the highest box. Use `p.adjust.method = "bonferroni"` for multiple-comparison correction when reporting in a paper.
+
+</details>
+
+### Exercise 4.4: Build a multi-panel Nature figure with facets
+
+**Task:** Build a four-panel figure: scatter `mpg` vs `wt`, box `mpg` by `cyl`, density of `mpg`, and barplot of `cyl` counts, then arrange them in a 2x2 grid using `patchwork` semantics in pure ggplot2 via `facet_wrap(~panel, scales = "free")` after stacking the four datasets. Save the final ggplot to `ex_4_4`.
+
+**Expected result:**
+
+```
+A 2x2 grid of four mini panels labeled (a) scatter, (b) box,
+(c) density, (d) bar. Each panel has its own scales and titles.
+Monochrome black-and-gray styling, bold panel labels.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mt <- mtcars |> mutate(cyl = factor(cyl))
+
+ex_4_4 <- ggplot() +
+  geom_point(data = transform(mt, panel = "(a) wt vs mpg"),
+             aes(x = wt, y = mpg), color = "#222") +
+  geom_boxplot(data = transform(mt, panel = "(b) mpg by cyl"),
+               aes(x = cyl, y = mpg), fill = "#dddddd", color = "#222") +
+  geom_density(data = transform(mt, panel = "(c) mpg density"),
+               aes(x = mpg), fill = "#cccccc", color = "#222") +
+  geom_bar(data = transform(mt, panel = "(d) cyl count"),
+           aes(x = cyl), fill = "#999999", color = "#222") +
+  facet_wrap(~ panel, scales = "free", ncol = 2) +
+  labs(title = "mtcars summary figure", x = NULL, y = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_4_4
+#> 2x2 multi-panel summary figure.
+```
+
+**Explanation:** Without patchwork installed, you can fake a multi-panel figure by stacking four geom layers, tagging each with a `panel` column, and faceting. `scales = "free"` lets each panel set its own x and y limits, which matters here because the boxplot's x is categorical while the scatter's x is continuous. The trade-off: shared scales are blocked.
+
+</details>
+
+### Exercise 4.5: Apply Okabe-Ito colorblind-safe palette to a sleepstudy plot
+
+**Task:** Plot `sleepstudy$Reaction` versus `sleepstudy$Days` colored by `Subject`, using the Okabe-Ito 8-color palette (`#000000`, `#E69F00`, `#56B4E9`, `#009E73`, `#F0E442`, `#0072B2`, `#D55E00`, `#CC79A7`) cycled across the 18 subjects, then add a `geom_smooth()` on top. Save the ggplot to `ex_4_5`.
+
+**Expected result:**
+
+```
+18 colored lines (subjects), reaction time rising with sleep
+deprivation days, colored by cycled Okabe-Ito palette. Black
+smooth trend line overlaid. White background, no minor grid.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_5 <- # your code here
+ex_4_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+okabe <- c("#000000","#E69F00","#56B4E9","#009E73","#F0E442",
+           "#0072B2","#D55E00","#CC79A7")
+ex_4_5 <- ggplot(sleepstudy, aes(x = Days, y = Reaction, color = Subject)) +
+  geom_line(alpha = 0.6) +
+  geom_smooth(aes(group = 1), color = "#222", linewidth = 1, se = FALSE) +
+  scale_color_manual(values = rep(okabe, length.out = length(unique(sleepstudy$Subject)))) +
+  labs(title = "Reaction time by days of sleep restriction",
+       x = "Days of sleep restriction", y = "Reaction time (ms)") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"),
+        legend.position = "none")
+ex_4_5
+#> 18 colored subject lines plus black trend overlay.
+```
+
+**Explanation:** The Okabe-Ito palette was designed to be distinguishable by readers with the most common forms of color vision deficiency, which is why journals like Nature recommend it. With 18 subjects you cycle the 8-color palette twice; suppressing the legend (`legend.position = "none"`) avoids a 18-row legend that would dominate the chart.
+
+</details>
+
+### Exercise 4.6: Journal-style line with shaded confidence band
+
+**Task:** Take `Loblolly` (tree heights), summarise mean height and 95% CI per `age`, then plot a line of mean height with a `geom_ribbon()` confidence band underneath in light gray. Use a minimal black-and-gray theme. Save the ggplot to `ex_4_6`.
+
+**Expected result:**
+
+```
+A black mean line rising with age (3-25 years) with a light-gray
+ribbon shading the 95% confidence interval beneath. White panel,
+bold title "Loblolly pine growth".
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_6 <- # your code here
+ex_4_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_6 <- Loblolly |>
+  group_by(age) |>
+  summarise(mean = mean(height),
+            se   = sd(height) / sqrt(n()),
+            ci   = qt(0.975, n() - 1) * se, .groups = "drop") |>
+  ggplot(aes(x = age, y = mean)) +
+  geom_ribbon(aes(ymin = mean - ci, ymax = mean + ci),
+              fill = "#cccccc", alpha = 0.6) +
+  geom_line(color = "#222", linewidth = 1) +
+  labs(title = "Loblolly pine growth",
+       x = "Tree age (years)", y = "Mean height (ft)") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_4_6
+#> Black mean line with gray 95% CI ribbon.
+```
+
+**Explanation:** The ribbon-plus-line idiom is the standard journal way to show a central estimate with its uncertainty: ribbon below (drawn first so it sits behind), line on top. Light gray fill at moderate alpha keeps the band visible without competing with the line. For per-group uncertainty bands, add a `fill` aesthetic and `group_by(... , category)`.
+
+</details>
+
+### Exercise 4.7: Build a publication-style heatmap of mtcars correlations
+
+**Task:** Compute the correlation matrix of `mtcars`, pivot it to long form, then build a heatmap with `geom_tile()` using a diverging blue-white-red palette, correlation values printed inside each cell rounded to 2 decimals. Save the ggplot to `ex_4_7`.
+
+**Expected result:**
+
+```
+11x11 heatmap of mtcars correlations. Diverging palette: dark
+blue strong negative, white near 0, dark red strong positive.
+Each cell shows the rounded correlation in black text.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_7 <- # your code here
+ex_4_7
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+corr_long <- as.data.frame(cor(mtcars)) |>
+  tibble::rownames_to_column("var1") |>
+  pivot_longer(-var1, names_to = "var2", values_to = "r")
+
+ex_4_7 <- ggplot(corr_long, aes(x = var1, y = var2, fill = r)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", r)), size = 2.7, color = "black") +
+  scale_fill_gradient2(low = "#2166ac", mid = "white", high = "#b2182b",
+                       midpoint = 0, limits = c(-1, 1)) +
+  labs(title = "mtcars correlation matrix",
+       x = NULL, y = NULL, fill = "r") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(face = "bold"))
+ex_4_7
+#> Diverging heatmap with in-cell r values.
+```
+
+**Explanation:** A diverging palette (`scale_fill_gradient2`) is the right choice when 0 has meaning: blue means anti-correlated, red means correlated, white means independent. Fixing `limits = c(-1, 1)` keeps the color scale comparable across panels if you later facet. Printing the correlation value inside each tile saves the reader from having to estimate from color alone.
+
+</details>
+
+### Exercise 4.8: Save a journal figure at 600 DPI print specs
+
+**Task:** Take `ex_4_2` and save it as a 1800x1200 pixel PNG at 600 DPI using `ggsave()` to a temp file. Print the saved file path along with the calculated width and height in inches as a named list. Save that list to `ex_4_8`.
+
+**Expected result:**
+
+```
+$path
+[1] "<temp>/chickweight-fig.png"
+$width_in
+[1] 3
+$height_in
+[1] 2
+$dpi
+[1] 600
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_8 <- # your code here
+ex_4_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+out_path <- tempfile(pattern = "chickweight-fig", fileext = ".png")
+ggsave(out_path, ex_4_2, width = 3, height = 2, dpi = 600, units = "in")
+ex_4_8 <- list(path = out_path, width_in = 3, height_in = 2, dpi = 600)
+ex_4_8
+#> $path
+#> [1] "<temp>/chickweight-fig<...>.png"
+#> $width_in
+#> [1] 3
+#> $height_in
+#> [1] 2
+#> $dpi
+#> [1] 600
+```
+
+**Explanation:** 600 DPI is the print standard for biology and chemistry journals (some require 1200 DPI for line art). 3 inches wide is a single-column figure; 7 inches is a full-page two-column figure. Always render to the target dimensions, not a larger size scaled down, so font sizes stay legible. Vector formats (PDF, EPS) sidestep DPI entirely.
+
+</details>
+
+## Section 5. Financial Times and Bloomberg-style charts (8 problems)
+
+### Exercise 5.1: Build a Financial Times pink-themed EuStockMarkets line
+
+**Task:** Convert `EuStockMarkets` to a long tibble of date and four series (DAX, SMI, CAC, FTSE), then plot all four as colored lines on the FT salmon-pink background (`#fff1e0`) with a thin black baseline at the bottom. Save the ggplot to `ex_5_1`.
+
+**Expected result:**
+
+```
+Four colored lines on a salmon-pink (#fff1e0) panel showing
+DAX, SMI, CAC, FTSE indices from 1991 to 1999.
+Bold left-aligned title "European stock indices".
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+eu_df <- as.data.frame(EuStockMarkets) |>
+  tibble::as_tibble() |>
+  mutate(date = as.Date("1991-01-01") + (seq_len(nrow(.)) - 1) * 1.5) |>
+  pivot_longer(-date, names_to = "index", values_to = "level")
+
+ex_5_1 <- ggplot(eu_df, aes(x = date, y = level, color = index)) +
+  geom_line(linewidth = 0.7) +
+  scale_color_manual(values = c(DAX = "#0f5499", SMI = "#990f3d",
+                                CAC = "#0d7680", FTSE = "#262a33")) +
+  labs(title = "European stock indices",
+       subtitle = "1991-1999, daily closes",
+       x = NULL, y = NULL, color = NULL) +
+  theme(plot.background  = element_rect(fill = "#fff1e0", color = NA),
+        panel.background = element_rect(fill = "#fff1e0", color = NA),
+        panel.grid.major.y = element_line(color = "#e7d8c6"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line.x = element_line(color = "#222"),
+        legend.background = element_rect(fill = "#fff1e0", color = NA),
+        legend.key = element_rect(fill = "#fff1e0", color = NA),
+        plot.title = element_text(face = "bold"))
+ex_5_1
+#> FT-pink four-line chart.
+```
+
+**Explanation:** FT's house pink (`#fff1e0`) is a calmer alternative to the Economist's blue-gray, but the design grammar is the same: solid background, restrained palette for series, thin axis line at the bottom. The four index colors are pulled from the FT visual style guide: blue for DAX, claret for SMI, teal for CAC, dark gray for FTSE.
+
+</details>
+
+### Exercise 5.2: Reproduce the Bloomberg terminal dark background
+
+**Task:** Plot `economics$pce` versus `economics$date` on a Bloomberg-style dark background (panel `#0a0a0a`, plot `#0a0a0a`), with line color `#ff9900` (Bloomberg amber), gridlines in dark gray `#222`, and white text for title and axis labels. Save the ggplot to `ex_5_2`.
+
+**Expected result:**
+
+```
+A bright amber (#ff9900) line of US PCE on a near-black
+(#0a0a0a) panel. Faint dark-gray gridlines, white title and
+axis text. Looks like a Bloomberg terminal screen.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- ggplot(economics, aes(x = date, y = pce)) +
+  geom_line(color = "#ff9900", linewidth = 0.8) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "US personal consumption expenditure",
+       x = NULL, y = NULL) +
+  theme(plot.background  = element_rect(fill = "#0a0a0a", color = NA),
+        panel.background = element_rect(fill = "#0a0a0a", color = NA),
+        panel.grid.major = element_line(color = "#222"),
+        panel.grid.minor = element_blank(),
+        axis.text  = element_text(color = "white"),
+        axis.title = element_text(color = "white"),
+        plot.title = element_text(color = "white", face = "bold"))
+ex_5_2
+#> Bloomberg-terminal-style amber line on near-black.
+```
+
+**Explanation:** The Bloomberg terminal's amber-on-black aesthetic exists because amber phosphor monitors were the standard finance hardware of the 1980s. Reproducing it for a chart signals "trading desk context". The key is to recolor every text element explicitly: `axis.text`, `axis.title`, `plot.title` each have their own color slot.
+
+</details>
+
+### Exercise 5.3: Add a Bloomberg-style ticker label at the line endpoint
+
+**Task:** Take `ex_5_2` and add a Bloomberg-style amber "PCE" ticker label at the right end of the line: a small amber rectangle behind a white bold ticker label positioned at the most recent data point. Use `annotate()` calls. Save the ggplot to `ex_5_3`.
+
+**Expected result:**
+
+```
+Same amber-on-black PCE line, now with a small amber rectangle
+just right of the last point, containing white bold text "PCE"
+mimicking a Bloomberg ticker tag.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+last_pt <- tail(economics, 1)
+ex_5_3 <- ex_5_2 +
+  annotate("rect",
+           xmin = last_pt$date,
+           xmax = last_pt$date + 365 * 2,
+           ymin = last_pt$pce * 0.97, ymax = last_pt$pce * 1.03,
+           fill = "#ff9900") +
+  annotate("text", x = last_pt$date + 365, y = last_pt$pce,
+           label = "PCE", color = "white", fontface = "bold", size = 3.5) +
+  expand_limits(x = last_pt$date + 365 * 3)
+ex_5_3
+#> Same chart with PCE ticker tag at line end.
+```
+
+**Explanation:** Two annotation layers do the work: a `rect` for the amber background tile, sized in date units (2 years wide) and price units (a thin band around the last value), then a `text` annotation centered inside it. `expand_limits()` extends the x-axis so the tile is not clipped at the panel edge.
+
+</details>
+
+### Exercise 5.4: Build an FT-style monochrome bar chart with sparse gridlines
+
+**Task:** Summarise `txhousing` to median sales per city (top 10 cities by total sales), then build a horizontal bar chart in FT monochrome navy (`#262a33`) on FT pink, with only x-axis gridlines visible and no panel border. Save the ggplot to `ex_5_4`.
+
+**Expected result:**
+
+```
+Top 10 Texas cities by median home sales, navy horizontal bars
+on a salmon-pink panel, sparse white x-gridlines only.
+Bold left-aligned title.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_4 <- txhousing |>
+  filter(!is.na(sales)) |>
+  group_by(city) |>
+  summarise(total = sum(sales), med = median(sales), .groups = "drop") |>
+  slice_max(total, n = 10) |>
+  ggplot(aes(x = med, y = reorder(city, med))) +
+  geom_col(fill = "#262a33") +
+  scale_x_continuous(labels = comma) +
+  labs(title = "Top Texas markets by median monthly sales",
+       x = NULL, y = NULL) +
+  theme(plot.background  = element_rect(fill = "#fff1e0", color = NA),
+        panel.background = element_rect(fill = "#fff1e0", color = NA),
+        panel.grid.major.x = element_line(color = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_5_4
+#> 10 navy bars on FT-pink panel.
+```
+
+**Explanation:** Sparse-grid layouts force the reader to anchor on the bar tip rather than gridline crossings, which is the FT preference for headline summaries. `slice_max(total, n = 10)` picks the top ten by total sales; reordering by `med` then sorts the bars by the value actually displayed, not the cut criterion.
+
+</details>
+
+### Exercise 5.5: Reproduce a Bloomberg candlestick-style OHLC chart
+
+**Task:** Build an inline 30-row tibble of daily OHLC bars with `date`, `open`, `high`, `low`, `close`. Plot each day as a vertical wick (low to high) with a wider body (open to close), colored green when `close > open` and red when `close < open`. Save the ggplot to `ex_5_5`.
+
+**Expected result:**
+
+```
+30 candlestick bars on a near-black panel. Up days have green
+bodies, down days have red bodies. Thin vertical wick lines run
+through each body from daily low to daily high.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(42)
+ohlc <- tibble::tibble(
+  date  = seq.Date(as.Date("2024-01-02"), by = "day", length.out = 30),
+  open  = 100 + cumsum(rnorm(30, 0, 0.7)),
+  close = 100 + cumsum(rnorm(30, 0, 0.7))
+) |> dplyr::mutate(
+  high = pmax(open, close) + abs(rnorm(30, 0, 0.5)),
+  low  = pmin(open, close) - abs(rnorm(30, 0, 0.5)),
+  dir  = ifelse(close >= open, "up", "down")
+)
+ex_5_5 <- # your code here
+ex_5_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(42)
+ohlc <- tibble::tibble(
+  date  = seq.Date(as.Date("2024-01-02"), by = "day", length.out = 30),
+  open  = 100 + cumsum(rnorm(30, 0, 0.7)),
+  close = 100 + cumsum(rnorm(30, 0, 0.7))
+) |> mutate(
+  high = pmax(open, close) + abs(rnorm(30, 0, 0.5)),
+  low  = pmin(open, close) - abs(rnorm(30, 0, 0.5)),
+  dir  = ifelse(close >= open, "up", "down")
+)
+
+ex_5_5 <- ggplot(ohlc, aes(x = date)) +
+  geom_segment(aes(xend = date, y = low, yend = high), color = "white") +
+  geom_rect(aes(xmin = date - 0.35, xmax = date + 0.35,
+                ymin = pmin(open, close), ymax = pmax(open, close),
+                fill = dir), color = NA) +
+  scale_fill_manual(values = c(up = "#00c853", down = "#d50000")) +
+  labs(title = "Daily OHLC bars",
+       x = NULL, y = "Price", fill = NULL) +
+  theme(plot.background  = element_rect(fill = "#0a0a0a", color = NA),
+        panel.background = element_rect(fill = "#0a0a0a", color = NA),
+        panel.grid = element_line(color = "#222"),
+        panel.grid.minor = element_blank(),
+        axis.text  = element_text(color = "white"),
+        axis.title = element_text(color = "white"),
+        plot.title = element_text(color = "white", face = "bold"),
+        legend.background = element_rect(fill = "#0a0a0a", color = NA),
+        legend.text = element_text(color = "white"),
+        legend.key  = element_rect(fill = "#0a0a0a"))
+ex_5_5
+#> 30 colored candlesticks on a Bloomberg dark panel.
+```
+
+**Explanation:** A candlestick is two glyphs stacked: a thin segment (wick) showing the day's range and a thicker rectangle (body) showing where the day opened and closed. `geom_rect` is the right primitive for the body because it gives independent control of x-width (`+/- 0.35` days) and y-extent. Green-up and red-down is the US convention; the rest of the world often uses the inverse.
+
+</details>
+
+### Exercise 5.6: Build an FT-style time series with shaded recession bars
+
+**Task:** Plot `economics$unemploy` over time as an FT-navy line on the FT pink panel, then shade two known US recession periods (2001 and 2008-2009) as light-gray translucent rectangles behind the line. Save the ggplot to `ex_5_6`.
+
+**Expected result:**
+
+```
+Navy line of US unemployment on a #fff1e0 panel.
+Two pale-gray vertical recession bands (2001 and 2008-2009) sit
+behind the line. Bold title "US unemployment".
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_6 <- # your code here
+ex_5_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
 recessions <- data.frame(
   start = as.Date(c("2001-03-01", "2007-12-01")),
-  end = as.Date(c("2001-11-01", "2009-06-01")),
-  label = c("Dot-com\nrecession", "Great\nRecession")
+  end   = as.Date(c("2001-11-01", "2009-06-01"))
 )
 
-ggplot(economics, aes(x = date, y = unemploy / 1000)) +
-  geom_rect(data = recessions,
+ex_5_6 <- ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_rect(data = recessions, inherit.aes = FALSE,
             aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE, fill = "#f0e0e0", alpha = 0.6) +
-  geom_line(color = "#e41a1c", linewidth = 0.8) +
-  annotate("text", x = as.Date("2001-07-01"), y = 14,
-           label = "Dot-com\nrecession", size = 3, color = "#888888",
-           lineheight = 0.9) +
-  annotate("text", x = as.Date("2008-09-01"), y = 14.5,
-           label = "Great\nRecession", size = 3, color = "#888888",
-           lineheight = 0.9) +
-  annotate("text", x = as.Date("2010-06-01"), y = 15.5,
-           label = "Peak: 15.4 million\nunemployed (Oct 2009)",
-           size = 3.2, color = "#333333", fontface = "bold",
-           lineheight = 0.9, hjust = 0) +
-  scale_x_date(date_breaks = "5 years", date_labels = "%Y",
-               limits = as.Date(c("1995-01-01", "2015-06-01"))) +
-  scale_y_continuous(labels = label_comma(suffix = "M")) +
-  labs(
-    title = "U.S. Unemployment Surged After Two Recessions",
-    subtitle = "Total unemployed persons, in millions (1995-2015)",
-    caption = "Source: U.S. Bureau of Labor Statistics via ggplot2::economics | r-statistics.co"
-  ) +
-  theme(
-    text = element_text(family = "sans"),
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white", color = NA),
-    panel.grid.major.y = element_line(color = "#e0e0e0", linewidth = 0.3),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.3),
-    axis.ticks.x = element_line(color = "#333333"),
-    axis.ticks.y = element_blank(),
-    axis.title = element_blank(),
-    axis.text = element_text(size = 10, color = "#555555"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#666666", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#999999", hjust = 0),
-    plot.margin = margin(15, 20, 10, 10)
-  )
-#> A line chart showing U.S. unemployment from 1995-2015.
-#> Two shaded pink rectangles mark the recession periods.
-#> The line rises sharply during 2008-2009, peaking at 15.4M.
-#> Annotations label each recession and the peak directly on the chart.
+            fill = "#999999", alpha = 0.3) +
+  geom_line(color = "#262a33", linewidth = 0.8) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "US unemployment with recession bars",
+       x = NULL, y = NULL) +
+  theme(plot.background  = element_rect(fill = "#fff1e0", color = NA),
+        panel.background = element_rect(fill = "#fff1e0", color = NA),
+        panel.grid.major.y = element_line(color = "#e7d8c6"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_5_6
+#> Navy line with gray recession bands.
 ```
 
-Three techniques make this chart feel like the NYT. First, `geom_rect()` draws shaded bands behind the line to mark recession periods, the pink rectangles give instant context without requiring the reader to look up dates. Second, `annotate("text")` places labels directly on the chart instead of relying on a separate legend. Third, the bold peak label ("Peak: 15.4 million") tells the reader the most important number without making them trace the line to the exact point.
+**Explanation:** Recession bands are a finance convention for showing that "this dip happened during X". The trick is `inherit.aes = FALSE` on `geom_rect`, otherwise it tries to inherit the line's x/y mapping. `ymin = -Inf, ymax = Inf` makes the band stretch the full panel height regardless of data range.
 
-[KEY INSIGHT]
-**Replace legends with direct labels whenever you have 1-3 data series.** Legends force readers to look away from the data, match a color, then look back. Direct annotations like "Great Recession" placed right next to the relevant area eliminate that back-and-forth entirely. This is the core NYT design principle.
+</details>
 
-[NOTE]
-**The `economics` dataset comes bundled with ggplot2.** It contains monthly U.S. economic data from 1967-2015 with columns for date, personal consumption, population, personal savings rate, unemployment duration, and number of unemployed. It's perfect for time series practice.
+### Exercise 5.7: Add FT-style data source caveat caption
 
-**Try it:** Add an annotation with an arrow pointing to the lowest unemployment point in the 1995-2015 window. Use `annotate("segment")` to draw the arrow.
+**Task:** Take `ex_5_6` and add a small italic bottom-left caption noting the data source and a one-line caveat ("Shaded areas: NBER-dated US recessions"). Move it just below the panel using `plot.caption` theme controls. Save to `ex_5_7`.
 
-```r title="Exercise: annotate the minimum"
-# Try it: annotate the minimum unemployment point
-# Hint: find the min, then use annotate("segment", ..., arrow = arrow())
-# and annotate("text", ...) to label it
+**Expected result:**
 
-#> Expected: an arrow pointing to the lowest point with a label like "Low: 5.7M (Apr 2000)"
+```
+Same unemployment chart, now with italic dark-gray caption at
+the bottom-left: "Source: ggplot2::economics. Shaded areas:
+NBER-dated US recessions."
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_5_7 <- # your code here
+ex_5_7
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Min-annotation solution"
-econ_subset <- economics |>
-  filter(date >= as.Date("1995-01-01") & date <= as.Date("2015-06-01"))
-min_point <- econ_subset |> filter(unemploy == min(unemploy))
+```r title="Solution"
+ex_5_7 <- ex_5_6 +
+  labs(caption = "Source: ggplot2::economics. Shaded areas: NBER-dated US recessions.") +
+  theme(plot.caption = element_text(face = "italic", hjust = 0,
+                                    color = "#555", size = 8))
+ex_5_7
+#> Same chart with FT-style source caption.
+```
 
-ggplot(econ_subset, aes(x = date, y = unemploy / 1000)) +
-  geom_rect(data = recessions,
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE, fill = "#f0e0e0", alpha = 0.6) +
-  geom_line(color = "#e41a1c", linewidth = 0.8) +
+**Explanation:** A source caveat is editorial table stakes for any finance chart: readers need to know who reported the data and what the shaded regions mean. `hjust = 0` left-aligns the caption with the rest of the title block, which is the FT convention; right-aligned captions look detached on wide charts.
+
+</details>
+
+### Exercise 5.8: Bloomberg-style screener tile grid for indices
+
+**Task:** Take the four EuStockMarkets indices and their daily percent change tibble, summarise the last-week mean return per index, then build a 1x4 tile grid: one square per index, colored green if positive and red if negative, with the index code in white bold text in the center of each tile. Save the ggplot to `ex_5_8`.
+
+**Expected result:**
+
+```
+A 1x4 grid of square tiles, one per index (DAX, SMI, CAC, FTSE).
+Each tile is green or red based on whether the last-week mean
+return is positive or negative. White bold ticker text centered.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_8 <- # your code here
+ex_5_8
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+eu_df <- as.data.frame(EuStockMarkets) |>
+  tibble::as_tibble() |>
+  mutate(t = seq_len(n())) |>
+  pivot_longer(-t, names_to = "index", values_to = "level") |>
+  group_by(index) |>
+  mutate(ret = (level - lag(level)) / lag(level)) |>
+  ungroup() |>
+  filter(t > max(t) - 5) |>
+  group_by(index) |>
+  summarise(mean_ret = mean(ret, na.rm = TRUE), .groups = "drop") |>
+  mutate(dir = ifelse(mean_ret >= 0, "up", "down"),
+         x = seq_along(index), y = 1)
+
+ex_5_8 <- ggplot(eu_df, aes(x = x, y = y)) +
+  geom_tile(aes(fill = dir), width = 0.9, height = 0.9) +
+  geom_text(aes(label = index), color = "white", fontface = "bold", size = 5) +
+  scale_fill_manual(values = c(up = "#00c853", down = "#d50000")) +
+  coord_equal() +
+  labs(title = "Weekly screener", x = NULL, y = NULL) +
+  theme_void(base_family = "sans") +
+  theme(plot.background = element_rect(fill = "#0a0a0a", color = NA),
+        plot.title = element_text(color = "white", face = "bold", hjust = 0),
+        legend.position = "none")
+ex_5_8
+#> 1x4 screener tile grid, green/red by direction.
+```
+
+**Explanation:** Screener tiles compress many series into a single eye-sweep: color carries direction, position carries identity. `coord_equal()` forces tiles to render as squares regardless of plot dimensions. `theme_void()` strips axes and panel altogether, then you add back only the title and a black plot background to evoke the Bloomberg terminal grid.
+
+</details>
+
+## Section 6. New York Times-style annotated charts (6 problems)
+
+### Exercise 6.1: Build an NYT-style line chart with inline annotations
+
+**Task:** Plot `economics$unemploy` over time as a thin black line on white, then add an inline italic annotation at the 2009 peak labeling "Great Recession peak" with a short connector segment from the label to the line. Save the ggplot to `ex_6_1`.
+
+**Expected result:**
+
+```
+Thin black line of US unemployment on white. A small italic
+gray label "Great Recession peak" sits near the 2009 high
+point, with a short angled segment connecting label to line.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+peak <- economics |> slice_max(unemploy, n = 1)
+label_xy <- list(x = peak$date - 365 * 3, y = peak$unemploy + 1000)
+
+ex_6_1 <- ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line(color = "#222", linewidth = 0.6) +
+  annotate("text", x = label_xy$x, y = label_xy$y,
+           label = "Great Recession peak",
+           fontface = "italic", color = "#555", size = 3.3, hjust = 1) +
   annotate("segment",
-           x = as.Date("2002-01-01"), xend = min_point$date,
-           y = 5, yend = min_point$unemploy / 1000 + 0.2,
-           arrow = arrow(length = unit(0.15, "cm")), color = "#333333") +
-  annotate("text", x = as.Date("2002-06-01"), y = 4.7,
-           label = paste0("Low: ", round(min_point$unemploy / 1000, 1),
-                          "M (", format(min_point$date, "%b %Y"), ")"),
-           size = 3.2, color = "#333333", fontface = "bold", hjust = 0) +
-  scale_x_date(date_breaks = "5 years", date_labels = "%Y") +
-  scale_y_continuous(labels = label_comma(suffix = "M")) +
-  labs(title = "U.S. Unemployment: From Record Low to Crisis",
-       subtitle = "Total unemployed persons, in millions") +
-  theme(
-    panel.background = element_rect(fill = "white", color = NA),
-    panel.grid.major.y = element_line(color = "#e0e0e0", linewidth = 0.3),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.3),
-    axis.ticks.y = element_blank(),
-    axis.title = element_blank(),
-    plot.title = element_text(face = "bold", size = 14),
-    plot.subtitle = element_text(size = 10, color = "#666666")
-  )
-#> An arrow points to the minimum unemployment point (around April 2000).
-#> The label reads "Low: 5.7M (Apr 2000)" next to the arrow.
+           x = label_xy$x + 60, xend = peak$date - 100,
+           y = label_xy$y - 100, yend = peak$unemploy,
+           color = "#555", linewidth = 0.3) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "US unemployment", x = NULL, y = NULL) +
+  theme_minimal(base_family = "serif") +
+  theme(plot.title = element_text(face = "bold", size = 14, hjust = 0),
+        panel.grid.minor = element_blank())
+ex_6_1
+#> Thin line with inline 2009 peak annotation.
 ```
 
-**Explanation:** `annotate("segment", ..., arrow = arrow())` draws a line with an arrowhead. The `x`/`y` pair sets the label end, and `xend`/`yend` sets the arrow tip pointing at the data.
+**Explanation:** NYT charts use annotations as captions placed *in* the panel rather than below it: the eye finds the highlighted point first, then the line context. The trick is computing the label position relative to the data point (`peak$date - 3 years`) so the connector segment lands cleanly. Serif typography on a minimal theme is the rest of the NYT recipe.
 
 </details>
 
-## How Do You Create a Modern Lollipop Chart for Data Journalism?
+### Exercise 6.2: Apply NYT serif typography and caption block
 
-Lollipop charts are bar charts' sleeker cousin, a thin segment topped with a dot. They work especially well when you have many categories with similar values, because the dots are easier to compare than thick bar edges. Modern data journalism sites use them frequently for rankings. Let's build one with the top 15 most fuel-efficient cars in `mtcars`.
+**Task:** Take `ex_6_1` and replace the default sans-serif theme with a serif `base_family`, set the title to medium weight (not bold), and add a caption with source and methodology. Save the modified ggplot to `ex_6_2`.
 
-```r title="Lollipop chart for top MPG cars"
-top_cars <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  arrange(desc(mpg)) |>
-  head(15) |>
-  mutate(
-    car = reorder(car, mpg),
-    highlight = ifelse(mpg == max(mpg), "best", "other")
-  )
+**Expected result:**
 
-ggplot(top_cars, aes(x = car, y = mpg)) +
-  geom_segment(aes(xend = car, y = 0, yend = mpg, color = highlight),
-               linewidth = 0.8) +
-  geom_point(aes(color = highlight), size = 3.5) +
-  scale_color_manual(values = c("best" = "#e41a1c", "other" = "#4292c6"),
-                     guide = "none") +
-  coord_flip() +
-  labs(
-    title = "Most Fuel-Efficient Cars in mtcars",
-    subtitle = "Miles per gallon — the Toyota Corolla leads the pack",
-    caption = "Source: 1974 Motor Trend magazine | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#fafafa", color = NA),
-    panel.background = element_rect(fill = "#fafafa", color = NA),
-    panel.grid.major.x = element_line(color = "#e8e8e8", linewidth = 0.3),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank(),
-    axis.text.y = element_text(size = 9, color = "#333333"),
-    axis.text.x = element_text(size = 9, color = "#777777"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#999999", hjust = 0),
-    plot.margin = margin(15, 20, 10, 10)
-  )
-#> A horizontal lollipop chart ranking 15 cars by MPG.
-#> Toyota Corolla (33.9 mpg) is highlighted in red at the top.
-#> All other cars appear in blue, creating a clear visual focal point.
-#> The thin segments and dots make small differences easy to compare.
+```
+Same unemployment chart, but title and labels are now serif.
+Title is regular-weight italic-styled; small italic gray
+caption "Source: ggplot2::economics" sits bottom-left.
 ```
 
-[NOTE]
-**coord_flip() swaps x and y axes without changing your aes() mapping.** You still define `aes(x = car, y = mpg)` as if the chart were vertical, and coord_flip() rotates the entire thing. This makes it easy to switch between horizontal and vertical layouts without rewriting your aesthetics.
+**Difficulty:** Intermediate
 
-The lollipop chart solves a specific problem: when you have 10+ categories, thick bars create visual clutter. The thin segment + dot combination reduces ink and draws the eye to the endpoints, which is where the actual comparison happens.
-
-The highlight strategy is key to data journalism. Instead of coloring all 15 cars differently (which would overwhelm the reader), we use just two colors: red for the leader and blue for everyone else. The subtitle reinforces this, "the Toyota Corolla leads the pack", so the visual and textual stories align.
-
-[TIP]
-**Use lollipop charts instead of bar charts when you have more than 8-10 categories or when values are close together.** Thin segments reduce visual clutter, and the dots make it easier to compare endpoints. For fewer categories or large value differences, stick with bars, they're more familiar.
-
-**Try it:** Instead of highlighting just the top car, highlight the top 3 cars in red and keep the rest in blue.
-
-```r title="Exercise: highlight top three"
-# Try it: highlight top 3 cars
-# Hint: change the ifelse() condition to use rank() or row_number()
-top_cars <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  arrange(desc(mpg)) |>
-  head(15) |>
-  mutate(car = reorder(car, mpg))
-
-# Modify highlight logic for top 3:
-# your code here
-
-#> Expected: top 3 cars in red, remaining 12 in blue
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Top-three solution"
-ex_top_cars <- mtcars |>
-  mutate(car = rownames(mtcars)) |>
-  arrange(desc(mpg)) |>
-  head(15) |>
-  mutate(
-    car = reorder(car, mpg),
-    highlight = ifelse(row_number() <= 3, "top3", "other")
-  )
-
-ggplot(ex_top_cars, aes(x = car, y = mpg)) +
-  geom_segment(aes(xend = car, y = 0, yend = mpg, color = highlight),
-               linewidth = 0.8) +
-  geom_point(aes(color = highlight), size = 3.5) +
-  scale_color_manual(values = c("top3" = "#e41a1c", "other" = "#4292c6"),
-                     guide = "none") +
-  coord_flip() +
-  labs(
-    title = "Top 15 Fuel-Efficient Cars",
-    subtitle = "Top 3 highlighted — all exceed 30 MPG"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#fafafa", color = NA),
-    panel.background = element_rect(fill = "#fafafa", color = NA),
-    panel.grid.major.x = element_line(color = "#e8e8e8", linewidth = 0.3),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank(),
-    plot.title = element_text(face = "bold", size = 14),
-    plot.subtitle = element_text(size = 10, color = "#555555")
-  )
-#> Top 3 cars (Toyota Corolla, Fiat 128, Honda Civic) appear in red.
-#> The remaining 12 cars are in blue.
+```r title="Solution"
+ex_6_2 <- ex_6_1 +
+  labs(caption = "Source: ggplot2::economics. Monthly thousands of persons, 1967-2015.") +
+  theme(text = element_text(family = "serif"),
+        plot.title = element_text(face = "plain", size = 16, hjust = 0),
+        plot.caption = element_text(face = "italic", color = "#777",
+                                    hjust = 0, size = 8))
+ex_6_2
+#> Same chart, serif typography, NYT caption block.
 ```
 
-**Explanation:** After `arrange(desc(mpg))`, `row_number() <= 3` correctly identifies the three highest-MPG cars. The reorder by mpg ensures they appear at the top of the horizontal chart.
+**Explanation:** Serif typography aligns the chart with NYT body text: in a printed paper, charts in sans-serif feel like advertisements, charts in serif feel like reporting. Setting `face = "plain"` on the title (rather than bold) is part of the same instinct: NYT headlines lean on size and weight only when shouting; default charts whisper.
 
 </details>
 
-## Practice Exercises
+### Exercise 6.3: Replace the legend with NYT-style direct labels
 
-### Exercise 1: Economist-Style Box Plot
+**Task:** Take a multi-line plot of `economics_long` filtered to `pce`, `psavert`, `unemploy` (each normalized), and replace the legend with direct labels at the right end of each line in matching colors. Use the NYT serif theme from 6.2. Save the ggplot to `ex_6_3`.
 
-Create an Economist-style box plot showing highway MPG (`hwy`) by vehicle `class` from the `mpg` dataset. Requirements:
+**Expected result:**
 
-- Use the blue-gray background (`#d5e4eb`) with white horizontal gridlines
-- Sort classes by median hwy (highest first) using `reorder()`
-- Add a bold title: "Highway Fuel Economy Varies Widely by Vehicle Class"
-- Add a subtitle and source caption
-- Use a single fill color (`#01a2d9`) for all boxes
+```
+Three normalized lines (pce, psavert, unemploy) on a white
+serif theme. Each line ends with its name labeled directly
+in matching color at the right end, no legend block.
+```
 
-```r title="Exercise: Economist-style box plot"
-# Exercise 1: Economist-style box plot
-# Hint: reorder(class, hwy, FUN = median) sorts by median
-# Hint: coord_flip() makes horizontal boxes easier to read
+**Difficulty:** Intermediate
 
-# Write your code below:
-
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Box-plot solution"
-ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
-  geom_boxplot(fill = "#01a2d9", color = "#014d64", alpha = 0.8,
-               outlier.color = "#c23b22", outlier.size = 2) +
-  coord_flip() +
-  labs(
-    title = "Highway Fuel Economy Varies Widely by Vehicle Class",
-    subtitle = "Distribution of highway MPG — compact and subcompact lead",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.grid.major.x = element_line(color = "white", linewidth = 0.5),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.y = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.4),
-    axis.ticks.y = element_blank(),
-    axis.ticks.x = element_line(color = "#333333"),
-    axis.title = element_blank(),
-    axis.text = element_text(size = 10, color = "#333333"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#666666", hjust = 0),
-    plot.margin = margin(15, 20, 10, 10)
-  )
-#> Horizontal box plots sorted by median highway MPG.
-#> Compact and subcompact sit at the top with medians around 28-29 MPG.
-#> Pickups and SUVs cluster at the bottom, around 17-18 MPG.
-#> Outliers appear as red dots.
+```r title="Solution"
+dat <- economics_long |>
+  filter(variable %in% c("pce", "psavert", "unemploy")) |>
+  group_by(variable) |>
+  mutate(v = (value - min(value)) / (max(value) - min(value))) |>
+  ungroup()
+
+end_dat <- dat |> group_by(variable) |> filter(date == max(date)) |> ungroup()
+
+ex_6_3 <- ggplot(dat, aes(x = date, y = v, color = variable)) +
+  geom_line(linewidth = 0.7) +
+  geom_text(data = end_dat,
+            aes(label = variable),
+            hjust = -0.1, fontface = "italic", show.legend = FALSE) +
+  scale_color_manual(values = c(pce = "#003f5c", psavert = "#7a5195", unemploy = "#bc5090")) +
+  expand_limits(x = max(end_dat$date) + 365 * 3) +
+  guides(color = "none") +
+  labs(title = "Three US macro series, normalized", x = NULL, y = NULL) +
+  theme_minimal(base_family = "serif") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "plain", size = 16))
+ex_6_3
+#> Three lines with end-labels, no legend.
 ```
 
-**Explanation:** `reorder(class, hwy, FUN = median)` sorts classes by their median highway MPG. `coord_flip()` makes the box plots horizontal, which is easier to read with text labels. The Economist theme elements, blue-gray background, white gridlines, no y-axis line, carry over directly from the scatter plot project.
+**Explanation:** Direct labels cut a step out of reading a multi-series chart: instead of glance-line-glance-legend-glance-back, the reader's eye lands on the line tip and reads. NYT does this almost universally for time-series with 3-5 lines; beyond five, a legend becomes unavoidable. Italic labels echo the serif body text below the chart.
 
 </details>
 
-### Exercise 2: Side-by-Side Panel, Two Styles, One Dataset
+### Exercise 6.4: NYT-style highlight chart with one bold line, rest faded
 
-Create a two-panel figure using `mpg` data. The left panel is a FiveThirtyEight-style bar chart of average highway MPG by class. The right panel is a journal-style scatter plot of `displ` vs `hwy`. Arrange them side by side using `gridExtra::grid.arrange()` or by saving each plot to a variable and printing them.
+**Task:** Take an `mpg` scatter of `hwy` versus `displ` colored by `class`, then highlight only `suv` rows in a bold dark color and render every other class in a faded light gray. Add a centered label "SUVs cluster at high displacement, low MPG". Save the ggplot to `ex_6_4`.
 
-```r title="Exercise: two-panel figure"
-# Exercise 2: Two-panel figure
-# Hint: save each ggplot to a variable (p1, p2)
-# Hint: print them separately since WebR renders one plot at a time
-# Panel 1: FiveThirtyEight bar chart of mean hwy by class
-# Panel 2: Journal-style scatter of displ vs hwy
+**Expected result:**
 
-# Write your code below:
+```
+A mpg scatter where SUV points stand out in dark blue
+(#003f5c) and all other class points are pale gray (#cccccc).
+An italic text label above the SUV cluster names the pattern.
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Two-panel solution part one"
-# Panel 1: FiveThirtyEight-style bar chart
-my_means <- mpg |>
-  group_by(class) |>
-  summarise(avg_hwy = mean(hwy)) |>
-  mutate(class = reorder(class, avg_hwy))
+```r title="Solution"
+mpg_high <- mpg |> mutate(is_suv = class == "suv")
 
-my_p1 <- ggplot(my_means, aes(x = class, y = avg_hwy)) +
-  geom_col(fill = "#008fd5", width = 0.7) +
-  coord_flip() +
-  labs(title = "Average Highway MPG by Class") +
-  theme(
-    plot.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.background = element_rect(fill = "#f0f0f0", color = NA),
-    panel.grid.major.x = element_line(color = "#cbcbcb", linewidth = 0.3),
-    panel.grid.major.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line = element_blank(),
-    axis.ticks = element_blank(),
-    axis.title = element_blank(),
-    plot.title = element_text(face = "bold", size = 12)
-  )
-print(my_p1)
-#> FiveThirtyEight-style horizontal bar chart.
-#> Compact class has the highest average (~28 MPG).
+ex_6_4 <- ggplot(mpg_high, aes(x = displ, y = hwy, color = is_suv)) +
+  geom_point(aes(alpha = is_suv), size = 2.5) +
+  scale_color_manual(values = c(`TRUE` = "#003f5c", `FALSE` = "#cccccc")) +
+  scale_alpha_manual(values = c(`TRUE` = 1, `FALSE` = 0.5)) +
+  annotate("text", x = 6.5, y = 28,
+           label = "SUVs cluster at high\ndisplacement, low MPG",
+           hjust = 1, fontface = "italic", size = 3.5, color = "#003f5c") +
+  labs(title = "SUVs stand out in fuel-economy data",
+       x = "Displacement (l)", y = "Highway MPG") +
+  guides(color = "none", alpha = "none") +
+  theme_minimal(base_family = "serif") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "plain", size = 16))
+ex_6_4
+#> Highlight chart: SUVs dark, rest faded gray.
 ```
 
-```r title="Two-panel solution part two"
-# Panel 2: Journal-style scatter plot
-my_p2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(size = 1.8, alpha = 0.6, color = "black") +
-  geom_smooth(method = "lm", se = TRUE, color = "black", linewidth = 0.7) +
-  labs(x = "Engine displacement (L)", y = "Highway MPG (miles/gallon)") +
-  theme_classic(base_size = 11) +
-  theme(
-    axis.title = element_text(face = "bold"),
-    axis.text = element_text(color = "black"),
-    plot.title = element_text(face = "bold", size = 12)
-  ) +
-  labs(title = "Displacement vs. Highway MPG")
-print(my_p2)
-#> Journal-style scatter with a linear regression line and
-#> confidence band. Clear negative trend — larger engines,
-#> lower MPG.
-```
-
-**Explanation:** Each panel is saved as a variable and printed separately. The FiveThirtyEight panel uses the gray-background, no-border style. The journal panel uses `theme_classic()` with bold axis labels and a regression line. In a local R session, you'd use `gridExtra::grid.arrange(my_p1, my_p2, ncol = 2)` to place them side by side.
+**Explanation:** Highlight charts answer one question loudly: "where does this subset sit relative to the rest?" Two scales do the work: `scale_color_manual` for the figure-vs-ground split, `scale_alpha_manual` to push the background even further back. The inline italic label is the rhetorical kicker: it tells the reader what they are supposed to notice.
 
 </details>
 
-### Exercise 3: Annotated Time Series with Two Metrics
+### Exercise 6.5: NYT small-multiples sleep-deprivation panels per subject
 
-Using the `economics` dataset, create an NYT-style chart that shows both unemployment count (`unemploy`) and personal savings rate (`psavert`) over the 2000-2015 period. Since these have different scales, normalize both to a 0-1 range so they can share the y-axis. Add recession shading and direct labels for each line (no legend).
+**Task:** Build a small-multiples grid from `sleepstudy`, one panel per `Subject`, each showing the per-subject regression line of `Reaction` versus `Days` in dark navy on a minimal serif theme. Strip backgrounds white, faceted with `facet_wrap`. Save the ggplot to `ex_6_5`.
 
-```r title="Exercise: dual-metric time series"
-# Exercise 3: Dual-metric annotated time series
-# Hint: use scale() or rescale to a 0-1 range
-# Hint: annotate() with text labels at the right end of each line
-# Hint: use the recessions data frame from earlier
+**Expected result:**
 
-# Write your code below:
+```
+A 6x3 grid (or similar) of mini line plots, one per subject,
+each showing reaction time rising with days of sleep restriction
+plus a faint regression line. Serif text, subtle gridlines.
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_5 <- # your code here
+ex_6_5
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Dual-metric solution"
-my_econ <- economics |>
-  filter(date >= as.Date("2000-01-01") & date <= as.Date("2015-01-01")) |>
-  mutate(
-    unemploy_norm = (unemploy - min(unemploy)) / (max(unemploy) - min(unemploy)),
-    psavert_norm = (psavert - min(psavert)) / (max(psavert) - min(psavert))
-  )
+```r title="Solution"
+ex_6_5 <- ggplot(sleepstudy, aes(x = Days, y = Reaction)) +
+  geom_point(size = 0.8, color = "#003f5c") +
+  geom_smooth(method = "lm", se = FALSE, color = "#003f5c", linewidth = 0.5) +
+  facet_wrap(~ Subject, ncol = 6) +
+  labs(title = "Sleep restriction: each subject's reaction-time slope",
+       x = "Days of sleep restriction", y = "Reaction time (ms)") +
+  theme_minimal(base_family = "serif") +
+  theme(panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "white", color = NA),
+        strip.text = element_text(face = "italic", size = 8),
+        plot.title = element_text(face = "plain", size = 14))
+ex_6_5
+#> Per-subject small-multiples sleep-deprivation grid.
+```
 
-my_recessions <- data.frame(
-  start = as.Date(c("2001-03-01", "2007-12-01")),
-  end = as.Date(c("2001-11-01", "2009-06-01"))
+**Explanation:** Small multiples beat a single multi-line chart when slopes vary: each panel preserves the subject-level slope cleanly, whereas an 18-line overplot becomes unreadable. `method = "lm"` fits a per-panel linear regression because `facet_wrap` partitions the data before `geom_smooth` runs. Italic strip labels feel like editor captions rather than chart labels.
+
+</details>
+
+### Exercise 6.6: Add NYT overlay annotations with tooltip-like text boxes
+
+**Task:** Take `ex_6_1` and add a second annotation: a light-gray rectangle behind italic text noting "Unemployment fell below 4% in 2018, the lowest in 49 years" at the right of the plot. Use `annotate("rect", ...)` and `annotate("text", ...)`. Save to `ex_6_6`.
+
+**Expected result:**
+
+```
+Same unemployment chart, now with a second annotation: a pale
+gray box near the late-2010s portion of the line containing
+italic text about the 2018 low. The first 2009 annotation stays.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_6 <- # your code here
+ex_6_6
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_6 <- ex_6_1 +
+  annotate("rect",
+           xmin = as.Date("2014-01-01"), xmax = as.Date("2018-06-01"),
+           ymin = 9500, ymax = 10500,
+           fill = "#eeeeee", color = NA, alpha = 0.7) +
+  annotate("text",
+           x = as.Date("2016-04-01"), y = 10000,
+           label = "Lowest jobless rate\nin nearly 50 years",
+           fontface = "italic", color = "#333", size = 3, hjust = 0.5)
+ex_6_6
+#> Same chart with a second tooltip-style annotation.
+```
+
+**Explanation:** Tooltip-style overlay annotations are an NYT staple for online charts: a pale rectangle backs the text so it stays readable when it crosses a gridline or the line itself. The trick is layering rect first (so it sits behind text) and text second, both with `annotate()` so they live outside any data mapping.
+
+</details>
+
+## Section 7. End-to-end visualization projects (5 multi-step problems)
+
+### Exercise 7.1: Build a complete air-quality dashboard from airquality
+
+**Task:** Build a 4-panel dashboard from `airquality` showing: (1) ozone time series over `Day`, (2) ozone-temperature scatter, (3) ozone density histogram, (4) monthly mean ozone bar chart. Combine the panels via `facet_wrap(~ panel, scales = "free")` after stacking. Save the final ggplot to `ex_7_1`.
+
+**Expected result:**
+
+```
+A 2x2 dashboard with four panels:
+(a) ozone vs day line
+(b) ozone vs temp scatter
+(c) ozone histogram
+(d) monthly mean ozone bar
+Each on its own free scale, monochrome blue theme, bold title.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_7_1 <- # your code here
+ex_7_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+aq <- airquality |> filter(!is.na(Ozone))
+
+monthly <- aq |> group_by(Month) |>
+  summarise(mean_o = mean(Ozone), .groups = "drop")
+
+panels <- bind_rows(
+  transform(aq,      panel = "(a) Ozone over days",  x = Day,   y = Ozone),
+  transform(aq,      panel = "(b) Ozone vs Temp",    x = Temp,  y = Ozone),
+  transform(aq,      panel = "(c) Ozone density",    x = Ozone, y = 0),
+  transform(monthly, panel = "(d) Monthly mean ozone", x = Month, y = mean_o)
 )
 
-ggplot(my_econ, aes(x = date)) +
-  geom_rect(data = my_recessions,
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE, fill = "#f0e0e0", alpha = 0.6) +
-  geom_line(aes(y = unemploy_norm), color = "#e41a1c", linewidth = 0.8) +
-  geom_line(aes(y = psavert_norm), color = "#377eb8", linewidth = 0.8) +
-  annotate("text", x = as.Date("2014-06-01"), y = 0.38,
-           label = "Unemployment", color = "#e41a1c", fontface = "bold",
-           size = 3.5, hjust = 0) +
-  annotate("text", x = as.Date("2014-06-01"), y = 0.18,
-           label = "Savings rate", color = "#377eb8", fontface = "bold",
-           size = 3.5, hjust = 0) +
-  scale_y_continuous(labels = scales::percent_format()) +
-  scale_x_date(date_breaks = "3 years", date_labels = "%Y") +
-  labs(
-    title = "Unemployment and Savings Moved in Opposite Directions",
-    subtitle = "Both metrics normalized to 0-1 scale (2000-2015)",
-    caption = "Source: BLS via ggplot2::economics | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "white", color = NA),
-    panel.background = element_rect(fill = "white", color = NA),
-    panel.grid.major.y = element_line(color = "#e0e0e0", linewidth = 0.3),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.3),
-    axis.ticks.y = element_blank(),
-    axis.title = element_blank(),
-    plot.title = element_text(face = "bold", size = 13),
-    plot.subtitle = element_text(size = 10, color = "#666666"),
-    plot.caption = element_text(size = 8, color = "#999999")
-  )
-#> Two lines on a shared normalized axis.
-#> Red (unemployment) rises sharply during 2008-2010.
-#> Blue (savings rate) also spikes during the Great Recession,
-#> then gradually declines. Direct labels replace the legend.
+ex_7_1 <- ggplot() +
+  geom_line(data = subset(panels, panel == "(a) Ozone over days"),
+            aes(x = x, y = y), color = "#1d4e89") +
+  geom_point(data = subset(panels, panel == "(b) Ozone vs Temp"),
+             aes(x = x, y = y), color = "#1d4e89", alpha = 0.6) +
+  geom_histogram(data = subset(panels, panel == "(c) Ozone density"),
+                 aes(x = x), bins = 20, fill = "#1d4e89") +
+  geom_col(data = subset(panels, panel == "(d) Monthly mean ozone"),
+           aes(x = factor(x), y = y), fill = "#1d4e89") +
+  facet_wrap(~ panel, scales = "free", ncol = 2) +
+  labs(title = "Air-quality dashboard, May-September 1973",
+       x = NULL, y = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_7_1
+#> 2x2 dashboard, monochrome navy on white.
 ```
 
-**Explanation:** Min-max normalization `(x - min) / (max - min)` maps both metrics to a 0-1 range so they share the same y-axis. Direct `annotate("text")` labels at the right end of each line replace a traditional legend, following the NYT convention. The recession shading reuses the same `geom_rect()` technique from the earlier project.
+**Explanation:** A four-panel dashboard reproduces what an EDA notebook would show on one screen: trends over time, pairwise associations, marginal distributions, group aggregates. Stacking all four datasets with a `panel` column lets one `facet_wrap` produce the layout without an extra package. Free scales are essential because each panel has different x and y units.
 
 </details>
 
-## Complete Example
+### Exercise 7.2: Reproduce a Pew Research-style report figure
 
-Let's build one more chart from a blank canvas to a polished final product, applying everything you've learned. We'll create an Economist-style grouped bar chart showing average highway MPG by vehicle class, comparing 1999 vs 2008 model years.
+**Task:** Build a 2-panel Pew-style figure from `txhousing`: top panel is total sales across all cities over time, bottom panel is median listings. Use Pew dark blue (`#0085a1`), small caps section headers, and a thin horizontal line separator between panels via faceting. Save the final ggplot to `ex_7_2`.
 
-```r title="Economist-style grouped bar chart"
-year_class <- mpg |>
-  group_by(year, class) |>
-  summarise(avg_hwy = mean(hwy), .groups = "drop") |>
-  mutate(
-    class = reorder(class, avg_hwy, FUN = max),
-    year = factor(year)
-  )
+**Expected result:**
 
-ggplot(year_class, aes(x = class, y = avg_hwy, fill = year)) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
-  scale_fill_manual(values = c("1999" = "#6794a7", "2008" = "#014d64")) +
-  labs(
-    title = "Fuel Economy Improved Modestly Between 1999 and 2008",
-    subtitle = "Average highway MPG by vehicle class and model year",
-    fill = "Model year",
-    caption = "Source: EPA fuel economy data | r-statistics.co"
-  ) +
-  theme(
-    plot.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.background = element_rect(fill = "#d5e4eb", color = NA),
-    panel.grid.major.y = element_line(color = "white", linewidth = 0.5),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    axis.line.x = element_line(color = "#333333", linewidth = 0.4),
-    axis.ticks.y = element_blank(),
-    axis.ticks.x = element_line(color = "#333333"),
-    axis.title = element_blank(),
-    axis.text = element_text(size = 10, color = "#333333"),
-    plot.title = element_text(face = "bold", size = 14, hjust = 0),
-    plot.subtitle = element_text(size = 10, color = "#555555", hjust = 0),
-    plot.caption = element_text(size = 8, color = "#666666", hjust = 0),
-    legend.background = element_rect(fill = "#d5e4eb", color = NA),
-    legend.key = element_rect(fill = "#d5e4eb", color = NA),
-    legend.position = "top",
-    legend.justification = "left",
-    legend.title = element_text(face = "bold", size = 9),
-    legend.text = element_text(size = 9),
-    plot.margin = margin(20, 20, 10, 15)
-  )
-#> Grouped bar chart with Economist-style blue-gray background.
-#> Light blue bars (1999) sit next to dark blue bars (2008) for each class.
-#> Subcompact shows the biggest improvement (~2 MPG gain).
-#> SUVs and pickups remain low (~17-18 MPG) in both years.
-#> The legend sits top-left, labeling "1999" and "2008".
+```
+Two stacked panels: total sales (top), median listings (bottom),
+both colored #0085a1. Bold caps panel headers, white background,
+horizontal-only gridlines.
 ```
 
-This chart combines several techniques from the project: the Economist blue-gray background, white gridlines, bold title hierarchy, and no axis titles (the subtitle does that job). The grouped bars use `position_dodge()` for side-by-side comparison, and the two-tone blue palette keeps the color scheme coherent with the background.
+**Difficulty:** Advanced
 
-The title does something important, it tells the story ("Improved Modestly") rather than just describing the chart ("Highway MPG by Class and Year"). The reader knows the conclusion before they even look at the bars, and the bars serve as evidence.
+```r title="Your turn"
+ex_7_2 <- # your code here
+ex_7_2
+```
 
-[TIP]
-**Storytelling titles outperform descriptive titles.** Compare "Fuel Economy by Class" (descriptive) vs. "Fuel Economy Improved Modestly Between 1999 and 2008" (storytelling). The second one tells readers what to look for, making the chart instantly more useful. Use this technique in every publication-style chart.
+<details>
+<summary>Click to reveal solution</summary>
 
-## Summary
+```r title="Solution"
+agg <- txhousing |>
+  group_by(year, month) |>
+  summarise(total_sales = sum(sales, na.rm = TRUE),
+            median_listings = median(listings, na.rm = TRUE),
+            .groups = "drop") |>
+  mutate(date = as.Date(paste(year, month, "01", sep = "-")))
 
-| Chart Style | Key Theme Elements | Best For | Core Technique |
-|---|---|---|---|
-| The Economist | Blue-gray background, white gridlines, bold title | Scatter plots, line charts | Custom `theme()` with `#d5e4eb` fill |
-| FiveThirtyEight | Gray background, no axis lines, single fill color | Bar charts, rankings | Remove all borders, let headline tell the story |
-| Scientific Journal | White background, axis lines, grayscale palette | Any chart for publication | `theme_classic()` + bold axis labels with units |
-| New York Times | White background, direct annotations, shaded regions | Time series, event data | `annotate()` + `geom_rect()` for context |
-| Modern Lollipop | Minimal background, segment + dot, highlight strategy | Rankings, many categories | `geom_segment()` + `geom_point()` + `coord_flip()` |
+dat <- bind_rows(
+  transform(agg, panel = "TOTAL SALES",     v = total_sales),
+  transform(agg, panel = "MEDIAN LISTINGS", v = median_listings)
+)
 
-[KEY INSIGHT]
-**Every professional chart style is just a different answer to the same question: "What can I remove?"** The Economist removes vertical gridlines. FiveThirtyEight removes axis lines. Journals remove background color. The NYT removes legends. Start with a default ggplot and practice removing elements one at a time, you'll converge on a professional look faster than adding decorations.
+ex_7_2 <- ggplot(dat, aes(x = date, y = v)) +
+  geom_line(color = "#0085a1", linewidth = 0.8) +
+  facet_wrap(~ panel, scales = "free_y", ncol = 1) +
+  scale_y_continuous(labels = comma) +
+  labs(title = "Texas housing trends", x = NULL, y = NULL,
+       caption = "Source: ggplot2::txhousing") +
+  theme_minimal(base_family = "sans") +
+  theme(strip.background = element_rect(fill = "#f5f5f5", color = NA),
+        strip.text = element_text(face = "bold", color = "#333"),
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"),
+        plot.caption = element_text(hjust = 0, color = "#555", size = 8))
+ex_7_2
+#> Two stacked Pew-style panels.
+```
 
-The common thread across all five styles: **remove everything that doesn't help the reader understand the data faster.** Every gridline, axis tick, border, and color choice either earns its place by adding clarity, or it gets cut.
+**Explanation:** Stacked-panel reports are the workhorse of think-tank publications: one finding per panel, shared x-axis (year), separate y-scales for unit differences. `scales = "free_y"` is essential here, otherwise the panels would share a y-range that fits neither well. The all-caps strip labels echo Pew's section-header convention.
 
-## References
+</details>
 
-1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). [Link](https://ggplot2-book.org/)
-2. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. Scherer, C., A ggplot2 Tutorial for Beautiful Plotting in R (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
-4. The R Graph Gallery, ggplot2 examples. [Link](https://r-graph-gallery.com/ggplot2-package.html)
-5. Schwabish, J., *Better Data Visualizations*. Columbia University Press (2021).
-6. Wilke, C., *Fundamentals of Data Visualization*. O'Reilly (2019). [Link](https://clauswilke.com/dataviz/)
-7. R Core Team, *An Introduction to R*. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html)
+### Exercise 7.3: Static Gapminder-style bubble snapshot
 
-## Continue Learning
+**Task:** Build an inline tibble of 10 countries with `gdp_per_capita`, `life_expectancy`, `population`, and `continent`. Plot a bubble chart with `geom_point()`: x is log-scaled GDP, y is life expectancy, size is population, color is continent. Save the ggplot to `ex_7_3`.
 
-1. [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html), The complete checklist for making ggplot2 figures journal- and thesis-ready.
-2. [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html), 10 theme and scale practice problems to sharpen your styling skills.
-3. [ggplot2 Facet Exercises](ggplot2-Facet-Exercises.html), 8 facet_wrap() and facet_grid() problems for multi-panel layouts.
+**Expected result:**
+
+```
+10 country bubbles on a log10 GDP x-axis vs life expectancy
+y-axis. Bubble size scales with population, color by continent
+(Africa, Asia, Europe, Americas). White background, bold title.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+countries <- tibble::tibble(
+  country = c("USA","Brazil","Germany","UK","India","China","Nigeria","Japan","Norway","Kenya"),
+  gdp_per_capita  = c(70000, 8900, 52000, 47000, 2400, 12500, 2100, 40000, 92000, 1800),
+  life_expectancy = c(78.5, 76.8, 81.0, 81.3, 70.2, 78.2, 54.7, 84.6, 83.2, 66.7),
+  population      = c(331e6, 213e6, 83e6, 67e6, 1390e6, 1410e6, 213e6, 125e6, 5.4e6, 54e6),
+  continent       = c("Americas","Americas","Europe","Europe","Asia","Asia","Africa","Asia","Europe","Africa")
+)
+ex_7_3 <- # your code here
+ex_7_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+countries <- tibble::tibble(
+  country = c("USA","Brazil","Germany","UK","India","China","Nigeria","Japan","Norway","Kenya"),
+  gdp_per_capita  = c(70000, 8900, 52000, 47000, 2400, 12500, 2100, 40000, 92000, 1800),
+  life_expectancy = c(78.5, 76.8, 81.0, 81.3, 70.2, 78.2, 54.7, 84.6, 83.2, 66.7),
+  population      = c(331e6, 213e6, 83e6, 67e6, 1390e6, 1410e6, 213e6, 125e6, 5.4e6, 54e6),
+  continent       = c("Americas","Americas","Europe","Europe","Asia","Asia","Africa","Asia","Europe","Africa")
+)
+ex_7_3 <- ggplot(countries,
+                 aes(x = gdp_per_capita, y = life_expectancy,
+                     size = population, color = continent)) +
+  geom_point(alpha = 0.75) +
+  geom_text(aes(label = country), color = "#333", size = 3,
+            vjust = -1.6, show.legend = FALSE) +
+  scale_x_log10(labels = dollar) +
+  scale_size_continuous(range = c(2, 18), labels = comma) +
+  scale_color_manual(values = c(Africa = "#E69F00", Americas = "#56B4E9",
+                                Asia = "#009E73", Europe = "#0072B2")) +
+  labs(title = "Wealth versus life expectancy",
+       x = "GDP per capita (USD, log scale)", y = "Life expectancy (years)") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"))
+ex_7_3
+#> Gapminder-style static bubble snapshot.
+```
+
+**Explanation:** The Gapminder format encodes four variables per point: position (x, y), size, and color. A log10 x-axis is non-negotiable when GDP per capita spans two orders of magnitude. `scale_size_continuous(range = c(2, 18))` controls the smallest and largest bubbles so a small country is still visible and a large one does not swallow the panel.
+
+</details>
+
+### Exercise 7.4: Cases-vs-deaths comparison chart with dual scale
+
+**Task:** Build an inline 60-day tibble with `date`, `cases`, `deaths`. Plot cases as a faded area and deaths as a bold dark line, with a secondary y-axis on the right scaled appropriately so both series fit. Save the ggplot to `ex_7_4`.
+
+**Expected result:**
+
+```
+A 60-day chart: a pale red area showing daily cases (left axis),
+and a dark navy line showing deaths (right axis, scaled).
+Bold title naming the comparison.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(7)
+epi <- tibble::tibble(
+  date = seq.Date(as.Date("2024-01-01"), by = "day", length.out = 60),
+  cases  = round(abs(800 + cumsum(rnorm(60, 0, 80)))),
+  deaths = round(abs(20 + cumsum(rnorm(60, 0, 4))))
+)
+ex_7_4 <- # your code here
+ex_7_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(7)
+epi <- tibble::tibble(
+  date = seq.Date(as.Date("2024-01-01"), by = "day", length.out = 60),
+  cases  = round(abs(800 + cumsum(rnorm(60, 0, 80)))),
+  deaths = round(abs(20 + cumsum(rnorm(60, 0, 4))))
+)
+scale_factor <- max(epi$cases) / max(epi$deaths)
+
+ex_7_4 <- ggplot(epi, aes(x = date)) +
+  geom_area(aes(y = cases), fill = "#fdbcb4", alpha = 0.85) +
+  geom_line(aes(y = deaths * scale_factor), color = "#003f5c", linewidth = 1) +
+  scale_y_continuous(name = "Daily cases",
+                     sec.axis = sec_axis(~ . / scale_factor, name = "Daily deaths")) +
+  labs(title = "Daily cases and deaths over a 60-day window",
+       x = NULL, caption = "Pale red = cases (left). Navy line = deaths (right).") +
+  theme_minimal(base_family = "sans") +
+  theme(panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold"),
+        plot.caption = element_text(hjust = 0, color = "#555"))
+ex_7_4
+#> Pale-red cases area with dark deaths overlay.
+```
+
+**Explanation:** Dual y-axes are sometimes the right tool when two series share an x-axis but live on different scales: cases in thousands, deaths in tens. The `sec_axis(~ . / scale_factor)` argument supplies the inverse transform so the right axis labels read in death units even though the line is drawn in case units. Use sparingly: dual axes can mislead when the scaling implies a relationship that does not exist.
+
+</details>
+
+### Exercise 7.5: Reproduce an NHK-style monochrome news graphic
+
+**Task:** Build an NHK-style monochrome bar chart of `mpg` mean highway MPG by `class`, with a dark navy header bar above the panel containing a white bold title, no panel border, and one accent color (`#cf4647`) for the longest bar only. Save the final ggplot to `ex_7_5`.
+
+**Expected result:**
+
+```
+Horizontal bars of mean hwy MPG by class. All bars dark gray
+except the longest one, which is colored #cf4647 as an accent.
+A solid dark-navy header bar with white bold title sits above.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_7_5 <- # your code here
+ex_7_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+agg <- mpg |>
+  group_by(class) |>
+  summarise(mean_hwy = mean(hwy), .groups = "drop") |>
+  mutate(is_top = mean_hwy == max(mean_hwy))
+
+ex_7_5 <- ggplot(agg, aes(x = mean_hwy, y = reorder(class, mean_hwy), fill = is_top)) +
+  geom_col() +
+  geom_text(aes(label = round(mean_hwy, 1)),
+            hjust = -0.2, size = 3.2, color = "#222") +
+  scale_fill_manual(values = c(`TRUE` = "#cf4647", `FALSE` = "#444444")) +
+  expand_limits(x = max(agg$mean_hwy) * 1.1) +
+  labs(title = "Mean highway MPG by vehicle class",
+       x = NULL, y = NULL) +
+  theme_minimal(base_family = "sans") +
+  theme(legend.position = "none",
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(color = "white", face = "bold", size = 14,
+                                  hjust = 0,
+                                  margin = margin(8, 8, 8, 8)),
+        plot.title.position = "plot",
+        plot.background = element_rect(fill = "white", color = NA),
+        plot.margin = margin(0, 10, 10, 10),
+        panel.background = element_rect(fill = "white", color = NA)) +
+  theme(plot.title = element_text(color = "white", face = "bold",
+                                  margin = margin(10, 0, 10, 12)),
+        plot.title.position = "plot") +
+  theme(plot.background = element_rect(fill = "#1a2a44", color = NA),
+        panel.background = element_rect(fill = "white", color = NA))
+ex_7_5
+#> NHK-style: white panel with accent bar inside dark-navy frame.
+```
+
+**Explanation:** The header-bar look is built by setting `plot.background` to the dark navy and letting `panel.background` stay white: the title sits on the plot-level area outside the panel, so it picks up the navy fill while the panel itself reads as a white card. `plot.title.position = "plot"` is the modern way to push the title flush to the plot edge rather than the panel edge.
+
+</details>
+
+## What to do next
+
+- Practice the underlying chart types one at a time in [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html), which drills `geom_point`, `geom_col`, faceting, and theme tuning in isolation.
+- Lock in the data prep that feeds these charts with [dplyr Exercises in R](dplyr-Exercises-in-R.html), especially `group_by`, `summarise`, `pivot_longer`, and `reorder`.
+- Master color and theme reuse with the patterns in [Publication-Quality Figures in R](Publication-Quality-Figures-in-R.html), the parent tutorial.
+- For visualization on real data instead of styled reproductions, try [Data Visualization Exercises in R](Data-Visualization-Exercises-in-R.html), which focuses on choosing the right chart type for the question.
