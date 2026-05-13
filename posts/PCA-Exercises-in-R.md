@@ -1,34 +1,41 @@
 ---
-title: "PCA Exercises in R: 10 Principal Component Analysis Practice Problems, Solved Step-by-Step)"
+title: "PCA Exercises in R: 20 Principal Component Analysis Practice Problems"
 slug: "PCA-Exercises-in-R"
-description: "Practise PCA in R with 10 principal component analysis exercises, from a first prcomp() fit to reconstruction error and SVD, each solved step by step."
-keywords: "PCA exercises in R, principal component analysis practice, prcomp exercises, scree plot exercises, biplot exercises, PCA loadings practice, dimensionality reduction problems, R PCA practice, SVD R, PCA reconstruction"
-auto_link_terms: "PCA exercises in R|principal component analysis exercises|PCA practice problems|prcomp practice|PCA exercises|PCA practice in R"
-auto_link_case_sensitive: false
+description: "Practise PCA in R with 20 graded principal component analysis problems covering prcomp, scaling, scree plots, loadings, biplots, scores, regression on PCs, and SVD."
+keywords: "PCA R exercises, principal component analysis practice, prcomp exercises, scree plot exercises, biplot exercises, PCA loadings practice, dimensionality reduction problems, R PCA practice, SVD R, PCA reconstruction"
 mathjax: true
 webr: true
-date: "2026-04-26"
-curriculum_id: "E8.1"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_title: "PCA Exercises (10 problems)"
+sidebar_title: "PCA Exercises (20 problems)"
+sidebar_order: 410
 fr_parent: "PCA-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "PCA exercises in R|principal component analysis exercises|PCA practice problems|prcomp practice|PCA exercises|PCA practice in R"
+auto_link_case_sensitive: false
+target_keyword: "PCA R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# PCA Exercises in R: 10 Principal Component Analysis Practice Problems, Solved Step-by-Step
+# PCA Exercises in R: 20 Principal Component Analysis Practice Problems
 
-<p class="lead">These 10 PCA exercises in R take you from your first <code>prcomp()</code> fit through scaling decisions, scree plots, loadings, biplots, downstream regression on principal scores, reconstruction error, and an SVD equivalence check. Every problem is solved step by step with runnable R code and a click-to-reveal explanation.</p>
+<p class="lead">Twenty graded problems on principal component analysis in R, covering <code>prcomp()</code> fits, scaling decisions, scree plots, loadings, biplots, regression on PC scores, reconstruction error, and the SVD equivalence. Each exercise hides a full solution and a short explanation behind a click-to-reveal block so you can attempt the problem first.</p>
 
-## How do you fit PCA in R and read variance explained?
+```r title="Run this once before any exercise"
+library(dplyr)
+library(ggplot2)
+library(tibble)
+```
 
-PCA in R lives inside one base function, `prcomp()`, that returns four useful objects in a list: standard deviations of each component, the rotation (loading) matrix, the scores, and the centring/scaling vectors used. Most exercises below pull from those four slots, so the first job is to fit a PCA cleanly and read off the variance each component explains. We use `iris[, 1:4]` for the warm-up because four numeric columns and three known species make the result easy to interpret.
+## Section 1. Fitting PCA and reading variance (4 problems)
 
-```r title="First PCA fit on iris"
-# Fit PCA on the four numeric columns of iris with scaling
-iris_pca <- prcomp(iris[, 1:4], scale = TRUE)
+### Exercise 1.1: Fit prcomp on the four numeric columns of iris with scaling
 
-# Variance explained by each component
-summary(iris_pca)
+**Task:** Fit a principal component analysis on the four numeric columns of the built-in `iris` dataset (`Sepal.Length`, `Sepal.Width`, `Petal.Length`, `Petal.Width`) with `scale = TRUE` so each column contributes the same variance to the fit. Save the result to `ex_1_1` and print `summary(ex_1_1)` to inspect the standard deviation, proportion of variance, and cumulative proportion for all four components.
+
+**Expected result:**
+
+```
 #> Importance of components:
 #>                           PC1    PC2     PC3     PC4
 #> Standard deviation     1.7084 0.9560 0.38309 0.14393
@@ -36,478 +43,796 @@ summary(iris_pca)
 #> Cumulative Proportion  0.7296 0.9581 0.99482 1.00000
 ```
 
-PC1 absorbs 73% of the variance, PC2 another 23%, and the cumulative line shows two components already capture 96% of what is going on across all four flower measurements. That is a textbook PCA result: a four-dimensional dataset is genuinely two-dimensional in disguise, which is why every iris scatter you have ever seen uses PC1 and PC2 as the axes.
+**Difficulty:** Beginner
 
-[KEY INSIGHT]
-**Variance explained equals an eigenvalue divided by the trace.** For a scaled PCA, each `sdev^2` is an eigenvalue of the correlation matrix, and the proportions in `summary()` are just `sdev^2 / sum(sdev^2)`. The total variance after scaling equals the number of variables, so the eigenvalues divide a known total.
-
-```r title="Eigenvalues from sdev"
-# sdev^2 is the eigenvalue (variance) of each component
-iris_var <- iris_pca$sdev^2
-round(iris_var, 4)
-#> [1] 2.9185 0.9140 0.1468 0.0207
-
-# These sum to the number of scaled variables
-sum(iris_var)
-#> [1] 4
-```
-
-The eigenvalues sum to 4 because we scaled four columns to unit variance; PCA just redistributes that total variance into uncorrelated directions, ranked from biggest first.
-
-[TIP]
-**Pull rows from `summary()$importance` directly.** Row 1 is `Standard deviation`, row 2 is `Proportion of Variance`, and row 3 is `Cumulative Proportion`. So `summary(fit)$importance[3, ]` gives you the cumulative-variance vector named by component, ready for `which()` or `cumsum()` checks.
-
-**Try it:** From the `iris_pca` fit above, pull the proportion of variance explained by PC3 alone (one number, not cumulative). Aim for a one-liner.
-
-```r title="Your turn: PC3 variance"
-# Goal: extract the proportion-of-variance value for PC3 only
-ex_pc3_var <- summary(iris_pca)$importance[___, "___"]
-ex_pc3_var
-#> Expected: 0.03669
+```r title="Your turn"
+ex_1_1 <- # your code here
+summary(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="PC3 variance solution"
-ex_pc3_var <- summary(iris_pca)$importance[2, "PC3"]
-round(ex_pc3_var, 5)
-#> [1] 0.03669
+```r title="Solution"
+ex_1_1 <- prcomp(iris[, 1:4], scale = TRUE)
+summary(ex_1_1)
+#> Importance of components:
+#>                           PC1    PC2     PC3     PC4
+#> Standard deviation     1.7084 0.9560 0.38309 0.14393
+#> Proportion of Variance 0.7296 0.2285 0.03669 0.00518
+#> Cumulative Proportion  0.7296 0.9581 0.99482 1.00000
 ```
 
-**Explanation:** Row 2 of the `importance` matrix is `Proportion of Variance`, and indexing by the column name `"PC3"` plucks PC3's slice. PC3 carries less than 4% of the variance, which is why PCA work on iris stops at PC1 and PC2.
+**Explanation:** `prcomp()` is the workhorse PCA function in base R. Setting `scale = TRUE` divides each column by its standard deviation after centring, which is what you want whenever your variables are on different units. Without it, `Petal.Length` (range ~6 cm) would dominate `Sepal.Width` (range ~2 cm) for purely numerical reasons. The summary shows PC1 already absorbs 73% of the total variance.
 
 </details>
 
-## How do you decide how many components to keep?
+### Exercise 1.2: Pull the proportion of variance explained by PC2
 
-Three quick decision tools cover most needs. The **scree plot** is a visual elbow test: plot eigenvalues against component index and look for the kink. The **Kaiser rule** keeps components with `sdev^2 > 1` (only valid on a scaled fit, where each original variable contributes variance 1). The **80% rule** keeps the smallest `k` whose cumulative variance crosses your target threshold. The exercises below use all three.
+**Task:** From the `ex_1_1` PCA fit above, extract just the proportion of variance explained by PC2 as a single number (not cumulative, not standard deviation). Read it directly from the `importance` matrix that `summary()` produces rather than recomputing it. Save the scalar to `ex_1_2` and print it. This is the fastest sanity-check you can make on an existing fit.
 
-```r title="Scree plot for USArrests"
-# Fit PCA on the classic USArrests dataset (50 states, 4 crime cols)
-arr_pca <- prcomp(USArrests, scale = TRUE)
+**Expected result:**
 
-# Base R scree plot via plot() on the prcomp object
-plot(arr_pca, type = "l", main = "Scree plot: USArrests PCA")
+```
+#> [1] 0.2285
 ```
 
-The line drops sharply between PC1 and PC2, then flattens. That is the elbow, and it agrees with the Kaiser rule here: only PC1 has eigenvalue greater than 1, so a one-component summary already does most of the work for crime data across states.
+**Difficulty:** Beginner
 
-[WARNING]
-**Kaiser only makes sense on scaled PCA.** On unscaled data, eigenvalues inherit the units of the original columns, so "greater than 1" is comparing apples and oranges. If you are tempted to use Kaiser, fit with `scale = TRUE` first, otherwise the threshold is meaningless.
-
-```r title="Smallest k for 80 percent rule"
-# Cumulative variance vector
-arr_cum <- summary(arr_pca)$importance[3, ]
-
-# Smallest k that crosses 0.80
-arr_k80 <- which(arr_cum >= 0.80)[1]
-arr_k80
-#> PC2
-#>   2
-```
-
-The `which(... >= 0.80)[1]` pattern returns the first index that crosses your threshold. For USArrests, two components capture 87% of the variance, comfortably past 80%. The same one-liner becomes useful in Exercise 4 below.
-
-[NOTE]
-**The scree elbow is judgement, not arithmetic.** If two methods disagree (Kaiser says 1, 80% rule says 2, scree says 2), pick the larger; over-keeping one component is cheaper than throwing away a real one.
-
-**Try it:** Count how many components in `arr_pca` pass the Kaiser rule (eigenvalue > 1). The answer should match what the scree plot suggested.
-
-```r title="Your turn: Kaiser count"
-# Goal: count components with sdev^2 > 1 in arr_pca
-ex_kaiser <- sum(___ > 1)
-ex_kaiser
-#> Expected: 1
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Kaiser count solution"
-ex_kaiser <- sum(arr_pca$sdev^2 > 1)
-ex_kaiser
-#> [1] 1
+```r title="Solution"
+ex_1_2 <- summary(ex_1_1)$importance[2, "PC2"]
+round(ex_1_2, 4)
+#> [1] 0.2285
 ```
 
-**Explanation:** `arr_pca$sdev^2` is the eigenvalue vector. Only PC1's eigenvalue (about 2.48) exceeds 1; PC2 sits just under at 0.99. So Kaiser says "keep one", but most analysts would still keep PC2 because the 80% rule disagrees and PC2 explains a meaningful 25%.
+**Explanation:** `summary(prcomp_fit)$importance` is a 3-by-k matrix. Row 1 is `Standard deviation`, row 2 is `Proportion of Variance`, row 3 is `Cumulative Proportion`. Indexing by the column name `"PC2"` is safer than `[2, 2]` because if you later rerun the fit on a subset the column ordering still matches. For programmatic use, the same proportion is `ex_1_1$sdev[2]^2 / sum(ex_1_1$sdev^2)`.
 
 </details>
 
-## Practice Exercises
+### Exercise 1.3: Compare scaled vs unscaled PCA on mtcars
 
-The 10 problems below ramp from a clean first fit through to outlier detection on principal scores. Every exercise uses an `ex<N>_` variable prefix so your work does not overwrite the tutorial fits above. Run the starter, attempt the solution, then click to reveal.
+**Task:** A code reviewer pushes back on an unscaled PCA of `mtcars` (columns `mpg`, `disp`, `hp`, `wt`) because the four variables have wildly different ranges. Fit two PCAs, one with `scale = FALSE` and one with `scale = TRUE`, on those four columns, and report the proportion of variance carried by PC1 in each. Save the two numbers as a length-2 named vector `ex_1_3` with names `unscaled` and `scaled`.
 
-### Exercise 1: Cumulative variance at PC2 on mtcars
+**Expected result:**
 
-Fit PCA on `mtcars` with scaling and report the cumulative variance captured by the first two components. Save the value to `ex1_cum2`.
+```
+#> unscaled   scaled
+#>  0.92744  0.84305
+```
 
-```r title="Exercise 1 starter"
-# Hint: summary(fit)$importance[3, "PC2"] gives the cumulative value at PC2
+**Difficulty:** Intermediate
 
+```r title="Your turn"
+cols <- c("mpg", "disp", "hp", "wt")
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-ex1_pca  <- prcomp(mtcars, scale = TRUE)
-ex1_cum2 <- summary(ex1_pca)$importance[3, "PC2"]
-round(ex1_cum2, 4)
-#> [1] 0.8424
+```r title="Solution"
+cols <- c("mpg", "disp", "hp", "wt")
+fit_u <- prcomp(mtcars[, cols], scale = FALSE)
+fit_s <- prcomp(mtcars[, cols], scale = TRUE)
+
+prop <- function(fit) (fit$sdev^2 / sum(fit$sdev^2))[1]
+ex_1_3 <- c(unscaled = prop(fit_u), scaled = prop(fit_s))
+round(ex_1_3, 5)
+#> unscaled   scaled
+#>  0.92744  0.84305
 ```
 
-**Explanation:** Two components capture 84% of the variance across the eleven `mtcars` columns. That is high enough that a 2D PCA scatter (e.g., colour by `cyl`) is a faithful summary of the cars in this dataset.
+**Explanation:** The unscaled PC1 looks artificially powerful because `disp` (range ~400) dwarfs the other columns and the first eigenvector points mostly along it. Scaling normalises the contribution from each variable, so PC1 is now the genuine shared signal of "engine size" rather than a units artefact. Default to `scale = TRUE` whenever variables are measured in different units.
 
 </details>
 
-### Exercise 2: Scaled vs unscaled loadings on USArrests
+### Exercise 1.4: Extract the centre and scale vectors used by prcomp
 
-Fit two PCAs on `USArrests`, one with `scale = TRUE` and one with `scale = FALSE`. Correlate the absolute PC1 loadings between the two fits. A correlation far below 1 means scaling genuinely changed which variables PC1 cares about. Save the correlation to `ex2_cor`.
+**Task:** From `ex_1_1` (the scaled iris fit), pull the centring and scaling vectors that `prcomp()` stored on the fit object. These are the column means and column standard deviations of the original data. Save a tibble with columns `variable`, `center`, `scale` to `ex_1_4`. Knowing where these live on the fit object is essential when you later project new observations onto an existing PCA.
 
-```r title="Exercise 2 starter"
-# Hint: take abs() of each rotation[, 1] vector and pass both to cor()
+**Expected result:**
 
+```
+#> # A tibble: 4 x 3
+#>   variable     center scale
+#>   <chr>         <dbl> <dbl>
+#> 1 Sepal.Length   5.84 0.828
+#> 2 Sepal.Width    3.06 0.436
+#> 3 Petal.Length   3.76 1.77
+#> 4 Petal.Width    1.20 0.762
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-ex2_s  <- prcomp(USArrests, scale = TRUE)
-ex2_ns <- prcomp(USArrests, scale = FALSE)
-
-ex2_cor <- cor(
-  abs(ex2_s$rotation[,  1]),
-  abs(ex2_ns$rotation[, 1])
+```r title="Solution"
+ex_1_4 <- tibble(
+  variable = names(ex_1_1$center),
+  center   = ex_1_1$center,
+  scale    = ex_1_1$scale
 )
-round(ex2_cor, 3)
-#> [1] 0.173
+ex_1_4
+#> # A tibble: 4 x 3
+#>   variable     center scale
+#>   <chr>         <dbl> <dbl>
+#> 1 Sepal.Length   5.84 0.828
+#> 2 Sepal.Width    3.06 0.436
+#> 3 Petal.Length   3.76 1.77
+#> 4 Petal.Width    1.20 0.762
 ```
 
-**Explanation:** A correlation of about 0.17 says the two fits barely agree on what PC1 represents. Without scaling, `Assault` (range in hundreds) dominates PC1 because of its raw variance; with scaling, all four crime columns contribute. This is why `scale = TRUE` is the safe default whenever your columns are on different units.
+**Explanation:** `prcomp()` stores `$center` as the column means used for centring and `$scale` as the column standard deviations used for scaling (or `FALSE` if `scale = FALSE`). These are the exact numbers `predict()` will subtract and divide by when you project new observations, so reproducible PCA scoring requires keeping the fit object around or saving both vectors.
 
 </details>
 
-### Exercise 3: Kaiser-passing components on iris
+## Section 2. Scree, eigenvalues, and component selection (4 problems)
 
-On a scaled PCA of `iris[, 1:4]`, count the components whose eigenvalue exceeds 1. Save the count to `ex3_count`.
+### Exercise 2.1: Compute cumulative variance and find PCs needed for 90%
 
-```r title="Exercise 3 starter"
-# Hint: eigenvalues are sdev^2; sum a logical vector to count
+**Task:** A quality team auditing a sensor pipeline wants to know the minimum number of principal components needed to retain at least 90% of the variance of `USArrests` (scaled). Fit the PCA, compute cumulative variance from `sdev^2`, then find the smallest k such that the cumulative proportion is at least 0.9. Save k as an integer to `ex_2_1`. This is the standard "elbow shortcut" you would write into a feature-engineering function.
 
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-ex3_pca   <- prcomp(iris[, 1:4], scale = TRUE)
-ex3_count <- sum(ex3_pca$sdev^2 > 1)
-ex3_count
-#> [1] 1
-```
-
-**Explanation:** Only PC1's eigenvalue (about 2.92) exceeds 1; PC2 sits at 0.91, just under the threshold. Kaiser would prune iris to a single component. In practice most analysts keep PC2 too, because cumulative variance reaches 96% with two components and the visualisation gain is large.
-
-</details>
-
-### Exercise 4: Smallest k for the 80 percent rule on swiss
-
-Fit PCA on the built-in `swiss` dataset (47 Swiss provinces, 6 numeric columns) with scaling, then find the smallest `k` whose cumulative variance reaches 80%. Save the answer to `ex4_k`.
-
-```r title="Exercise 4 starter"
-# Hint: pull row 3 of summary()$importance, then which(... >= 0.80)[1]
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-ex4_pca <- prcomp(swiss, scale = TRUE)
-ex4_cum <- summary(ex4_pca)$importance[3, ]
-ex4_k   <- as.integer(which(ex4_cum >= 0.80)[1])
-ex4_k
+# Smallest k such that cumulative variance >= 0.9
 #> [1] 3
 ```
 
-**Explanation:** Three components clear 80% on `swiss`, where the original six demographic and economic columns are moderately but not heavily correlated. Compared to `USArrests` (k = 2) or `iris` (k = 2), `swiss` shows that not every dataset compresses to two components, and the 80% rule is the easiest way to make that call programmatically.
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 5: Top two variables driving PC1 on iris
-
-Using a scaled PCA on `iris[, 1:4]`, identify the two variables with the largest absolute loadings on PC1. Save the named vector of the top two values to `ex5_top2`.
-
-```r title="Exercise 5 starter"
-# Hint: take abs() of rotation[, 1], sort decreasing, head(2)
-
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-ex5_pca  <- prcomp(iris[, 1:4], scale = TRUE)
-ex5_top2 <- sort(abs(ex5_pca$rotation[, 1]), decreasing = TRUE)[1:2]
-round(ex5_top2, 4)
-#> Petal.Length  Petal.Width
-#>       0.5804       0.5649
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+cum_var <- cumsum(fit$sdev^2) / sum(fit$sdev^2)
+ex_2_1 <- which(cum_var >= 0.9)[1]
+ex_2_1
+#> [1] 3
 ```
 
-**Explanation:** Petal measurements dominate PC1 because they vary the most across species. `Sepal.Length` is third (loading 0.52) and `Sepal.Width` is a distant fourth (0.27, with negative sign). This is the structural reason PC1 alone separates setosa from the other two iris species.
+**Explanation:** `which(cum_var >= 0.9)[1]` returns the index of the first component that pushes cumulative variance over the threshold. For `USArrests` the cumulative proportions are roughly 0.62, 0.87, 0.96, 1.00, so three components carry 96% of the variance. Wrapping this as a helper (`pcs_for(fit, 0.9)`) is a common pattern in feature pipelines.
 
 </details>
 
-### Exercise 6: Biplot interpretation for USArrests
+### Exercise 2.2: Build a scree plot with ggplot2
 
-Fit a scaled PCA on `USArrests`, draw a base R `biplot()`, and read off which states sit at the high-crime end of PC1. Save the fit to `ex6_pca`.
+**Task:** Build a scree plot for the scaled `USArrests` PCA showing the proportion of variance on the y-axis and the component number on the x-axis as a connected line with points. Use `geom_line()` and `geom_point()`. Label the axes "Component" and "Proportion of variance" and save the ggplot object to `ex_2_2`. A scree plot is the first chart most reviewers will ask to see in a PCA writeup.
 
-```r title="Exercise 6 starter"
-# Hint: biplot(ex6_pca, scale = 0) shows scores and loadings on the same plot
+**Expected result:**
 
+```
+# A ggplot object: scree plot, 4 points (PC1..PC4) connected by a line.
+# Aesthetics: x = component index (1..4), y = proportion of variance.
+# Approx values: 0.62, 0.247, 0.089, 0.043 (descending).
+# Axes: "Component", "Proportion of variance".
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-ex6_pca <- prcomp(USArrests, scale = TRUE)
-biplot(ex6_pca, scale = 0, cex = 0.6)
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+scree_df <- tibble(
+  component = seq_along(fit$sdev),
+  prop_var  = fit$sdev^2 / sum(fit$sdev^2)
+)
+
+ex_2_2 <- ggplot(scree_df, aes(component, prop_var)) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(x = "Component", y = "Proportion of variance") +
+  theme_minimal()
+
+ex_2_2
 ```
 
-**Explanation:** PC1 in `USArrests` is essentially a "violent-crime" axis: California, Florida, Nevada and Texas sit at one end (high `Murder`, `Assault`, `Rape` loadings); North Dakota, Vermont and New Hampshire sit at the opposite end. PC2 separates urban from rural by playing `UrbanPop` against the crime trio. Biplots are the fastest way to read both scores and loadings at once.
+**Explanation:** The visual cue for "how many components matter" is the elbow where the line flattens. For `USArrests` the elbow is between PC2 and PC3, so two or three components is the reasonable retain count. The scree plot is preferable to staring at a `summary()` printout because the geometry of the drop is what informs the decision.
 
 </details>
 
-### Exercise 7: PCA scores as regression inputs
+### Exercise 2.3: Apply the Kaiser criterion on scaled USArrests
 
-Fit PCA on `mtcars` predictors only (drop `mpg`), then regress `mpg` on the first two principal-component scores. Report the R² of that regression and compare with a plain `lm(mpg ~ ., data = mtcars)`. Save the PCR R² to `ex7_r2_pcr` and the full-OLS R² to `ex7_r2_full`.
+**Task:** The Kaiser rule says retain every component whose eigenvalue exceeds 1, on the grounds that any such component explains more than a single original (standardised) variable would on its own. Compute eigenvalues from `sdev^2` for the scaled `USArrests` PCA and report how many components pass the Kaiser threshold. Save the count to `ex_2_3` as an integer.
 
-```r title="Exercise 7 starter"
-# Hint: ex7_pca$x[, 1:2] holds PC1 and PC2 scores you can pass into lm()
+**Expected result:**
 
+```
+# Count of components with eigenvalue > 1 (Kaiser rule)
+#> [1] 1
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-# PCA on the predictor block (drop mpg, keep the 10 other columns)
-ex7_pca <- prcomp(mtcars[, -1], scale = TRUE)
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+eigenvalues <- fit$sdev^2
+ex_2_3 <- sum(eigenvalues > 1)
+ex_2_3
+#> [1] 1
+```
 
-# Build a small regression frame using the first two PC scores
-ex7_df <- data.frame(
+**Explanation:** Eigenvalues of the scaled `USArrests` PCA are about 2.48, 0.99, 0.36, 0.17. Only the first exceeds 1, so Kaiser keeps a single component. That conflicts with the 90% rule (which kept three), which is why blind application of either rule is risky: Kaiser tends to under-keep when there are few variables, the 90% rule over-keeps when noise is small. Use them as anchors, not verdicts.
+
+</details>
+
+### Exercise 2.4: Apply the broken-stick rule to decide component retention
+
+**Task:** The broken-stick rule retains the k-th component only if its observed proportion of variance exceeds the expected proportion under a uniform null where total variance is split randomly between p components. The expected proportions are `b_k = (1/p) * sum(1/k:p)`. For the scaled `USArrests` PCA compute the per-component expected proportions, compare them to the observed proportions, and save the count of components passing the rule as `ex_2_4`.
+
+**Expected result:**
+
+```
+# Count of components passing the broken-stick threshold
+#> [1] 1
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+p <- length(fit$sdev)
+observed <- fit$sdev^2 / sum(fit$sdev^2)
+broken <- sapply(seq_len(p), function(k) (1 / p) * sum(1 / k:p))
+ex_2_4 <- sum(observed > broken)
+ex_2_4
+#> [1] 1
+```
+
+**Explanation:** The broken-stick null distributes a unit-length stick into p random pieces and computes the expected length of the k-th longest piece. Only components whose observed share beats that expectation are kept. For `USArrests`, just PC1 clears the bar. The rule is conservative compared to Kaiser, which is itself conservative compared to the 90% rule, so use it when you want a tight, hard-to-overfit set of components.
+
+</details>
+
+## Section 3. Loadings and interpretation (4 problems)
+
+### Exercise 3.1: Extract the rotation matrix and find the dominant variable for PC1
+
+**Task:** Loadings live in the `rotation` slot of a `prcomp` fit. For the scaled `USArrests` PCA, extract the rotation matrix, then identify which original variable has the largest absolute loading on PC1. Save just the variable name (as a character string) to `ex_3_1`. This tells you in one line what PC1 "is mostly about".
+
+**Expected result:**
+
+```
+#> [1] "Assault"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+loadings_pc1 <- fit$rotation[, "PC1"]
+ex_3_1 <- names(loadings_pc1)[which.max(abs(loadings_pc1))]
+ex_3_1
+#> [1] "Assault"
+```
+
+**Explanation:** PC1 loadings for scaled `USArrests` are roughly -0.535, -0.583, -0.278, -0.543 on Murder, Assault, UrbanPop, Rape. The largest absolute value is Assault, so PC1 is dominated by assault but is really a "violent-crime composite" because three of the four variables load similarly and only `UrbanPop` is weaker. Always look at the full vector of loadings before naming a component.
+
+</details>
+
+### Exercise 3.2: Identify the top three variables by absolute loading on PC2
+
+**Task:** A marketing analyst studying urbanisation patterns wants the three variables most responsible for PC2 of the scaled `USArrests` PCA, ranked by absolute loading. Pull the PC2 column from the rotation matrix, sort by absolute value descending, and save a tibble with columns `variable` and `loading_pc2` containing the top three rows. Save the tibble to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 2
+#>   variable loading_pc2
+#>   <chr>          <dbl>
+#> 1 UrbanPop      -0.873
+#> 2 Murder         0.418
+#> 3 Assault        0.188
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+pc2 <- fit$rotation[, "PC2"]
+
+ex_3_2 <- tibble(
+  variable    = names(pc2),
+  loading_pc2 = pc2
+) |>
+  arrange(desc(abs(loading_pc2))) |>
+  slice_head(n = 3)
+
+ex_3_2
+#> # A tibble: 3 x 2
+#>   variable loading_pc2
+#>   <chr>          <dbl>
+#> 1 UrbanPop      -0.873
+#> 2 Murder         0.418
+#> 3 Assault        0.188
+```
+
+**Explanation:** PC2 is dominated by `UrbanPop` with a strongly negative loading, with the violent-crime variables much smaller. So PC2 reads as "urbanisation, sign-flipped". The classic interpretation: PC1 is the violent-crime axis, PC2 is the urbanisation axis, and they are orthogonal because PCA produces uncorrelated directions by construction.
+
+</details>
+
+### Exercise 3.3: Sign-flip a principal component for readable plots
+
+**Task:** PCA component signs are arbitrary, which makes plots awkward when "more crime" comes out as negative scores. Refit the scaled `USArrests` PCA, then multiply the PC1 column of the rotation matrix and the PC1 column of the scores matrix by -1 so positive PC1 means more crime. Save the modified fit object (a list with the flipped `rotation` and `x` matrices) to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> head(ex_3_3$x[, 1:2])
+#>             PC1        PC2
+#> Alabama   0.976  1.122
+#> Alaska    1.931  1.062
+#> Arizona   1.745 -0.738
+#> Arkansas -0.140  1.109
+#> California 2.499 -1.527
+#> Colorado  1.499 -0.978
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+head(ex_3_3$x[, 1:2])
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+fit$rotation[, "PC1"] <- -fit$rotation[, "PC1"]
+fit$x[, "PC1"]        <- -fit$x[, "PC1"]
+ex_3_3 <- fit
+head(ex_3_3$x[, 1:2])
+#>             PC1        PC2
+#> Alabama   0.976  1.122
+#> Alaska    1.931  1.062
+#> Arizona   1.745 -0.738
+#> Arkansas -0.140  1.109
+#> California 2.499 -1.527
+#> Colorado  1.499 -0.978
+```
+
+**Explanation:** Negating PC1 flips both the loading vector and the score vector together, which preserves the reconstruction `X = scores %*% t(loadings)`. If you only flipped the rotation matrix and not the scores, downstream models built on `$x` would get inverted predictions. The flip is purely cosmetic but communication matters more than people think in PCA reports.
+
+</details>
+
+### Exercise 3.4: Compute correlations between variables and components
+
+**Task:** The "variable factor map" used by `factoextra` is just the correlation between each original variable and each principal component. For the scaled `USArrests` PCA, compute the full matrix of correlations (4 variables by 4 PCs) and save it to `ex_3_4`. For a scaled PCA this equals `rotation %*% diag(sdev)`, so check that closed form against `cor()` on the raw data and the scores.
+
+**Expected result:**
+
+```
+#>             PC1         PC2         PC3         PC4
+#> Murder    -0.842  0.4163554  -0.20347 -0.270491
+#> Assault   -0.918  0.1870032  -0.16089  0.309337
+#> UrbanPop  -0.438 -0.8682710  -0.22631 -0.054955
+#> Rape      -0.855  0.1664909   0.48386 -0.043124
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+round(ex_3_4, 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+ex_3_4 <- fit$rotation %*% diag(fit$sdev)
+colnames(ex_3_4) <- paste0("PC", seq_len(ncol(ex_3_4)))
+round(ex_3_4, 3)
+#>             PC1    PC2    PC3    PC4
+#> Murder   -0.842  0.416 -0.203 -0.270
+#> Assault  -0.918  0.187 -0.161  0.309
+#> UrbanPop -0.438 -0.868 -0.226 -0.055
+#> Rape     -0.855  0.166  0.484 -0.043
+```
+
+**Explanation:** For a scaled PCA the variable-component correlations equal `loadings * sdev`. The squared row sums equal 1 (each variable is fully explained by the full component set), and the squared column sums equal each component's eigenvalue. This matrix is what `factoextra::fviz_pca_var` plots, but you do not need the package to compute it.
+
+</details>
+
+## Section 4. Scores and visualization (3 problems)
+
+### Exercise 4.1: Build a tidy score tibble joined to a label column
+
+**Task:** Working with PC scores in base R quickly becomes painful because `fit$x` is a matrix without the original grouping variable. For the scaled iris PCA from `ex_1_1`, build a tibble with columns `PC1`, `PC2`, `Species` so it is ready for plotting. Save the tibble to `ex_4_1` and print the first six rows.
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 3
+#>      PC1     PC2 Species
+#>    <dbl>   <dbl> <fct>
+#> 1 -2.26  -0.478  setosa
+#> 2 -2.07   0.672  setosa
+#> 3 -2.36   0.341  setosa
+#> 4 -2.29   0.595  setosa
+#> 5 -2.38  -0.645  setosa
+#> 6 -2.07  -1.48   setosa
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+head(ex_4_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- tibble(
+  PC1 = ex_1_1$x[, "PC1"],
+  PC2 = ex_1_1$x[, "PC2"],
+  Species = iris$Species
+)
+head(ex_4_1)
+#> # A tibble: 6 x 3
+#>      PC1     PC2 Species
+#>    <dbl>   <dbl> <fct>
+#> 1 -2.26  -0.478  setosa
+#> 2 -2.07   0.672  setosa
+#> 3 -2.36   0.341  setosa
+#> 4 -2.29   0.595  setosa
+#> 5 -2.38  -0.645  setosa
+#> 6 -2.07  -1.48   setosa
+```
+
+**Explanation:** `fit$x` carries one row per observation in the same order as the data passed to `prcomp()`, so binding `Species` is just a `cbind`-like assemble. Keeping the matrix in matrix form is fine for `lm()` and other model fits, but `ggplot2` works far better with a tibble, so a dedicated score tibble is worth keeping around as a sibling object.
+
+</details>
+
+### Exercise 4.2: Plot PC1 vs PC2 coloured by species
+
+**Task:** A junior analyst onboarding to the team needs the canonical iris PCA scatter to put in a slide deck. Using the score tibble `ex_4_1` from the previous exercise, build a ggplot with `PC1` on the x-axis, `PC2` on the y-axis, points coloured by `Species`, and reasonable axis labels including the proportion of variance explained. Save the ggplot to `ex_4_2`.
+
+**Expected result:**
+
+```
+# A ggplot scatter, 150 points, three coloured clusters.
+# setosa forms a tight cluster on the left (PC1 near -2 to -2.5).
+# versicolor and virginica overlap on the right (PC1 between 0 and 3).
+# Axes: "PC1 (73%)", "PC2 (23%)".
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+var_pct <- round(100 * ex_1_1$sdev^2 / sum(ex_1_1$sdev^2))
+
+ex_4_2 <- ggplot(ex_4_1, aes(PC1, PC2, colour = Species)) +
+  geom_point(size = 2, alpha = 0.85) +
+  labs(
+    x = paste0("PC1 (", var_pct[1], "%)"),
+    y = paste0("PC2 (", var_pct[2], "%)")
+  ) +
+  theme_minimal()
+
+ex_4_2
+```
+
+**Explanation:** Putting the proportion of variance in the axis labels keeps the chart self-documenting; without it readers cannot judge whether the visible separation matters. The setosa cluster being far from versicolor and virginica is the textbook outcome, and PC2 separation between the latter two is weaker because petal-vs-sepal differences dominate the first component.
+
+</details>
+
+### Exercise 4.3: Build a biplot of the scaled USArrests PCA
+
+**Task:** Build a biplot of the scaled `USArrests` PCA showing both observations (state names as points) and the four variable loading vectors as arrows. The base `biplot()` function does this in one call; use it on the fit object and save the result as a recorded plot to `ex_4_3` by wrapping the call in `recordPlot()` after producing it. Biplots compress two layers of PCA output into a single chart.
+
+**Expected result:**
+
+```
+# A base R biplot:
+# - State names plotted as text at their PC1/PC2 score positions.
+# - Four arrows labelled Murder, Assault, UrbanPop, Rape pointing from the origin.
+# - Arrow directions encode loadings: Murder/Assault/Rape cluster (similar direction);
+#   UrbanPop points roughly perpendicular to the violent-crime cluster.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+fit <- prcomp(USArrests, scale = TRUE)
+# your code here
+ex_4_3 <- recordPlot()
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+biplot(fit, scale = 0, cex = 0.6)
+ex_4_3 <- recordPlot()
+```
+
+**Explanation:** Setting `scale = 0` inside `biplot()` makes the arrow lengths reflect the actual loadings rather than the default rescaled version, so you can interpret arrow length as the strength of the variable in the PC1-PC2 plane. The clustering of Murder/Assault/Rape arrows is the visual signal that PC1 is a violent-crime axis; the near-orthogonal `UrbanPop` arrow tells you PC2 captures urbanisation independent of crime.
+
+</details>
+
+## Section 5. Downstream use, reconstruction, and SVD (5 problems)
+
+### Exercise 5.1: Fit a regression on the first two PC scores
+
+**Task:** A statistician wants a quick principal component regression on `mtcars` predicting `mpg` from the first two PC scores of `disp`, `hp`, `wt`, `qsec`. Fit a scaled PCA on those four predictors, bind PC1 and PC2 into a data frame with `mpg`, then run `lm(mpg ~ PC1 + PC2)`. Save the fitted `lm` object to `ex_5_1` and inspect the coefficients.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = mpg ~ PC1 + PC2, data = pcr_df)
+#>
+#> Coefficients:
+#> (Intercept)          PC1          PC2
+#>     20.0906      -2.6178      -0.9216
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+predictors <- c("disp", "hp", "wt", "qsec")
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+predictors <- c("disp", "hp", "wt", "qsec")
+fit_pca <- prcomp(mtcars[, predictors], scale = TRUE)
+
+pcr_df <- data.frame(
   mpg = mtcars$mpg,
-  PC1 = ex7_pca$x[, 1],
-  PC2 = ex7_pca$x[, 2]
+  PC1 = fit_pca$x[, "PC1"],
+  PC2 = fit_pca$x[, "PC2"]
 )
 
-ex7_lm      <- lm(mpg ~ PC1 + PC2, data = ex7_df)
-ex7_lm_full <- lm(mpg ~ ., data = mtcars)
-
-ex7_r2_pcr  <- summary(ex7_lm)$r.squared
-ex7_r2_full <- summary(ex7_lm_full)$r.squared
-
-round(c(PCR = ex7_r2_pcr, FullOLS = ex7_r2_full), 4)
-#>     PCR FullOLS
-#>  0.8504  0.8690
+ex_5_1 <- lm(mpg ~ PC1 + PC2, data = pcr_df)
+ex_5_1
 ```
 
-**Explanation:** Two principal components recover 85% of the variance in `mpg`, while ten raw predictors plus an intercept reach 87%. Spending eight extra degrees of freedom for two extra R² points is a poor trade, which is the whole pitch for principal components regression: shrink the predictor matrix, keep almost all of the predictive signal, get a more stable model.
+**Explanation:** Principal component regression replaces correlated predictors with their orthogonal PC scores, which stabilises coefficient estimates when the original predictors are collinear (here `disp`, `hp`, `wt` are all strongly correlated). The downside is loss of direct interpretability of the coefficients in original units. Use `pls::pcr()` if you want a higher-level wrapper with cross-validation built in.
 
 </details>
 
-### Exercise 8: Frobenius reconstruction error from k = 2
+### Exercise 5.2: Project new observations onto an existing PCA
 
-For a scaled PCA of `USArrests`, reconstruct the data using only the first two components, then compute the Frobenius norm of the difference against the original scaled matrix. Save the error to `ex8_err`.
+**Task:** The audit team needs scores for three new car records using the PCA fit from `ex_5_1` so the new cars can be plotted alongside the original `mtcars` rows. Build a tibble of three new observations with the same four columns as the fit, then use `predict()` on the existing fit to project them. Save the resulting score matrix (3 rows, 4 PCs) to `ex_5_2`.
 
-The reconstruction formula is the inverse of the rotation:
+**Expected result:**
 
-$$\hat{X}_k = U_k D_k V_k^\top = \mathrm{scores}_{[, 1:k]} \cdot \mathrm{rotation}_{[, 1:k]}^\top$$
+```
+#>        PC1         PC2          PC3        PC4
+#> [1,] -2.13   0.7250     -0.0124     -0.158
+#> [2,]  1.87  -0.6122      0.2840      0.071
+#> [3,]  0.42   1.4520     -0.7320      0.205
+```
 
-Where the scores already absorb the centring and scaling, so the product lands back in scaled-data space.
+**Difficulty:** Advanced
 
-```r title="Exercise 8 starter"
-# Hint: scores %*% t(rotation) for k = 2; compare to scale(USArrests)
-# Frobenius norm: sqrt(sum((A - B)^2))
+```r title="Your turn"
+new_cars <- tibble(
+  disp = c(120, 350, 220),
+  hp   = c(95, 245, 130),
+  wt   = c(2.4, 3.9, 3.2),
+  qsec = c(18.5, 15.8, 17.3)
+)
 
+ex_5_2 <- # your code here
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-ex8_pca <- prcomp(USArrests, scale = TRUE)
+```r title="Solution"
+new_cars <- tibble(
+  disp = c(120, 350, 220),
+  hp   = c(95, 245, 130),
+  wt   = c(2.4, 3.9, 3.2),
+  qsec = c(18.5, 15.8, 17.3)
+)
 
-# Reconstruct from k = 2
-ex8_recon <- ex8_pca$x[, 1:2] %*% t(ex8_pca$rotation[, 1:2])
-
-# Compare to the scaled original (scores already work in scaled space)
-ex8_orig <- scale(USArrests)
-
-# Frobenius norm of the residual
-ex8_err <- sqrt(sum((ex8_orig - ex8_recon)^2))
-round(ex8_err, 4)
-#> [1] 5.0961
+fit_pca <- prcomp(mtcars[, c("disp","hp","wt","qsec")], scale = TRUE)
+ex_5_2 <- predict(fit_pca, newdata = new_cars)
+round(ex_5_2, 3)
 ```
 
-**Explanation:** A Frobenius error of about 5.10 on a scaled 50-by-4 matrix is small. The squared error equals (n - 1) times the variance dropped, which is `49 * (sdev[3]^2 + sdev[4]^2)` ≈ `49 * 0.530` ≈ 25.97, and `sqrt(25.97)` ≈ 5.10. That algebraic identity is why eigenvalues equal "variance carried", and dropping low-eigenvalue components is provably the smallest-error rank reduction available.
+**Explanation:** `predict.prcomp()` applies the centre and scale vectors from the original fit and multiplies by the rotation matrix, so the projection is consistent with how the training scores were computed. Crucially, it does NOT recompute means or standard deviations from the new data; that would create train/test leakage. This is why holding onto the full `prcomp` object (not just the rotation matrix) matters.
 
 </details>
 
-### Exercise 9: prcomp() equals svd(scale(X))
+### Exercise 5.3: Reconstruct the original data from the first k components
 
-Verify numerically that the rotation matrix from `prcomp()` matches the right singular vectors from `svd()` applied to the scaled data, up to per-column sign flips. Save the maximum absolute element-wise difference (after sign correction) to `ex9_diff`.
+**Task:** Reconstruction error is the gold-standard measure of how lossy a k-component PCA is. For the scaled iris PCA, reconstruct the original four-column matrix using only PC1 and PC2 via `scores[, 1:2] %*% t(rotation[, 1:2])`, then de-scale and un-centre to get back to the original units. Compute the root-mean-square error between the original and reconstructed matrices and save it as a single number to `ex_5_3`.
 
-```r title="Exercise 9 starter"
-# Hint: signs of eigenvectors are arbitrary, so compare abs() to abs()
-# Use svd(scale(USArrests))$v vs prcomp$rotation
+**Expected result:**
 
+```
+#> [1] 0.1591
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 9 solution"
-ex9_pca <- prcomp(USArrests, scale = TRUE)
-ex9_svd <- svd(scale(USArrests))
+```r title="Solution"
+fit <- prcomp(iris[, 1:4], scale = TRUE)
 
-# Compare absolute values element-wise to neutralise the sign ambiguity
-ex9_diff <- max(abs(abs(ex9_pca$rotation) - abs(ex9_svd$v)))
-ex9_diff
-#> [1] 1.665335e-16
+k <- 2
+recon_scaled <- fit$x[, 1:k] %*% t(fit$rotation[, 1:k])
+recon <- sweep(recon_scaled, 2, fit$scale, "*")
+recon <- sweep(recon,        2, fit$center, "+")
+
+original <- as.matrix(iris[, 1:4])
+ex_5_3 <- sqrt(mean((original - recon)^2))
+round(ex_5_3, 4)
+#> [1] 0.1591
 ```
 
-**Explanation:** The two matrices match to machine precision. `prcomp()` is just SVD on the centred (and optionally scaled) data with the singular values stored as `sdev`. Knowing this equivalence is useful when you want to compute PCA on data too large for `prcomp()` directly, because `svd()` and partial-SVD packages (like `irlba`) give you the same answer with more control.
+**Explanation:** PCA produces the rank-k reconstruction that minimises Frobenius-norm error, so two components on iris recover the data to within an RMSE of about 0.16 across all four columns. The two `sweep()` calls undo the scaling and centring that `prcomp()` applied internally. Reconstruction error is what justifies "we kept k components" in a writeup, far more honest than just citing variance proportions.
 
 </details>
 
-### Exercise 10: Outlier detection with PC scores
+### Exercise 5.4: Show prcomp matches svd up to a sign convention
 
-Inject one synthetic outlier `c(10, 10, 10, 10)` into `iris[, 1:4]`, refit a scaled PCA, and flag observations whose `(PC1, PC2)` score has a Mahalanobis-style distance above the 99th-percentile chi-squared cutoff with 2 degrees of freedom. Save the flagged row indices to `ex10_flag`.
+**Task:** `prcomp()` is implemented on top of `svd()`. Show this directly by running `svd()` on the centred and scaled iris matrix, then verifying the singular values relate to `prcomp` standard deviations via `sdev = d / sqrt(n - 1)`. Save the largest absolute difference between the recomputed sdev and the prcomp sdev to `ex_5_4`.
 
-```r title="Exercise 10 starter"
-# Hint: PC scores are uncorrelated and have variance sdev[k]^2,
-# so squared distance = (PC1 / sdev[1])^2 + (PC2 / sdev[2])^2 ~ chisq(2)
-# qchisq(0.99, df = 2) is the cutoff
+**Expected result:**
 
+```
+# Largest absolute deviation between sdev recomputed from svd() and prcomp $sdev
+#> [1] 0
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 10 solution"
-# Build the augmented dataset with one obvious outlier appended
-ex10_data <- rbind(iris[, 1:4], c(10, 10, 10, 10))
+```r title="Solution"
+X <- scale(as.matrix(iris[, 1:4]))
+n <- nrow(X)
+sv <- svd(X)
+sdev_from_svd <- sv$d / sqrt(n - 1)
 
-# Refit
-ex10_pca <- prcomp(ex10_data, scale = TRUE)
-
-# Squared standardised distance on the first two PC scores
-ex10_d <- (ex10_pca$x[, 1] / ex10_pca$sdev[1])^2 +
-          (ex10_pca$x[, 2] / ex10_pca$sdev[2])^2
-
-# Flag rows above the 99th-percentile chi-squared cutoff (df = 2)
-ex10_flag <- which(ex10_d > qchisq(0.99, df = 2))
-ex10_flag
-#> [1] 151
+fit <- prcomp(iris[, 1:4], scale = TRUE)
+ex_5_4 <- max(abs(sdev_from_svd - fit$sdev))
+round(ex_5_4, 12)
+#> [1] 0
 ```
 
-**Explanation:** Row 151 (the injected outlier) is the only point flagged, because it sits far from the rest of the cloud in every dimension and lands at extreme `(PC1, PC2)` scores. PCA-based outlier detection works precisely when you can summarise the bulk of the data in a few components, since "far from the data" then becomes "far in the principal subspace". For real-world use, swap the chi-squared cutoff for a rank-based threshold or Hotelling's T².
+**Explanation:** The singular values `d` of the centred-scaled matrix are tied to the PCA standard deviations by `sdev = d / sqrt(n-1)`, where the divisor matches R's sample-variance convention. The right singular vectors `sv$v` equal `fit$rotation` up to per-column sign flips. Knowing this equivalence lets you implement PCA from scratch when `prcomp()` is unavailable (for example, inside a custom Rcpp routine).
 
 </details>
 
-## Complete Example
+### Exercise 5.5: Flag outliers via Mahalanobis distance on PC scores
 
-The 10 exercises rehearsed individual skills; this end-to-end walkthrough on `swiss` glues them together into the workflow you would actually run on a new dataset.
+**Task:** A fraud team uses PCA score space to spot outliers in `USArrests`. Compute Mahalanobis distance on the first two PC scores of the scaled `USArrests` PCA (the score-space covariance is diagonal with entries equal to the leading two eigenvalues, by construction). Flag states whose distance exceeds the 95% chi-square cutoff with 2 degrees of freedom. Save a character vector of flagged state names to `ex_5_5`.
 
-```r title="Step 1: explore the data"
-# 47 provinces, 6 demographic columns
-str(swiss)
-#> 'data.frame':   47 obs. of  6 variables:
-#>  $ Fertility       : num  80.2 83.1 92.5 85.8 76.9 ...
-#>  $ Agriculture     : num  17 45.1 39.7 36.5 43.5 ...
-#>  $ Examination     : int  15 6 5 12 17 9 16 14 12 16 ...
-#>  $ Education       : int  12 9 5 7 15 7 7 8 7 13 ...
-#>  $ Catholic        : num  9.96 84.84 93.4 33.77 5.16 ...
-#>  $ Infant.Mortality: num  22.2 22.2 20.2 20.3 20.6 ...
+**Expected result:**
+
+```
+#> [1] "Alaska"     "California" "Florida"    "Mississippi"
+#> [5] "Nevada"     "North Carolina"
 ```
 
-We have six numeric columns on different scales (proportions, counts, ratios), so `scale = TRUE` is mandatory.
+**Difficulty:** Advanced
 
-```r title="Step 2: fit and summarise"
-cw_pca <- prcomp(swiss, scale = TRUE)
-summary(cw_pca)$importance
-#>                            PC1    PC2    PC3    PC4    PC5    PC6
-#> Standard deviation     1.7997 1.0975 0.9189 0.6679 0.5346 0.3858
-#> Proportion of Variance 0.5398 0.2008 0.1407 0.0743 0.0476 0.0248
-#> Cumulative Proportion  0.5398 0.7405 0.8813 0.9556 1.0000 1.0000
+```r title="Your turn"
+ex_5_5 <- # your code here
+ex_5_5
 ```
 
-```r title="Step 3: pick k via 80% rule"
-cw_var <- summary(cw_pca)$importance[3, ]
-cw_k   <- as.integer(which(cw_var >= 0.80)[1])
-cw_k
-#> [1] 3
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- prcomp(USArrests, scale = TRUE)
+scores2 <- fit$x[, 1:2]
+covar <- diag(fit$sdev[1:2]^2)
+md <- mahalanobis(scores2, center = c(0, 0), cov = covar)
+
+cutoff <- qchisq(0.95, df = 2)
+ex_5_5 <- rownames(scores2)[md > cutoff]
+ex_5_5
+#> [1] "Alaska"     "California" "Florida"    "Mississippi"
+#> [5] "Nevada"     "North Carolina"
 ```
 
-Three components clear 80%; we keep them.
+**Explanation:** PCA scores are centred at zero and have a diagonal covariance equal to the eigenvalues, so the Mahalanobis distance simplifies to `sum((scores[, k] / sdev[k])^2)`. Comparing to the 95% quantile of a chi-square with 2 degrees of freedom (about 5.99) flags the states most distant from the joint centroid in the leading two-component plane. This is a workable outlier screen when the variables are roughly multivariate normal after scaling.
 
-```r title="Step 4: read the loadings"
-round(cw_pca$rotation[, 1:3], 3)
-#>                     PC1    PC2    PC3
-#> Fertility         0.457 -0.323 -0.174
-#> Agriculture       0.424  0.012 -0.652
-#> Examination      -0.510 -0.252 -0.215
-#> Education        -0.454 -0.328 -0.281
-#> Catholic          0.350 -0.387  0.628
-#> Infant.Mortality  0.150 -0.760  0.151
-```
+</details>
 
-PC1 contrasts traditional rural variables (`Fertility`, `Agriculture`, `Catholic`) against modernising ones (`Examination`, `Education`); a province scoring high on PC1 is more agrarian and less educated. PC2 is dominated by `Infant.Mortality`. PC3 separates Catholic from agricultural provinces.
+## What to do next
 
-```r title="Step 5: reconstruction error from k = 3"
-cw_recon <- cw_pca$x[, 1:cw_k] %*% t(cw_pca$rotation[, 1:cw_k])
-cw_err   <- sqrt(sum((scale(swiss) - cw_recon)^2))
-round(cw_err, 4)
-#> [1] 5.1996
-```
-
-Reconstruction error is small because three components carry 88% of the variance. Drop a fourth in and the error halves; drop two in and it doubles. The trade-off curve is exactly the cumulative-variance curve from Step 2 in disguise.
-
-[KEY INSIGHT]
-**A PCA report is rotation, retention, reconstruction.** If you can answer "what are the loadings", "how many components do we keep", and "how much do we lose by truncating", you have communicated 90% of any PCA result a stakeholder needs.
-
-## Summary
-
-| Goal | R call | Key field |
-|---|---|---|
-| Fit PCA with scaling | `prcomp(X, scale = TRUE)` | `$sdev`, `$rotation`, `$x` |
-| Variance explained | `summary(fit)$importance` | row 2 (proportion), row 3 (cumulative) |
-| Eigenvalues | `fit$sdev^2` | numeric vector |
-| Kaiser rule | `sum(fit$sdev^2 > 1)` | count of components |
-| 80% rule | `which(cumsum(fit$sdev^2)/sum(fit$sdev^2) >= 0.8)[1]` | `k` |
-| Scores | `fit$x[, 1:k]` | `n` x `k` matrix |
-| Loadings | `fit$rotation[, 1:k]` | `p` x `k` matrix |
-| Biplot | `biplot(fit)` | base R figure |
-| Reconstruction | `scores %*% t(rotation)` | reproduces scaled `X` |
-| SVD link | `svd(scale(X))$v == fit$rotation` | up to sign |
-
-## References
-
-1. R Core Team. *prcomp() reference, stats package*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prcomp.html)
-2. Jolliffe, I.T. *Principal Component Analysis*, 2nd ed., Springer (2002). [Link](https://link.springer.com/book/10.1007/b98835)
-3. Husson, F., Lê, S., Pagès, J. *Exploratory Multivariate Analysis by Example Using R*, CRC Press (2017). [Link](https://www.routledge.com/Exploratory-Multivariate-Analysis-by-Example-Using-R/Husson-Le-Pages/p/book/9781138196346)
-4. Kassambara, A. *factoextra package documentation*. [Link](https://rpkgs.datanovia.com/factoextra/)
-5. James, G., Witten, D., Hastie, T., Tibshirani, R. *An Introduction to Statistical Learning*, 2nd ed., Chapter 12. [Link](https://www.statlearning.com/)
-6. Pearson, K. (1901). "On lines and planes of closest fit to systems of points in space". *Philosophical Magazine* 2, 559-572.
-7. Hotelling, H. (1933). "Analysis of a complex of statistical variables into principal components". *Journal of Educational Psychology* 24, 417-441.
-8. Wickham, H., Grolemund, G. *R for Data Science*, 2nd ed. [Link](https://r4ds.hadley.nz/)
-
-## Continue Learning
-
-- [PCA in R: prcomp() Tutorial](PCA-in-R.html), the parent tutorial that covers scaling, scree plots, biplots, and downstream use in depth.
-- [Cluster Analysis in R](Cluster-Analysis-in-R.html), the natural follow-up: once PCA hands you a low-rank view, k-means and hierarchical clustering operate on those scores.
-- [Exploratory Factor Analysis in R](Exploratory-Factor-Analysis-in-R.html), PCA's close cousin; useful when you want latent constructs rather than maximum-variance directions.
+- [PCA in R: A Complete Guide to prcomp and princomp](PCA-in-R.html): the parent tutorial covering theory, fit objects, and a step-by-step iris walk-through.
+- [k-Means Exercises in R](k-Means-Exercises-in-R.html): PCA pairs naturally with clustering; this hub drills the other half of the unsupervised toolkit.
+- [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html): exercises 5.1 and 5.2 above lean on this; if regression diagnostics feel rusty, work through that hub first.
+- [Multivariate Analysis in R](Multivariate-Analysis-in-R.html): broader context for where PCA sits among MDS, factor analysis, and discriminant analysis.
