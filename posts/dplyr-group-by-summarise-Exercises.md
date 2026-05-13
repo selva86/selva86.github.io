@@ -1,75 +1,48 @@
 ---
-title: "dplyr group_by() & summarise() Exercises: 10 Aggregation Problems, Solved Step-by-Step"
+title: "dplyr group_by + summarise Exercises in R: 18 Aggregation Practice Problems"
 slug: "dplyr-group-by-summarise-Exercises"
-description: "Practise dplyr group_by() & summarise() with 10 worked aggregation problems, counts, means, across(), NA handling, group shares, and per-group ranking."
-keywords: "dplyr exercises, group_by exercises, summarise exercises, R aggregation practice, dplyr practice problems, tidyverse exercises, R data wrangling exercises, group by summarise R"
+description: "18 worked group_by + summarise exercises in R: counts, multi-column rollups, across() column-wise stats, NA handling, group shares, and per-group ranking."
+keywords: "group_by summarise exercises in R, dplyr group_by exercises, dplyr summarise exercises, dplyr aggregation practice, group by practice problems, dplyr exercises, R data wrangling exercises"
 mathjax: false
 webr: true
-date: "2026-04-14"
+date: "2026-05-13"
 curriculum_id: "E2.3"
 post_type: "EX"
-sidebar_title: "group_by & summarise (10 problems)"
-auto_link_terms: "dplyr group_by exercises|dplyr summarise exercises|group_by practice problems|summarise practice problems|dplyr aggregation exercises"
-auto_link_case_sensitive: false
+sidebar_title: "group_by & summarise (18 problems)"
+sidebar_order: 145
 fr_parent: "dplyr-group-by-summarise.html"
-difficulty: "Intermediate"
+auto_link_terms: "group_by exercises|summarise exercises|dplyr aggregation practice|group by practice problems|dplyr exercises"
+auto_link_case_sensitive: false
+target_keyword: "group_by summarise exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
+# dplyr group_by + summarise Exercises in R: 18 Aggregation Practice Problems
 
-# dplyr group_by() & summarise() Exercises: 10 Aggregation Problems
+<p class="lead">Eighteen runnable practice problems that drill the most common dplyr aggregation pattern: <code>group_by() |&gt; summarise()</code>. The mix covers counts and means, multi-column groups, <code>across()</code> for column-wise stats, <code>NA</code> handling, group shares, and per-group ranking. Each problem hides a fully worked solution so you can try first and verify after.</p>
 
-<p class="lead">Ten runnable, increasingly tricky aggregation problems built around <code>dplyr::group_by()</code> and <code>summarise()</code>, counts, multi-column groups, <code>across()</code>, <code>NA</code> handling, group shares, and per-group ranking. Each problem hides a fully worked solution behind a click-to-reveal so you can try first and verify after.</p>
-
-## How do you count rows and take averages per group?
-
-Counts and means are where almost every group-wise analysis starts. Before you touch missing values or per-group percentages, you need to be fluent at "split this data into groups, then collapse each group to a single number." The first three exercises drill exactly that, and the payoff block right below shows the shape of answer you are aiming at.
-
-```r title="Mean mpg and count per cylinder"
-# Load dplyr and aggregate mtcars: average mpg + row count per cylinder
+```r title="Run this once before any exercise"
 library(dplyr)
-
-mtcars |>
-  group_by(cyl) |>
-  summarise(
-    n       = n(),
-    avg_mpg = round(mean(mpg), 1),
-    .groups = "drop"
-  )
-#> # A tibble: 3 × 3
-#>     cyl     n avg_mpg
-#>   <dbl> <int>   <dbl>
-#> 1     4    11    26.7
-#> 2     6     7    19.7
-#> 3     8    14    15.1
+library(tidyr)
+library(tibble)
+library(ggplot2)   # for the diamonds dataset
 ```
 
-Three lines of dplyr produce a clean three-row answer. `group_by(cyl)` splits the 32 rows of `mtcars` into three pieces, `n()` counts the rows inside each piece, and `mean(mpg)` averages the `mpg` column inside each piece. `.groups = "drop"` returns a plain ungrouped tibble so the result behaves predictably in any later step. This is the shape every exercise below builds on.
+The exercises share state: every variable you define (`ex_1_1`, `ex_2_3`, etc.) persists across blocks on this page, so feel free to reuse earlier results in later problems if you want.
 
-[TIP]
-**Reach for count() first when you only need frequencies.** If your summary is just "how many rows per group", `count(df, group_col)` is shorter than the full `group_by() + summarise(n = n())` pipeline. As soon as you also need a mean or a sum, switch back to the full form.
+## Section 1. Counts and means: the basics (3 problems)
 
-### Exercise 1: Count cars per cylinder
+The first three exercises drill the bread-and-butter pattern: split the rows, then count or average inside each group. Every later problem is a variation on this same skeleton.
 
-Count how many cars in `mtcars` have 4, 6, and 8 cylinders. Save the result to `my_counts`. The output should have two columns: `cyl` and `n`.
+### Exercise 1.1: Count cars per cylinder in mtcars
 
-```r title="Exercise: Count rows per cylinder"
-# Exercise 1: count rows per cyl group
-# Hint: group_by(cyl) then summarise(n = n())
+**Task:** Use `group_by()` and `summarise()` on the built-in `mtcars` dataset to count how many rows belong to each `cyl` value (the engine cylinder count). The output should have two columns, `cyl` and `n`. Save the result to `ex_1_1`.
 
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Count rows solution"
-my_counts <- mtcars |>
-  group_by(cyl) |>
-  summarise(n = n(), .groups = "drop")
-
-print(my_counts)
-#> # A tibble: 3 × 2
+#> # A tibble: 3 x 2
 #>     cyl     n
 #>   <dbl> <int>
 #> 1     4    11
@@ -77,32 +50,42 @@ print(my_counts)
 #> 3     8    14
 ```
 
-**Explanation:** `group_by(cyl)` splits the data into three pieces, one per unique cylinder value. `n()` counts the rows inside each piece. `.groups = "drop"` removes the grouping after summarising, so `my_counts` is a plain tibble. Without it you would see a friendly message from dplyr explaining which groups remain.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Average mpg per cylinder
-
-Compute the average `mpg` for each `cyl` group in `mtcars`. Round to one decimal. Save to `my_mpg`. The mean column should be named `avg_mpg`.
-
-```r title="Exercise: Mean mpg per cylinder"
-# Exercise 2: mean mpg per cyl
-# Hint: summarise(avg_mpg = round(mean(mpg), 1))
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Mean mpg solution"
-my_mpg <- mtcars |>
+```r title="Solution"
+ex_1_1 <- mtcars |>
   group_by(cyl) |>
-  summarise(avg_mpg = round(mean(mpg), 1), .groups = "drop")
+  summarise(n = n(), .groups = "drop")
 
-print(my_mpg)
-#> # A tibble: 3 × 2
+ex_1_1
+#> # A tibble: 3 x 2
+#>     cyl     n
+#>   <dbl> <int>
+#> 1     4    11
+#> 2     6     7
+#> 3     8    14
+```
+
+**Explanation:** `n()` is a special dplyr helper that returns the row count of the current group. The shorter equivalent here is `count(mtcars, cyl)`, which wraps the same pipeline. Once you also need a mean or sum alongside the count, you have to switch back to the full `group_by()` + `summarise()` form, so it pays to be fluent in both.
+
+</details>
+
+### Exercise 1.2: Average mpg per cylinder, rounded to one decimal
+
+**Task:** A junior analyst is preparing a one-line summary of fuel economy by engine size for a status email. Compute the mean of `mpg` grouped by `cyl` in `mtcars`, round to one decimal, and save the two-column result to `ex_1_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 2
 #>     cyl avg_mpg
 #>   <dbl>   <dbl>
 #> 1     4    26.7
@@ -110,586 +93,859 @@ print(my_mpg)
 #> 3     8    15.1
 ```
 
-**Explanation:** Four-cylinder cars average 26.7 mpg while eight-cylinder cars average 15.1 mpg, a 75 percent gap that mirrors what you would expect from engine size. `mean(mpg)` runs once per group because `group_by(cyl)` already split the rows. `round(..., 1)` formats the output. No `na.rm` needed here, `mtcars` has no missing values.
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 3: Use count() as a shortcut
-
-Repeat the count idea from Exercise 1, but use `count()` instead of `group_by() + summarise(n = n())`. Count cars per `gear` value. Save to `my_gears`.
-
-```r title="Exercise: Use count shortcut"
-# Exercise 3: use count() shortcut
-# Hint: count(mtcars, gear) does the same thing in one call
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="count shortcut solution"
-my_gears <- mtcars |> count(gear)
+```r title="Solution"
+ex_1_2 <- mtcars |>
+  group_by(cyl) |>
+  summarise(avg_mpg = round(mean(mpg), 1), .groups = "drop")
 
-print(my_gears)
-#>   gear  n
-#> 1    3 15
-#> 2    4 12
-#> 3    5  5
+ex_1_2
+#> # A tibble: 3 x 2
+#>     cyl avg_mpg
+#>   <dbl>   <dbl>
+#> 1     4    26.7
+#> 2     6    19.7
+#> 3     8    15.1
 ```
 
-**Explanation:** `count()` is a one-line shortcut. It does the exact same thing as `group_by(gear) |> summarise(n = n(), .groups = "drop")`, but with less typing and no `.groups` argument to remember. Add `sort = TRUE` to order the result from largest group to smallest. Most dplyr users reach for `count()` whenever the question is purely "how many rows per group".
+**Explanation:** Wrapping the aggregation in `round(..., 1)` shapes the column at the point of computation, which is cleaner than rounding downstream because the summary table is the artifact you ship. Avoid rounding upstream of statistical work though: `round()` discards precision that matters for variance, t-tests, and regression. Round at the presentation step only.
 
 </details>
 
-## How do you group by multiple columns and handle missing values?
+### Exercise 1.3: Average ozone per month in airquality
 
-The first three exercises stayed inside one grouping column and one clean dataset. Real data is messier than that. The next three add two complications at once: a second grouping column, and missing values that quietly poison every summary you write. Here is a quick look at the dataset that brings the missing values, the `starwars` tibble that ships with dplyr.
+**Task:** The reporting team at an air-quality office wants the monthly mean of `Ozone` from the built-in `airquality` dataset for the New York summer of 1973. Group by `Month` and produce one row per month with `avg_ozone` rounded to one decimal. Save the result to `ex_1_3`.
 
-```r title="Preview starwars with missing values"
-# Preview the starwars dataset — note the NA values in height and mass
-starwars |>
-  select(name, height, mass, species, homeworld) |>
-  head(5)
-#> # A tibble: 5 × 5
-#>   name           height  mass species homeworld
-#>   <chr>           <int> <dbl> <chr>   <chr>
-#> 1 Luke Skywalker    172    77 Human   Tatooine
-#> 2 C-3PO             167    75 Droid   Tatooine
-#> 3 R2-D2              96    32 Droid   Naboo
-#> 4 Darth Vader       202   136 Human   Tatooine
-#> 5 Leia Organa       150    49 Human   Alderaan
+**Expected result:**
+
+```
+#> # A tibble: 5 x 2
+#>   Month avg_ozone
+#>   <int>     <dbl>
+#> 1     5      23.6
+#> 2     6      29.4
+#> 3     7      59.1
+#> 4     8      59.9
+#> 5     9      31.4
 ```
 
-The first five rows look clean, but `starwars` has 87 rows and several columns contain `NA`. That is the point, you will use this dataset to practise the `na.rm = TRUE` argument in Exercise 6. Exercise 4 stays on `mtcars` and Exercise 5 jumps to `iris`.
+**Difficulty:** Intermediate
 
-### Exercise 4: Group by two columns
-
-Group `mtcars` by both `cyl` and `am` (automatic = 0, manual = 1). Compute the count and mean mpg per combination. Save to `my_combo`. Use `.groups = "drop"` to return a plain tibble.
-
-```r title="Exercise: Group by two columns"
-# Exercise 4: group by two columns
-# Hint: group_by(cyl, am) then summarise with n() and mean()
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Two-column group solution"
-my_combo <- mtcars |>
-  group_by(cyl, am) |>
+```r title="Solution"
+ex_1_3 <- airquality |>
+  group_by(Month) |>
+  summarise(avg_ozone = round(mean(Ozone, na.rm = TRUE), 1), .groups = "drop")
+
+ex_1_3
+#> # A tibble: 5 x 2
+#>   Month avg_ozone
+#>   <int>     <dbl>
+#> 1     5      23.6
+#> 2     6      29.4
+#> 3     7      59.1
+#> 4     8      59.9
+#> 5     9      31.4
+```
+
+**Explanation:** `airquality$Ozone` has 37 missing values out of 153, so a naive `mean(Ozone)` returns `NA` for any month that contains one. Setting `na.rm = TRUE` discards those rows before averaging. This is the right default for descriptive reporting; if missingness is itself meaningful, you would instead compute a separate `n_missing = sum(is.na(Ozone))` column and decide downstream.
+
+</details>
+
+## Section 2. Multi-column grouping and rollups (3 problems)
+
+Real summaries usually slice by two or three variables at once. The shape of the output changes the moment you add a second grouping column, and the `.groups` argument controls how dplyr leaves the grouping after the summary.
+
+### Exercise 2.1: Mean horsepower by cylinder count and gear count
+
+**Task:** Aggregate `mtcars` by two columns at once, `cyl` and `gear`, and compute `avg_hp = mean(hp)`. The output should have one row per existing cyl-and-gear combination, sorted by `cyl` then `gear`. Save to `ex_2_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 8 x 3
+#>     cyl  gear avg_hp
+#>   <dbl> <dbl>  <dbl>
+#> 1     4     3   97
+#> 2     4     4   76
+#> 3     4     5  102
+#> 4     6     3  108
+#> 5     6     4  116.
+#> 6     6     5  175
+#> 7     8     3  194.
+#> 8     8     5  300.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- mtcars |>
+  group_by(cyl, gear) |>
+  summarise(avg_hp = mean(hp), .groups = "drop")
+
+ex_2_1
+#> # A tibble: 8 x 3
+#>     cyl  gear avg_hp
+#>   <dbl> <dbl>  <dbl>
+#> 1     4     3   97
+#> 2     4     4   76
+#> 3     4     5  102
+#> 4     6     3  108
+#> 5     6     4  116.
+#> 6     6     5  175
+#> 7     8     3  194.
+#> 8     8     5  300.
+```
+
+**Explanation:** Listing two columns inside `group_by()` creates one bucket per observed combination, not the full Cartesian product, so the cyl=8 gear=4 row is absent (no such car exists in `mtcars`). `.groups = "drop"` returns a plain ungrouped tibble; with the default `"drop_last"` dplyr would silently keep the data grouped by `cyl`, which can produce surprising results in any later `mutate()` or `filter()` you chain on.
+
+</details>
+
+### Exercise 2.2: Median price per cut and color in diamonds
+
+**Task:** A jeweller preparing a quarterly price review wants the median list price of stones in the `diamonds` dataset broken down by `cut` and `color`. Compute `med_price` per `(cut, color)` cell. Save the long-form tibble (one row per combination) to `ex_2_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 35 x 3
+#>    cut       color med_price
+#>    <ord>     <ord>     <dbl>
+#>  1 Fair      D         3730 
+#>  2 Fair      E         2956.
+#>  3 Fair      F         3035 
+#>  4 Fair      G         3057 
+#>  5 Fair      H         3816 
+#>  6 Fair      I         3246 
+#>  7 Fair      J         4234 
+#>  8 Good      D         1838 
+#>  9 Good      E         1994 
+#> 10 Good      F         2281 
+#> # 25 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- diamonds |>
+  group_by(cut, color) |>
+  summarise(med_price = median(price), .groups = "drop")
+
+ex_2_2
+#> # A tibble: 35 x 3
+#>    cut       color med_price
+#>    <ord>     <ord>     <dbl>
+#>  1 Fair      D         3730 
+#>  2 Fair      E         2956.
+#>  3 Fair      F         3035 
+#>  4 Fair      G         3057 
+#>  5 Fair      H         3816 
+#> # 30 more rows hidden
+```
+
+**Explanation:** With 5 cuts and 7 colors the full cross is 35 rows, and `diamonds` happens to have observations in every cell, so all 35 appear. Use `median()` here rather than `mean()` because diamond prices are heavily right-skewed by a handful of high-carat stones; the median answers "the typical price of a stone of this grade", which is what the jeweller cares about for pricing decisions.
+
+</details>
+
+### Exercise 2.3: Hierarchical rollup of diamond inventory by cut and clarity
+
+**Task:** The category manager needs a rollup of `diamonds` showing both the row count and the total revenue per `(cut, clarity)` combination, sorted high-to-low by total revenue. Compute `n_stones` and `total_price` per group, then arrange so the most valuable combinations are on top. Save to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 40 x 4
+#>    cut       clarity n_stones total_price
+#>    <ord>     <ord>      <int>       <int>
+#>  1 Ideal     VS2         5071    25719226
+#>  2 Premium  SI1          3575    21477705
+#>  3 Premium  VS2          3357    20063910
+#>  4 Ideal     SI1         4282    19500488
+#>  5 Ideal     VS1         3589    16769747
+#> # 35 more rows hidden
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- diamonds |>
+  group_by(cut, clarity) |>
   summarise(
-    n       = n(),
-    avg_mpg = round(mean(mpg), 1),
+    n_stones    = n(),
+    total_price = sum(price),
+    .groups     = "drop"
+  ) |>
+  arrange(desc(total_price))
+
+ex_2_3
+#> # A tibble: 40 x 4
+#>    cut       clarity n_stones total_price
+#>    <ord>     <ord>      <int>       <int>
+#>  1 Ideal     VS2         5071    25719226
+#>  2 Premium  SI1          3575    21477705
+#> # 38 more rows hidden
+```
+
+**Explanation:** Chaining `arrange(desc(total_price))` after the summarise turns a raw aggregation into a ranked report, the format a manager actually reads. Notice `total_price` is `<int>` here because `price` is integer; if it ever overflowed (R integers max at ~2.1 billion) you would coerce with `as.numeric(price)` before summing. For diamond revenue it does not, but the same code applied to retail sales over years can hit that ceiling.
+
+</details>
+
+## Section 3. across() for column-wise summaries (3 problems)
+
+`across()` lets one call summarise many columns at once. It is the cleanest way to compute the same statistic across a panel of numeric columns, and it composes with column selection helpers like `where()` and `starts_with()`.
+
+### Exercise 3.1: Mean of every numeric column in mtcars by cylinder
+
+**Task:** Compute the mean of every numeric column in `mtcars` grouped by `cyl`. Use `across(where(is.numeric), mean)` so the code automatically picks up all numeric columns (every column in `mtcars` is numeric). Save the wide result to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 11
+#>     cyl   mpg  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1     4  26.7  105.  82.6  4.07  2.29  19.1 0.909 0.727  4.09  1.55
+#> 2     6  19.7  183. 122.   3.59  3.12  18.0 0.571 0.429  3.86  3.43
+#> 3     8  15.1  353. 209.   3.23  4.00  16.8 0     0.143  3.29  3.5
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- mtcars |>
+  group_by(cyl) |>
+  summarise(across(where(is.numeric), mean), .groups = "drop")
+
+ex_3_1
+#> # A tibble: 3 x 11
+#>     cyl   mpg  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#>   <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl> <dbl>
+#> 1     4  26.7  105.  82.6  4.07  2.29  19.1 0.909 0.727  4.09  1.55
+#> 2     6  19.7  183. 122.   3.59  3.12  18.0 0.571 0.429  3.86  3.43
+#> 3     8  15.1  353. 209.   3.23  4.00  16.8 0     0.143  3.29  3.5
+```
+
+**Explanation:** `where(is.numeric)` is a tidyselect helper that scans columns at runtime and keeps only those matching the predicate. The grouping column `cyl` is excluded automatically because dplyr peels off grouping variables before `across()` sees the column set. The `am` column averages to a fraction (e.g. 0.727 for 4-cyl cars) because it is a 0/1 indicator: a mean of an indicator is a proportion.
+
+</details>
+
+### Exercise 3.2: Multiple statistics across selected columns
+
+**Task:** For each `cyl` group of `mtcars`, compute the minimum, mean, and maximum of `mpg`, `hp`, and `wt` in a single `summarise(across(...))` call. Use a named list of functions so column names come out as `mpg_min`, `mpg_mean`, `mpg_max`, etc. Save the 10-column tibble to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 10
+#>     cyl mpg_min mpg_mean mpg_max hp_min hp_mean hp_max wt_min wt_mean wt_max
+#>   <dbl>   <dbl>    <dbl>   <dbl>  <dbl>   <dbl>  <dbl>  <dbl>   <dbl>  <dbl>
+#> 1     4    21.4     26.7    33.9     52    82.6    113   1.51    2.29   3.19
+#> 2     6    17.8     19.7    21.4    105   122.    175   2.62    3.12   3.46
+#> 3     8    10.4     15.1    19.2    150   209.    335   3.17    4.00   5.42
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- mtcars |>
+  group_by(cyl) |>
+  summarise(
+    across(c(mpg, hp, wt), list(min = min, mean = mean, max = max)),
     .groups = "drop"
   )
 
-print(my_combo)
-#> # A tibble: 6 × 4
-#>     cyl    am     n avg_mpg
-#>   <dbl> <dbl> <int>   <dbl>
-#> 1     4     0     3    22.9
-#> 2     4     1     8    28.1
-#> 3     6     0     4    19.1
-#> 4     6     1     3    20.6
-#> 5     8     0    12    15.0
-#> 6     8     1     2    15.4
+ex_3_2
+#> # A tibble: 3 x 10
+#>     cyl mpg_min mpg_mean mpg_max hp_min hp_mean hp_max wt_min wt_mean wt_max
+#>   <dbl>   <dbl>    <dbl>   <dbl>  <dbl>   <dbl>  <dbl>  <dbl>   <dbl>  <dbl>
+#> 1     4    21.4     26.7    33.9     52    82.6    113   1.51    2.29   3.19
+#> 2     6    17.8     19.7    21.4    105   122.    175   2.62    3.12   3.46
+#> 3     8    10.4     15.1    19.2    150   209.    335   3.17    4.00   5.42
 ```
 
-**Explanation:** `group_by(cyl, am)` creates one group for every unique `(cyl, am)` combination present in the data, six groups in total. Manual four-cylinder cars average 28.1 mpg; automatic eight-cylinder cars average 15.0. The grouping order matters for the row order of the output, not for the values themselves.
+**Explanation:** Passing a named list to the second argument of `across()` produces one new column per (variable, function) pair, named `{var}_{fn}` by default. You can customize the template with the `.names` argument, e.g. `.names = "{fn}({col})"`. This idiom replaces the older `summarise_at(vars(mpg, hp, wt), funs(min, mean, max))` pattern, which is now soft-deprecated. Reach for `across()` whenever you would otherwise repeat the same function across columns.
 
 </details>
 
-### Exercise 5: Summarise many columns with across()
+### Exercise 3.3: Mean of all measurement columns in airquality per month, ignoring NA
 
-Use the `iris` dataset. Group by `Species` and compute the mean of every numeric column in one call. Save to `my_iris`. The result should have five columns: `Species` plus the four numeric means.
+**Task:** From `airquality`, compute the per-month mean of every numeric column except `Month` and `Day`. Use `across()` with a column selector that excludes those two, and pass `na.rm = TRUE` so missing readings are ignored. Save the result to `ex_3_3`.
 
-```r title="Exercise: Summarise across numeric columns"
-# Exercise 5: summarise all numeric columns per species
-# Hint: summarise(across(where(is.numeric), mean))
+**Expected result:**
 
-# Write your code below:
+```
+#> # A tibble: 5 x 5
+#>   Month Ozone Solar.R  Wind  Temp
+#>   <int> <dbl>   <dbl> <dbl> <dbl>
+#> 1     5  23.6    182.  11.6  65.5
+#> 2     6  29.4    190.  10.3  79.1
+#> 3     7  59.1    216.   8.94 83.9
+#> 4     8  59.9    172.   8.79 84.0
+#> 5     9  31.4    167.  10.2  76.9
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="across numeric columns solution"
-my_iris <- iris |>
-  group_by(Species) |>
-  summarise(across(where(is.numeric), mean), .groups = "drop")
-
-print(my_iris)
-#> # A tibble: 3 × 5
-#>   Species    Sepal.Length Sepal.Width Petal.Length Petal.Width
-#>   <fct>             <dbl>       <dbl>        <dbl>       <dbl>
-#> 1 setosa             5.01        3.43         1.46       0.246
-#> 2 versicolor         5.94        2.77         4.26       1.33
-#> 3 virginica          6.59        2.97         5.55       2.03
-```
-
-**Explanation:** `across(where(is.numeric), mean)` says: for every column that is numeric, apply `mean()`. This is the modern replacement for the old `summarise_if()` and `summarise_at()` helpers. If you needed two summaries per column instead of one, pass a named list: `across(where(is.numeric), list(mean = mean, sd = sd))`.
-
-</details>
-
-[KEY INSIGHT]
-**across() scales with your data, not your typing.** Hand-writing `summarise(mean_a = mean(a), mean_b = mean(b), mean_c = mean(c), ...)` breaks the moment you have twenty columns. With `across()` the same line of code works for four columns or four hundred, the data shape changes, the code does not.
-
-### Exercise 6: Handle NA values with starwars
-
-Use `starwars`. Group by `species` and compute mean `height` and mean `mass`. Drop any `NA` inputs from the means. Save to `my_species`. Sort the result by `mean_height` descending and keep only the top 5 rows.
-
-```r title="Exercise: NA-safe species averages"
-# Exercise 6: mean height and mass per species, NA-safe
-# Hint: mean(x, na.rm = TRUE); then arrange(desc(mean_height)) and head(5)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="NA-safe species solution"
-my_species <- starwars |>
-  group_by(species) |>
+```r title="Solution"
+ex_3_3 <- airquality |>
+  group_by(Month) |>
   summarise(
-    mean_height = mean(height, na.rm = TRUE),
-    mean_mass   = mean(mass,   na.rm = TRUE),
-    .groups     = "drop"
-  ) |>
-  arrange(desc(mean_height)) |>
-  head(5)
+    across(-c(Month, Day), \(x) mean(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
 
-print(my_species)
-#> # A tibble: 5 × 3
-#>   species    mean_height mean_mass
-#>   <chr>            <dbl>     <dbl>
-#> 1 Quermian           264       NaN
-#> 2 Wookiee            231       124
-#> 3 Kaminoan           221        88
-#> 4 Kaleesh            216       159
-#> 5 Yarael Poof         NA       NaN
+ex_3_3
+#> # A tibble: 5 x 5
+#>   Month Ozone Solar.R  Wind  Temp
+#>   <int> <dbl>   <dbl> <dbl> <dbl>
+#> 1     5  23.6    182.  11.6  65.5
+#> 2     6  29.4    190.  10.3  79.1
+#> 3     7  59.1    216.   8.94 83.9
+#> 4     8  59.9    172.   8.79 84.0
+#> 5     9  31.4    167.  10.2  76.9
 ```
 
-**Explanation:** `na.rm = TRUE` tells `mean()` to ignore missing values before averaging. Without it, any group containing one `NA` would return `NA` for the whole group. Notice the `NaN` in `mean_mass` for Quermian, that group had zero non-`NA` mass values, so the mean of an empty set is undefined. Real-world analysis almost always needs `na.rm = TRUE`.
+**Explanation:** The selector `-c(Month, Day)` keeps every column except those two; combined with the implicit removal of the grouping variable, dplyr summarises just `Ozone`, `Solar.R`, `Wind`, and `Temp`. The lambda `\(x) mean(x, na.rm = TRUE)` is a base-R anonymous-function shorthand (R 4.1+); the older `function(x) mean(x, na.rm = TRUE)` works identically. Pass extra arguments through a lambda whenever the function needs them; bare `mean` cannot take `na.rm` directly.
 
 </details>
 
-[WARNING]
-**Forgetting na.rm silently poisons every group with missing data.** The pipeline still runs, the output still prints, and you still get a tibble, it is just full of `NA` values you did not expect. Always run `summary(your_data)` first to check which columns contain missing values, then plan `na.rm = TRUE` for every summariser that touches them.
+## Section 4. Handling NA in group-wise aggregations (3 problems)
 
-## How do you filter groups, compute shares, and rank per group?
+Missing values silently break aggregations: a single `NA` in a group turns `mean()` into `NA` for that whole row. These exercises drill the three coping strategies: skip, count, and replace.
 
-The last four exercises combine two or more dplyr ideas at once. You will filter groups by size, compute group shares as percentages, compare the `.groups` argument values side by side, and pull the top-k rows per group. These are the patterns that separate "I can call summarise()" from "I can write real analysis with it."
+### Exercise 4.1: Naive mean produces NA, see what happens
 
-### Exercise 7: Keep only groups with at least N rows
+**Task:** Compute the per-month mean of `Solar.R` in `airquality` WITHOUT setting `na.rm = TRUE`. The result will contain at least one `NA` row because `Solar.R` has missing readings. Save the result to `ex_4_1` so you can inspect which months are affected.
 
-From `starwars`, compute the mean height per `species`, but keep only species with at least 2 characters in the dataset. Use `na.rm = TRUE`. Save to `my_big_species` and sort it from biggest group to smallest.
+**Expected result:**
 
-```r title="Exercise: Filter groups by size"
-# Exercise 7: filter groups by size
-# Hint: summarise n = n() AND mean_height together, then filter(n >= 2)
+```
+#> # A tibble: 5 x 2
+#>   Month avg_solar
+#>   <int>     <dbl>
+#> 1     5       NA 
+#> 2     6      190.
+#> 3     7      216.
+#> 4     8       NA 
+#> 5     9      167.
+```
 
-# Write your code below:
+**Difficulty:** Beginner
 
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Filter by size solution"
-my_big_species <- starwars |>
-  group_by(species) |>
+```r title="Solution"
+ex_4_1 <- airquality |>
+  group_by(Month) |>
+  summarise(avg_solar = mean(Solar.R), .groups = "drop")
+
+ex_4_1
+#> # A tibble: 5 x 2
+#>   Month avg_solar
+#>   <int>     <dbl>
+#> 1     5       NA 
+#> 2     6      190.
+#> 3     7      216.
+#> 4     8       NA 
+#> 5     9      167.
+```
+
+**Explanation:** `mean()` propagates `NA` by default, so any group with a single missing observation returns `NA` for the whole aggregate. This is intentional, R refuses to silently invent a summary. The fix is one of: pass `na.rm = TRUE` to skip, drop the rows upstream with `filter(!is.na(Solar.R))`, or replace `NA` with an imputed value. Pick the strategy that matches the question, never the one that just makes the warning go away.
+
+</details>
+
+### Exercise 4.2: Count missing readings per month
+
+**Task:** The data-quality reviewer needs to know how many `Ozone` readings are missing in each month of `airquality`. Compute `n_missing = sum(is.na(Ozone))` and `n_total = n()` per `Month` so the team can see both the absolute count and the denominator. Save to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 3
+#>   Month n_missing n_total
+#>   <int>     <int>   <int>
+#> 1     5         5      31
+#> 2     6        21      30
+#> 3     7         5      31
+#> 4     8         5      31
+#> 5     9         1      30
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_2 <- airquality |>
+  group_by(Month) |>
   summarise(
-    n           = n(),
-    mean_height = mean(height, na.rm = TRUE),
-    .groups     = "drop"
-  ) |>
-  filter(n >= 2) |>
-  arrange(desc(n))
-
-print(my_big_species)
-#> # A tibble: 9 × 3
-#>   species      n mean_height
-#>   <chr>    <int>       <dbl>
-#> 1 Human       35       177.
-#> 2 Droid        6       140
-#> 3 Gungan       3       209.
-#> 4 Wookiee      2       231
-#> ...
-```
-
-**Explanation:** The `summarise()` call produces one row per species with both `n` and `mean_height`. Then `filter(n >= 2)` keeps only species that appear at least twice. This is the standard pattern for "ignore small or noisy groups" in analysis. Because `.groups = "drop"` was used, `filter()` operates on a plain tibble with no surprises.
-
-</details>
-
-### Exercise 8: Group share as a percentage
-
-For `mtcars`, compute each `gear` group's share of total `mpg` as a percentage. The output should have three columns: `gear`, `sum_mpg`, and `pct_of_total`. Save to `my_share`. The `pct_of_total` column should sum to 100.
-
-```r title="Exercise: Group share as percent"
-# Exercise 8: group share as percent of total
-# Hint: summarise sum_mpg per gear first, then mutate pct = 100 * sum_mpg / sum(sum_mpg)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Group share solution"
-my_share <- mtcars |>
-  group_by(gear) |>
-  summarise(sum_mpg = sum(mpg), .groups = "drop") |>
-  mutate(pct_of_total = round(100 * sum_mpg / sum(sum_mpg), 1))
-
-print(my_share)
-#> # A tibble: 3 × 3
-#>    gear sum_mpg pct_of_total
-#>   <dbl>   <dbl>        <dbl>
-#> 1     3   294.          45.9
-#> 2     4   294.          45.9
-#> 3     5    52.3          8.2
-```
-
-**Explanation:** The trick is `.groups = "drop"`. After dropping, the `mutate()` call sees a flat three-row tibble and computes `sum(sum_mpg)` across all three rows, the grand total. Without dropping, `mutate()` would run inside each group and divide each value by itself, giving 100 percent for every row. That bug is silent.
-
-</details>
-
-[KEY INSIGHT]
-**Group shares need a two-step pipeline: summarise first, then mutate on an ungrouped tibble.** The first step aggregates rows to one value per group; the second step compares each group to the global total. Leaving the grouping active during `mutate()` is one of the top three sources of wrong percentage results in dplyr code.
-
-### Exercise 9: Compare .groups = "drop" vs .groups = "keep"
-
-Run two near-identical pipelines on `mtcars`: group by `cyl` and `am`, then summarise `n = n()`. In the first, use `.groups = "drop"`. In the second, use `.groups = "keep"`. After each, call `group_vars()` to see which grouping remains. Save the results to `my_drop` and `my_keep`.
-
-```r title="Exercise: Contrast .groups values"
-# Exercise 9: contrast .groups values
-# Hint: same pipeline twice with different .groups; then group_vars(result)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="groups comparison solution"
-my_drop <- mtcars |>
-  group_by(cyl, am) |>
-  summarise(n = n(), .groups = "drop")
-
-my_keep <- mtcars |>
-  group_by(cyl, am) |>
-  summarise(n = n(), .groups = "keep")
-
-group_vars(my_drop)
-#> character(0)
-
-group_vars(my_keep)
-#> [1] "cyl" "am"
-```
-
-**Explanation:** `group_vars()` reports the active grouping columns. `"drop"` removes all grouping after summarise, so `my_drop` is ungrouped (an empty character vector). `"keep"` retains every grouping variable, both `cyl` and `am`. The other options are `"drop_last"` (removes only the rightmost grouping, this is dplyr's default when you do not specify) and `"rowwise"` (rare). Use `"drop"` as a safe default unless you specifically need the grouping later.
-
-</details>
-
-### Exercise 10: Top-k per group using slice_max
-
-From `starwars`, find the two heaviest characters per `homeworld`. Only consider rows where `mass` and `homeworld` are not `NA`. Save to `my_top2`. Sort the result by `homeworld`, then by `mass` descending within each homeworld.
-
-```r title="Exercise: Top two per homeworld"
-# Exercise 10: top-2 per group
-# Hint: filter NA rows, group_by(homeworld), slice_max(mass, n = 2)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Top two per homeworld solution"
-my_top2 <- starwars |>
-  filter(!is.na(mass), !is.na(homeworld)) |>
-  group_by(homeworld) |>
-  slice_max(mass, n = 2, with_ties = FALSE) |>
-  arrange(homeworld, desc(mass)) |>
-  select(name, homeworld, mass)
-
-print(my_top2, n = 8)
-#> # A tibble: ... × 3
-#> # Groups:   homeworld [...]
-#>   name                  homeworld      mass
-#>   <chr>                 <chr>         <dbl>
-#> 1 Jabba Desilijic Tiure Nal Hutta      1358
-#> 2 IG-88                 (none)          140
-#> 3 Bossk                 Trandosha       113
-#> 4 Dexter Jettster       Ojom            102
-#> ...
-```
-
-**Explanation:** `slice_max(mass, n = 2)` keeps the top 2 rows per group based on `mass`. Because `group_by(homeworld)` is still active, "top 2" means top 2 per homeworld, not top 2 overall. `with_ties = FALSE` stops `slice_max()` from keeping extra rows when two characters share the same mass. Filtering out `NA` rows first is essential, `slice_max()` treats `NA` as larger than any finite value by default, which gives surprising results otherwise.
-
-</details>
-
-[TIP]
-**slice_max() is the modern replacement for top_n().** The old `top_n()` still works but is superseded. Use `slice_max()` and `slice_min()` going forward, they have cleaner behaviour around ties, have an explicit `with_ties` argument, and accept a vector of any sortable type.
-
-## What mistakes should you avoid with group_by() and summarise()?
-
-Four mistakes trip up almost everyone who is new to these verbs. Each one runs without an error message, that is what makes them dangerous. Read the wrong-then-right pattern below and keep an eye out for the same shapes in your own code.
-
-### Mistake 1: Forgetting na.rm with missing data
-
-The mean of a vector that contains even one `NA` is `NA`. Unless you tell R to ignore missing values, every group that contains a missing value returns `NA` for that group's summary.
-
-```r title="Mistake: Silent NA pollution"
-# Wrong: silent NA pollution
-starwars |>
-  group_by(species) |>
-  summarise(m = mean(height), .groups = "drop") |>
-  head(3)
-#> # A tibble: 3 × 2
-#>   species      m
-#>   <chr>    <dbl>
-#> 1 Aleena      79
-#> 2 Besalisk   198
-#> 3 Cerean     198
-```
-
-```r title="Correct: Pass na.rm TRUE"
-# Right: na.rm = TRUE
-starwars |>
-  group_by(species) |>
-  summarise(m = mean(height, na.rm = TRUE), .groups = "drop") |>
-  head(3)
-```
-
-The fix is one extra argument. The habit is to always check `summary(your_data)` first, if any column has `NA` values, plan for `na.rm = TRUE` on every summariser that touches it.
-
-### Mistake 2: Leaving groups attached after summarise
-
-A grouped tibble behaves differently in downstream verbs. Percentages, joins, and even `mutate()` all change their meaning when grouping is silently still active.
-
-```r title="Mistake: Still grouped during mutate"
-# Wrong: still grouped, so mutate computes per-group, not overall
-bad <- mtcars |>
-  group_by(cyl) |>
-  summarise(total_hp = sum(hp))
-
-bad |> mutate(pct = 100 * total_hp / sum(total_hp))
-#> per-group sum divides by itself → every row 100%
-```
-
-```r title="Correct: Drop groups before mutate"
-# Right: drop groups, then mutate sees the whole tibble
-good <- mtcars |>
-  group_by(cyl) |>
-  summarise(total_hp = sum(hp), .groups = "drop")
-
-good |> mutate(pct = 100 * total_hp / sum(total_hp))
-```
-
-Use `.groups = "drop"` or call `ungroup()` explicitly the moment your grouped step is finished.
-
-### Mistake 3: Using mean() on non-numeric columns
-
-`across(everything(), mean)` errors out the instant any column is a character or factor. The fix is to scope `across()` to numeric columns only.
-
-```r title="Mistake: across on factor column"
-# Wrong: iris has a factor column
-iris |>
-  group_by(Species) |>
-  summarise(across(everything(), mean))
-#> Error: `across()` argument is not numeric
-```
-
-```r title="Correct: Restrict to numeric columns"
-# Right: restrict to numeric columns
-iris |>
-  group_by(Species) |>
-  summarise(across(where(is.numeric), mean), .groups = "drop")
-```
-
-`where(is.numeric)` is a tidy-select helper that picks columns by type. Use it inside `across()` whenever you are not 100 percent sure every column is numeric.
-
-### Mistake 4: Not specifying .groups and being surprised by the message
-
-dplyr prints a helpful note when you leave `.groups` off, but new users often mistake the note for an error.
-
-```r title="Noisy without .groups argument"
-# Noisy (prints message but still works)
-mtcars |> group_by(cyl, am) |> summarise(n = n())
-#> `summarise()` has grouped output by 'cyl'. You can override using the `.groups` argument.
-```
-
-```r title="Quiet with .groups drop"
-# Quiet: state your intent
-mtcars |> group_by(cyl, am) |> summarise(n = n(), .groups = "drop")
-```
-
-Always set `.groups` explicitly. It documents your intent in the code and silences the message.
-
-[NOTE]
-**dplyr's default `.groups` behaviour is `"drop_last"`, which prints a message; `"drop"` silences it.** When you leave `.groups` out of a multi-column grouping, dplyr keeps every grouping column except the last and prints a friendly note. That message is helpful once and annoying forever, set `.groups` explicitly in every pipeline.
-
-## Practice Exercises
-
-The ten numbered problems above ARE your practice. Below are two bonus capstone challenges that combine three or more concepts at once. Each one is harder than any single exercise above, and each one is solvable using only verbs you have already met.
-
-### Capstone 1: Top 3 homeworlds by average mass
-
-Using `starwars`, find the three homeworlds with the highest average character mass, but only consider homeworlds that have at least two characters. Drop any rows with missing `mass` or `homeworld` values. Save the result to `cap1_top_homeworlds` with three columns: `homeworld`, `n`, and `mean_mass`.
-
-```r title="Exercise: Top three homeworlds by mass"
-# Capstone 1: top 3 homeworlds by average mass
-# Hint: filter NA, group_by(homeworld), summarise n + mean_mass,
-#       filter(n >= 2), slice_max(mean_mass, n = 3)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Top three homeworlds solution"
-cap1_top_homeworlds <- starwars |>
-  filter(!is.na(mass), !is.na(homeworld)) |>
-  group_by(homeworld) |>
-  summarise(
-    n         = n(),
-    mean_mass = mean(mass),
+    n_missing = sum(is.na(Ozone)),
+    n_total   = n(),
     .groups   = "drop"
-  ) |>
-  filter(n >= 2) |>
-  slice_max(mean_mass, n = 3, with_ties = FALSE)
+  )
 
-print(cap1_top_homeworlds)
-#> # A tibble: 3 × 3
-#>   homeworld     n mean_mass
-#>   <chr>     <int>     <dbl>
-#> 1 Kashyyyk      2     124
-#> 2 Kamino        3      88
-#> 3 Tatooine      8      85.4
+ex_4_2
+#> # A tibble: 5 x 3
+#>   Month n_missing n_total
+#>   <int>     <int>   <int>
+#> 1     5         5      31
+#> 2     6        21      30
+#> 3     7         5      31
+#> 4     8         5      31
+#> 5     9         1      30
 ```
 
-**Explanation:** Four steps stacked into one pipeline. `filter()` drops the `NA` rows so `mean()` does not need `na.rm` and `slice_max()` does not get tricked by missing values. `group_by() |> summarise()` collapses to one row per homeworld with both the count and the mean. `filter(n >= 2)` excludes single-character homeworlds. `slice_max(mean_mass, n = 3)` returns the three biggest. This is the canonical pattern for "ranked groups, but only groups with enough support".
+**Explanation:** `is.na(x)` returns a logical vector, and summing a logical vector counts its `TRUE` values because `TRUE` coerces to 1 and `FALSE` to 0. June stands out (21 missing out of 30 observations) which is something a downstream analysis should flag rather than silently average over. A common follow-up is `mutate(pct_missing = n_missing / n_total)` to put the magnitude on a comparable scale across months.
 
 </details>
 
-### Capstone 2: Per-cylinder/transmission share of total horsepower
+### Exercise 4.3: Replace NA with the column median before aggregating
 
-Using `mtcars`, group by both `cyl` and `am`. For each combination compute the total horsepower (`total_hp`), the mean mpg (`mean_mpg`), and that combination's share of grand-total horsepower as a percentage (`pct_of_grand_total`). Save the result to `cap2_share`. The percentage column should sum to 100.
+**Task:** For `airquality`, impute missing `Ozone` and `Solar.R` values with each column's median (computed across the full dataset, not within month), then take the per-month mean. Use `mutate(across(...))` for the impute, then `group_by()` + `summarise()` for the aggregate. Save to `ex_4_3`.
 
-```r title="Exercise: Horsepower share pipeline"
-# Capstone 2: per-cyl/am share of total horsepower
-# Hint: group_by(cyl, am), summarise total_hp + mean_mpg with .groups = "drop",
-#       then mutate pct_of_grand_total = 100 * total_hp / sum(total_hp)
+**Expected result:**
 
-# Write your code below:
+```
+#> # A tibble: 5 x 3
+#>   Month avg_ozone avg_solar
+#>   <int>     <dbl>     <dbl>
+#> 1     5      27.4     187. 
+#> 2     6      30.4     190. 
+#> 3     7      54.6     214. 
+#> 4     8      56.7     180. 
+#> 5     9      31.3     167. 
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Horsepower share solution"
-cap2_share <- mtcars |>
-  group_by(cyl, am) |>
+```r title="Solution"
+ex_4_3 <- airquality |>
+  mutate(across(
+    c(Ozone, Solar.R),
+    \(x) ifelse(is.na(x), median(x, na.rm = TRUE), x)
+  )) |>
+  group_by(Month) |>
   summarise(
-    total_hp = sum(hp),
-    mean_mpg = round(mean(mpg), 1),
-    .groups  = "drop"
-  ) |>
-  mutate(pct_of_grand_total = round(100 * total_hp / sum(total_hp), 1)) |>
-  arrange(desc(pct_of_grand_total))
+    avg_ozone = round(mean(Ozone), 1),
+    avg_solar = round(mean(Solar.R), 1),
+    .groups   = "drop"
+  )
 
-print(cap2_share)
-#> # A tibble: 6 × 5
-#>     cyl    am total_hp mean_mpg pct_of_grand_total
-#>   <dbl> <dbl>    <dbl>    <dbl>              <dbl>
-#> 1     8     0     2330     15                 50.4
-#> 2     8     1      599     15.4               13.0
-#> 3     6     0      491     19.1               10.6
-#> 4     6     1      361     20.6                7.8
-#> 5     4     0      281     22.9                6.1
-#> 6     4     1      546     28.1               11.8
+ex_4_3
+#> # A tibble: 5 x 3
+#>   Month avg_ozone avg_solar
+#>   <int>     <dbl>     <dbl>
+#> 1     5      27.4     187. 
+#> 2     6      30.4     190. 
+#> 3     7      54.6     214. 
+#> 4     8      56.7     180. 
+#> 5     9      31.3     167. 
 ```
 
-**Explanation:** `group_by(cyl, am)` makes six groups. `summarise()` collapses each group to one row containing total horsepower and mean mpg, then `.groups = "drop"` removes the grouping. The `mutate()` runs on a flat tibble, so `sum(total_hp)` is the grand total across all six rows, exactly what you want for the percentage. Automatic eight-cylinder cars alone account for 50 percent of the total horsepower in `mtcars`. Sorting by `pct_of_grand_total` makes the dominance obvious.
+**Explanation:** Imputing with a global median before grouping biases each group toward the global center, so use it only when missingness is unrelated to the group. A stronger alternative is `mutate(across(c(Ozone, Solar.R), \(x) ifelse(is.na(x), median(x, na.rm = TRUE), x)))` inside a `group_by(Month)` block so each missing value is replaced by its month's median, which preserves between-group differences. Both are first-aid; serious work uses model-based imputation.
 
 </details>
 
-## Complete Example
+## Section 5. Group shares, ratios, and percentages (3 problems)
 
-The exercises above each isolated one idea. Real analysis combines them. Here is a small, end-to-end fuel-economy report using `mtcars` that uses every core technique from this page in a single pipeline: multi-column grouping, multi-summary `summarise()`, `.groups = "drop"`, post-summarise `mutate()` with a global denominator, and a final sort.
+Counts and means are starting points; stakeholders usually want shares. These problems drill the move from raw aggregate to percent-of-total, which requires combining `summarise()` with a follow-up `mutate()` or doing both inside one call.
 
-```r title="End-to-end fuel economy report"
-# Complete example: fuel-economy report by cylinder + transmission
-report <- mtcars |>
-  group_by(cyl, am) |>
-  summarise(
-    n            = n(),
-    mean_mpg     = round(mean(mpg), 1),
-    mean_hp      = round(mean(hp), 0),
-    .groups      = "drop"
-  ) |>
-  mutate(
-    pct_of_cars  = round(100 * n / sum(n), 1),
-    mpg_per_hp   = round(mean_mpg / mean_hp, 3)
-  ) |>
-  arrange(desc(mean_mpg))
+### Exercise 5.1: Share of each cut grade in diamonds inventory
 
-print(report)
-#> # A tibble: 6 × 7
-#>     cyl    am     n mean_mpg mean_hp pct_of_cars mpg_per_hp
-#>   <dbl> <dbl> <int>    <dbl>   <dbl>       <dbl>      <dbl>
-#> 1     4     1     8     28.1      81        25         0.347
-#> 2     4     0     3     22.9      84.7       9.4       0.27
-#> 3     6     1     3     20.6     132         9.4       0.156
-#> 4     6     0     4     19.1     115.       12.5       0.166
-#> 5     8     1     2     15.4     299.        6.2       0.052
-#> 6     8     0    12     15        194.      37.5       0.077
+**Task:** A retail manager wants the percentage breakdown of stones in `diamonds` by `cut` grade. Count stones per cut, then add a `pct` column showing each row as a percentage of the 53,940 total, rounded to one decimal. Save to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 3
+#>   cut           n   pct
+#>   <ord>     <int> <dbl>
+#> 1 Fair       1610   3  
+#> 2 Good       4906   9.1
+#> 3 Very Good 12082  22.4
+#> 4 Premium   13791  25.6
+#> 5 Ideal     21551  40  
 ```
 
-The report answers four questions in one tibble. *Counting* (Exercise 1, 4) gives `n` and the share `pct_of_cars`. *Multi-column grouping* (Exercise 4) splits the rows by cylinder and transmission. *Multiple summaries in one summarise()* (Exercise 5 in spirit) builds `mean_mpg` and `mean_hp` together. *Post-summarise mutate on an ungrouped tibble* (Exercise 8) computes the share of total cars and a derived `mpg_per_hp` efficiency metric. The sort then surfaces the headline finding: manual four-cylinder cars are the most fuel-efficient combination by both mean mpg and mpg-per-horsepower.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
 
-Nine patterns to keep at your fingertips when reaching for `group_by()` and `summarise()`.
+<details>
+<summary>Click to reveal solution</summary>
 
-| Pattern | Use when |
-|---|---|
-| `group_by() + summarise(n = n())` | Counting rows per group |
-| `count(df, group_col)` | Shortcut when you only need counts |
-| `summarise(across(where(is.numeric), mean))` | Many numeric columns at once |
-| `mean(x, na.rm = TRUE)` | Data has missing values |
-| `summarise(..., .groups = "drop")` | Default to drop grouping after summarising |
-| `filter(n >= k)` after summarise | Exclude tiny or noisy groups |
-| Two-step share: `summarise() |> mutate()` | Group share as percent of total |
-| `group_by() + slice_max(x, n = k)` | Top-k rows per group |
-| `ungroup()` before any join or mutate | Avoid silent per-group behaviour |
+```r title="Solution"
+ex_5_1 <- diamonds |>
+  group_by(cut) |>
+  summarise(n = n(), .groups = "drop") |>
+  mutate(pct = round(100 * n / sum(n), 1))
 
-## References
+ex_5_1
+#> # A tibble: 5 x 3
+#>   cut           n   pct
+#>   <ord>     <int> <dbl>
+#> 1 Fair       1610   3  
+#> 2 Good       4906   9.1
+#> 3 Very Good 12082  22.4
+#> 4 Premium   13791  25.6
+#> 5 Ideal     21551  40  
+```
 
-1. dplyr, `summarise()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/summarise.html)
-2. dplyr, `group_by()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/group_by.html)
-3. dplyr, Grouped data vignette. [tidyverse.org](https://dplyr.tidyverse.org/articles/grouping.html)
-4. dplyr, `across()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/across.html)
-5. dplyr, `slice_max()` reference. [tidyverse.org](https://dplyr.tidyverse.org/reference/slice.html)
-6. Wickham H. & Grolemund G., *R for Data Science*, 2nd edition, Chapter 4 (Data transformation). [r4ds.hadley.nz](https://r4ds.hadley.nz/data-transform.html)
+**Explanation:** The `mutate()` runs on the ungrouped summary, so `sum(n)` is the dataset total, which is what you want for an overall share. The `.groups = "drop"` in `summarise()` is critical: without it the result would still be grouped, and `sum(n)` inside `mutate()` would return each row's own value (so every `pct` would be 100). Always think about whether your follow-up calculation needs the data ungrouped.
 
-## Continue Learning
+</details>
 
-- [dplyr group_by() + summarise(): Aggregate Data by Group (10 Examples)](dplyr-group-by-summarise.html), the parent tutorial behind these exercises.
-- [dplyr filter() & select() Exercises: 12 Practice Problems](dplyr-filter-select-Exercises.html), companion exercise set for row filtering and column picking.
-- [dplyr Exercises](dplyr-Exercises.html), broader dplyr practice spanning the full verb family.
+### Exercise 5.2: Share of cylinder counts within each gear bucket
+
+**Task:** A used-car analyst wants to see, for each `gear` bucket in `mtcars`, what percentage of cars have 4, 6, and 8 cylinders. Group by `(gear, cyl)`, count, then compute `pct_within_gear` as the percentage WITHIN each `gear` group (not the dataset total). Save to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 8 x 4
+#> # Groups:   gear [3]
+#>    gear   cyl     n pct_within_gear
+#>   <dbl> <dbl> <int>           <dbl>
+#> 1     3     4     1            6.67
+#> 2     3     6     2           13.3 
+#> 3     3     8    12           80   
+#> 4     4     4     8           66.7 
+#> 5     4     6     4           33.3 
+#> 6     5     4     2           40   
+#> 7     5     6     1           20   
+#> 8     5     8     2           40   
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- mtcars |>
+  group_by(gear, cyl) |>
+  summarise(n = n(), .groups = "drop_last") |>
+  mutate(pct_within_gear = round(100 * n / sum(n), 2))
+
+ex_5_2
+#> # A tibble: 8 x 4
+#> # Groups:   gear [3]
+#>    gear   cyl     n pct_within_gear
+#>   <dbl> <dbl> <int>           <dbl>
+#> 1     3     4     1            6.67
+#> 2     3     6     2           13.3 
+#> 3     3     8    12           80   
+#> 4     4     4     8           66.7 
+#> 5     4     6     4           33.3 
+#> 6     5     4     2           40   
+#> 7     5     6     1           20   
+#> 8     5     8     2           40   
+```
+
+**Explanation:** Using `.groups = "drop_last"` keeps the data grouped by `gear` only (the outer grouping) after `summarise()`, so the `sum(n)` inside the subsequent `mutate()` is the gear-level total, not the dataset total. This is exactly when the `.groups` argument earns its keep. Verify the result: the `pct_within_gear` values inside any single `gear` bucket should sum to 100.
+
+</details>
+
+### Exercise 5.3: Daily ozone share of monthly total
+
+**Task:** The environmental analyst wants a day-level table from `airquality` showing each day's `Ozone` reading as a percentage of that month's total `Ozone`. For each `(Month, Day)` keep `Ozone` and add `pct_of_month`. Drop rows where `Ozone` is missing first to avoid `NA` denominators. Save to `ex_5_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 116 x 4
+#>    Month   Day Ozone pct_of_month
+#>    <int> <int> <int>        <dbl>
+#>  1     5     1    41         5.61
+#>  2     5     2    36         4.92
+#>  3     5     3    12         1.64
+#>  4     5     4    18         2.46
+#>  5     5     6    28         3.83
+#> # 111 more rows hidden
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- airquality |>
+  filter(!is.na(Ozone)) |>
+  group_by(Month) |>
+  mutate(pct_of_month = round(100 * Ozone / sum(Ozone), 2)) |>
+  ungroup() |>
+  select(Month, Day, Ozone, pct_of_month)
+
+ex_5_3
+#> # A tibble: 116 x 4
+#>    Month   Day Ozone pct_of_month
+#>    <int> <int> <int>        <dbl>
+#>  1     5     1    41         5.61
+#>  2     5     2    36         4.92
+#> # 114 more rows hidden
+```
+
+**Explanation:** This problem is a window-style aggregation: the result has one row per ORIGINAL observation but each row's value uses a group-level total. That is the signature of `group_by()` followed by `mutate()`, not `summarise()`. Reach for `summarise()` when you want one row per group, and for `group_by() + mutate()` when you want one row per input observation with a group-relative value attached.
+
+</details>
+
+## Section 6. Per-group rankings and top-N (3 problems)
+
+The final section drills lookups: given groups, which row inside each group wins on some criterion. These exercises move between `summarise()` (when you just need the winning value) and `slice_max()` (when you need the whole row).
+
+### Exercise 6.1: Maximum price stone in each cut grade
+
+**Task:** A jeweller building a "premium picks" page needs the single most expensive stone of each `cut` grade in `diamonds`, returning every column of that winning row. Use `slice_max()` to pick the top row per group by `price`, breaking ties with `n = 1, with_ties = FALSE`. Save to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 10
+#>   carat cut       color clarity depth table price     x     y     z
+#>   <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl>
+#> 1  2.01 Fair      G     SI1      70.6    64 18574  7.43  6.64  4.69
+#> 2  2.8  Good      F     SI2      63.5    56 18707  8.78  8.62  5.51
+#> 3  2    Very Good G     SI1      63.5    56 18818  7.9   7.97  5.04
+#> 4  2.29 Premium   I     VS2      60.8    60 18823  8.5   8.47  5.16
+#> 5  1.51 Ideal     G     IF       61.7    55 18806  7.37  7.41  4.56
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- diamonds |>
+  group_by(cut) |>
+  slice_max(price, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+ex_6_1
+#> # A tibble: 5 x 10
+#>   carat cut       color clarity depth table price     x     y     z
+#>   <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl>
+#> 1  2.01 Fair      G     SI1      70.6    64 18574  7.43  6.64  4.69
+#> 2  2.8  Good      F     SI2      63.5    56 18707  8.78  8.62  5.51
+#> 3  2    Very Good G     SI1      63.5    56 18818  7.9   7.97  5.04
+#> 4  2.29 Premium   I     VS2      60.8    60 18823  8.5   8.47  5.16
+#> 5  1.51 Ideal     G     IF       61.7    55 18806  7.37  7.41  4.56
+```
+
+**Explanation:** `slice_max()` keeps the top-N rows of each group ranked by a column, and it preserves every column of the chosen rows, unlike `summarise(max_price = max(price))` which would only return the price. Setting `with_ties = FALSE` guarantees exactly `n` rows per group even when several rows share the top price. Call `ungroup()` after to remove the latent grouping before any downstream join or arrange.
+
+</details>
+
+### Exercise 6.2: Top-3 heaviest cars per cylinder count
+
+**Task:** From `mtcars`, return the 3 heaviest cars (highest `wt`) in each `cyl` group. Use `tibble::rownames_to_column()` first so the car names become a column called `model`, then group, then slice. Save the 9-row result to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 9 x 4
+#>   model                cyl    wt   mpg
+#>   <chr>              <dbl> <dbl> <dbl>
+#> 1 Volvo 142E             4 2.78   21.4
+#> 2 Toyota Corona          4 2.46   21.5
+#> 3 Datsun 710             4 2.32   22.8
+#> 4 Merc 280C              6 3.44   17.8
+#> 5 Merc 280               6 3.44   19.2
+#> 6 Valiant                6 3.46   18.1
+#> 7 Lincoln Continental    8 5.42   10.4
+#> 8 Cadillac Fleetwood     8 5.25   10.4
+#> 9 Chrysler Imperial      8 5.34   14.7
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- mtcars |>
+  tibble::rownames_to_column("model") |>
+  group_by(cyl) |>
+  slice_max(wt, n = 3, with_ties = FALSE) |>
+  ungroup() |>
+  select(model, cyl, wt, mpg)
+
+ex_6_2
+#> # A tibble: 9 x 4
+#>   model                cyl    wt   mpg
+#>   <chr>              <dbl> <dbl> <dbl>
+#> 1 Volvo 142E             4 2.78   21.4
+#> 2 Toyota Corona          4 2.46   21.5
+#> # 7 more rows hidden
+```
+
+**Explanation:** `mtcars` stores car names in row names, which dplyr ignores by default, so the first step has to promote them to a real column. The `tibble::rownames_to_column()` call does that without modifying the row count. `slice_max(wt, n = 3)` then keeps the three heaviest rows per group. Same pattern works with `slice_min()` for bottom-N and `slice_sample(n = k)` for random k-per-group sampling, both heavily used for stratified sampling.
+
+</details>
+
+### Exercise 6.3: Distinct color count per cut grade
+
+**Task:** A merchandising lead wants to know how many distinct `color` grades exist within each `cut` grade in `diamonds`, plus the total stone count, plus the median `carat`. Use `n_distinct()` for the color count and combine three statistics in one `summarise()` call. Save to `ex_6_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 4
+#>   cut       n_colors n_stones med_carat
+#>   <ord>        <int>    <int>     <dbl>
+#> 1 Fair             7     1610      1   
+#> 2 Good             7     4906      0.82
+#> 3 Very Good        7    12082      0.71
+#> 4 Premium          7    13791      0.86
+#> 5 Ideal            7    21551      0.54
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- diamonds |>
+  group_by(cut) |>
+  summarise(
+    n_colors  = n_distinct(color),
+    n_stones  = n(),
+    med_carat = median(carat),
+    .groups   = "drop"
+  )
+
+ex_6_3
+#> # A tibble: 5 x 4
+#>   cut       n_colors n_stones med_carat
+#>   <ord>        <int>    <int>     <dbl>
+#> 1 Fair             7     1610      1   
+#> 2 Good             7     4906      0.82
+#> 3 Very Good        7    12082      0.71
+#> 4 Premium          7    13791      0.86
+#> 5 Ideal            7    21551      0.54
+```
+
+**Explanation:** `n_distinct(x)` is the dplyr-friendly equivalent of `length(unique(x))` but faster on large vectors and `NA`-aware (use `na.rm = TRUE` to exclude them). Notice the median carat falls from 1.0 (Fair) to 0.54 (Ideal): the rarest, best-cut stones tend to be smaller because cutting a large stone to Ideal proportions wastes too much rough. That trade-off is exactly the kind of business insight a multi-statistic summary reveals at a glance.
+
+</details>
+
+## What to do next
+
+- Drill multi-table aggregation on the [dplyr Joins Exercises](dplyr-Joins-Exercises-in-R.html) hub.
+- Practise the reshape side of summaries on the [tidyr pivot_longer + pivot_wider Exercises](tidyr-Pivot-Longer-Wider-Exercises-in-R.html).
+- Revisit the parent lesson [dplyr group_by + summarise](dplyr-group-by-summarise.html) if any pattern above felt unfamiliar.
+- For column-wise transformations beyond `across()`, see [dplyr Exercises in R](dplyr-Exercises-in-R.html).
