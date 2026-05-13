@@ -1,742 +1,907 @@
 ---
-title: "R Subsetting Exercises: 10 [] vs [[]] vs $ Practice Problems, Solved Step-by-Step"
-slug: R-Subsetting-Exercises
-description: "Practice R subsetting with 10 solved exercises on [], [[]], and $. Work through vectors, lists, and data frames with interactive code you can run in your browser."
-keywords: "R subsetting exercises, R bracket exercises, [] vs [[]] vs $ R, R indexing practice problems, R subsetting practice, subset R exercises, R extract elements, R list subsetting exercises, double bracket R"
-auto_link_terms: "R subsetting exercises|subsetting exercises|[] vs [[]] vs $|bracket exercises in R|R indexing practice"
-auto_link_case_sensitive: false
+title: "R Subsetting Exercises: 20 Practice Problems for Vectors, Lists, and Data Frames"
+slug: "R-Subsetting-Exercises"
+description: "Practice R subsetting with 20 hands-on exercises covering vectors, lists, data frames, and matrices. Hidden solutions and explanations included."
+keywords: "R subsetting exercises, R bracket exercises, R indexing practice, R list subsetting, R data frame subsetting, R matrix subsetting, double bracket R, R subsetting practice"
 mathjax: false
 webr: true
-date: 2026-04-12
-curriculum_id: E1.10
-post_type: EX
+date: "2026-05-13"
+post_type: "EX"
 sidebar_title: "R Subsetting Exercises"
-fr_parent: R-Vectors.html
-difficulty: "Intermediate"
+sidebar_order: 145
+fr_parent: "R-Subsetting.html"
+auto_link_terms: "R subsetting exercises|R subsetting practice|bracket exercises in R|R indexing exercises|practice R subsetting"
+auto_link_case_sensitive: false
+target_keyword: "R subsetting exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-<p class="lead">Subsetting, pulling specific pieces out of vectors, lists, and data frames with <code>[]</code>, <code>[[]]</code>, and <code>$</code>, is one of the most-used skills in R, and one of the trickiest to master. These 10 exercises take you from basic vector indexing to nested list extraction, each with starter code and a full worked solution.</p>
+# R Subsetting Exercises: 20 Practice Problems for Vectors, Lists, and Data Frames
 
-Run every block, predict the output before you peek at the answer, and you'll have the three operators locked in by the end.
+<p class="lead">Twenty scenario-based subsetting exercises grouped into five themed sections covering vectors, lists, data frames, matrices, and advanced patterns. Every problem ships with an expected result so you can verify your answer, and solutions stay hidden behind reveal toggles so you actually try first.</p>
 
-## How does [] work on vectors?
+```r title="Run this once before any exercise"
+library(tibble)
+```
 
-R gives you three subsetting operators, and each returns something different. The fastest way to build intuition is to run code and check your predictions. Let's start with vectors, the simplest structure, and `[]`, the operator you'll use most.
+## Section 1. Subsetting vectors (4 problems)
 
-### Problem 1: Extract by position and by name
+### Exercise 1.1: Extract elements by position and by name
 
-Given a named vector of exam scores, extract the 2nd and 4th elements by **position**, then extract the same two elements by **name**.
+**Task:** A teacher has stored mid-term scores in a named numeric vector called `scores`. Use `[]` to first extract the 2nd and 4th scores by position, then extract the same two scores by name. Save the name-based extraction to `ex_1_1`.
 
-```r title="Setup named scores vector"
-# Setup
+**Expected result:**
+
+```
+#> science history
+#>      92      95
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
 scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
-scores
-#> math science english history     art
-#>   88      92      79      95      84
+
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Position and name indexing solution"
-# Part A: Extract 2nd and 4th by position
+```r title="Solution"
+scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
+
 scores[c(2, 4)]
 #> science history
 #>      92      95
 
-# Part B: Extract the same by name
-scores[c("science", "history")]
+ex_1_1 <- scores[c("science", "history")]
+ex_1_1
 #> science history
 #>      92      95
 ```
 
-**Explanation:** Both approaches return the same named numeric vector. Position-based indexing (`c(2, 4)`) is concise when you know the order, but name-based indexing (`c("science", "history")`) is safer because it still works even if someone reorders the vector later.
+**Explanation:** Position indexing with `c(2, 4)` and name indexing with `c("science", "history")` return the same named numeric vector here. Names survive every subsetting step, which is what makes the second form safer: if anyone reorders `scores` later, the position call grabs the wrong students while the name call still finds science and history.
 
 </details>
 
-### Problem 2: Logical and negative indexing
+### Exercise 1.2: Logical and negative indexing on a vector
 
-From the same `scores` vector, extract all scores above 85 using a **logical condition**. Then exclude the 3rd element using **negative indexing**.
+**Task:** From the `scores` vector created above, extract every score strictly greater than 85 using a logical condition. Then build a second result that excludes the 3rd element using negative indexing. Save the above-85 result to `ex_1_2`.
 
-```r title="Exercise: Logical and negative indexing"
-# scores is still available from Problem 1
-# Part A: Which scores are above 85?
-# Part B: Drop the 3rd element
+**Expected result:**
 
-# Write your code below:
+```
+#>    math science history
+#>      88      92      95
+```
 
+**Difficulty:** Beginner
+
+```r title="Your turn"
+scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
+
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Logical and negative indexing solution"
-# Part A: Logical subsetting — scores above 85
-scores[scores > 85]
+```r title="Solution"
+scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
+
+ex_1_2 <- scores[scores > 85]
+ex_1_2
 #>    math science history
 #>      88      92      95
 
-# Part B: Negative indexing — drop the 3rd element
 scores[-3]
 #>    math science history     art
 #>      88      92      95      84
 ```
 
-**Explanation:** Logical subsetting is powerful because you don't need to know *where* the elements are, just *what* they look like. R evaluates `scores > 85` into a logical vector (`TRUE, TRUE, FALSE, TRUE, FALSE`) and keeps only the `TRUE` positions. Negative indexing is the flip side: instead of "give me these", you say "give me everything *except* these."
+**Explanation:** `scores > 85` produces a logical vector aligned with `scores`, and `[ ]` keeps only positions where it evaluates `TRUE`. Negative indexing with `-3` drops the third element, and `-c(1, 3)` drops several at once. Mixing positive and negative indices inside one call is an error in R.
 
 </details>
 
-[KEY INSIGHT]
-**[] always returns the same type as the input.** Subset a numeric vector with [], you get a numeric vector. Subset a character vector, you get a character vector. This "structure-preserving" behavior is what makes [] different from [[]] and $.
+### Exercise 1.3: Replace selected elements via subsetting assignment
 
-**Try it:** Create a vector of 5 city names and extract the first and last elements using positive indexing and `length()`.
+**Task:** A quality-control engineer just discovered that any reading below zero in the sensor vector `readings` is a calibration glitch and should be replaced with `NA`. Use logical indexing on the left side of `<-` to overwrite those bad values in place. Save the cleaned vector to `ex_1_3`.
 
-```r title="Exercise: First and last city"
-# Try it: extract first and last city
-ex_cities <- c("Tokyo", "London", "Nairobi", "Lima", "Sydney")
+**Expected result:**
+
+```
+#> [1] 12.4   NA  8.7   NA  0.5 15.6 22.1   NA
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+readings <- c(12.4, -1.0, 8.7, -3.2, 0.5, 15.6, 22.1, -0.1)
 
 # your code here
 
-#> Expected: "Tokyo"  "Sydney"
+ex_1_3 <- readings
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="First and last city solution"
-ex_cities <- c("Tokyo", "London", "Nairobi", "Lima", "Sydney")
-ex_cities[c(1, length(ex_cities))]
-#> [1] "Tokyo"  "Sydney"
+```r title="Solution"
+readings <- c(12.4, -1.0, 8.7, -3.2, 0.5, 15.6, 22.1, -0.1)
+
+readings[readings < 0] <- NA
+ex_1_3 <- readings
+ex_1_3
+#> [1] 12.4   NA  8.7   NA  0.5 15.6 22.1   NA
 ```
 
-**Explanation:** `length(ex_cities)` returns 5, so `ex_cities[c(1, 5)]` grabs the first and last elements. This pattern works regardless of vector length.
+**Explanation:** The left-hand side of `<-` accepts the same indexing syntax as the right-hand side, so R rewrites the call as "replace the selected positions with `NA`". The vector is modified in place rather than rebuilt. This idiom scales to data-cleaning steps where you want to mark bad values without dropping rows.
 
 </details>
 
-## How does [] behave differently on lists?
+### Exercise 1.4: Find positions of matching elements with which
 
-Here's where most R learners hit their first wall. When you use `[]` on a list, you don't get the *contents*, you get a **smaller list** containing those elements.
+**Task:** An audit team needs to know the row positions where customer IDs in `ids` equal the suspicious values `"C103"` or `"C107"`. Use `which()` combined with `%in%` to return the integer positions inside `ids`. Save the positions to `ex_1_4`.
 
-Think of a list as a train with numbered cars. `[]` gives you a train car (still a train), while `[[]]` opens the car door and hands you what's inside.
+**Expected result:**
 
-### Problem 3: [] on a list returns a sub-list
+```
+#> [1] 4 8
+```
 
-Create a list and use `[]` to extract the first two elements. What does `class()` return?
+**Difficulty:** Intermediate
 
-```r title="Exercise: Subset list with single bracket"
-# Setup
-student <- list(name = "Ava", grades = c(90, 85, 92), graduated = FALSE)
+```r title="Your turn"
+ids <- c("C100", "C101", "C102", "C103", "C104",
+         "C105", "C106", "C107", "C108")
 
-# Use [] to extract elements 1 and 2
-# Then check class() of the result
-
-# Write your code below:
-
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Single bracket returns list solution"
-student <- list(name = "Ava", grades = c(90, 85, 92), graduated = FALSE)
+```r title="Solution"
+ids <- c("C100", "C101", "C102", "C103", "C104",
+         "C105", "C106", "C107", "C108")
 
-sub <- student[1:2]
-sub
-#> $name
-#> [1] "Ava"
-#>
-#> $grades
-#> [1] 90 85 92
-
-class(sub)
-#> [1] "list"
+ex_1_4 <- which(ids %in% c("C103", "C107"))
+ex_1_4
+#> [1] 4 8
 ```
 
-**Explanation:** Even though you only asked for two elements, the result is still a list. That's the key rule: `[]` on a list always returns a list. This is *preserving* subsetting, the output structure matches the input structure.
+**Explanation:** `ids %in% c("C103", "C107")` returns a logical vector marking matches. Wrapping it in `which()` converts those `TRUE` positions to integer indices, which is what you actually need to subset other parallel vectors (transaction amounts, timestamps) that sit alongside `ids`. Without `which()` you would still have a logical mask, useful for slicing the same vector but awkward for cross-referencing positions.
 
 </details>
 
-### Problem 4: [] vs [[]], what's the actual difference?
+## Section 2. Subsetting lists with [], [[]], and $ (4 problems)
 
-Compare `student[2]` and `student[[2]]`. What type does each return? Why does `mean(student[2])` fail while `mean(student[[2]])` works?
+### Exercise 2.1: One bracket keeps the list, two brackets extract the element
 
-```r title="Exercise: Compare bracket variants"
-# student is still available from Problem 3
-# Compare student[2] vs student[[2]]
-# Check class() of each
-# Try mean() on each
+**Task:** Given the list `prefs` storing a user's display preferences, use single `[]` to return a one-element sub-list containing just `theme`, and use `[[]]` to extract the value of `theme` as a bare character vector. Save the `[[]]` extraction to `ex_2_1`.
 
-# Write your code below:
+**Expected result:**
 
+```
+#> [1] "dark"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
+
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Single versus double bracket solution"
-# Single bracket: returns a list containing the grades element
-student[2]
-#> $grades
-#> [1] 90 85 92
+```r title="Solution"
+prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
 
-class(student[2])
-#> [1] "list"
+prefs["theme"]
+#> $theme
+#> [1] "dark"
 
-# Double bracket: extracts the grades vector itself
-student[[2]]
-#> [1] 90 85 92
-
-class(student[[2]])
-#> [1] "numeric"
-
-# mean() on single bracket fails
-# mean(student[2])  # Error: argument is not numeric
-
-# mean() on double bracket works
-mean(student[[2]])
-#> [1] 89
+ex_2_1 <- prefs[["theme"]]
+ex_2_1
+#> [1] "dark"
 ```
 
-**Explanation:** `student[2]` gives you a list with one element (a train car still on the track). `student[[2]]` gives you the numeric vector inside (the cargo pulled out of the car). You can't take the mean of a list, so `mean(student[2])` throws an error. But `mean(student[[2]])` works because it receives a plain numeric vector.
+**Explanation:** `prefs["theme"]` keeps the list wrapper, so the result is still a list of length 1. `prefs[["theme"]]` unwraps and returns the underlying character vector. If you called `nchar()` on the first form you would hit an error; on the second it works cleanly. This is the single rule that catches the most beginners with R lists.
 
 </details>
 
-[WARNING]
-**student["grades"] returns a list, not the vector.** This catches everyone. Passing a single-bracket result to `mean()`, `sum()`, or `max()` will fail with "argument is not numeric." Use `[[` or `$` when you need the value for computation.
+### Exercise 2.2: Dollar sign as syntactic sugar for [[]]
 
-**Try it:** Create a list with 3 named elements and use `[]` to extract a sub-list of elements 1 and 3. Verify the result is a list with `is.list()`.
+**Task:** Continuing with the `prefs` list, use the `$` operator to extract `font_size` directly. Then use `[[]]` to do the same and confirm with `identical()` that both calls return the same value. Save the `$` extraction to `ex_2_2`.
 
-```r title="Exercise: Sub-list extraction"
-# Try it: sub-list extraction
-ex_info <- list(city = "Berlin", pop = 3700000, country = "Germany")
+**Expected result:**
 
-# your code here
-
-#> Expected: TRUE
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Sub-list extraction solution"
-ex_info <- list(city = "Berlin", pop = 3700000, country = "Germany")
-ex_sub <- ex_info[c(1, 3)]
-is.list(ex_sub)
+#> [1] 14
 #> [1] TRUE
 ```
 
-**Explanation:** `ex_info[c(1, 3)]` returns a list with elements `city` and `country`. The `is.list()` check confirms the structure is preserved.
+**Difficulty:** Beginner
 
-</details>
+```r title="Your turn"
+prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
 
-## When should you use [[]] to extract elements?
-
-Use `[[]]` whenever you need the *value itself* for computation, not a container holding the value. `[[]]` works by name or by position, but it can only extract **one element at a time**. Its superpower over `$` is programmatic access: you can store a name in a variable and pass it to `[[]]`.
-
-### Problem 5: Extract and compute with [[]]
-
-Given a configuration list, extract the `port` value using `[[]]`, by name and by position. Add 1 to prove it's a plain number, not a list.
-
-```r title="Exercise: Extract port value"
-# Setup
-config <- list(host = "localhost", port = 8080, debug = TRUE)
-
-# Extract port by name, then by position
-# Add 1 to the result to prove it's numeric
-
-# Write your code below:
-
+ex_2_2 <- # your code here
+ex_2_2
+identical(ex_2_2, prefs[["font_size"]])
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Extract port value solution"
-config <- list(host = "localhost", port = 8080, debug = TRUE)
+```r title="Solution"
+prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
 
-# By name
-config[["port"]]
-#> [1] 8080
+ex_2_2 <- prefs$font_size
+ex_2_2
+#> [1] 14
 
-# By position
-config[[2]]
-#> [1] 8080
-
-# Prove it's numeric — add 1
-port_val <- config[["port"]]
-port_val + 1
-#> [1] 8081
+identical(prefs$font_size, prefs[["font_size"]])
+#> [1] TRUE
 ```
 
-**Explanation:** Both approaches return the naked number `8080`, not a list containing `8080`. That's why `port_val + 1` works. If you had used `config["port"]` (single bracket), adding 1 would throw an error because you'd be trying to add 1 to a list.
+**Explanation:** `$name` is shorthand for `[["name"]]` with one extra feature: it does partial matching on names (`prefs$font` would still work, which is dangerous). Unlike `[[]]`, you cannot pass a variable holding the name to `$`; you must literally type the field. For programmatic code use `[[]]`; for quick interactive work, `$` is fine.
 
 </details>
 
-### Problem 6: [[]] on a data frame column
+### Exercise 2.3: Recursive indexing with [[c(i, j, k)]]
 
-Using `mtcars`, extract the `mpg` column with `[[]]` by name and by position. Compute the mean.
+**Task:** A list `report` contains a nested sub-list `metrics`, which itself holds a numeric vector `monthly`. Use the recursive form `[[c(...)]]` to reach two levels down and pull out the third element of `monthly` in one expression. Save it to `ex_2_3`.
 
-```r title="Exercise: Mean of mpg column"
-# Extract mpg from mtcars using [[]]
-# Then compute mean()
+**Expected result:**
 
-# Write your code below:
+```
+#> [1] 162
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+report <- list(
+  title = "Q1",
+  metrics = list(
+    monthly = c(120, 145, 162, 178),
+    yearly  = 605
+  )
+)
+
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Mean of mpg solution"
-# By name
-mpg_vec <- mtcars[["mpg"]]
-head(mpg_vec)
+```r title="Solution"
+report <- list(
+  title = "Q1",
+  metrics = list(
+    monthly = c(120, 145, 162, 178),
+    yearly  = 605
+  )
+)
+
+ex_2_3 <- report[[c("metrics", "monthly", 3)]]
+ex_2_3
+#> [1] 162
+```
+
+**Explanation:** When you pass a length-n vector to `[[]]`, R drills one level per element, so `[[c("metrics", "monthly", 3)]]` is equivalent to `report[["metrics"]][["monthly"]][[3]]`. This is the cleanest way to fetch deeply nested data, but it errors hard if any intermediate name is missing. Reach for `purrr::pluck()` when paths might fail and you want a safe default.
+
+</details>
+
+### Exercise 2.4: Partial matching pitfall with $
+
+**Task:** A code reviewer is auditing a function where the previous author wrote `config$item` against a list whose actual key is `items`. Show that `config$item` still returns the value because of partial matching, then show that `config[["item"]]` returns `NULL` instead. Save the safe `[[]]` result to `ex_2_4`.
+
+**Expected result:**
+
+```
+#> [1] "a" "b" "c"
+#> NULL
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+config <- list(items = c("a", "b", "c"), threshold = 0.5)
+
+config$item       # partial match: silently works
+
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+config <- list(items = c("a", "b", "c"), threshold = 0.5)
+
+config$item
+#> [1] "a" "b" "c"
+
+ex_2_4 <- config[["item"]]
+ex_2_4
+#> NULL
+```
+
+**Explanation:** `$` quietly partial-matches `item` against `items` and returns the value, which can mask bugs where a typo in the key would otherwise be caught. `[[]]` requires exact match by default and returns `NULL` for a missing key, surfacing the mistake immediately. Set `options(warnPartialMatchDollar = TRUE)` to get a warning, and prefer `[[]]` inside package code.
+
+</details>
+
+## Section 3. Subsetting data frames (4 problems)
+
+### Exercise 3.1: Extract a data-frame column three different ways
+
+**Task:** An analyst pulling totals from the built-in `mtcars` data frame wants to extract the `mpg` column three ways: with `mtcars[, "mpg"]`, with `mtcars[["mpg"]]`, and with `mtcars$mpg`. Confirm all three are identical with `identical()` and save the `$` version to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> [1] 21.0 21.0 22.8 21.4 18.7 18.1
+#> [1] TRUE
+#> [1] TRUE
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+head(ex_3_1)
+identical(ex_3_1, mtcars[["mpg"]])
+identical(ex_3_1, mtcars[, "mpg"])
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- mtcars$mpg
+head(ex_3_1)
 #> [1] 21.0 21.0 22.8 21.4 18.7 18.1
 
-# By position (mpg is column 1)
-head(mtcars[[1]])
-#> [1] 21.0 21.0 22.8 21.4 18.7 18.1
+identical(ex_3_1, mtcars[["mpg"]])
+#> [1] TRUE
 
-# Compute the mean
-mean(mpg_vec)
-#> [1] 20.09062
+identical(ex_3_1, mtcars[, "mpg"])
+#> [1] TRUE
 ```
 
-**Explanation:** A data frame is just a list of equal-length vectors. So `mtcars[["mpg"]]` extracts the `mpg` vector the same way `student[["grades"]]` extracted the grades vector from a list earlier. `mtcars[[1]]` gives you the first column as a vector, same idea, just by position.
+**Explanation:** A data frame is internally a list of equal-length columns, so all three forms reach the same vector. Use `$` for interactive work, `[["mpg"]]` when the column name lives in a variable, and `[, "mpg"]` when you want consistent matrix-like notation. For tibbles (not base data frames), `[, "mpg"]` keeps the tibble wrapper, so the three forms diverge.
 
 </details>
 
-[TIP]
-**Use [[]] when you need the value for computation. Use [] when you need a subset that preserves structure.** If you're passing the result to `mean()`, `sum()`, or `max()`, you almost certainly want `[[]]` or `$`. If you're building a smaller data frame, use `[]`.
+### Exercise 3.2: Filter rows and select columns in one call
 
-**Try it:** Given `col_name <- "hp"`, extract that column from `mtcars` using `[[col_name]]` (programmatic access) and compute its median.
+**Task:** A used-car appraiser inspecting `mtcars` needs every six-cylinder model along with just the `cyl`, `mpg`, and `hp` columns. Use `[rows, cols]` notation in a single call: a logical condition for rows and a character vector for columns. Save the result to `ex_3_2`.
 
-```r title="Exercise: Programmatic column access"
-# Try it: programmatic column access
-ex_col <- "hp"
+**Expected result:**
 
-# your code here
+```
+#>                cyl  mpg  hp
+#> Mazda RX4        6 21.0 110
+#> Mazda RX4 Wag    6 21.0 110
+#> Hornet 4 Drive   6 21.4 110
+#> Valiant          6 18.1 105
+#> Merc 280         6 19.2 123
+#> Merc 280C        6 17.8 123
+#> Ferrari Dino     6 19.7 175
+```
 
-#> Expected: 123
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Programmatic column solution"
-ex_col <- "hp"
-median(mtcars[[ex_col]])
-#> [1] 123
+```r title="Solution"
+ex_3_2 <- mtcars[mtcars$cyl == 6, c("cyl", "mpg", "hp")]
+ex_3_2
+#>                cyl  mpg  hp
+#> Mazda RX4        6 21.0 110
+#> Mazda RX4 Wag    6 21.0 110
+#> Hornet 4 Drive   6 21.4 110
+#> Valiant          6 18.1 105
+#> Merc 280         6 19.2 123
+#> Merc 280C        6 17.8 123
+#> Ferrari Dino     6 19.7 175
 ```
 
-**Explanation:** `[[col_name]]` evaluates the variable `col_name` to get the string `"hp"`, then extracts that column. This is why `[[]]` is preferred in functions and loops, `$` can't accept variables.
+**Explanation:** The first argument inside `[ , ]` selects rows; the second selects columns. A logical vector for rows must be the same length as `nrow(df)`. A character vector for columns is order-preserving, so output columns appear in the order you listed them, not the original column order. Rownames carry through into the subset by default.
 
 </details>
 
-## How does $ simplify named access?
+### Exercise 3.3: df[, 1] vs df[[1]] and the drop=TRUE trap
 
-The `$` operator is shorthand for `[["name"]]`. It's the most readable option for interactive use, `mtcars$mpg` is quicker to type and easier to scan than `mtcars[["mpg"]]`.
+**Task:** Working on `iris`, show that `iris[, 1]` and `iris[[1]]` both return the same numeric vector, but `iris[, 1, drop = FALSE]` returns a single-column data frame instead. Save the data-frame-shaped result to `ex_3_3`.
 
-But it has two limitations: it only works with **literal names** (not variables), and it does **partial matching** (which can silently return the wrong element).
-
-### Problem 7: $ on a data frame
-
-Use `$` to extract the `cyl` column from `mtcars` and count how many cars have each cylinder count using `table()`.
-
-```r title="Exercise: Cylinder counts with table"
-# Extract cyl with $ and pass to table()
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Cylinder counts solution"
-table(mtcars$cyl)
-#>
-#>  4  6  8
-#> 11  7 14
-```
-
-**Explanation:** `mtcars$cyl` extracts the `cyl` vector, and `table()` counts how many times each value appears. 14 cars have 8 cylinders, 11 have 4, and 7 have 6. For interactive exploration, `$` is the fastest way to grab a column.
-
-</details>
-
-### Problem 8: The partial matching trap
-
-Create a list and observe how `$` partial-matches names. What does `person$f` return? What about `person$a`? Why is this dangerous?
-
-```r title="Exercise: Dollar partial matching"
-# Setup
-person <- list(first_name = "Raj", last_name = "Patel", age = 30)
-
-# Try: person$first_name (full match)
-# Try: person$f (partial match)
-# Try: person$a (partial match)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Dollar partial match solution"
-person <- list(first_name = "Raj", last_name = "Patel", age = 30)
-
-# Full name — works perfectly
-person$first_name
-#> [1] "Raj"
-
-# Partial match — still works!
-person$f
-#> [1] "Raj"
-
-# Another partial match
-person$a
-#> [1] 30
-```
-
-**Explanation:** `person$f` matches `first_name` because `f` is an unambiguous prefix, only one element starts with "f". Similarly, `person$a` matches `age`. The real danger is that partial matching happens **silently**, no warning, no error. If someone later adds a `favorite_color` element, `person$f` becomes ambiguous and returns `NULL` instead. Your code breaks without any obvious reason.
-
-</details>
-
-[WARNING]
-**$ silently partial-matches names.** `person$f` returns `first_name` without any warning. In scripts and functions, prefer `[[]]` for safety. For interactive work, add `options(warnPartialMatchDollar = TRUE)` to your `.Rprofile` to catch these.
-
-**Try it:** Use `$` to extract the `Species` column from `iris` and count how many unique species there are.
-
-```r title="Exercise: Unique species count"
-# Try it: unique species count
-# your code here
-
-#> Expected: 3
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Unique species solution"
-ex_species <- iris$Species
-length(unique(ex_species))
-#> [1] 3
-```
-
-**Explanation:** `iris$Species` extracts the Species factor, `unique()` returns the three distinct levels, and `length()` counts them.
-
-</details>
-
-## How do you combine [], [[]], and $ on data frames?
-
-Data frames respond to all three operators, but the return types differ. Understanding this is the final piece of the puzzle, and it's where most bugs hide.
-
-Here's the rule of thumb:
-
-- `df["col"]` → a **1-column data frame** (structure preserved)
-- `df[["col"]]` or `df$col` → a **vector** (element extracted)
-- `df[rows, cols]` → a **sub-data-frame** (2D subsetting)
-
-### Problem 9: Three ways to slice mtcars
-
-From `mtcars`, perform three operations:
-
-**(a)** Extract a data frame containing just `mpg` and `hp` using `[]`.
-
-**(b)** Extract the `mpg` column as a vector using `[[]]`.
-
-**(c)** Extract rows where `cyl == 6` and columns `mpg`, `hp`, `wt` using `[rows, cols]`.
-
-```r title="Exercise: Data frame subsetting combined"
-# (a) Use [] to get a 2-column data frame
-# (b) Use [[]] to get mpg as a vector
-# (c) Use [rows, cols] to filter and select
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Data frame subsetting solution"
-# (a) [] with column names — returns a data frame
-subset_df <- mtcars[c("mpg", "hp")]
-head(subset_df, 3)
-#>                mpg  hp
-#> Mazda RX4     21.0 110
-#> Mazda RX4 Wag 21.0 110
-#> Datsun 710    22.8  93
-
-class(subset_df)
+#> [1] TRUE
+#>   Sepal.Length
+#> 1          5.1
+#> 2          4.9
+#> 3          4.7
 #> [1] "data.frame"
-
-# (b) [[]] — returns a vector
-mpg_vector <- mtcars[["mpg"]]
-head(mpg_vector, 3)
-#> [1] 21.0 21.0 22.8
-
-class(mpg_vector)
-#> [1] "numeric"
-
-# (c) [rows, cols] — 2D subsetting
-cyl6 <- mtcars[mtcars$cyl == 6, c("mpg", "hp", "wt")]
-cyl6
-#>                 mpg  hp    wt
-#> Mazda RX4      21.0 110 2.620
-#> Mazda RX4 Wag  21.0 110 2.875
-#> Hornet 4 Drive 21.4 110 3.215
-#> Valiant        18.1 105 3.460
-#> Merc 280       19.2 123 3.440
-#> Merc 280C      17.8 123 3.440
-#> Ferrari Dino   19.7 175 2.770
 ```
 
-**Explanation:** Part (a) returns a data frame because `[]` preserves structure. Part (b) returns a numeric vector because `[[]]` extracts the element. Part (c) combines row filtering with column selection, `mtcars$cyl == 6` creates a logical vector for rows, and `c("mpg", "hp", "wt")` selects columns. This `[rows, cols]` syntax is the workhorse of data frame subsetting.
+**Difficulty:** Advanced
 
-</details>
+```r title="Your turn"
+identical(iris[, 1], iris[[1]])
 
-### Problem 10: Nested list extraction
-
-Given a nested list of team data, extract team_b's second score in a **single expression**. Then do it again using `$` notation.
-
-```r title="Exercise: Nested list extraction"
-# Setup
-records <- list(
-  team_a = list(scores = c(10, 20, 30), captain = "Lee"),
-  team_b = list(scores = c(15, 25, 35), captain = "Kim")
-)
-
-# Extract team_b's second score using [[]]
-# Then do it with $
-
-# Write your code below:
-
+ex_3_3 <- # your code here
+head(ex_3_3, 3)
+class(ex_3_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Nested list extraction solution"
-records <- list(
-  team_a = list(scores = c(10, 20, 30), captain = "Lee"),
-  team_b = list(scores = c(15, 25, 35), captain = "Kim")
-)
+```r title="Solution"
+identical(iris[, 1], iris[[1]])
+#> [1] TRUE
 
-# Using [[]]
-records[["team_b"]][["scores"]][2]
-#> [1] 25
+ex_3_3 <- iris[, 1, drop = FALSE]
+head(ex_3_3, 3)
+#>   Sepal.Length
+#> 1          5.1
+#> 2          4.9
+#> 3          4.7
 
-# Using $
-records$team_b$scores[2]
-#> [1] 25
+class(ex_3_3)
+#> [1] "data.frame"
 ```
 
-**Explanation:** Read left to right: `records[["team_b"]]` extracts the team_b list, `[["scores"]]` extracts the scores vector from that list, and `[2]` grabs the second element. The `$` version reads more naturally. Notice the switch from `$` (named access into lists) to `[]` (position access into a vector) at the final step, that's because `scores` is a vector, not a list.
+**Explanation:** Base data frames have `drop = TRUE` as the default when you ask for a single column, which collapses the result to a bare vector and surprises pipelines that expect a data frame. Setting `drop = FALSE` preserves the column structure. Tibbles invert this default (a single-column tibble slice stays a tibble), which is one of the main reasons people migrate to tibbles.
 
 </details>
 
-[KEY INSIGHT]
-**A data frame is just a named list of equal-length vectors.** That's why [[]] and $ work on data frames exactly like they work on lists, because a data frame *is* a list under the hood. Once you internalize this, subsetting rules stop feeling arbitrary.
+### Exercise 3.4: Subset with a combined logical mask
 
-**Try it:** Extract the value in the 3rd row and 2nd column of `mtcars` as a single number using `[row, col]` notation.
+**Task:** A retailer auditing `mtcars` wants rows where cars are heavy (`wt > 5`) AND fuel-thirsty (`mpg < 15`). Build a logical mask combining the two conditions with `&` and use it inside `[rows, ]`. Save the filtered data frame to `ex_3_4`.
 
-```r title="Exercise: Single value at row and column"
-# Try it: single value extraction
+**Expected result:**
+
+```
+#>                      mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#> Cadillac Fleetwood  10.4   8  472 205 2.93 5.250 17.98  0  0    3    4
+#> Lincoln Continental 10.4   8  460 215 3.00 5.424 17.82  0  0    3    4
+#> Chrysler Imperial   14.7   8  440 230 3.23 5.345 17.42  0  0    3    4
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+heavy_thirsty <- # your code here
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+heavy_thirsty <- mtcars$wt > 5 & mtcars$mpg < 15
+ex_3_4 <- mtcars[heavy_thirsty, ]
+ex_3_4
+#>                      mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#> Cadillac Fleetwood  10.4   8  472 205 2.93 5.250 17.98  0  0    3    4
+#> Lincoln Continental 10.4   8  460 215 3.00 5.424 17.82  0  0    3    4
+#> Chrysler Imperial   14.7   8  440 230 3.23 5.345 17.42  0  0    3    4
+```
+
+**Explanation:** `&` is the vectorised AND operator that returns a logical vector the same length as its inputs; `&&` short-circuits and returns a single value, so it would error inside `[ , ]`. Save the mask to a name when the expression is long: it makes the subset call short and easy to read, and lets you reuse the same mask for parallel slicing of other objects.
+
+</details>
+
+## Section 4. Subsetting matrices (4 problems)
+
+### Exercise 4.1: Two-dimensional indexing with [row, col]
+
+**Task:** Given a 4 by 3 matrix `m` of quarterly regional sales, extract the value at row 2, column 3 using `m[2, 3]`. Then return the entire 2nd row by leaving the column index empty. Save the single value at row 2, column 3 to `ex_4_1`.
+
+**Expected result:**
+
+```
+#> [1] 132
+#> North South  East
+#>   145   155   132
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+m <- matrix(
+  c(120, 145, 162, 178,
+    130, 155, 170, 184,
+    110, 132, 150, 165),
+  nrow = 4, ncol = 3,
+  dimnames = list(c("Q1", "Q2", "Q3", "Q4"),
+                  c("North", "South", "East"))
+)
+
+ex_4_1 <- # your code here
+ex_4_1
+m[2, ]
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+m <- matrix(
+  c(120, 145, 162, 178,
+    130, 155, 170, 184,
+    110, 132, 150, 165),
+  nrow = 4, ncol = 3,
+  dimnames = list(c("Q1", "Q2", "Q3", "Q4"),
+                  c("North", "South", "East"))
+)
+
+ex_4_1 <- m[2, 3]
+ex_4_1
+#> [1] 132
+
+m[2, ]
+#> North South  East
+#>   145   155   132
+```
+
+**Explanation:** A matrix is indexed with two arguments inside `[ , ]`: row first, column second. Leaving an argument empty returns the full dimension. Both numeric and character (when dimnames exist) indexing work, so `m["Q2", "East"]` returns the same scalar. A single-cell extraction drops the matrix attribute and returns a bare numeric.
+
+</details>
+
+### Exercise 4.2: Keep matrix shape with drop = FALSE
+
+**Task:** An ML engineer building a pipeline expects every step to receive a matrix. Show that `m[, 2]` collapses to a named vector and breaks the contract, then re-do the same selection with `drop = FALSE` to keep it as a 4 by 1 matrix. Save the matrix-shaped result to `ex_4_2`.
+
+**Expected result:**
+
+```
+#>    South
+#> Q1   130
+#> Q2   155
+#> Q3   170
+#> Q4   184
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+m[, 2]                  # collapses to vector
+
+ex_4_2 <- # your code here
+ex_4_2
+dim(ex_4_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+m[, 2]
+#>  Q1  Q2  Q3  Q4
+#> 130 155 170 184
+
+ex_4_2 <- m[, 2, drop = FALSE]
+ex_4_2
+#>    South
+#> Q1   130
+#> Q2   155
+#> Q3   170
+#> Q4   184
+
+dim(ex_4_2)
+#> [1] 4 1
+```
+
+**Explanation:** The default `drop = TRUE` collapses any dimension of size 1, so a single-column slice becomes a vector and a single-row slice becomes a vector. Setting `drop = FALSE` keeps the dimension attribute intact. This matters most inside machine-learning pipelines or `apply()` callbacks where downstream code does `dim(x)[1]` or `solve(x)` and silently fails on a bare vector.
+
+</details>
+
+### Exercise 4.3: Filter matrix rows with a logical condition
+
+**Task:** A regional sales analyst wants the rows of `m` where the North region sold more than 150 units. Build a logical mask from `m[, "North"] > 150` and use it as the row index inside `m[rows, ]`. Save the filtered matrix to `ex_4_3`.
+
+**Expected result:**
+
+```
+#>    North South East
+#> Q3   162   170  150
+#> Q4   178   184  165
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+north_mask <- # your code here
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+north_mask <- m[, "North"] > 150
+ex_4_3 <- m[north_mask, ]
+ex_4_3
+#>    North South East
+#> Q3   162   170  150
+#> Q4   178   184  165
+```
+
+**Explanation:** `m[, "North"]` returns the North column as a vector; comparing it to 150 produces a logical vector aligned with the rows. Passing that vector as the row index keeps only matching rows. The number of `TRUE` entries determines `nrow()` of the result. The same pattern flips for columns: `m[, m["Q1", ] > 100]` filters columns by the Q1 row.
+
+</details>
+
+### Exercise 4.4: Pull scattered cells with a 2-column index matrix
+
+**Task:** A statistician needs the main diagonal of `m`'s first 3 rows and 3 columns: cells `(1, 1)`, `(2, 2)`, and `(3, 3)`. Build a 2-column matrix holding those row/column pairs and pass it directly to `m[ ]` with no comma to pull out just those cells. Save the result to `ex_4_4`.
+
+**Expected result:**
+
+```
+#> [1] 120 155 150
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+idx <- # your code here
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+idx <- matrix(c(1, 1,
+                2, 2,
+                3, 3),
+              ncol = 2, byrow = TRUE)
+
+ex_4_4 <- m[idx]
+ex_4_4
+#> [1] 120 155 150
+```
+
+**Explanation:** When you pass an n by 2 integer matrix to `m[ ]` (no comma inside the brackets), R reads each row as an `(i, j)` pair and returns the value at that cell. This is the canonical way to pull a scattered set of cells in a single call, far cleaner than a loop. The same trick generalises: an n by k index matrix works on a k-dimensional array.
+
+</details>
+
+## Section 5. Advanced subsetting patterns (4 problems)
+
+### Exercise 5.1: Extract from a deeply nested config list
+
+**Task:** A site reliability engineer is reading a configuration list that holds a `database` sub-list containing a `replicas` numeric vector of port numbers. Use `$` chaining first, then the recursive `[[c(...)]]` form, to pull out the second replica's port. Save the recursive-form result to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> [1] 5434
+#> [1] 5434
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+cfg <- list(
+  app = list(name = "billing", version = "2.4"),
+  database = list(
+    host = "db.internal",
+    replicas = c(5433L, 5434L, 5435L)
+  )
+)
+
+cfg$database$replicas[2]
+
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cfg <- list(
+  app = list(name = "billing", version = "2.4"),
+  database = list(
+    host = "db.internal",
+    replicas = c(5433L, 5434L, 5435L)
+  )
+)
+
+cfg$database$replicas[2]
+#> [1] 5434
+
+ex_5_1 <- cfg[[c("database", "replicas", 2)]]
+ex_5_1
+#> [1] 5434
+```
+
+**Explanation:** `$` chaining reads top-down and is fine when every key exists. The recursive `[[c(...)]]` form does the same drill in a single call and is easier to parameterise: store the path in a character vector and you can extract any field without touching code. Both forms throw a hard error if an intermediate name is missing, so wrap them in `tryCatch()` if paths might fail.
+
+</details>
+
+### Exercise 5.2: Bulk-redact list fields with a name vector
+
+**Task:** A data engineer needs to mask three sensitive fields (`ssn`, `email`, `phone`) inside a customer record list by replacing each value with the string `"REDACTED"`. Use `record[c("ssn", "email", "phone")] <- "REDACTED"` to assign all three positions in a single call. Save the redacted list to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> $name
+#> [1] "Alex Kim"
+#>
+#> $ssn
+#> [1] "REDACTED"
+#>
+#> $email
+#> [1] "REDACTED"
+#>
+#> $phone
+#> [1] "REDACTED"
+#>
+#> $role
+#> [1] "admin"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+record <- list(
+  name  = "Alex Kim",
+  ssn   = "123-45-6789",
+  email = "alex@example.com",
+  phone = "555-0100",
+  role  = "admin"
+)
+
 # your code here
 
-#> Expected: 4
+ex_5_2 <- record
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Single value solution"
-ex_val <- mtcars[3, 2]
-ex_val
-#> [1] 4
+```r title="Solution"
+record <- list(
+  name  = "Alex Kim",
+  ssn   = "123-45-6789",
+  email = "alex@example.com",
+  phone = "555-0100",
+  role  = "admin"
+)
+
+record[c("ssn", "email", "phone")] <- "REDACTED"
+ex_5_2 <- record
+ex_5_2
 ```
 
-**Explanation:** Row 3 is the Datsun 710, column 2 is `cyl`. The result is `4` (a 4-cylinder car). When you provide both a row and column index, `[]` returns a single value.
+**Explanation:** Subset assignment with a name vector recycles the right-hand side across all selected positions. Pass a list on the right to assign different values per slot, like `record[...] <- list("X", "Y", "Z")`. Use `[<-` (not `[[<-`) when writing to multiple slots in one shot. This pattern is the cleanest way to bulk-update a config or redact a record.
 
 </details>
 
-## Practice Exercises
+### Exercise 5.3: Drop a list element by assigning NULL
 
-These capstone exercises combine multiple subsetting operators. Each one requires chaining techniques from earlier problems. Try to solve each before revealing the answer.
+**Task:** Given the same `record` list (the original, before redaction), drop the `ssn` field entirely by assigning `NULL` to it via `[[<-`. The name should disappear from `names(record)` and the list should shrink to four entries. Save the shrunk list to `ex_5_3`.
 
-### Exercise 1: Filter-and-extract pipeline
+**Expected result:**
 
-Given a survey data frame, build a multi-step pipeline: (a) extract the `score` column as a vector with `[[]]`, (b) create a logical vector for scores above 80, (c) use that logical vector to subset the data frame rows with `[]`, (d) extract the `id` column from the filtered result with `$`.
+```
+#> [1] "name"  "email" "phone" "role"
+```
 
-```r title="Exercise: Build subset pipeline"
-# Setup
-survey <- data.frame(
-  id = 1:5,
-  score = c(72, 88, 91, 65, 80),
-  passed = c(FALSE, TRUE, TRUE, FALSE, TRUE)
+**Difficulty:** Advanced
+
+```r title="Your turn"
+record <- list(
+  name  = "Alex Kim",
+  ssn   = "123-45-6789",
+  email = "alex@example.com",
+  phone = "555-0100",
+  role  = "admin"
 )
 
-# Build the pipeline step by step
-# Hint: each step feeds into the next
+# your code here
 
-# Write your code below:
-
+ex_5_3 <- record
+names(ex_5_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Subset pipeline solution"
-survey <- data.frame(
-  id = 1:5,
-  score = c(72, 88, 91, 65, 80),
-  passed = c(FALSE, TRUE, TRUE, FALSE, TRUE)
+```r title="Solution"
+record <- list(
+  name  = "Alex Kim",
+  ssn   = "123-45-6789",
+  email = "alex@example.com",
+  phone = "555-0100",
+  role  = "admin"
 )
 
-# Step a: extract score as a vector
-my_scores <- survey[["score"]]
-
-# Step b: logical vector — which scores > 80?
-my_above80 <- my_scores > 80
-
-# Step c: subset rows where score > 80
-my_passed <- survey[my_above80, ]
-my_passed
-#>   id score passed
-#> 2  2    88   TRUE
-#> 3  3    91   TRUE
-
-# Step d: extract their ids
-my_ids <- my_passed$id
-my_ids
-#> [1] 2 3
+record[["ssn"]] <- NULL
+ex_5_3 <- record
+names(ex_5_3)
+#> [1] "name"  "email" "phone" "role"
 ```
 
-**Explanation:** This pipeline uses all three operators: `[[]]` to extract a vector for computation, `[]` for 2D row subsetting with a logical condition, and `$` for quick column access. In practice, you'd often write this more compactly as `survey[survey$score > 80, ]$id`, but breaking it into steps makes the logic visible.
+**Explanation:** Assigning `NULL` via `[[<-` is the documented way to drop a list element. The list shrinks by one and the surviving names are renumbered. To keep a slot that literally holds `NULL` (instead of removing it), wrap the value in `list(NULL)` on the right-hand side. The behaviour of `[<- NULL` is different and inconsistent, so always use `[[<-` for deletion.
 
 </details>
 
-### Exercise 2: Navigate a nested list
+### Exercise 5.4: Pull a matrix diagonal with a row/col equality mask
 
-Given a nested department list, write two expressions: (a) extract the 2nd and 3rd staff members of the `eng` department using `[[]]` and `[]`, (b) build a named character vector of all department heads using `sapply()`.
+**Task:** Build a 5 by 5 matrix `mm` filled with the integers 1 through 25, then use the logical mask `row(mm) == col(mm)` inside `mm[ ]` to extract the main diagonal in a single call. Save the diagonal vector to `ex_5_4`.
 
-```r title="Exercise: Department heads and staff"
-# Setup
-dept <- list(
-  hr = list(head = "Sara", staff = c("Mo", "Li")),
-  eng = list(head = "Dev", staff = c("Jo", "Al", "Bo"))
-)
+**Expected result:**
 
-# (a) 2nd and 3rd eng staff
-# Hint: drill into eng -> staff with [[]], then use [] for positions
+```
+#> [1]  1  7 13 19 25
+#> [1]  1  7 13 19 25
+```
 
-# (b) Named vector of all department heads
-# Hint: sapply(dept, function(x) ...)
+**Difficulty:** Advanced
 
-# Write your code below:
+```r title="Your turn"
+mm <- matrix(1:25, nrow = 5)
 
+ex_5_4 <- # your code here
+ex_5_4
+
+diag(mm)  # built-in shortcut for comparison
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Department heads solution"
-dept <- list(
-  hr = list(head = "Sara", staff = c("Mo", "Li")),
-  eng = list(head = "Dev", staff = c("Jo", "Al", "Bo"))
-)
+```r title="Solution"
+mm <- matrix(1:25, nrow = 5)
 
-# (a) 2nd and 3rd eng staff
-dept[["eng"]][["staff"]][2:3]
-#> [1] "Al" "Bo"
+ex_5_4 <- mm[row(mm) == col(mm)]
+ex_5_4
+#> [1]  1  7 13 19 25
 
-# (b) Named vector of department heads
-my_heads <- sapply(dept, function(x) x[["head"]])
-my_heads
-#>    hr   eng
-#> "Sara" "Dev"
+diag(mm)
+#> [1]  1  7 13 19 25
 ```
 
-**Explanation:** Part (a) chains `[[]]` to drill into the nested structure, then switches to `[]` for multi-element selection from the character vector. Part (b) uses `sapply()` to iterate over each department and extract the `"head"` element, `sapply()` simplifies the result into a named character vector because each extraction returns a single string.
+**Explanation:** `row(mm)` and `col(mm)` return matrices the same shape as `mm` filled with row and column indices respectively. The comparison `row(mm) == col(mm)` is a logical matrix that is `TRUE` only on the main diagonal. Indexing `mm` with that mask pulls out those cells. `diag()` is the shortcut; the mask form generalises to off-diagonals (e.g., `row(mm) - col(mm) == 1`) or any geometric pattern.
 
 </details>
 
-## Complete Example
+## What to do next
 
-Let's put everything together in a realistic scenario. You have a data frame of cars and want to answer: **which high-mileage cars (mpg > 25) have 4 cylinders, and what's their average horsepower?**
+You have practised every subsetting operator across vectors, lists, data frames, and matrices. Next, move on to one of these neighbouring hubs:
 
-```r title="End-to-end high mileage analysis"
-# Start with mtcars
-cars_df <- mtcars
-
-# Step 1: Quick look at what we're working with using $
-head(cars_df$mpg, 10)
-#>  [1] 21.0 21.0 22.8 21.4 18.7 18.1 14.3 24.4 22.8 19.2
-
-# Step 2: Filter rows with [rows, cols] — high mpg AND 4 cylinders
-high_mpg_4cyl <- cars_df[cars_df$mpg > 25 & cars_df$cyl == 4, ]
-
-# Step 3: View the result — select key columns with []
-high_mpg_4cyl[c("mpg", "cyl", "hp")]
-#>                 mpg cyl  hp
-#> Fiat 128       32.4   4  66
-#> Honda Civic    30.4   4  52
-#> Toyota Corolla 33.9   4  65
-#> Fiat X1-9      27.3   4  66
-#> Porsche 914-2  26.0   4  91
-#> Lotus Europa   30.4   4 113
-
-# Step 4: Extract hp as a vector with [[]] and compute mean
-hp_vec <- high_mpg_4cyl[["hp"]]
-mean(hp_vec)
-#> [1] 75.5
-
-# Step 5: How many cars matched?
-nrow(high_mpg_4cyl)
-#> [1] 6
-
-# Step 6: Which cars? Row names tell us
-rownames(high_mpg_4cyl)
-#> [1] "Fiat 128"       "Honda Civic"    "Toyota Corolla"
-#> [4] "Fiat X1-9"      "Porsche 914-2"  "Lotus Europa"
-```
-
-This example used all three operators naturally: `$` for quick column checks in the filter condition, `[]` with a logical condition for row filtering and column selection, and `[[]]` to extract a vector for computing the mean. Six 4-cylinder cars exceed 25 mpg, with an average horsepower of about 76, confirming that fuel-efficient 4-cylinder cars tend to have modest power.
-
-## Summary
-
-Here's a side-by-side comparison of the three subsetting operators:
-
-| Feature | `[]` | `[[]]` | `$` |
-|---|---|---|---|
-| Works on | Vectors, lists, data frames | Lists, data frames | Lists, data frames |
-| Returns | Same structure as input | The element itself | The element itself |
-| Multiple elements? | Yes | No (one at a time) | No (one at a time) |
-| Programmatic names? | Yes (`x[var]`) | Yes (`x[[var]]`) | No (literal only) |
-| Partial matching? | No | No (exact by default) | Yes (silently!) |
-| Best use case | Subsetting, filtering | Extracting for computation | Interactive access |
-
-**Key takeaways:**
-
-1. `[]` preserves structure, subset a list, get a list; subset a data frame, get a data frame
-2. `[[]]` extracts the raw value, essential when you need to compute with the result
-3. `$` is convenient shorthand for `[["name"]]` but watch out for partial matching
-4. A data frame is a list of vectors, so `[[]]` and `$` work on data frames the same way they work on lists
-5. For 2D subsetting, `df[rows, cols]` is the workhorse, combine logical row filters with column name vectors
-
-## References
-
-1. Wickham, H., *Advanced R*, 2nd Edition. CRC Press (2019). Chapter 4: Subsetting. [Link](https://adv-r.hadley.nz/subsetting.html)
-2. R Core Team, *An Introduction to R*. Section 2.7: Index vectors. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Index-vectors)
-3. R Documentation, Extract or Replace Parts of an Object. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/Extract.html)
-4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 27: A field guide to base R. [Link](https://r4ds.hadley.nz/base-r)
-5. Burns, P., *The R Inferno*. Circle 8: Believing it does as intended. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
-6. McMaster University, Indexing in R: why you should use [[ more and [, $ less. [Link](https://ms.mcmaster.ca/~bolker/misc/brackets.html)
-
-## Continue Learning
-
-1. [R Vectors: The Foundation of Everything in R](/R-Vectors.html), deep dive on creating, naming, and operating on the data structure these exercises are built on
-2. [R Lists Exercises](/R-Lists-Exercises.html), 10 more practice problems focused on list creation, nested access, and lapply/sapply
-3. [R Data Types](/R-Data-Types.html), understand the type system that determines how subsetting behaves on different objects
+- [dplyr Exercises in R](dplyr-Exercises-in-R.html) for tidyverse-style row and column selection with `filter()`, `select()`, and `slice()`.
+- [Apply Family Exercises in R](Apply-Family-Exercises-in-R.html) for using subsetting alongside `sapply()`, `lapply()`, and `vapply()`.
+- [R Vectors](R-Vectors.html) for a deeper review of how indexing interacts with names, coercion, and recycling.
+- [R Subsetting](R-Subsetting.html) for the one unifying rule across `[`, `[[`, `$`, and `@`.
