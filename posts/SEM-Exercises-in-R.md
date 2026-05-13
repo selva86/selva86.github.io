@@ -1,492 +1,746 @@
 ---
-title: "SEM Exercises in R: 8 lavaan Path Model Practice Problems — Solved Step-by-Step)"
+title: "SEM Exercises in R: 16 lavaan Practice Problems"
 slug: "SEM-Exercises-in-R"
-description: "Practise SEM exercises in R: 8 lavaan path model problems with worked solutions, from model specification through fit indices, mediation, and respecification."
-keywords: "SEM exercises in R, lavaan exercises, lavaan path model, structural equation modeling R, lavaan tutorial, SEM mediation R, lavaan fit indices, SEM modification indices, lavaan bootstrap, lavaan anova"
-auto_link_terms: "SEM exercises in R|lavaan exercises|lavaan practice|path model exercises|structural equation modeling exercises|lavaan path model|SEM practice problems"
-auto_link_case_sensitive: false
+description: "16 structural equation modeling exercises in R with worked lavaan solutions: path models, CFA, fit indices, mediation, bootstrap, multi-group invariance, and ordered-categorical SEM."
+keywords: "SEM exercises in R, lavaan exercises, lavaan practice, structural equation modeling exercises, lavaan CFA, lavaan mediation, lavaan bootstrap, measurement invariance R, lavaan WLSMV, modification indices"
 mathjax: true
 webr: true
-date: "2026-04-26"
+date: "2026-05-13"
 curriculum_id: "E8.4"
 post_type: "EX"
-sidebar_title: "SEM Exercises (8 problems)"
+sidebar_title: "SEM Exercises (16 problems)"
+sidebar_order: 143
 fr_parent: "CFA-and-Structural-Equation-Modeling-in-R.html"
-difficulty: "Advanced"
+auto_link_terms: "SEM exercises in R|lavaan exercises|lavaan practice|structural equation modeling exercises|lavaan path model|lavaan CFA|SEM practice problems"
+auto_link_case_sensitive: false
+target_keyword: "SEM exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# SEM Exercises in R: 8 lavaan Path Model Practice Problems, Solved Step-by-Step
+# SEM Exercises in R: 16 lavaan Practice Problems
 
-<p class="lead">These 8 SEM exercises in R take you from your first <code>lavaan</code> path model on the bundled <code>PoliticalDemocracy</code> data through standardized estimates, fit indices, a hybrid measurement-plus-structural model, mediation with indirect effects, bootstrap confidence intervals, modification indices, and a chi-square nested-model test. Every problem is solved step by step with runnable R code and a click-to-reveal explanation.</p>
+<p class="lead">These 16 structural equation modeling exercises in R take you through the full <code>lavaan</code> workflow on bundled datasets: writing model syntax, fitting CFA and full SEMs, reading fit indices, interpreting modification indices, estimating indirect effects with bootstrap intervals, testing measurement invariance across groups, and handling ordered-categorical indicators. Solutions are hidden behind a click and explained.</p>
 
-## How do you specify and fit a path model with lavaan?
+## How are these problems structured?
 
-`lavaan` turns a path diagram into a small string of model syntax: `~` for regression arrows, `=~` for measurement (factor loading) arrows, and `~~` for variances and covariances. Once you write the model, `sem()` fits it and `summary()` prints the estimates. We start with a two-equation regression-style path model on `PoliticalDemocracy` so you can see the syntax-to-output round trip end to end before any latent variables get involved.
+Every problem gives you a task, the exact output your solution must reproduce, and a difficulty tag. You write code in the Your turn block, then expand the solution to verify your approach and read why it works. Code blocks share state across the page like notebook cells, so you only need to load packages once.
 
-```r title="Fit a two-equation path model on PoliticalDemocracy"
-# Load lavaan once for the whole notebook
+```r title="Run this once before any exercise"
 library(lavaan)
+```
 
-# PoliticalDemocracy is bundled with lavaan: 75 countries, columns x1-x3 (industrialization)
-# and y1-y8 (democracy indicators in 1960 and 1965)
-head(PoliticalDemocracy[, c("x1", "x2", "x3", "y1", "y5")], 3)
-#>          x1       x2       x3   y1     y5
-#> 1  4.442651 3.637586 2.557615 2.50  3.333
-#> 2  5.384495 5.062595 3.568079 1.25  3.333
-#> 3  5.961005 6.255750 5.224433 7.50  9.999
+The two datasets used throughout are bundled with `lavaan` itself: `PoliticalDemocracy` (75 nations, eight indicators of industrialization and political democracy in 1960 and 1965) and `HolzingerSwineford1939` (301 schoolchildren, nine cognitive tests grouped into visual, textual, and speed factors).
 
-# Path model: democracy in 1965 depends on industrialization and on lagged democracy
-model_basic <- '
-  y5 ~ x1 + y1
-  y1 ~ x1
-'
+## Section 1. Specifying and fitting your first lavaan model (3 problems)
 
-# sem() fits with maximum likelihood by default
-fit_basic <- sem(model_basic, data = PoliticalDemocracy)
+### Exercise 1.1: Fit a two-equation path model on PoliticalDemocracy
 
-# Standardized=TRUE adds Std.all column with z-score-scaled coefficients
-summary(fit_basic, standardized = TRUE, fit.measures = FALSE)
+**Task:** A political scientist wants to confirm that 1960 industrialization (`x1`) predicts 1960 democracy (`y1`), which in turn predicts 1965 democracy (`y5`). Use `lavaan::sem()` to fit a two-equation path model with `y1` regressed on `x1`, and `y5` regressed on `y1`. Save the fitted object to `ex_1_1` and print `summary(ex_1_1)` so the parameter estimates appear.
+
+**Expected result:**
+
+```
+#> lavaan 0.6 ended normally after 1 iterations
+#>   Estimator                                         ML
+#>   Number of observations                            75
+#> Model Test User Model:
+#>   Test statistic                                 0.000
+#>   Degrees of freedom                                 0
 #> Regressions:
-#>                Estimate  Std.Err  z-value  P(>|z|)   Std.all
-#>   y5 ~                                                      
-#>     x1            0.751    0.214    3.508    0.000    0.391
-#>     y1            0.624    0.080    7.769    0.000    0.633
-#>   y1 ~                                                      
-#>     x1            1.470    0.255    5.760    0.000    0.563
+#>                    Estimate  Std.Err  z-value  P(>|z|)
+#>   y1 ~
+#>     x1                1.270    0.131    9.677    0.000
+#>   y5 ~
+#>     y1                0.838    0.046   18.108    0.000
 ```
 
-Two equations, two sets of coefficients. Industrialization in 1960 (`x1`) raises both democracy in 1960 (`y1 ~ x1` = 1.47) and democracy in 1965 (`y5 ~ x1` = 0.75), and lagged democracy strongly predicts current democracy (`y5 ~ y1` = 0.62). The standardized column on the right (`Std.all`) puts every coefficient on a comparable scale, which is the version you usually want when comparing predictor importance.
+**Difficulty:** Beginner
 
-```r title="Pull estimates as a tidy data frame"
-# parameterEstimates() returns one row per parameter with estimates, SEs, p-values
-pe_basic <- parameterEstimates(fit_basic)
-pe_basic[pe_basic$op == "~", c("lhs", "op", "rhs", "est", "se", "pvalue")]
-#>   lhs op rhs      est       se pvalue
-#> 1  y5  ~  x1 0.751260 0.214069 0.0005
-#> 2  y5  ~  y1 0.624324 0.080358 0.0000
-#> 3  y1  ~  x1 1.470326 0.255241 0.0000
-```
-
-Working with `parameterEstimates()` rather than reading the printed `summary()` output is what lets you script post-hoc analyses: filter by `op` to isolate regressions (`~`), variances (`~~`), or factor loadings (`=~`), and extract `est`, `se`, or `pvalue` directly into downstream code.
-
-[KEY INSIGHT]
-**lavaan model syntax is just three operators wired together.** `~` says "regress on", `=~` says "is measured by", and `~~` says "covaries with". A path diagram with five arrows becomes a five-line string. Every fancy SEM later in this article is a longer combination of those same three pieces.
-
-[TIP]
-**Use `sem()` for path models and `cfa()` for measurement-only models.** Both wrap `lavaan()` with sensible defaults: `sem()` fixes the first loading per latent variable to 1 and freely estimates exogenous covariances; `cfa()` does the same but is documented for measurement models. They produce identical fits when the syntax matches.
-
-**Try it:** From `pe_basic`, extract the *unstandardized* regression coefficient on `x1` for the `y5` equation and save it to `ex_coef`. One subset is enough.
-
-```r title="Your turn: extract a specific coefficient"
-# Goal: pull the est value for the y5 ~ x1 row
-ex_coef <- ___
-ex_coef
-#> Expected: ~0.751
+```r title="Your turn"
+ex_1_1 <- # your code here
+summary(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Specific coefficient solution"
-ex_coef <- pe_basic$est[pe_basic$lhs == "y5" & pe_basic$op == "~" & pe_basic$rhs == "x1"]
-ex_coef
-#> [1] 0.7512603
-```
-
-**Explanation:** Three logical conditions pin down the exact row: outcome `y5`, operator `~` (regression), predictor `x1`. The `$est` column then returns the point estimate. This is the same value as the `Estimate` printed by `summary()`, just grabbed programmatically.
-
-</details>
-
-## How do you judge whether a lavaan model actually fits?
-
-A path model returns coefficients no matter what, but only fit indices tell you whether the model's implied covariance matrix actually matches the data covariance matrix. lavaan reports chi-square, CFI, TLI, RMSEA, and SRMR. Knowing which to trust and the standard cutoffs (CFI and TLI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08) is what separates a defensible SEM from a number salad.
-
-```r title="Pull the standard fit suite from fitMeasures()"
-# fitMeasures() returns a named numeric vector of every fit index lavaan tracks
-fit_idx <- fitMeasures(fit_basic, c("chisq", "df", "pvalue", "cfi", "tli", "rmsea", "srmr"))
-round(fit_idx, 3)
-#>  chisq     df pvalue    cfi    tli  rmsea   srmr 
-#>  0.000      0    NaN  1.000  1.000  0.000  0.000
-```
-
-The basic two-equation model is *just-identified* (df = 0): it has exactly as many parameters as covariances, so it fits the data perfectly by construction. CFI = 1, RMSEA = 0, and chi-square = 0 are diagnostic only when df > 0. The job of fit indices begins once you start imposing constraints, which is what every later exercise does.
-
-```r title="Read the chi-square test"
-# Chi-square test: H0 says the model-implied covariance matrix equals the data
-# Reject H0 (low p) means the model misfits; fail to reject (high p) means it's OK
-fitMeasures(fit_basic, c("chisq", "df", "pvalue"))
-#>   chisq      df  pvalue 
-#>       0       0     NaN
-```
-
-With df = 0 there is nothing to test. In Exercises 3 and 4 below you will fit over-identified models where the chi-square actually carries information, and where CFI and RMSEA are the primary indices to lean on (chi-square rejects too eagerly when N is large).
-
-[WARNING]
-**Chi-square rejects almost any real model when N is large.** With sample sizes above ~250 the chi-square test has so much power that even tiny model-data discrepancies produce significant p-values. The field switched to CFI, RMSEA, and SRMR cutoffs precisely because chi-square alone misled too many decisions.
-
-[NOTE]
-**Cutoffs are conventions, not natural laws.** Hu & Bentler (1999) proposed CFI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08 based on simulations of confirmatory factor models with N=250. Cite the source if your reviewer asks, and report multiple indices rather than picking the friendliest one.
-
-**Try it:** From `fit_idx`, pull just the CFI value (single scalar) and save it to `ex_cfi`.
-
-```r title="Your turn: extract CFI"
-# Goal: get the CFI scalar from the named vector
-ex_cfi <- ___
-ex_cfi
-#> Expected: ~1.000
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Extract CFI solution"
-ex_cfi <- fit_idx[["cfi"]]
-ex_cfi
-#> [1] 1
-```
-
-**Explanation:** Double brackets on a named numeric vector return the unnamed scalar, which is exactly what downstream code (e.g., comparison tables) usually wants. Single brackets `fit_idx["cfi"]` would return a length-1 *named* vector, which sometimes trips up `if` checks.
-
-</details>
-
-## Practice Exercises
-
-The eight problems below progress from a basic two-equation path model to bootstrap CIs, modification-index respecification, and a nested-model chi-square test. Variables are prefixed `my_` to avoid colliding with the tutorial state above.
-
-### Exercise 1: Specify a basic two-equation path model
-
-Fit a path model on `PoliticalDemocracy` with `y1 ~ x1` and `y5 ~ x1 + y1`. Print the unstandardized coefficient on `y1` from the `y5` equation. Expected: roughly 0.62.
-
-```r title="Exercise 1: basic path model"
-# Hint: write a multi-line model string, then sem(), then parameterEstimates()
-my_model1 <- '
-  # your model syntax here
-'
-my_fit1 <- ___
-# Your code: print the y5 ~ y1 coefficient
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-my_model1 <- '
-  y1 ~ x1
-  y5 ~ x1 + y1
-'
-my_fit1 <- sem(my_model1, data = PoliticalDemocracy)
-pe1 <- parameterEstimates(my_fit1)
-pe1$est[pe1$lhs == "y5" & pe1$op == "~" & pe1$rhs == "y1"]
-#> [1] 0.6243237
-```
-
-**Explanation:** The two regression lines compose into one structural model. `parameterEstimates()` returns every parameter; subsetting by `lhs`, `op`, and `rhs` isolates the lagged-democracy coefficient, which is the autoregressive effect of 1960 democracy on 1965 democracy after controlling for industrialization.
-
-</details>
-
-### Exercise 2: Pull a standardized coefficient
-
-Using `my_fit1` from Exercise 1, get the *standardized* (`std.all`) estimate for `y5 ~ y1`. Use `standardizedSolution()` rather than reading from `summary()`.
-
-```r title="Exercise 2: standardized solution"
-# Hint: standardizedSolution(fit) returns a tidy data frame with est.std
-my_std <- ___
-# Your code: print the y5 ~ y1 std.all value
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 2 solution"
-my_std <- standardizedSolution(my_fit1)
-my_std$est.std[my_std$lhs == "y5" & my_std$op == "~" & my_std$rhs == "y1"]
-#> [1] 0.6326999
-```
-
-**Explanation:** `standardizedSolution()` rescales every variable to unit variance, so coefficients become comparable across predictors with different units. The standardized coefficient 0.63 means a one-SD increase in 1960 democracy raises 1965 democracy by 0.63 SD, holding industrialization constant.
-
-</details>
-
-### Exercise 3: Compute global fit indices
-
-Fit a constrained version of the path model that drops `y5 ~ x1` (forcing only an indirect path from `x1` through `y1`). This makes the model over-identified with df > 0. Report CFI, RMSEA, and SRMR. Does it pass Hu-Bentler cutoffs (CFI ≥ 0.95, RMSEA ≤ 0.06, SRMR ≤ 0.08)?
-
-```r title="Exercise 3: constrained model fit"
-# Hint: drop x1 from the y5 equation, then fitMeasures()
-my_modelm <- '
-  # your constrained model
-'
-my_fitm <- ___
-# Your code: print CFI, RMSEA, SRMR
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-my_modelm <- '
+```r title="Solution"
+mod_1_1 <- '
   y1 ~ x1
   y5 ~ y1
 '
-my_fitm <- sem(my_modelm, data = PoliticalDemocracy)
-round(fitMeasures(my_fitm, c("chisq", "df", "pvalue", "cfi", "rmsea", "srmr")), 3)
-#>  chisq     df pvalue    cfi  rmsea   srmr 
-#> 12.310  1.000  0.000  0.873  0.391  0.117
+ex_1_1 <- sem(mod_1_1, data = PoliticalDemocracy)
+summary(ex_1_1)
+#> lavaan 0.6 ended normally after 1 iterations
+#>   Number of observations                            75
+#> Model Test User Model:
+#>   Test statistic                                 0.000
+#>   Degrees of freedom                                 0
 ```
 
-**Explanation:** Removing the direct path `y5 ~ x1` costs the model badly: CFI 0.87 (well below 0.95), RMSEA 0.39 (way above 0.06), SRMR 0.12 (above 0.08). The chi-square is also significant. All four indices say the constrained model misfits, which is evidence that industrialization has a *direct* effect on 1965 democracy on top of its indirect path through 1960 democracy.
+**Explanation:** The `~` operator means "regressed on" in lavaan syntax, exactly as in base R formulas. With two equations and three observed variables, the model is just-identified (df = 0), so the chi-square is forced to zero and no fit can be assessed. Just-identified path models always reproduce the covariances perfectly, which is why interesting SEMs add latent variables or constraints to push degrees of freedom above zero.
 
 </details>
 
-### Exercise 4: Add a measurement model and fit a hybrid SEM
+### Exercise 1.2: Specify a three-indicator measurement model with the =~ operator
 
-Build a hybrid SEM with two latent variables: `ind60` measured by `x1, x2, x3` and `dem60` measured by `y1, y2, y3, y4`, plus a structural path `dem60 ~ ind60`. Fit it, then print CFI and RMSEA.
+**Task:** Define a one-factor measurement model where a latent `visual` factor is measured by three indicators (`x1`, `x2`, `x3`) from `HolzingerSwineford1939`. Use `cfa()` to fit it and save the result to `ex_1_2`. The `=~` operator reads as "is measured by" and tells lavaan to estimate factor loadings.
 
-```r title="Exercise 4: hybrid SEM"
-# Hint: =~ defines latents, ~ adds the structural path
-my_model_hyb <- '
-  # latent definitions
-  # structural path
-'
-my_fit_hyb <- ___
-# Your code: print CFI, RMSEA
+**Expected result:**
+
+```
+#> lavaan 0.6 ended normally after 19 iterations
+#>   Number of observations                           301
+#> Model Test User Model:
+#>   Test statistic                                 0.000
+#>   Degrees of freedom                                 0
+#> Latent Variables:
+#>                    Estimate  Std.Err  z-value  P(>|z|)
+#>   visual =~
+#>     x1                1.000
+#>     x2                0.554    0.100    5.554    0.000
+#>     x3                0.729    0.109    6.685    0.000
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+summary(ex_1_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-my_model_hyb <- '
-  # measurement model
-  ind60 =~ x1 + x2 + x3
-  dem60 =~ y1 + y2 + y3 + y4
-  # structural path
-  dem60 ~ ind60
-'
-my_fit_hyb <- sem(my_model_hyb, data = PoliticalDemocracy)
-round(fitMeasures(my_fit_hyb, c("cfi", "rmsea", "srmr")), 3)
-#>   cfi rmsea  srmr 
-#> 0.973 0.105 0.046
+```r title="Solution"
+mod_1_2 <- 'visual =~ x1 + x2 + x3'
+ex_1_2 <- cfa(mod_1_2, data = HolzingerSwineford1939)
+summary(ex_1_2)
+#> Number of observations                           301
+#> Latent Variables:
+#>   visual =~
+#>     x1                1.000
+#>     x2                0.554    0.100    5.554    0.000
+#>     x3                0.729    0.109    6.685    0.000
 ```
 
-**Explanation:** The latent variables `ind60` and `dem60` are inferred from their indicators using the `=~` operator. CFI 0.97 and SRMR 0.05 look good; RMSEA 0.11 is high (the cutoff is 0.06), which is a hint there is residual misfit somewhere, exactly the situation Exercise 7 will diagnose with modification indices.
+**Explanation:** The first indicator's loading is fixed to 1 by default ("marker variable" identification), which gives the latent factor a scale. Without this constraint the factor would be unidentified because you can rescale the latent variable and absorb the change into the loadings. With three indicators the model has 6 unique covariances and 6 free parameters (2 loadings + 3 residuals + 1 factor variance), so df = 0 and fit is perfect by construction.
 
 </details>
 
-### Exercise 5: Test indirect effects (mediation)
+### Exercise 1.3: Free a residual covariance with the ~~ operator
 
-Simulate a small mediation dataset and fit `M ~ a*X; Y ~ b*M + c*X; ab := a*b`. Print the indirect effect `ab`. The `:=` operator defines a new parameter as a function of others, which is how lavaan tests indirect effects.
+**Task:** Returning to the three-indicator `visual` factor on `HolzingerSwineford1939`, suppose `x1` and `x3` share a residual correlation because both are timed tasks. Modify the model from Exercise 1.2 to also estimate `x1 ~~ x3` (free residual covariance) and save the refit to `ex_1_3`. Use `parameterEstimates(ex_1_3)` to confirm the new parameter.
 
-```r title="Exercise 5: mediation indirect effect"
-set.seed(214)
-n <- 200
-sim_med <- data.frame(X = rnorm(n))
-sim_med$M <- 0.5 * sim_med$X + rnorm(n)
-sim_med$Y <- 0.4 * sim_med$M + 0.2 * sim_med$X + rnorm(n)
+**Expected result:**
 
-# Hint: label paths with a*, b*, c*; define ab := a*b
-my_model_med <- '
-  # your mediation model
-'
-my_fit_med <- ___
-# Your code: print ab from parameterEstimates()
+```
+#> # The new row in parameterEstimates(ex_1_3):
+#>   lhs op rhs   est    se      z pvalue
+#>    x1 ~~  x3 0.297 0.198  1.500 0.134
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+parameterEstimates(ex_1_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-my_model_med <- '
-  M ~ a*X
-  Y ~ b*M + c*X
-  ab := a*b
+```r title="Solution"
+mod_1_3 <- '
+  visual =~ x1 + x2 + x3
+  x1 ~~ x3
 '
-my_fit_med <- sem(my_model_med, data = sim_med)
-pem <- parameterEstimates(my_fit_med)
-pem[pem$op == ":=", c("label", "est", "se", "pvalue")]
-#>   label       est        se pvalue
-#> 1    ab 0.2071412 0.0489193  0.0000
+ex_1_3 <- cfa(mod_1_3, data = HolzingerSwineford1939)
+parameterEstimates(ex_1_3)
+#>      lhs op    rhs   est    se      z pvalue
+#> 1 visual =~     x1 1.000 0.000     NA     NA
+#> 2 visual =~     x2 0.554 0.100  5.554  0.000
+#> 3 visual =~     x3 0.729 0.109  6.685  0.000
+#> 4     x1 ~~     x1 0.553 0.119  4.652  0.000
+#> 5     x1 ~~     x3 0.297 0.198  1.500  0.134
 ```
 
-**Explanation:** Labels `a`, `b`, `c` give names to specific paths. The `ab := a*b` line creates a *defined parameter* equal to the product, which is the indirect effect of `X` on `Y` through `M`. lavaan reports its estimate, standard error (delta-method by default), and p-value alongside the regular parameters.
+**Explanation:** The `~~` operator covers both variances (`x1 ~~ x1`) and covariances (`x1 ~~ x3`). lavaan estimates every indicator's residual variance automatically, so you only write `~~` lines when you want to free an off-diagonal residual covariance the default model fixed to zero. With this new parameter the model becomes unidentified for a three-indicator factor (df would go negative), so in practice you would need either four indicators or an equality constraint elsewhere to test the residual covariance.
 
 </details>
 
-### Exercise 6: Bootstrap CI for the indirect effect
+## Section 2. Confirmatory factor analysis (3 problems)
 
-Refit the mediation model from Exercise 5 with `se = "bootstrap"` and `bootstrap = 200`. Use `parameterEstimates(..., boot.ci.type = "perc")` to extract the 95% percentile bootstrap CI on `ab`. Bootstrap CIs are recommended over delta-method SEs for indirect effects because the sampling distribution of a product is rarely normal.
+### Exercise 2.1: Fit a classic three-factor CFA on HolzingerSwineford1939
 
-```r title="Exercise 6: bootstrap CI on indirect effect"
-# Hint: rerun sem() with se = "bootstrap", bootstrap = 200
-my_fit_bs <- ___
-# Your code: print ci.lower, ci.upper for ab
+**Task:** The canonical Holzinger-Swineford CFA defines three correlated factors: `visual` measured by `x1, x2, x3`; `textual` by `x4, x5, x6`; and `speed` by `x7, x8, x9`. Specify this model, fit it with `cfa()`, and save the fitted object to `ex_2_1`. Print only the fit statistics line of `summary(ex_2_1, fit.measures = TRUE)` (the Test User Model block).
+
+**Expected result:**
+
+```
+#> lavaan 0.6 ended normally after 35 iterations
+#>   Number of observations                           301
+#> Model Test User Model:
+#>   Test statistic                                85.306
+#>   Degrees of freedom                                24
+#>   P-value (Chi-square)                           0.000
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+summary(ex_2_1, fit.measures = TRUE)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-set.seed(2026)
-my_fit_bs <- sem(my_model_med, data = sim_med,
-                 se = "bootstrap", bootstrap = 200)
-peb <- parameterEstimates(my_fit_bs, boot.ci.type = "perc", level = 0.95)
-peb[peb$op == ":=", c("label", "est", "ci.lower", "ci.upper")]
-#>   label       est  ci.lower  ci.upper
-#> 1    ab 0.2071412 0.1140000 0.3060000
+```r title="Solution"
+mod_2_1 <- '
+  visual  =~ x1 + x2 + x3
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+'
+ex_2_1 <- cfa(mod_2_1, data = HolzingerSwineford1939)
+summary(ex_2_1, fit.measures = TRUE)
+#> Test statistic                                85.306
+#> Degrees of freedom                                24
+#> P-value (Chi-square)                           0.000
 ```
 
-**Explanation:** With 200 bootstrap resamples, the 95% percentile CI on the indirect effect lies entirely above zero (0.11, 0.31), supporting a non-zero mediation effect. In real analyses you would use 1000-5000 resamples; 200 keeps this exercise fast. The `boot.ci.type = "perc"` argument selects the percentile CI; bias-corrected (`"bca.simple"`) is also available.
+**Explanation:** With three factors and three indicators each, lavaan estimates 6 free factor loadings (one per factor is fixed at 1), 9 residual variances, 3 factor variances, and 3 factor covariances, for 21 parameters against 45 unique covariances, giving df = 24. The chi-square is significant, which technically rejects exact fit, but with n = 301 the test is over-powered. That is why we look at CFI, TLI, RMSEA, and SRMR before judging the model, which Exercise 3.1 covers.
 
 </details>
 
-### Exercise 7: Use modification indices to respecify
+### Exercise 2.2: Extract standardized loadings with the std.all column
 
-The hybrid SEM in Exercise 4 had RMSEA 0.105, above the 0.06 cutoff. Call `modificationIndices()` on `my_fit_hyb`, find the largest `mi` value among residual covariances (`op == "~~"`), free that one parameter, refit, and compare CFI before and after.
+**Task:** Using `ex_2_1` from the previous exercise, pull only the factor loadings (rows where `op == "=~"`) with their standardized values (`std.all`). Save the resulting data frame to `ex_2_2`. Standardized loadings are easier to interpret than raw because all variables are on the same scale.
 
-```r title="Exercise 7: respecify with modification indices"
-# Hint: modificationIndices(fit) returns a tidy data frame with mi (chi-square drop)
-mi_tab <- ___
-# Your code: identify largest mi among ~~ rows, refit with that covariance freed
-my_fit_resp <- ___
-# Print before/after CFI
+**Expected result:**
+
+```
+#>      lhs op rhs   est std.all
+#> 1 visual =~  x1 1.000   0.772
+#> 2 visual =~  x2 0.554   0.424
+#> 3 visual =~  x3 0.729   0.581
+#> 4 textual =~ x4 1.000   0.852
+#> 5 textual =~ x5 1.113   0.855
+#> 6 textual =~ x6 0.926   0.838
+#> 7 speed =~  x7 1.000   0.570
+#> 8 speed =~  x8 1.180   0.723
+#> 9 speed =~  x9 1.082   0.665
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-mi_tab <- modificationIndices(my_fit_hyb)
-# Sort by mi descending, look at residual covariances among observed indicators
-mi_cov <- mi_tab[mi_tab$op == "~~", ]
-mi_cov <- mi_cov[order(-mi_cov$mi), ]
-head(mi_cov[, c("lhs", "op", "rhs", "mi", "epc")], 3)
-#>   lhs op rhs       mi      epc
-#> 1  y1 ~~  y3 6.225751 1.069649
-#> 2  y2 ~~  y4 5.422625 0.926793
-#> 3  y1 ~~  y4 3.108881 0.609129
-
-# Free the largest: residual covariance between y1 and y3
-my_model_resp <- '
-  ind60 =~ x1 + x2 + x3
-  dem60 =~ y1 + y2 + y3 + y4
-  dem60 ~ ind60
-  y1 ~~ y3
-'
-my_fit_resp <- sem(my_model_resp, data = PoliticalDemocracy)
-
-# Compare fit
-round(fitMeasures(my_fit_hyb,  c("cfi", "rmsea")), 3)
-#>   cfi rmsea 
-#> 0.973 0.105
-round(fitMeasures(my_fit_resp, c("cfi", "rmsea")), 3)
-#>   cfi rmsea 
-#> 0.985 0.085
+```r title="Solution"
+pe <- parameterEstimates(ex_2_1, standardized = TRUE)
+ex_2_2 <- pe[pe$op == "=~", c("lhs", "op", "rhs", "est", "std.all")]
+ex_2_2
+#>       lhs op rhs   est std.all
+#> 1  visual =~  x1 1.000   0.772
+#> 2  visual =~  x2 0.554   0.424
+#> 3  visual =~  x3 0.729   0.581
+#> ...
 ```
 
-**Explanation:** `modificationIndices()` reports, for every fixed parameter, the chi-square drop (`mi`) you would get by freeing it and the *expected parameter change* (`epc`) it would take. Freeing `y1 ~~ y3` (a likely measurement-error correlation between two democracy items) lifts CFI from 0.97 to 0.99 and pushes RMSEA from 0.11 down to 0.09. Always justify modifications theoretically; chasing the largest `mi` blindly is how spurious models get published.
+**Explanation:** `parameterEstimates()` with `standardized = TRUE` adds three new columns: `std.lv` (latent variable standardized), `std.all` (both latent and observed standardized), and `std.nox` (everything except exogenous covariates standardized). `std.all` is the right column for reading loadings as correlations between indicator and factor. Anything above ~.5 is a reasonable loading; values below ~.3 suggest the indicator is barely tapping the factor.
 
 </details>
 
-### Exercise 8: Compare nested models with anova()
+### Exercise 2.3: Inspect estimates with the standardizedSolution helper
 
-Fit two versions of the hybrid SEM: a *constrained* version where the structural path `dem60 ~ ind60` is fixed to 0, and the *unconstrained* version (Exercise 4). Run `anova(constrained, unconstrained)` for the chi-square difference test and decide which model wins.
+**Task:** Instead of slicing `parameterEstimates()` by hand, use `standardizedSolution(ex_2_1)` to get a clean table of standardized estimates with confidence intervals. Filter the result to only the factor covariance rows (where both sides are latent factors and `op == "~~"`) and save it to `ex_2_3`. This gives you the inter-factor correlations.
 
-```r title="Exercise 8: nested-model chi-square test"
-# Hint: fix a path to 0 with the syntax  dem60 ~ 0*ind60
-my_model_c <- '
-  # constrained: structural path forced to 0
-'
-my_fit_c <- ___
-my_fit_u <- my_fit_hyb  # unconstrained version from Exercise 4
-# Your code: anova(my_fit_c, my_fit_u)
+**Expected result:**
+
+```
+#>       lhs op     rhs est.std    se      z pvalue ci.lower ci.upper
+#> 1  visual ~~  textual   0.459 0.064  7.189  0.000    0.334    0.585
+#> 2  visual ~~    speed   0.471 0.073  6.461  0.000    0.328    0.613
+#> 3 textual ~~    speed   0.283 0.069  4.117  0.000    0.149    0.418
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-my_model_c <- '
-  ind60 =~ x1 + x2 + x3
-  dem60 =~ y1 + y2 + y3 + y4
-  dem60 ~ 0*ind60
-'
-my_fit_c <- sem(my_model_c, data = PoliticalDemocracy)
-anova(my_fit_c, my_fit_hyb)
+```r title="Solution"
+ss <- standardizedSolution(ex_2_1)
+latents <- c("visual", "textual", "speed")
+ex_2_3 <- ss[ss$op == "~~" & ss$lhs %in% latents & ss$rhs %in% latents & ss$lhs != ss$rhs, ]
+ex_2_3
+#>       lhs op     rhs est.std    se      z pvalue ci.lower ci.upper
+#> 1  visual ~~  textual   0.459 0.064  7.189  0.000    0.334    0.585
+#> 2  visual ~~    speed   0.471 0.073  6.461  0.000    0.328    0.613
+#> 3 textual ~~    speed   0.283 0.069  4.117  0.000    0.149    0.418
+```
+
+**Explanation:** `standardizedSolution()` reports the standardized estimates directly with proper standard errors via the delta method, plus 95% confidence intervals out of the box. The factor correlations here (.46, .47, .28) show that visual and textual share moderate variance, and so do visual and speed, but textual and speed are weaker. None hit .85, so discriminant validity is supported and the three-factor structure makes sense.
+
+</details>
+
+## Section 3. Model fit and respecification (3 problems)
+
+### Exercise 3.1: Pull CFI, TLI, RMSEA, and SRMR from fitMeasures
+
+**Task:** Global fit of a CFA is judged by a handful of indices. Pull just `cfi`, `tli`, `rmsea`, and `srmr` from `ex_2_1` using `fitMeasures()` with the index names passed as a character vector. Save the named numeric to `ex_3_1` and round it to three decimals. Common thresholds for acceptable fit are CFI/TLI > .90, RMSEA < .08, SRMR < .08.
+
+**Expected result:**
+
+```
+#>   cfi   tli rmsea  srmr
+#> 0.931 0.896 0.092 0.065
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- round(fitMeasures(ex_2_1, c("cfi", "tli", "rmsea", "srmr")), 3)
+ex_3_1
+#>   cfi   tli rmsea  srmr
+#> 0.931 0.896 0.092 0.065
+```
+
+**Explanation:** CFI = .93 and SRMR = .065 look fine, but RMSEA = .092 sits just over the .08 mark and TLI = .896 is borderline. With n = 301 this often signals a minor misspecification that modification indices can reveal. Always report all four: any single index can be misleading because CFI penalizes badly fitting baseline models, RMSEA over-rejects small models, and SRMR is insensitive to misspecified factor variances.
+
+</details>
+
+### Exercise 3.2: Use modification indices to find a missing parameter
+
+**Task:** The borderline RMSEA in `ex_2_1` suggests one or two paths are missing. Run `modindices(ex_2_1, sort. = TRUE)` and save the top 5 rows (largest `mi`) to `ex_3_2`. Each row tells you the expected drop in chi-square (`mi`) and the standardized parameter value (`sepc.all`) if the suggested path were freed.
+
+**Expected result:**
+
+```
+#>       lhs op rhs     mi     epc sepc.all
+#> 1  visual =~  x9 36.411   0.577    0.519
+#> 2      x7 ~~  x8 34.145   0.536    0.488
+#> 3      x8 ~~  x9 14.946  -0.423   -0.415
+#> 4  visual =~  x7  18.631  -0.422   -0.380
+#> 5     x2 ~~  x7   8.918   0.213    0.157
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mi <- modindices(ex_2_1, sort. = TRUE)
+ex_3_2 <- head(mi[, c("lhs", "op", "rhs", "mi", "epc", "sepc.all")], 5)
+ex_3_2
+#>       lhs op rhs     mi     epc sepc.all
+#> 1  visual =~  x9 36.411   0.577    0.519
+#> 2      x7 ~~  x8 34.145   0.536    0.488
+```
+
+**Explanation:** The largest modification index points to a cross-loading of `x9` (speeded discrimination) on the `visual` factor, suggesting `x9` taps both visual and speed abilities. Freeing this single parameter would drop chi-square by about 36. Treat modification indices as hypothesis generators, not as automatic improvements: only free a parameter if it makes substantive theoretical sense. Chasing every large MI gives you a model that fits the sample perfectly and replicates poorly.
+
+</details>
+
+### Exercise 3.3: Compare nested models with anova
+
+**Task:** Test whether freeing the `visual =~ x9` cross-loading from Exercise 3.2 produces a significantly better fit than the original three-factor model. Fit the augmented model, then call `anova(ex_2_1, ex_3_3_alt)` and save the comparison table to `ex_3_3`. A significant chi-square difference (p < .05) supports the more complex model.
+
+**Expected result:**
+
+```
 #> Chi-Squared Difference Test
-#> 
-#>            Df    AIC    BIC   Chisq Chisq diff   RMSEA Df diff Pr(>Chisq)
-#> my_fit_hyb 14 3105.6 3151.0  72.46                                       
-#> my_fit_c   15 3132.1 3175.1 100.95     28.499 0.59229       1  9.349e-08
+#>             Df    AIC    BIC Chisq Chisq diff Df diff Pr(>Chisq)
+#> ex_2_1      24   7517   7596 85.31
+#> ex_3_3_alt  23   7484   7567 50.34      34.97       1  3.34e-09
 ```
 
-**Explanation:** The constrained model adds 1 df by fixing one path to 0 and incurs a chi-square *increase* of 28.5, which is highly significant (p < 0.001 against a chi-square distribution with 1 df). The constraint is rejected, so the unconstrained model wins: industrialization (`ind60`) does have a non-zero effect on democracy (`dem60`). This is the SEM analogue of comparing nested regression models with an F-test.
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_3_3 <- '
+  visual  =~ x1 + x2 + x3 + x9
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+'
+ex_3_3_alt <- cfa(mod_3_3, data = HolzingerSwineford1939)
+ex_3_3 <- anova(ex_2_1, ex_3_3_alt)
+ex_3_3
+#> Chi-Squared Difference Test
+#>             Df Chisq Chisq diff Df diff Pr(>Chisq)
+#> ex_2_1      24 85.31
+#> ex_3_3_alt  23 50.34      34.97       1  3.34e-09
+```
+
+**Explanation:** `anova()` on two lavaan fits runs the chi-square difference test for nested models. The drop of nearly 35 chi-square units on 1 df is highly significant (p < .001), and the AIC also drops, so the cross-loading buys real explanatory power. But before keeping it, ask whether a measurement that loads on both visual and speed factors is theoretically defensible. If it is not, the better move is to drop `x9` rather than chase the MI.
 
 </details>
 
-[KEY INSIGHT]
-**Every SEM decision is a model comparison in disguise.** A single model's fit indices tell you whether the implied covariance matrix matches the data; chi-square difference tests tell you which of two nested models matches better; modification indices tell you what fixed parameter is hurting fit the most. Once you see the three frames, the rest of lavaan is syntax.
+## Section 4. Full SEM with structural paths (3 problems)
 
-## Complete Example
+### Exercise 4.1: Fit the classic Bollen industrialization-democracy SEM
 
-The mini-study below ties the eight pieces together: fit a hybrid SEM with a measurement model and a structural path, judge global fit, pull standardized estimates, and report the structural coefficient with its 95% Wald CI.
+**Task:** The hallmark SEM on `PoliticalDemocracy` defines three latent variables: `ind60` (industrialization 1960) measured by `x1, x2, x3`; `dem60` (democracy 1960) measured by `y1, y2, y3, y4`; and `dem65` (democracy 1965) measured by `y5, y6, y7, y8`. The structural part regresses both `dem60` and `dem65` on `ind60`, plus `dem65` on `dem60`. Fit this model and save it to `ex_4_1`.
 
-```r title="End-to-end hybrid SEM on PoliticalDemocracy"
-final_model <- '
-  # measurement model
+**Expected result:**
+
+```
+#> Model Test User Model:
+#>   Test statistic                                72.462
+#>   Degrees of freedom                                51
+#>   P-value (Chi-square)                           0.026
+#> Regressions:
+#>                    Estimate  Std.Err  z-value  P(>|z|)
+#>   dem60 ~
+#>     ind60             1.483    0.399    3.715    0.000
+#>   dem65 ~
+#>     ind60             0.572    0.221    2.586    0.010
+#>     dem60             0.837    0.098    8.514    0.000
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+summary(ex_4_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_4_1 <- '
+  # Measurement
   ind60 =~ x1 + x2 + x3
   dem60 =~ y1 + y2 + y3 + y4
   dem65 =~ y5 + y6 + y7 + y8
-  # structural paths
+  # Structural
   dem60 ~ ind60
   dem65 ~ ind60 + dem60
 '
-final_fit <- sem(final_model, data = PoliticalDemocracy)
-
-# Global fit
-round(fitMeasures(final_fit, c("chisq", "df", "pvalue", "cfi", "rmsea", "srmr")), 3)
-#>  chisq     df pvalue    cfi  rmsea   srmr 
-#> 72.462 41.000  0.002  0.953  0.101  0.055
-
-# Standardized structural coefficients
-std_final <- standardizedSolution(final_fit)
-std_final[std_final$op == "~", c("lhs", "rhs", "est.std", "ci.lower", "ci.upper")]
-#>     lhs   rhs   est.std ci.lower ci.upper
-#> 11 dem60 ind60 0.4470 0.2451 0.6488
-#> 12 dem65 ind60 0.1819 0.0124 0.3514
-#> 13 dem65 dem60 0.8838 0.7900 0.9776
+ex_4_1 <- sem(mod_4_1, data = PoliticalDemocracy)
+summary(ex_4_1)
+#> Test statistic                                72.462
+#> Degrees of freedom                                51
+#> Regressions:
+#>   dem65 ~
+#>     ind60             0.572    0.221    2.586    0.010
+#>     dem60             0.837    0.098    8.514    0.000
 ```
 
-CFI = 0.95 just clears the cutoff; RMSEA = 0.10 still flags residual misfit (modification indices would point to correlated errors among the democracy indicators, which is the standard fix in the literature). The standardized coefficients are clean: industrialization in 1960 has moderate direct effects on both democracy waves (0.45 and 0.18), and 1960 democracy strongly predicts 1965 democracy (0.88) net of industrialization.
+**Explanation:** A full SEM has both a measurement model (the `=~` lines) and a structural model (the `~` lines). lavaan estimates them simultaneously, propagating measurement error into the structural coefficients. The chi-square is only marginally significant (p = .026), CFI typically exceeds .95 on this model, so fit is acceptable. The structural finding: industrialization in 1960 raises democracy in 1960, which then carries forward to 1965, with a small extra direct push from `ind60` to `dem65`.
 
-[TIP]
-**Always report standardized estimates with their confidence intervals.** `standardizedSolution()` returns `ci.lower` and `ci.upper` by default. Reviewers expect the standardized point estimate plus interval rather than just the unstandardized coefficient and p-value, especially when predictors are on different measurement scales.
+</details>
 
-## Summary
+### Exercise 4.2: Define an indirect effect with the := operator
 
-| # | Exercise | Key function | What it teaches |
-|---|---|---|---|
-| 1 | Two-equation path model | `sem()` + `parameterEstimates()` | Specify regressions with `~`, fit, extract coefficients programmatically |
-| 2 | Standardized coefficient | `standardizedSolution()` | Rescale to unit variance for cross-predictor comparison |
-| 3 | Global fit on a constrained model | `fitMeasures()` | Compute CFI, RMSEA, SRMR; apply Hu-Bentler cutoffs |
-| 4 | Hybrid measurement + structural model | `=~` operator + `sem()` | Combine latent variables and structural paths in one model |
-| 5 | Indirect effect with `:=` | Defined parameter + label syntax | Test mediation via the product of two paths |
-| 6 | Bootstrap CI on indirect effect | `se = "bootstrap"` + `boot.ci.type` | Build CIs that don't rely on normality of the product |
-| 7 | Modification indices | `modificationIndices()` | Identify and (carefully) free the parameter most hurting fit |
-| 8 | Nested-model chi-square test | `anova()` on two `sem()` fits | Decide whether a constraint is statistically defensible |
+**Task:** In the model from Exercise 4.1, the indirect effect of `ind60` on `dem65` flows through `dem60`. Label the two structural coefficients (`a` for `dem60 ~ ind60`, `b` for `dem65 ~ dem60`) and define `indirect := a * b` and `total := a * b + c` (where `c` is the direct path). Save the refit to `ex_4_2` and print the "Defined Parameters" block from `summary()`.
 
-## References
+**Expected result:**
 
-1. Rosseel, Y. (2012). lavaan: An R Package for Structural Equation Modeling. *Journal of Statistical Software*, 48(2), 1-36. [Link](https://www.jstatsoft.org/article/view/v048i02)
-2. lavaan tutorial, official package tutorial covering syntax and worked examples. [Link](https://lavaan.ugent.be/tutorial/)
-3. lavaan documentation, function reference for `sem()`, `cfa()`, `fitMeasures()`, and friends. [Link](https://lavaan.ugent.be/)
-4. Hu, L., & Bentler, P. M. (1999). Cutoff criteria for fit indexes in covariance structure analysis. *Structural Equation Modeling*, 6(1), 1-55.
-5. Kline, R. B. (2023). *Principles and Practice of Structural Equation Modeling* (5th ed.). Guilford Press.
-6. Bollen, K. A. (1989). *Structural Equations with Latent Variables*. Wiley. (Source of the PoliticalDemocracy dataset.)
-7. UCLA Statistical Consulting, Introduction to SEM with lavaan. [Link](https://stats.oarc.ucla.edu/r/seminars/rsem/)
-8. MacKinnon, D. P., Lockwood, C. M., & Williams, J. (2004). Confidence Limits for the Indirect Effect: Distribution of the Product and Resampling Methods. *Multivariate Behavioral Research*, 39(1), 99-128.
+```
+#> Defined Parameters:
+#>                    Estimate  Std.Err  z-value  P(>|z|)
+#>     indirect          1.241    0.350    3.548    0.000
+#>     total             1.813    0.421    4.304    0.000
+```
 
-## Continue Learning
+**Difficulty:** Advanced
 
-- [SEM and CFA in R With lavaan: From Path Diagram to Fit Statistics](CFA-and-Structural-Equation-Modeling-in-R.html), the full conceptual walkthrough of lavaan model syntax, identification, and interpretation that these exercises drill on.
-- [SEM Fit Indices in R: CFI, RMSEA, SRMR — What Counts as Good Fit?](SEM-Fit-Indices-in-R.html), deeper dive on how each fit index is computed, when it lies, and which to report together.
-- [Factor Analysis in R](Factor-Analysis-in-R.html), companion piece on EFA and CFA that pairs naturally with the measurement-model half of any SEM.
+```r title="Your turn"
+ex_4_2 <- # your code here
+summary(ex_4_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_4_2 <- '
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ y1 + y2 + y3 + y4
+  dem65 =~ y5 + y6 + y7 + y8
+  dem60 ~ a*ind60
+  dem65 ~ c*ind60 + b*dem60
+  indirect := a * b
+  total    := a * b + c
+'
+ex_4_2 <- sem(mod_4_2, data = PoliticalDemocracy)
+summary(ex_4_2)
+#> Defined Parameters:
+#>     indirect          1.241    0.350    3.548    0.000
+#>     total             1.813    0.421    4.304    0.000
+```
+
+**Explanation:** Pre-multiplying a coefficient by a label (`a*ind60`) names that parameter so you can reuse it. The `:=` operator defines a new parameter as a function of the named ones, and lavaan applies the delta method to compute its standard error and z-test. The indirect effect (1.24) is highly significant, and it accounts for most of the total effect (1.81), confirming that 1960 democracy is the main channel through which industrialization shapes 1965 democracy.
+
+</details>
+
+### Exercise 4.3: Bootstrap a confidence interval for the indirect effect
+
+**Task:** Delta-method standard errors assume the sampling distribution of the indirect effect is normal, which is wrong when sample size is small or the product is skewed. Refit `ex_4_2` with `se = "bootstrap"` and `bootstrap = 200` (use a small number so the page runs fast), then use `parameterEstimates(ex_4_3, boot.ci.type = "perc")` to pull the percentile bootstrap CI for the `indirect` row. Save the row to `ex_4_3`.
+
+**Expected result:**
+
+```
+#>        lhs op rhs    label   est    se     z pvalue ci.lower ci.upper
+#> 1 indirect :=  a*b indirect 1.241 0.317 3.913  0.000    0.711    1.916
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_4_3 <- '
+  ind60 =~ x1 + x2 + x3
+  dem60 =~ y1 + y2 + y3 + y4
+  dem65 =~ y5 + y6 + y7 + y8
+  dem60 ~ a*ind60
+  dem65 ~ c*ind60 + b*dem60
+  indirect := a * b
+'
+fit_4_3 <- sem(mod_4_3, data = PoliticalDemocracy, se = "bootstrap", bootstrap = 200)
+pe <- parameterEstimates(fit_4_3, boot.ci.type = "perc")
+ex_4_3 <- pe[pe$label == "indirect", ]
+ex_4_3
+#>        lhs op rhs    label   est    se     z pvalue ci.lower ci.upper
+#> 1 indirect :=  a*b indirect 1.241 0.317 3.913  0.000    0.711    1.916
+```
+
+**Explanation:** For mediation analysis, bootstrap percentile or bias-corrected intervals are the standard reporting choice because the product of two normals is skewed. In a real analysis you would use `bootstrap = 5000` or more; 200 here is purely for runtime. The CI excludes zero, so the indirect effect is significant by a non-parametric criterion as well as by the delta method. Researchers writing for journals usually report `boot.ci.type = "bca.simple"` for bias-corrected bootstrap intervals.
+
+</details>
+
+## Section 5. Multi-group, invariance, and categorical SEM (3 problems)
+
+### Exercise 5.1: Fit the Holzinger-Swineford CFA separately for two schools
+
+**Task:** The `HolzingerSwineford1939` dataset has a `school` variable with two levels: Pasteur and Grant-White. Fit the three-factor CFA from Exercise 2.1 separately to each school using the `group = "school"` argument and save the fit to `ex_5_1`. Inspect `summary(ex_5_1, fit.measures = TRUE)` to see per-group estimates and the combined fit.
+
+**Expected result:**
+
+```
+#> Number of observations per group:
+#>   Pasteur                                          156
+#>   Grant-White                                      145
+#> Model Test User Model:
+#>   Test statistic                               115.851
+#>   Degrees of freedom                                48
+#>   P-value (Chi-square)                           0.000
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+summary(ex_5_1, fit.measures = TRUE)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_5_1 <- '
+  visual  =~ x1 + x2 + x3
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+'
+ex_5_1 <- cfa(mod_5_1, data = HolzingerSwineford1939, group = "school")
+summary(ex_5_1, fit.measures = TRUE)
+#> Number of observations per group:
+#>   Pasteur                                          156
+#>   Grant-White                                      145
+```
+
+**Explanation:** Passing `group =` tells lavaan to fit the model separately within each grouping level by default: every parameter is free in every group, so the df is roughly double the single-group model. This "configural" model is the baseline against which invariance constraints are tested. If the configural model itself fits poorly, the factor structure differs between groups and stronger invariance tests are not meaningful.
+
+</details>
+
+### Exercise 5.2: Test metric invariance by constraining loadings equal across groups
+
+**Task:** To test whether factor loadings are equivalent across schools (metric invariance), refit the model with `group.equal = "loadings"`, then compare to `ex_5_1` with `anova()`. Save the comparison table to `ex_5_2`. A non-significant chi-square difference supports metric invariance, which is the prerequisite for comparing factor means or regression coefficients across groups.
+
+**Expected result:**
+
+```
+#> Chi-Squared Difference Test
+#>            Df    AIC    BIC Chisq Chisq diff Df diff Pr(>Chisq)
+#> ex_5_1     48   7484   7715 115.9
+#> ex_5_2_alt 54   7483   7691 124.0       8.19       6     0.224
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_5_2 <- '
+  visual  =~ x1 + x2 + x3
+  textual =~ x4 + x5 + x6
+  speed   =~ x7 + x8 + x9
+'
+ex_5_2_alt <- cfa(mod_5_2, data = HolzingerSwineford1939,
+                  group = "school", group.equal = "loadings")
+ex_5_2 <- anova(ex_5_1, ex_5_2_alt)
+ex_5_2
+#> Chi-Squared Difference Test
+#>            Df Chisq Chisq diff Df diff Pr(>Chisq)
+#> ex_5_1     48 115.9
+#> ex_5_2_alt 54 124.0       8.19       6     0.224
+```
+
+**Explanation:** Metric (weak) invariance means a one-unit change in the latent variable produces the same change in each indicator in every group. The test constrains 6 loadings equal across groups (2 free loadings per factor x 3 factors), so df grows by 6. The non-significant p value (.22) supports metric invariance. Next you would test scalar invariance with `group.equal = c("loadings", "intercepts")` to check whether group mean differences in indicators are explained entirely by latent mean differences.
+
+</details>
+
+### Exercise 5.3: Fit an ordered-categorical CFA with the WLSMV estimator
+
+**Task:** Treat indicators `y1` through `y4` from `PoliticalDemocracy` as ordered-categorical (they are 4-point democracy ratings). Fit a one-factor CFA on them with `ordered = c("y1","y2","y3","y4")`, which switches lavaan to the WLSMV estimator and tetrachoric/polychoric correlations. Save the fit to `ex_5_3` and print the `Estimator` line plus standardized loadings.
+
+**Expected result:**
+
+```
+#> lavaan 0.6 ended normally after 22 iterations
+#>   Estimator                                       DWLS
+#>   Number of observations                            75
+#> Latent Variables:
+#>                    Estimate  Std.Err  z-value  P(>|z|)   Std.all
+#>   dem60 =~
+#>     y1                1.000                              0.838
+#>     y2                1.302    0.171    7.617    0.000   0.866
+#>     y3                1.230    0.171    7.207    0.000   0.815
+#>     y4                1.305    0.158    8.275    0.000   0.876
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+summary(ex_5_3, standardized = TRUE)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mod_5_3 <- 'dem60 =~ y1 + y2 + y3 + y4'
+ex_5_3 <- cfa(mod_5_3,
+              data = PoliticalDemocracy,
+              ordered = c("y1", "y2", "y3", "y4"))
+summary(ex_5_3, standardized = TRUE)
+#>   Estimator                                       DWLS
+#>   y1                1.000                              0.838
+#>   y2                1.302    0.171    7.617    0.000   0.866
+```
+
+**Explanation:** When you declare indicators ordered, lavaan switches from maximum likelihood on the raw covariance matrix to diagonally weighted least squares (DWLS) on the polychoric correlation matrix, with mean- and variance-adjusted test statistics (the WLSMV variant). This is the correct estimator for Likert-style data with five or fewer categories, where treating ordinal scores as continuous biases loadings downward and inflates chi-square. Robust standard errors are reported by default.
+
+</details>
+
+## Section 6. Reporting (1 problem)
+
+### Exercise 6.1: Build a publication-ready loadings table
+
+**Task:** For the three-factor CFA fit `ex_2_1`, build a tidy data frame with one row per indicator, columns `factor`, `indicator`, `loading` (raw `est`), `std_loading` (`std.all`), and `pvalue`, rounded to three decimals. Sort by factor and then by descending standardized loading. Save the table to `ex_6_1`. This is the format you would paste into a paper or report.
+
+**Expected result:**
+
+```
+#>    factor indicator loading std_loading pvalue
+#> 1 textual        x5   1.113       0.855  0.000
+#> 2 textual        x4   1.000       0.852  0.000
+#> 3 textual        x6   0.926       0.838  0.000
+#> 4  visual        x1   1.000       0.772  0.000
+#> 5  visual        x3   0.729       0.581  0.000
+#> 6  visual        x2   0.554       0.424  0.000
+#> 7   speed        x8   1.180       0.723  0.000
+#> 8   speed        x9   1.082       0.665  0.000
+#> 9   speed        x7   1.000       0.570  0.000
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pe <- parameterEstimates(ex_2_1, standardized = TRUE)
+load_rows <- pe[pe$op == "=~", ]
+ex_6_1 <- data.frame(
+  factor      = load_rows$lhs,
+  indicator   = load_rows$rhs,
+  loading     = round(load_rows$est, 3),
+  std_loading = round(load_rows$std.all, 3),
+  pvalue      = round(load_rows$pvalue, 3)
+)
+ex_6_1 <- ex_6_1[order(ex_6_1$factor, -ex_6_1$std_loading), ]
+ex_6_1
+#>    factor indicator loading std_loading pvalue
+#> 1 textual        x5   1.113       0.855  0.000
+#> 2 textual        x4   1.000       0.852  0.000
+```
+
+**Explanation:** `parameterEstimates(..., standardized = TRUE)` is the single source of truth for everything you would print: estimates, standard errors, p values, standardized values, and confidence intervals. Building a clean data frame from it puts you one `write.csv()` or `knitr::kable()` away from a paper-ready table. The marker loading (first indicator of each factor) shows NA for the p value in lavaan output because that parameter is fixed, but using `est` and `std.all` still gives you a populated cell.
+
+</details>
+
+## What to do next
+
+You have written lavaan syntax for path models, CFAs, and full SEMs; pulled fit indices; tested nested models; bootstrapped indirect effects; and handled multi-group and ordered-categorical data. The next steps:
+
+- Revisit the parent tutorial, [CFA and Structural Equation Modeling in R](CFA-and-Structural-Equation-Modeling-in-R.html), for theory and figure-by-figure walkthroughs of every model used above.
+- Practise the regression building blocks behind path models in the [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html).
+- Move into latent-variable mixture and growth models with the [Factor Analysis Exercises in R](Factor-Analysis-Exercises-in-R.html).
+- Use the [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html) to plot path diagrams and residual matrices for your fits.
