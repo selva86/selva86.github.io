@@ -1,666 +1,1002 @@
 ---
-title: "R Date & Time Exercises: 10 lubridate Practice Problems with Solutions"
+title: "R Date & Time Exercises: 20 lubridate Practice Problems"
 slug: "R-Date-Time-Exercises"
-description: "Practice R date and time skills with 10 lubridate exercises. Parse dates, extract components, do date arithmetic, handle timezones, with full solutions."
-keywords: "R date time exercises, lubridate exercises, R date practice problems, lubridate practice, R date arithmetic, R timezone exercises, ymd() practice, R date parsing exercises, lubridate solutions"
-auto_link_terms: "R date exercises|lubridate exercises|date time exercises|R date practice|lubridate practice problems"
-auto_link_case_sensitive: false
+description: "Practice R dates with 20 lubridate exercises: parse formats, extract components, do period and interval arithmetic, handle timezones, with full solutions."
+keywords: "R date time exercises, lubridate exercises, dates in R practice, posixct practice, R date arithmetic, R timezone exercises, parse_date_time, R interval exercises"
 mathjax: false
 webr: true
-date: "2026-04-12"
-curriculum_id: "E1.8"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_section: "Practice Exercises"
-sidebar_title: "R Date & Time (10 problems)"
+sidebar_title: "R Date & Time (20 problems)"
+sidebar_order: 165
 fr_parent: "R-Syntax-101.html"
-difficulty: "Intermediate"
+auto_link_terms: "R date exercises|lubridate exercises|date time exercises|R date practice|lubridate practice problems"
+auto_link_case_sensitive: false
+target_keyword: "dates in R exercises, posixct practice"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# R Date & Time Exercises: 10 lubridate Practice Problems with Solutions
+# R Date & Time Exercises: 20 lubridate Practice Problems
 
-<p class="lead">These 10 exercises test your ability to parse, manipulate, and calculate with dates and times in R using the lubridate package. Each problem includes starter code with hints and a full worked solution, run them directly in your browser to check your answers.</p>
+<p class="lead">Twenty practice problems covering date parsing, component extraction, period and interval arithmetic, timezone handling, and date-driven analytics workflows in R. Each problem has a hidden, fully worked solution with an explanation, runnable directly in your browser.</p>
 
-## How do you parse dates from text strings?
-
-The exercises below progress from basic date parsing to timezone conversions and interval calculations. Each one builds on a skill you'll use constantly when cleaning real-world data. Let's load lubridate and see it in action.
-
-```r title="Parse three date formats"
-# Load lubridate and parse a quick example
+```r title="Run this once before any exercise"
 library(lubridate)
-
-ymd("2024-03-15")
-#> [1] "2024-03-15"
-
-mdy("July 4th, 2024")
-#> [1] "2024-07-04"
-
-dmy("25-12-2024")
-#> [1] "2024-12-25"
+library(dplyr)
+library(tibble)
 ```
 
-The function name tells lubridate the order of components, `ymd()` expects year-month-day, `mdy()` expects month-day-year, and `dmy()` expects day-month-year. Lubridate figures out the separators and formats automatically, so you only need to pick the right function.
+## Section 1. Parsing dates and times (4 problems)
 
-### Exercise 1: Parse a date with ymd()
+### Exercise 1.1: Parse a year-month-day string with ymd
 
-Parse the string `"2024-03-15"` into a Date object called `my_date`. Print the result and confirm its class.
+**Task:** Parse the character string `"2024-03-15"` into a proper R `Date` object using `ymd()` from lubridate. The result should print as a single date and have class `"Date"`. Save the parsed value to `ex_1_1` and inspect both the value and its class.
 
-```r title="Exercise: Parse with ymd"
-# Exercise 1: Parse a date with ymd()
-# Hint: use ymd() from lubridate
+**Expected result:**
 
-my_date <- ___("2024-03-15")
-my_date
-class(my_date)
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="ymd parse solution"
-my_date <- ymd("2024-03-15")
-my_date
 #> [1] "2024-03-15"
-class(my_date)
 #> [1] "Date"
 ```
 
-**Explanation:** `ymd()` parses a year-month-day string into an R Date object. The class confirms it's a proper Date, not just a character string.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Parse dates in different formats
-
-Parse these two strings into Date objects: `"March 15, 2024"` (US format) and `"15/03/2024"` (European format). Store them as `date_us` and `date_eu`.
-
-```r title="Exercise: US and European formats"
-# Exercise 2: Parse US and European date formats
-# Hint: which function handles month-day-year? Which handles day-month-year?
-
-date_us <- ___("March 15, 2024")
-date_eu <- ___("15/03/2024")
-
-date_us
-date_eu
-date_us == date_eu
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
+class(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="US and European formats solution"
-date_us <- mdy("March 15, 2024")
-date_eu <- dmy("15/03/2024")
-
-date_us
+```r title="Solution"
+ex_1_1 <- ymd("2024-03-15")
+ex_1_1
 #> [1] "2024-03-15"
-date_eu
-#> [1] "2024-03-15"
-date_us == date_eu
-#> [1] TRUE
+class(ex_1_1)
+#> [1] "Date"
 ```
 
-**Explanation:** `mdy()` handles the US convention (month first), while `dmy()` handles the European convention (day first). Both produce the same Date object because they represent the same calendar date. The equality check confirms this.
+**Explanation:** `ymd()` is a strict, fast parser keyed by component ORDER rather than separators, so `"2024/03/15"`, `"2024-03-15"`, and `"20240315"` all work. Compared to base R's `as.Date()` you do not have to pass a format string. The result is a `Date` (1 day precision); use `ymd_hms()` when you need sub-day precision.
 
 </details>
 
-[TIP]
-**lubridate guesses the format from the function name, not the separator.** Whether your dates use dashes, slashes, spaces, or even no separator at all ("20240315"), just pick ymd(), mdy(), or dmy() based on the component order and lubridate handles the rest.
+### Exercise 1.2: Parse a CSV column with mixed date formats
 
-**Try it:** Parse the string `"07-Jan-2025"` into a Date object. Which lubridate function do you need?
+**Task:** A marketing analyst received conversion logs from three vendors and concatenated them. The `raw` vector below contains mixed formats: ISO, US slash, and European dash. Use `parse_date_time()` with all three format hints so every entry parses correctly. Save the cleaned `Date` vector to `ex_1_2` and confirm none are `NA`.
 
-```r title="Exercise: Parse abbreviated month"
-# Try it: parse "07-Jan-2025"
-ex_date1 <- ___("07-Jan-2025")
-ex_date1
-#> Expected: "2025-01-07"
+```r
+raw <- c("2024-03-15", "03/15/2024", "15-03-2024", "2024-04-01", "04/02/2024")
+```
+
+**Expected result:**
+
+```
+#> [1] "2024-03-15 UTC" "2024-03-15 UTC" "2024-03-15 UTC" "2024-04-01 UTC" "2024-04-02 UTC"
+#> [1] 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+raw <- c("2024-03-15", "03/15/2024", "15-03-2024", "2024-04-01", "04/02/2024")
+ex_1_2 <- # your code here
+ex_1_2
+sum(is.na(ex_1_2))
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Abbreviated month solution"
-ex_date1 <- dmy("07-Jan-2025")
-ex_date1
-#> [1] "2025-01-07"
+```r title="Solution"
+raw <- c("2024-03-15", "03/15/2024", "15-03-2024", "2024-04-01", "04/02/2024")
+ex_1_2 <- parse_date_time(raw, orders = c("ymd", "mdy", "dmy"))
+ex_1_2
+#> [1] "2024-03-15 UTC" "2024-03-15 UTC" "2024-03-15 UTC"
+#> [4] "2024-04-01 UTC" "2024-04-02 UTC"
+sum(is.na(ex_1_2))
+#> [1] 0
 ```
 
-**Explanation:** The string starts with day (07), then month (Jan), then year (2025), so `dmy()` is the right choice. Lubridate handles abbreviated month names just fine.
+**Explanation:** `parse_date_time()` tries each order in turn and picks the first that matches without ambiguity, so messy real-world feeds parse without writing a custom regex. Order matters: put the most specific format first; if `mdy` came before `ymd`, the string `"2024-03-15"` would still parse as ymd because ymd is unambiguous, but for ambiguous strings the first listed order wins.
 
 </details>
 
-## How do you extract and modify date components?
+### Exercise 1.3: Parse a datetime with seconds and treat it as POSIXct
 
-Once you have a Date object, you often need to pull out individual pieces, the year, month, or day of the week. Lubridate's component functions work as both getters (read a component) and setters (change a component in place).
+**Task:** Convert the string `"2024-03-15 14:30:45"` into a `POSIXct` value using `ymd_hms()`. Save the result to `ex_1_3`. Print it and confirm via `class()` that it carries both `POSIXct` and `POSIXt` classes, which is what date-aware functions look for.
 
-### Exercise 3: Extract year, month, and weekday
+**Expected result:**
 
-Using `my_date` (which holds 2024-03-15), extract the year, month number, and weekday name.
+```
+#> [1] "2024-03-15 14:30:45 UTC"
+#> [1] "POSIXct" "POSIXt"
+```
 
-```r title="Exercise: Extract date components"
-# Exercise 3: Extract date components
-# Hint: year(), month(), and wday() with label = TRUE
+**Difficulty:** Intermediate
 
-year(___)
-month(___)
-wday(___, label = TRUE)
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
+class(ex_1_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Extract components solution"
-year(my_date)
-#> [1] 2024
-month(my_date)
-#> [1] 3
-wday(my_date, label = TRUE)
-#> [1] Fri
-#> Levels: Sun < Mon < Tue < Wed < Thu < Fri < Sat
+```r title="Solution"
+ex_1_3 <- ymd_hms("2024-03-15 14:30:45")
+ex_1_3
+#> [1] "2024-03-15 14:30:45 UTC"
+class(ex_1_3)
+#> [1] "POSIXct" "POSIXt"
 ```
 
-**Explanation:** `year()` returns the four-digit year, `month()` returns the month as an integer (1-12), and `wday()` with `label = TRUE` returns the abbreviated weekday name. March 15, 2024 was a Friday.
+**Explanation:** `ymd_hms()` returns `POSIXct`, an integer number of seconds since 1970-01-01 UTC. The default timezone is UTC when no `tz` argument is given. Use `POSIXct` (not `POSIXlt`) for data frames and vectorized math; `POSIXlt` is a list-of-components structure that breaks dplyr columns. If your input lacks seconds, use `ymd_hm()` so missing seconds do not generate `NA`.
 
 </details>
 
-### Exercise 4: Change a date component in place
-
-Change the month of `my_date` to December (12) and print the result. What date do you get?
-
-```r title="Exercise: Modify month component"
-# Exercise 4: Modify a date component
-# Hint: use month() on the left side of <-
-
-month(my_date) <- ___
-my_date
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Modify month solution"
-month(my_date) <- 12
-my_date
-#> [1] "2024-12-15"
-```
-
-**Explanation:** Assigning to `month(my_date)` changes the month in place while keeping the year and day unchanged. The date moves from March 15 to December 15, 2024. This is one of lubridate's most convenient features, the same function works as both a getter and a setter.
-
-</details>
-
-[KEY INSIGHT]
-**Component functions are both getters and setters.** Call `month(x)` to read the month, or `month(x) <- 6` to change it to June. The same pattern works for year(), day(), hour(), minute(), and second().
-
-**Try it:** Use `quarter()` to find which quarter of the year today's date falls in.
-
-```r title="Exercise: Current quarter of today"
-# Try it: which quarter is today in?
-ex_q <- quarter(___)
-ex_q
-#> Expected: a number 1-4
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Current quarter solution"
-ex_q <- quarter(today())
-ex_q
-#> [1] 2
-```
-
-**Explanation:** `quarter()` returns 1-4 depending on which three-month block the date falls in. April 2026 is in Q2 (April-June).
-
-</details>
-
-## How do you do arithmetic with dates?
-
-Date arithmetic is where lubridate really shines. You can add or subtract periods like `days()`, `months()`, and `years()` directly to Date objects. But watch out, adding months can produce surprising results when the starting day doesn't exist in the target month.
-
-### Exercise 5: Add days vs. months, compare the results
-
-Starting from `"2024-01-31"`, add 90 days and separately add 1 month. Store the results as `result_days` and `result_months`. Are they the same?
-
-```r title="Exercise: days versus months arithmetic"
-# Exercise 5: days() vs months() arithmetic
-# Hint: create the base date, then add days(90) and months(1)
-
-base_date <- ymd("2024-01-31")
-result_days <- base_date + days(___)
-result_months <- base_date + months(___)
-
-result_days
-result_months
-result_days == result_months
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="days versus months solution"
-base_date <- ymd("2024-01-31")
-result_days <- base_date + days(90)
-result_months <- base_date + months(1)
-
-result_days
-#> [1] "2024-04-20"
-result_months
-#> [1] NA
-result_days == result_months
-#> [1] NA
-```
-
-**Explanation:** Adding 90 days to January 31 lands on April 20. But adding 1 month to January 31 produces `NA` because February 31 doesn't exist. Lubridate returns `NA` rather than guessing. Use `base_date %m+% months(1)` if you want it to roll back to the last valid day of February (Feb 29, since 2024 is a leap year).
-
-</details>
-
-[WARNING]
-**Adding months() to the 31st can produce NA.** Months like February, April, June, September, and November have fewer than 31 days. Use the `%m+%` operator instead of `+` if you want lubridate to roll back to the last valid day of the month.
-
-### Exercise 6: Calculate the number of days between two dates
-
-How many days are there between January 1, 2024 and December 31, 2024? Store the answer as `diff_days`.
-
-```r title="Exercise: Days between two dates"
-# Exercise 6: Date difference in days
-# Hint: subtract two dates and convert to numeric
-
-diff_days <- as.numeric(___ - ___)
-diff_days
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Days difference solution"
-diff_days <- as.numeric(ymd("2024-12-31") - ymd("2024-01-01"))
-diff_days
-#> [1] 365
-```
-
-**Explanation:** Subtracting two Date objects gives a difftime object. Wrapping it in `as.numeric()` extracts the number of days as a plain integer. 2024 is a leap year (366 days total), but the difference from Jan 1 to Dec 31 is 365 because the subtraction doesn't count the start date.
-
-</details>
-
-**Try it:** What date is 100 days from today?
-
-```r title="Exercise: One hundred days ahead"
-# Try it: 100 days from today
-ex_future <- today() + days(___)
-ex_future
-#> Expected: a date ~100 days in the future
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Hundred days ahead solution"
-ex_future <- today() + days(100)
-ex_future
-#> [1] "2026-07-21"
-```
-
-**Explanation:** `today()` gives the current date, and `days(100)` creates a period of 100 days. Adding them together gives the date 100 days from now.
-
-</details>
-
-## How do you work with date-time objects and timezones?
-
-Real-world data often includes timestamps with hours, minutes, and seconds, plus timezones that can trip you up if you're not careful. Lubridate has two key timezone functions: `with_tz()` converts the display to a different timezone (same instant), while `force_tz()` reinterprets the clock time as a different timezone (different instant).
-
-### Exercise 7: Parse a datetime and convert timezones
-
-Parse `"2024-07-04 14:30:00"` as a datetime in UTC. Then convert it to `"America/New_York"` time. Store the results as `dt_utc` and `dt_ny`.
-
-```r title="Exercise: Parse datetime and convert zone"
-# Exercise 7: Parse datetime and convert timezone
-# Hint: ymd_hms() with tz argument, then with_tz()
-
-dt_utc <- ymd_hms("2024-07-04 14:30:00", tz = "___")
-dt_ny <- with_tz(dt_utc, tzone = "___")
-
-dt_utc
-dt_ny
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Datetime zone solution"
-dt_utc <- ymd_hms("2024-07-04 14:30:00", tz = "UTC")
-dt_ny <- with_tz(dt_utc, tzone = "America/New_York")
-
-dt_utc
-#> [1] "2024-07-04 14:30:00 UTC"
-dt_ny
-#> [1] "2024-07-04 10:30:00 EDT"
-```
-
-**Explanation:** `ymd_hms()` parses a full timestamp with hours, minutes, and seconds. The `tz` argument sets the timezone. `with_tz()` then converts the same moment in time to how it would appear on a clock in New York, 4 hours earlier in July (Eastern Daylight Time, UTC-4).
-
-</details>
-
-### Exercise 8: Extract the hour in different timezones
-
-Using `dt_utc` and `dt_ny` from Exercise 7, extract the hour from each. What's the difference?
-
-```r title="Exercise: Hour across timezones"
-# Exercise 8: Extract hour from different timezones
-# Hint: use hour() on both datetime objects
-
-hour_utc <- hour(___)
-hour_ny <- hour(___)
-
-hour_utc
-hour_ny
-hour_utc - hour_ny
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Hour across timezones solution"
-hour_utc <- hour(dt_utc)
-hour_ny <- hour(dt_ny)
-
-hour_utc
-#> [1] 14
-hour_ny
-#> [1] 10
-hour_utc - hour_ny
-#> [1] 4
-```
-
-**Explanation:** The UTC time is 14:30 and the New York time is 10:30, a 4-hour difference. This matches the EDT (Eastern Daylight Time) offset of UTC-4 that applies in July. In winter, New York uses EST (UTC-5), so the difference would be 5 hours.
-
-</details>
-
-[KEY INSIGHT]
-**with_tz() changes the display, force_tz() changes the instant.** Use with_tz() when you know the correct UTC instant and want to see it in another timezone. Use force_tz() when the clock time is correct but was tagged with the wrong timezone.
-
-**Try it:** Use `force_tz()` to reinterpret `dt_utc` as if it were recorded in `"Asia/Tokyo"` time. Compare the result to `dt_utc`, is it the same instant?
-
-```r title="Exercise: forcetz changes the instant"
-# Try it: force_tz() vs with_tz()
-ex_tokyo <- force_tz(dt_utc, tzone = "Asia/Tokyo")
-ex_tokyo
-dt_utc
-ex_tokyo == dt_utc
-#> Expected: FALSE (different instants!)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="forcetz instant solution"
-ex_tokyo <- force_tz(dt_utc, tzone = "Asia/Tokyo")
-ex_tokyo
-#> [1] "2024-07-04 14:30:00 JST"
-dt_utc
-#> [1] "2024-07-04 14:30:00 UTC"
-ex_tokyo == dt_utc
-#> [1] FALSE
-```
-
-**Explanation:** `force_tz()` keeps the clock reading (14:30) but changes the timezone label to Tokyo. Since Tokyo is UTC+9, this now represents a completely different moment, 9 hours earlier in UTC terms. That's why `==` returns FALSE. Use `force_tz()` only when you need to correct a mislabeled timezone.
-
-</details>
-
-## How do you calculate intervals and durations?
-
-Lubridate distinguishes between three ways to measure time spans: **durations** (exact seconds), **periods** (human units like "1 month"), and **intervals** (a specific start-to-end span). Intervals are especially useful when you need to check if a date falls within a range or calculate an exact age.
-
-### Exercise 9: Create an interval and test membership
-
-Create an interval from `"2024-01-01"` to `"2024-06-30"`. Then check whether `"2024-03-15"` falls within that interval.
-
-```r title="Exercise: Interval membership test"
-# Exercise 9: Intervals and %within%
-# Hint: use %--% to create an interval, then %within% to test
-
-int_half <- ymd("2024-01-01") ___ ymd("2024-06-30")
-check_date <- ymd("2024-03-15")
-
-check_date ___ int_half
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Interval membership solution"
-int_half <- ymd("2024-01-01") %--% ymd("2024-06-30")
-check_date <- ymd("2024-03-15")
-
-check_date %within% int_half
-#> [1] TRUE
-```
-
-**Explanation:** The `%--%` operator creates an interval between two dates. The `%within%` operator then tests whether a date falls inside that interval. March 15 is between January 1 and June 30, so the result is TRUE. This is much cleaner than writing `check_date >= start & check_date <= end`.
-
-</details>
-
-### Exercise 10: Calculate exact age in years
-
-Calculate the exact age in complete years from the birthdate `"1995-08-22"` to today's date. Store the result as `my_age`.
-
-```r title="Exercise: Age in complete years"
-# Exercise 10: Calculate age in complete years
-# Hint: create an interval with %--%, then integer-divide by years(1)
-
-birth <- ymd("1995-08-22")
-my_age <- (birth ___ today()) ___ years(1)
-my_age
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Age in years solution"
-birth <- ymd("1995-08-22")
-my_age <- (birth %--% today()) %/% years(1)
-my_age
-#> [1] 30
-```
-
-**Explanation:** The `%--%` operator creates an interval from the birthdate to today. Dividing by `years(1)` with the integer division operator `%/%` gives the number of complete years, the person's age. This handles leap years and varying month lengths correctly, which makes it more reliable than dividing a day count by 365.25.
-
-</details>
-
-[TIP]
-**The %--% operator creates an interval; divide by years(1) or months(1) with %/% to get whole units.** This is the most reliable way to calculate ages or durations in human-friendly units, because it respects calendar irregularities that simple day-counting misses.
-
-**Try it:** How many complete months are in the interval from `"2024-03-01"` to `"2024-11-15"`?
-
-```r title="Exercise: Complete months in interval"
-# Try it: complete months in an interval
-ex_months <- (ymd("2024-03-01") %--% ymd("2024-11-15")) %/% months(___)
-ex_months
-#> Expected: 8
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Complete months solution"
-ex_months <- (ymd("2024-03-01") %--% ymd("2024-11-15")) %/% months(1)
-ex_months
-#> [1] 8
-```
-
-**Explanation:** From March 1 to November 15 spans 8 complete months (March 1 to November 1 is exactly 8 months, and the remaining 15 days don't complete a 9th month). The `%/%` operator floors to the nearest whole number.
-
-</details>
-
-## Practice Exercises
-
-These capstone exercises combine multiple concepts from the problems above. They're harder than the individual exercises, take your time and refer back to earlier solutions if needed.
-
-### Exercise 1: Parse mixed-format dates and find the span
-
-You have a vector of 5 date strings in different formats. Parse all of them into Date objects, sort them chronologically, and calculate the number of days between the earliest and latest dates.
-
-```r title="Exercise: Sort mixed date formats"
-# Capstone 1: Parse mixed formats and find the date span
-# Hint: use different lubridate parse functions for each format,
-# then combine into a vector, sort, and subtract
-
-dates_raw <- c("2024-01-15", "March 3, 2024", "15/06/2024",
-               "2024-09-01", "01-Dec-2024")
-
-# Parse each one:
-
-# Sort and find the span:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Sort mixed formats solution"
-dates_raw <- c("2024-01-15", "March 3, 2024", "15/06/2024",
-               "2024-09-01", "01-Dec-2024")
-
-dates_parsed <- c(
-  ymd(dates_raw[1]),
-  mdy(dates_raw[2]),
-  dmy(dates_raw[3]),
-  ymd(dates_raw[4]),
-  dmy(dates_raw[5])
+### Exercise 1.4: Truncate noisy timestamps before parsing
+
+**Task:** An audit team received timestamps with extra text appended: `"2024-03-15 14:30:00 EST (audit log)"`. The trailing parenthetical breaks `ymd_hms()`. Use `parse_date_time()` with `truncated = 3` and an `orders` hint so the parser tolerates trailing noise. Parse the full vector and save the cleaned datetimes to `ex_1_4`.
+
+```r
+raw <- c(
+  "2024-03-15 14:30:00 (audit log)",
+  "2024-03-16 09:00:15 (audit log)",
+  "2024-03-17 23:59:59 (audit log)"
 )
-
-dates_sorted <- sort(dates_parsed)
-dates_sorted
-#> [1] "2024-01-15" "2024-03-03" "2024-06-15" "2024-09-01" "2024-12-01"
-
-span <- as.numeric(max(dates_sorted) - min(dates_sorted))
-span
-#> [1] 321
 ```
 
-**Explanation:** Each date string requires a different parsing function because the component order varies. After parsing, `sort()` arranges them chronologically. The span is the difference between the latest (Dec 1) and earliest (Jan 15) dates, 321 days. In real data pipelines, you'd often detect the format programmatically, but knowing which function to use for each format is the fundamental skill.
+**Expected result:**
 
-</details>
+```
+#> [1] "2024-03-15 14:30:00 UTC" "2024-03-16 09:00:15 UTC"
+#> [3] "2024-03-17 23:59:59 UTC"
+```
 
-### Exercise 2: Compute exact age as years, months, and days
+**Difficulty:** Intermediate
 
-Given a birthdate of `"1990-05-17"` and a target date of `"2026-04-12"`, compute the exact age as "X years, Y months, Z days" using lubridate's interval and period functions.
-
-```r title="Exercise: Exact age breakdown"
-# Capstone 2: Exact age breakdown
-# Hint: create an interval, convert to period with as.period(),
-# then extract year, month, day components
-
-bday <- ymd("1990-05-17")
-target <- ymd("2026-04-12")
-
-# Create interval and convert to period:
-
-# Extract and print "X years, Y months, Z days":
-
+```r title="Your turn"
+raw <- c(
+  "2024-03-15 14:30:00 (audit log)",
+  "2024-03-16 09:00:15 (audit log)",
+  "2024-03-17 23:59:59 (audit log)"
+)
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exact age breakdown solution"
-bday <- ymd("1990-05-17")
-target <- ymd("2026-04-12")
-
-age_period <- as.period(bday %--% target)
-age_period
-#> [1] "35y 10m 26d 0H 0M 0S"
-
-paste(year(age_period), "years,",
-      month(age_period), "months,",
-      day(age_period), "days")
-#> [1] "35 years, 10 months, 26 days"
+```r title="Solution"
+raw <- c(
+  "2024-03-15 14:30:00 (audit log)",
+  "2024-03-16 09:00:15 (audit log)",
+  "2024-03-17 23:59:59 (audit log)"
+)
+ex_1_4 <- parse_date_time(raw, orders = "Ymd HMS", truncated = 3)
+ex_1_4
+#> [1] "2024-03-15 14:30:00 UTC" "2024-03-16 09:00:15 UTC"
+#> [3] "2024-03-17 23:59:59 UTC"
 ```
 
-**Explanation:** `as.period()` converts an interval into human-readable components. You can then extract the year, month, and day parts individually using the same component functions you use on dates. This approach correctly handles varying month lengths and leap years, much more reliable than dividing total days by 365.25 and 30.44.
+**Explanation:** `parse_date_time()` ignores trailing characters once it has consumed the requested format. `truncated = N` allows up to N missing trailing components. An alternative is to pre-clean with `sub("\\s*\\(.*\\)$", "", raw)` then call `ymd_hms()`; that is more explicit when the noise pattern is regular. Prefer regex pre-cleaning when the same noise appears on every row; use `truncated` when noise is varied.
 
 </details>
 
-## Complete Example
+## Section 2. Extracting date components (3 problems)
 
-Let's tie everything together with a practical scenario. You're planning a conference on October 15, 2024. You need to compute key deadlines, show them in multiple timezones for international attendees, and track how many days remain.
+### Exercise 2.1: Pull year, month, day, and hour from a POSIXct vector
 
-```r title="End-to-end conference timeline"
-# Event Planning Timeline
-library(lubridate)
+**Task:** Given the POSIXct vector `stamps`, extract the year, month, day, and hour into four separate integer vectors using `year()`, `month()`, `day()`, and `hour()`. Combine them into a tibble with columns `year`, `month`, `day`, `hour` and save it to `ex_2_1`.
 
-# 1. Set the event date and time
-event_date <- ymd_hms("2024-10-15 09:00:00", tz = "America/Chicago")
-event_date
-#> [1] "2024-10-15 09:00:00 CDT"
-
-# 2. Compute registration deadlines
-reg_open <- event_date - months(3)
-reg_close <- event_date - days(7)
-early_bird <- event_date - months(1)
-
-cat("Registration opens:", as.character(reg_open), "\n")
-#> Registration opens: 2024-07-15 09:00:00
-cat("Early bird ends:   ", as.character(early_bird), "\n")
-#> Early bird ends:    2024-09-15 09:00:00
-cat("Registration closes:", as.character(reg_close), "\n")
-#> Registration closes: 2024-10-08 09:00:00
-
-# 3. Show the event time in multiple timezones
-cat("\nEvent start times around the world:\n")
-cat("Chicago:  ", as.character(event_date), "\n")
-#> Chicago:   2024-10-15 09:00:00
-cat("London:   ", as.character(with_tz(event_date, "Europe/London")), "\n")
-#> London:    2024-10-15 15:00:00
-cat("Tokyo:    ", as.character(with_tz(event_date, "Asia/Tokyo")), "\n")
-#> Tokyo:     2024-10-15 23:00:00
-cat("Sydney:   ", as.character(with_tz(event_date, "Australia/Sydney")), "\n")
-#> Sydney:    2024-10-16 01:00:00
-
-# 4. Days remaining from today
-days_left <- as.numeric(as.Date(event_date) - today())
-cat("\nDays until event:", days_left, "\n")
-#> Days until event: -914
-
-# 5. Is today within the registration window?
-reg_window <- as.Date(reg_open) %--% as.Date(reg_close)
-today() %within% reg_window
-#> [1] FALSE
+```r
+stamps <- ymd_hms(c("2024-03-15 09:00:00", "2024-07-04 14:30:00", "2024-12-31 23:59:00"))
 ```
 
-This example combines date parsing (`ymd_hms()`), period arithmetic (`months()`, `days()`), timezone conversion (`with_tz()`), date subtraction, and interval testing (`%--%`, `%within%`), all the skills from the 10 exercises above. In your own projects, you'll use exactly these patterns whenever you work with scheduling, logging, or any time-stamped data.
+**Expected result:**
 
-## Summary
+```
+#> # A tibble: 3 x 4
+#>    year month   day  hour
+#>   <dbl> <dbl> <int> <int>
+#> 1  2024     3    15     9
+#> 2  2024     7     4    14
+#> 3  2024    12    31    23
+```
 
-| Exercise | Skill Tested | Key Function(s) |
-|---|---|---|
-| 1 | Parse date from string | `ymd()` |
-| 2 | Parse multiple formats | `mdy()`, `dmy()` |
-| 3 | Extract date components | `year()`, `month()`, `wday()` |
-| 4 | Modify date components | `month(x) <- value` |
-| 5 | Date arithmetic with periods | `days()`, `months()`, `%m+%` |
-| 6 | Calculate date difference | Date subtraction + `as.numeric()` |
-| 7 | Parse datetime + timezone conversion | `ymd_hms()`, `with_tz()` |
-| 8 | Extract components across timezones | `hour()` |
-| 9 | Interval creation + membership test | `%--%`, `%within%` |
-| 10 | Calculate age in complete years | `%--%`, `%/%`, `years()` |
+**Difficulty:** Beginner
 
-**Key takeaways:**
+```r title="Your turn"
+stamps <- ymd_hms(c("2024-03-15 09:00:00", "2024-07-04 14:30:00", "2024-12-31 23:59:00"))
+ex_2_1 <- # your code here
+ex_2_1
+```
 
-- The parse function name matches the component order: `ymd()`, `mdy()`, `dmy()`, lubridate handles separators automatically
-- Component functions (`year()`, `month()`, `day()`) work as both getters and setters
-- `months()` adds calendar months (which can produce NA on invalid dates); `days()` always adds exact days
-- `with_tz()` converts display (same instant), `force_tz()` changes the instant (same clock reading)
-- `%--%` creates intervals, `%within%` tests membership, and `%/%` with `years(1)` or `months(1)` gives whole units
+<details>
+<summary>Click to reveal solution</summary>
 
-## References
+```r title="Solution"
+stamps <- ymd_hms(c("2024-03-15 09:00:00", "2024-07-04 14:30:00", "2024-12-31 23:59:00"))
+ex_2_1 <- tibble(
+  year  = year(stamps),
+  month = month(stamps),
+  day   = day(stamps),
+  hour  = hour(stamps)
+)
+ex_2_1
+#> # A tibble: 3 x 4
+#>    year month   day  hour
+#>   <dbl> <dbl> <int> <int>
+#> 1  2024     3    15     9
+#> 2  2024     7     4    14
+#> 3  2024    12    31    23
+```
 
-1. Spinu, V., Grolemund, G., & Wickham, H., "Dates and Times Made Easy with lubridate." *Journal of Statistical Software*, 40(3), 2011. [Link](https://www.jstatsoft.org/article/view/v040i03)
-2. lubridate documentation, CRAN reference manual. [Link](https://cran.r-project.org/web/packages/lubridate/lubridate.pdf)
-3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 17: Dates and Times. [Link](https://r4ds.hadley.nz/datetimes.html)
-4. lubridate tidyverse documentation, Function reference and vignettes. [Link](https://lubridate.tidyverse.org/)
-5. R Core Team, `?DateTimeClasses`, Base R documentation for POSIXct and POSIXlt classes. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/DateTimeClasses.html)
+**Explanation:** Each accessor returns a numeric vector the same length as its input, so they slot directly into a tibble column. For month names instead of numbers, use `month(stamps, label = TRUE, abbr = FALSE)`. The `lubridate::wday()` companion gives weekday with a `label` flag. These accessors are vectorized over POSIXct, Date, and character (after coercion), making them the workhorse for feature engineering on datetime columns.
 
-## Continue Learning
+</details>
 
-- [lubridate in R](lubridate-in-R.html), Full lubridate tutorial covering every function used in these exercises, with detailed explanations and more examples
-- [R String Exercises](R-String-Exercises.html), Practice R string manipulation with 10 stringr problems, similar format to this exercise set
-- [R Syntax 101](R-Syntax-101.html), Foundational R syntax covering assignment, operators, and basic data types if you need a refresher
+### Exercise 2.2: Tag a retailer's orders with weekday name and weekend flag
+
+**Task:** A retailer wants to see whether orders skew toward weekends. Given the inline `orders` tibble of order timestamps, add two columns: `dow` (weekday name like `"Mon"`) and `is_weekend` (logical TRUE for Saturday or Sunday). Save the augmented tibble to `ex_2_2`.
+
+```r
+orders <- tibble(order_id = 1:6,
+                 placed_at = ymd_hms(c(
+                   "2024-03-15 10:14:00",  # Fri
+                   "2024-03-16 11:30:00",  # Sat
+                   "2024-03-17 19:02:00",  # Sun
+                   "2024-03-18 08:45:00",  # Mon
+                   "2024-03-19 14:20:00",  # Tue
+                   "2024-03-23 16:00:00"   # Sat
+                 )))
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 4
+#>   order_id placed_at           dow   is_weekend
+#>      <int> <dttm>              <ord> <lgl>
+#> 1        1 2024-03-15 10:14:00 Fri   FALSE
+#> 2        2 2024-03-16 11:30:00 Sat   TRUE
+#> 3        3 2024-03-17 19:02:00 Sun   TRUE
+#> 4        4 2024-03-18 08:45:00 Mon   FALSE
+#> 5        5 2024-03-19 14:20:00 Tue   FALSE
+#> 6        6 2024-03-23 16:00:00 Sat   TRUE
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+orders <- tibble(order_id = 1:6,
+                 placed_at = ymd_hms(c(
+                   "2024-03-15 10:14:00",
+                   "2024-03-16 11:30:00",
+                   "2024-03-17 19:02:00",
+                   "2024-03-18 08:45:00",
+                   "2024-03-19 14:20:00",
+                   "2024-03-23 16:00:00"
+                 )))
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+orders <- tibble(order_id = 1:6,
+                 placed_at = ymd_hms(c(
+                   "2024-03-15 10:14:00",
+                   "2024-03-16 11:30:00",
+                   "2024-03-17 19:02:00",
+                   "2024-03-18 08:45:00",
+                   "2024-03-19 14:20:00",
+                   "2024-03-23 16:00:00"
+                 )))
+ex_2_2 <- orders |>
+  mutate(
+    dow        = wday(placed_at, label = TRUE, abbr = TRUE),
+    is_weekend = wday(placed_at, week_start = 1) >= 6
+  )
+ex_2_2
+```
+
+**Explanation:** `wday(label = TRUE)` returns an ordered factor with weekday names, which is great for axis labels and arrange(). The numeric form depends on `week_start`: the default (`1` for Monday) makes Saturday `6` and Sunday `7`, so `>= 6` cleanly tags weekends. The default in some locales is Sunday-start, which would flip the comparison; always set `week_start` explicitly for reproducible reports.
+
+</details>
+
+### Exercise 2.3: Compute ISO week and quarter from economics dates
+
+**Task:** Use the built-in `economics` tibble. Take the first ten rows and add `quarter` (e.g. `"2024 Q1"`) and `iso_week` (1 to 53) columns derived from the `date` column. Save the augmented ten-row tibble to `ex_2_3` and print it.
+
+**Expected result:**
+
+```
+#> # A tibble: 10 x 8
+#>    date         pce    pop psavert uempmed unemploy quarter iso_week
+#>    <date>     <dbl>  <int>   <dbl>   <dbl>    <int> <chr>      <dbl>
+#>  1 1967-07-01  507. 198712    12.6     4.5     2944 1967 Q3       26
+#>  2 1967-08-01  510. 198911    12.6     4.7     2945 1967 Q3       31
+#>  3 1967-09-01  516. 199113    11.9     4.6     2958 1967 Q3       35
+#>  4 1967-10-01  513. 199311    12.9     4.9     3143 1967 Q4       39
+#> ...
+#> # 6 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- economics |>
+  head(10) |>
+  # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- economics |>
+  head(10) |>
+  mutate(
+    quarter  = paste(year(date), paste0("Q", quarter(date))),
+    iso_week = isoweek(date)
+  )
+ex_2_3
+#> # A tibble: 10 x 8
+#>    date         pce    pop psavert uempmed unemploy quarter iso_week
+#>    <date>     <dbl>  <int>   <dbl>   <dbl>    <int> <chr>      <dbl>
+#>  1 1967-07-01  507. 198712    12.6     4.5     2944 1967 Q3       26
+#>  2 1967-08-01  510. 198911    12.6     4.7     2945 1967 Q3       31
+#> ...
+```
+
+**Explanation:** `quarter()` returns the calendar quarter as an integer 1 to 4, while `isoweek()` returns the ISO 8601 week number, where week 1 is the week containing the first Thursday of the year. Use `week()` for the simpler "day-of-year / 7" definition; ISO weeks matter when aligning to international reporting standards, payroll, or sports seasons that span year boundaries.
+
+</details>
+
+## Section 3. Period, duration, and interval arithmetic (4 problems)
+
+### Exercise 3.1: Add thirty days to a date
+
+**Task:** Take the date `"2024-01-15"` and add 30 days to it using `days(30)` from lubridate. Save the resulting date to `ex_3_1` and print it. The output should be a Date that is exactly thirty calendar days later than the input, with no time component attached.
+
+**Expected result:**
+
+```
+#> [1] "2024-02-14"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- ymd("2024-01-15") + days(30)
+ex_3_1
+#> [1] "2024-02-14"
+```
+
+**Explanation:** `days(30)` builds a `Period` of 30 days, which respects calendar boundaries. Compared with `ddays(30)`, which is a fixed `Duration` of `30 * 86400` seconds, periods are usually what humans expect for "30 days later". The two diverge only across DST transitions or leap seconds. For business arithmetic ("30 days from today"), prefer `days()` over `ddays()`.
+
+</details>
+
+### Exercise 3.2: Compute trial expiration using months vs dmonths
+
+**Task:** A SaaS subscription team needs to mark every trial as expiring exactly one calendar month after `signup_date`. The team has tried `signup_date + dmonths(1)` and seen off-by-one bugs near month ends. Using `months(1)`, build the inline tibble's `expires_on` column and save the result to `ex_3_2`.
+
+```r
+trials <- tibble(user = c("alice", "bob", "carol"),
+                 signup_date = ymd(c("2024-01-31", "2024-02-15", "2024-03-30")))
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 3
+#>   user  signup_date expires_on
+#>   <chr> <date>      <date>
+#> 1 alice 2024-01-31  2024-02-29
+#> 2 bob   2024-02-15  2024-03-15
+#> 3 carol 2024-03-30  2024-04-30
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+trials <- tibble(user = c("alice", "bob", "carol"),
+                 signup_date = ymd(c("2024-01-31", "2024-02-15", "2024-03-30")))
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+trials <- tibble(user = c("alice", "bob", "carol"),
+                 signup_date = ymd(c("2024-01-31", "2024-02-15", "2024-03-30")))
+ex_3_2 <- trials |>
+  mutate(expires_on = signup_date %m+% months(1))
+ex_3_2
+#> # A tibble: 3 x 3
+#>   user  signup_date expires_on
+#>   <chr> <date>      <date>
+#> 1 alice 2024-01-31  2024-02-29
+#> 2 bob   2024-02-15  2024-03-15
+#> 3 carol 2024-03-30  2024-04-30
+```
+
+**Explanation:** `signup_date + months(1)` returns `NA` for `2024-01-31` because there is no Feb 31. The `%m+%` operator rolls back to the last valid day of the target month, which is what billing systems want. `dmonths(1)` is a fixed 30.4375 days and drifts; never use it for calendar-month math. Pair `%m+%` with `months()` whenever you need to add or subtract calendar months safely.
+
+</details>
+
+### Exercise 3.3: Days between two dates as an integer
+
+**Task:** Given the start date `"2024-01-01"` and the end date `"2024-03-15"`, compute the number of full days between them as an integer scalar. Use `interval()` and division by `days(1)`, then coerce to integer. Save the integer count to `ex_3_3` and print it along with its class.
+
+**Expected result:**
+
+```
+#> [1] 74
+#> [1] "integer"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+start_d <- ymd("2024-01-01")
+end_d   <- ymd("2024-03-15")
+ex_3_3 <- # your code here
+ex_3_3
+class(ex_3_3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+start_d <- ymd("2024-01-01")
+end_d   <- ymd("2024-03-15")
+ex_3_3 <- as.integer(interval(start_d, end_d) / days(1))
+ex_3_3
+#> [1] 74
+class(ex_3_3)
+#> [1] "integer"
+```
+
+**Explanation:** `interval(start, end)` builds a time span anchored to a real start/end, and dividing by `days(1)` returns the number of days as a `Period` ratio. This survives DST and month-length variation. The shorter `as.integer(difftime(end_d, start_d, units = "days"))` works for plain Dates but can produce non-integer results across DST when applied to POSIXct, so the interval/period idiom is safer for mixed types.
+
+</details>
+
+### Exercise 3.4: Detect overlapping booking windows
+
+**Task:** An operations team manages meeting-room reservations and needs to flag any pair of bookings whose intervals overlap. From the inline `bookings` tibble, build a tibble of all `i < j` index pairs where `int_overlaps()` returns TRUE on their intervals. Save the result to `ex_3_4` with columns `i`, `j`, and `room`.
+
+```r
+bookings <- tibble(
+  id    = 1:5,
+  room  = c("A", "A", "A", "B", "B"),
+  start = ymd_hm(c("2024-03-15 09:00", "2024-03-15 10:30", "2024-03-15 13:00",
+                   "2024-03-15 09:00", "2024-03-15 09:30")),
+  end   = ymd_hm(c("2024-03-15 11:00", "2024-03-15 11:00", "2024-03-15 14:00",
+                   "2024-03-15 10:00", "2024-03-15 10:30"))
+)
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 2 x 3
+#>       i     j room
+#>   <int> <int> <chr>
+#> 1     1     2 A
+#> 2     4     5 B
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+bookings <- tibble(
+  id    = 1:5,
+  room  = c("A", "A", "A", "B", "B"),
+  start = ymd_hm(c("2024-03-15 09:00", "2024-03-15 10:30", "2024-03-15 13:00",
+                   "2024-03-15 09:00", "2024-03-15 09:30")),
+  end   = ymd_hm(c("2024-03-15 11:00", "2024-03-15 11:00", "2024-03-15 14:00",
+                   "2024-03-15 10:00", "2024-03-15 10:30"))
+)
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+bookings <- tibble(
+  id    = 1:5,
+  room  = c("A", "A", "A", "B", "B"),
+  start = ymd_hm(c("2024-03-15 09:00", "2024-03-15 10:30", "2024-03-15 13:00",
+                   "2024-03-15 09:00", "2024-03-15 09:30")),
+  end   = ymd_hm(c("2024-03-15 11:00", "2024-03-15 11:00", "2024-03-15 14:00",
+                   "2024-03-15 10:00", "2024-03-15 10:30"))
+)
+ivs <- interval(bookings$start, bookings$end)
+pairs <- expand.grid(i = seq_along(ivs), j = seq_along(ivs)) |>
+  filter(i < j, bookings$room[i] == bookings$room[j])
+pairs$overlap <- mapply(int_overlaps, ivs[pairs$i], ivs[pairs$j])
+ex_3_4 <- pairs |>
+  filter(overlap) |>
+  transmute(i, j, room = bookings$room[i])
+ex_3_4
+#> # A tibble: 2 x 3
+#>       i     j room
+#>   <int> <int> <chr>
+#> 1     1     2 A
+#> 2     4     5 B
+```
+
+**Explanation:** `int_overlaps()` treats intervals as closed-open so a booking that ends exactly when another starts is NOT flagged as overlapping, which matches calendar app behavior. Restricting to `i < j` avoids double counting and self-pairs. For large booking tables, sort by start time and sweep once instead of comparing all pairs; the all-pairs approach here is the cleanest correct baseline, fine up to a few thousand rows.
+
+</details>
+
+## Section 4. Timezones and formatting (3 problems)
+
+### Exercise 4.1: Convert a UTC log timestamp to New York exchange time
+
+**Task:** A trading desk records all order events in UTC. Convert the UTC timestamp vector `events` to America/New_York local time without changing the underlying moment. Use `with_tz()`. Save the converted POSIXct vector to `ex_4_1` and verify the printed timezone abbreviation matches EST or EDT.
+
+```r
+events <- ymd_hms(c("2024-01-15 14:30:00", "2024-07-15 14:30:00"), tz = "UTC")
+```
+
+**Expected result:**
+
+```
+#> [1] "2024-01-15 09:30:00 EST" "2024-07-15 10:30:00 EDT"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+events <- ymd_hms(c("2024-01-15 14:30:00", "2024-07-15 14:30:00"), tz = "UTC")
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+events <- ymd_hms(c("2024-01-15 14:30:00", "2024-07-15 14:30:00"), tz = "UTC")
+ex_4_1 <- with_tz(events, tzone = "America/New_York")
+ex_4_1
+#> [1] "2024-01-15 09:30:00 EST" "2024-07-15 10:30:00 EDT"
+```
+
+**Explanation:** `with_tz()` keeps the absolute moment fixed and re-labels it in a new zone, so the wall-clock display changes. Its sibling `force_tz()` does the opposite: it keeps the wall-clock unchanged and reinterprets it in a new zone, which shifts the absolute moment. Use `with_tz()` for display conversions, `force_tz()` to fix mislabeled raw data. Notice how DST flips the offset between January (EST, UTC-5) and July (EDT, UTC-4).
+
+</details>
+
+### Exercise 4.2: Format a date as `Mon, Jan 15 2024`
+
+**Task:** Format the date `"2024-01-15"` as the human-friendly string `"Mon, Jan 15 2024"` using `format()` with the right format codes. Save the formatted character scalar to `ex_4_2` and print it. The day-of-week abbreviation comes first, then comma, then month-day-year.
+
+**Expected result:**
+
+```
+#> [1] "Mon, Jan 15 2024"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+d <- ymd("2024-01-15")
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+d <- ymd("2024-01-15")
+ex_4_2 <- format(d, "%a, %b %d %Y")
+ex_4_2
+#> [1] "Mon, Jan 15 2024"
+```
+
+**Explanation:** `format.Date` uses C-style `strftime` codes: `%a` weekday abbreviated, `%A` weekday full, `%b` month abbreviated, `%B` month full, `%d` zero-padded day, `%Y` four-digit year. For locale-independent output set `Sys.setlocale("LC_TIME", "C")` first, otherwise weekday and month names follow the user's locale. lubridate has a `stamp()` function that infers the format from an example string and can be handy for irregular outputs.
+
+</details>
+
+### Exercise 4.3: Detect a DST spring-forward in a timestamp sequence
+
+**Task:** An ops engineer wants to flag the spring-forward day in a daily timestamp sequence. Build a daily sequence of POSIXct values at 02:30 local time for 2024-03-09 through 2024-03-11 in America/New_York. Compute the `dst()` flag for each. Save a tibble with columns `ts` and `is_dst` as `ex_4_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 2
+#>   ts                         is_dst
+#>   <dttm>                     <lgl>
+#> 1 2024-03-09 02:30:00        FALSE
+#> 2 2024-03-10 03:30:00        TRUE
+#> 3 2024-03-11 02:30:00        TRUE
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ts <- seq(ymd_hms("2024-03-09 02:30:00", tz = "America/New_York"),
+          by = "1 day", length.out = 3)
+ex_4_3 <- tibble(ts = ts, is_dst = dst(ts))
+ex_4_3
+#> # A tibble: 3 x 2
+#>   ts                         is_dst
+#>   <dttm>                     <lgl>
+#> 1 2024-03-09 02:30:00        FALSE
+#> 2 2024-03-10 03:30:00        TRUE
+#> 3 2024-03-11 02:30:00        TRUE
+```
+
+**Explanation:** Notice that the printed clock time on March 10 jumps from 02:30 to 03:30: the hour 02:00 to 03:00 simply does not exist in America/New_York that day. `dst()` returns TRUE for moments inside Daylight Saving. This is why scheduling jobs with naive local timestamps is fragile; mission-critical schedules should run in UTC and convert to local for display. For non-DST math use `force_tz(ts, "UTC")` first.
+
+</details>
+
+## Section 5. Sequences, filtering, and aggregation (3 problems)
+
+### Exercise 5.1: Generate the next seven daily dates starting today
+
+**Task:** Build a length-7 vector of consecutive daily Dates starting on `"2024-03-15"` using `seq.Date()` or `seq()` with `by = "1 day"`. Save the vector to `ex_5_1` and print it. The result should be a clean sequence with class `Date` and length seven.
+
+**Expected result:**
+
+```
+#> [1] "2024-03-15" "2024-03-16" "2024-03-17" "2024-03-18"
+#> [5] "2024-03-19" "2024-03-20" "2024-03-21"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_1 <- seq(ymd("2024-03-15"), by = "1 day", length.out = 7)
+ex_5_1
+#> [1] "2024-03-15" "2024-03-16" "2024-03-17" "2024-03-18"
+#> [5] "2024-03-19" "2024-03-20" "2024-03-21"
+```
+
+**Explanation:** `seq()` dispatches to `seq.Date()` when the start is a Date. You can use `by = "1 day"`, `"1 week"`, `"1 month"`, `"1 year"`, or any duration string. Replacing `length.out = 7` with `to = ymd("2024-03-21")` gives the same result. To pull only weekdays, generate seven dates then filter with `wday(x, week_start = 1) <= 5`. For business-day calendars across holidays, the `bizdays` package is the cleaner tool.
+
+</details>
+
+### Exercise 5.2: Filter rows to the last 90 days relative to a fixed today
+
+**Task:** Given the inline `events` tibble and a fixed reference date `"2024-04-01"`, return rows whose `ts` is strictly within the last 90 days, that is `ts > today - 90 days`. Use `difftime()` or interval division to keep the comparison safe. Save the filtered tibble to `ex_5_2`.
+
+```r
+events <- tibble(id = 1:6,
+                 ts = ymd(c("2023-12-01", "2024-01-05", "2024-01-15",
+                            "2024-02-10", "2024-03-20", "2024-04-01")))
+today <- ymd("2024-04-01")
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 4 x 2
+#>      id ts
+#>   <int> <date>
+#> 1     2 2024-01-05
+#> 2     3 2024-01-15
+#> 3     4 2024-02-10
+#> 4     5 2024-03-20
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+events <- tibble(id = 1:6,
+                 ts = ymd(c("2023-12-01", "2024-01-05", "2024-01-15",
+                            "2024-02-10", "2024-03-20", "2024-04-01")))
+today <- ymd("2024-04-01")
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+events <- tibble(id = 1:6,
+                 ts = ymd(c("2023-12-01", "2024-01-05", "2024-01-15",
+                            "2024-02-10", "2024-03-20", "2024-04-01")))
+today <- ymd("2024-04-01")
+ex_5_2 <- events |>
+  filter(ts > today - days(90), ts < today)
+ex_5_2
+#> # A tibble: 4 x 2
+#>      id ts
+#>   <int> <date>
+#> 1     2 2024-01-05
+#> 2     3 2024-01-15
+#> 3     4 2024-02-10
+#> 4     5 2024-03-20
+```
+
+**Explanation:** Subtracting `days(90)` from a Date returns another Date, so the comparison stays type-stable. The strict inequalities exclude rows exactly 90 days old and rows AT today, matching most "trailing window, excluding today" reports. Replacing `today - days(90)` with `today - 90` works for plain Dates but breaks if the column is POSIXct; using `days(90)` is the idiom-safe form for either type.
+
+</details>
+
+### Exercise 5.3: Aggregate the economics series by year
+
+**Task:** Use the built-in `economics` tibble. Group rows by calendar year of the `date` column and compute the mean `unemploy` (in thousands) per year. Sort descending by mean unemployment. Save the resulting tibble of `year` and `mean_unemploy` to `ex_5_3` and print the top six rows.
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 2
+#>    year mean_unemploy
+#>   <dbl>         <dbl>
+#> 1  2010        14825.
+#> 2  2011        13747.
+#> 3  2012        12506.
+#> 4  2009        14265.
+#> 5  2013        11460.
+#> 6  2014         9617.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- economics |>
+  # your code here
+head(ex_5_3, 6)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- economics |>
+  mutate(year = year(date)) |>
+  group_by(year) |>
+  summarise(mean_unemploy = mean(unemploy), .groups = "drop") |>
+  arrange(desc(mean_unemploy))
+head(ex_5_3, 6)
+#> # A tibble: 6 x 2
+#>    year mean_unemploy
+#>   <dbl>         <dbl>
+#> 1  2010        14825.
+#> 2  2011        13747.
+#> 3  2012        12506.
+#> 4  2009        14265.
+#> 5  2013        11460.
+#> 6  2014         9617.
+```
+
+**Explanation:** Extracting `year()` then grouping is the most readable pattern for yearly rollups. The newer dplyr 1.1+ inline form `summarise(.by = year(date), ...)` also works and avoids creating a permanent column. For multi-grain aggregations (year-quarter, year-month), build all grain columns once with `mutate()` then call `summarise()` separately; recomputing inside `summarise` makes the SQL plan harder to read for collaborators.
+
+</details>
+
+## Section 6. Real-world workflows (3 problems)
+
+### Exercise 6.1: Compute patient age in years at encounter date
+
+**Task:** A healthcare analyst needs the patient's age in completed years at the time of each clinic encounter. From the inline `patients` tibble, compute `age` using interval division by `years(1)` and integer truncation so a birthday not yet reached this year rounds down. Save the augmented tibble to `ex_6_1`.
+
+```r
+patients <- tibble(
+  patient_id   = c("P001", "P002", "P003", "P004"),
+  date_of_birth = ymd(c("1980-06-15", "1995-12-31", "2010-03-15", "1955-07-04")),
+  encounter_dt  = ymd(c("2024-03-15", "2024-03-15", "2024-03-15", "2024-03-15"))
+)
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 4 x 4
+#>   patient_id date_of_birth encounter_dt   age
+#>   <chr>      <date>        <date>       <int>
+#> 1 P001       1980-06-15    2024-03-15      43
+#> 2 P002       1995-12-31    2024-03-15      28
+#> 3 P003       2010-03-15    2024-03-15      14
+#> 4 P004       1955-07-04    2024-03-15      68
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+patients <- tibble(
+  patient_id   = c("P001", "P002", "P003", "P004"),
+  date_of_birth = ymd(c("1980-06-15", "1995-12-31", "2010-03-15", "1955-07-04")),
+  encounter_dt  = ymd(c("2024-03-15", "2024-03-15", "2024-03-15", "2024-03-15"))
+)
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+patients <- tibble(
+  patient_id   = c("P001", "P002", "P003", "P004"),
+  date_of_birth = ymd(c("1980-06-15", "1995-12-31", "2010-03-15", "1955-07-04")),
+  encounter_dt  = ymd(c("2024-03-15", "2024-03-15", "2024-03-15", "2024-03-15"))
+)
+ex_6_1 <- patients |>
+  mutate(age = as.integer(trunc(interval(date_of_birth, encounter_dt) / years(1))))
+ex_6_1
+#> # A tibble: 4 x 4
+#>   patient_id date_of_birth encounter_dt   age
+#>   <chr>      <date>        <date>       <int>
+#> 1 P001       1980-06-15    2024-03-15      43
+#> 2 P002       1995-12-31    2024-03-15      28
+#> 3 P003       2010-03-15    2024-03-15      14
+#> 4 P004       1955-07-04    2024-03-15      68
+```
+
+**Explanation:** `interval(dob, enc) / years(1)` returns a fractional age (e.g. 43.75) that correctly accounts for whether the birthday has occurred this year. `trunc()` then floors toward zero, giving completed years, the standard clinical and legal definition of age. Using `(enc - dob) / 365.25` is wrong: leap years and calendar drift make it disagree with the legal age near birthdays. Always prefer the interval-period idiom for age computations.
+
+</details>
+
+### Exercise 6.2: Tag invoices as on-time, due-soon, or overdue
+
+**Task:** A finance team scans an invoice ledger and needs each row tagged. Given the inline `invoices` tibble and `today = ymd("2024-04-01")`, add a column `status` with three values: `"overdue"` if `due_date < today`, `"due_soon"` if due within 7 days, otherwise `"on_time"`. Save the tagged tibble to `ex_6_2`.
+
+```r
+invoices <- tibble(invoice_id = sprintf("INV%03d", 1:5),
+                   amount   = c(1200, 850, 4500, 300, 2200),
+                   due_date = ymd(c("2024-03-15", "2024-04-04",
+                                    "2024-04-15", "2024-03-30", "2024-04-30")))
+today <- ymd("2024-04-01")
+```
+
+**Expected result:**
+
+```
+#> # A tibble: 5 x 4
+#>   invoice_id amount due_date   status
+#>   <chr>       <dbl> <date>     <chr>
+#> 1 INV001       1200 2024-03-15 overdue
+#> 2 INV002        850 2024-04-04 due_soon
+#> 3 INV003       4500 2024-04-15 on_time
+#> 4 INV004        300 2024-03-30 overdue
+#> 5 INV005       2200 2024-04-30 on_time
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+invoices <- tibble(invoice_id = sprintf("INV%03d", 1:5),
+                   amount   = c(1200, 850, 4500, 300, 2200),
+                   due_date = ymd(c("2024-03-15", "2024-04-04",
+                                    "2024-04-15", "2024-03-30", "2024-04-30")))
+today <- ymd("2024-04-01")
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+invoices <- tibble(invoice_id = sprintf("INV%03d", 1:5),
+                   amount   = c(1200, 850, 4500, 300, 2200),
+                   due_date = ymd(c("2024-03-15", "2024-04-04",
+                                    "2024-04-15", "2024-03-30", "2024-04-30")))
+today <- ymd("2024-04-01")
+ex_6_2 <- invoices |>
+  mutate(status = case_when(
+    due_date <  today              ~ "overdue",
+    due_date <= today + days(7)    ~ "due_soon",
+    TRUE                           ~ "on_time"
+  ))
+ex_6_2
+#> # A tibble: 5 x 4
+#>   invoice_id amount due_date   status
+#>   <chr>       <dbl> <date>     <chr>
+#> 1 INV001       1200 2024-03-15 overdue
+#> 2 INV002        850 2024-04-04 due_soon
+#> 3 INV003       4500 2024-04-15 on_time
+#> 4 INV004        300 2024-03-30 overdue
+#> 5 INV005       2200 2024-04-30 on_time
+```
+
+**Explanation:** `case_when()` reads top-to-bottom and the first matching branch wins, so listing `overdue` first prevents an `overdue` row from being relabeled `due_soon`. Adding `days(7)` to a Date returns a Date, so the comparison stays type-stable; mixing in `dweeks(1)` (a Duration) would coerce the Date to POSIXct and surprise downstream joins. Use Periods for calendar windows in business logic.
+
+</details>
+
+### Exercise 6.3: Build a calendar tibble with month, quarter, and weekend flag
+
+**Task:** Build a daily calendar tibble for every day in Q1 2024 (Jan 1 through Mar 31) with columns `date`, `month_name`, `quarter`, `iso_week`, and `is_weekend`. This is the kind of dimension table a BI team prebuilds so dashboards do not have to recompute date features. Save the result to `ex_6_3` and inspect the first six rows.
+
+**Expected result:**
+
+```
+#> # A tibble: 91 x 5
+#>   date       month_name quarter iso_week is_weekend
+#>   <date>     <ord>        <int>    <dbl> <lgl>
+#> 1 2024-01-01 January          1        1 FALSE
+#> 2 2024-01-02 January          1        1 FALSE
+#> 3 2024-01-03 January          1        1 FALSE
+#> 4 2024-01-04 January          1        1 FALSE
+#> 5 2024-01-05 January          1        1 FALSE
+#> 6 2024-01-06 January          1        1 TRUE
+#> ...
+#> # 85 more rows hidden
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+head(ex_6_3, 6)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- tibble(date = seq(ymd("2024-01-01"), ymd("2024-03-31"), by = "1 day")) |>
+  mutate(
+    month_name = month(date, label = TRUE, abbr = FALSE),
+    quarter    = quarter(date),
+    iso_week   = isoweek(date),
+    is_weekend = wday(date, week_start = 1) >= 6
+  )
+head(ex_6_3, 6)
+#> # A tibble: 6 x 5
+#>   date       month_name quarter iso_week is_weekend
+#>   <date>     <ord>        <int>    <dbl> <lgl>
+#> 1 2024-01-01 January          1        1 FALSE
+#> 2 2024-01-02 January          1        1 FALSE
+#> 3 2024-01-03 January          1        1 FALSE
+#> 4 2024-01-04 January          1        1 FALSE
+#> 5 2024-01-05 January          1        1 FALSE
+#> 6 2024-01-06 January          1        1 TRUE
+```
+
+**Explanation:** A pre-built daily calendar table is the single best optimization for date-driven BI: every dashboard joins to it instead of recomputing weekday/quarter/holiday flags. In production extend this with `is_holiday`, `fiscal_year`, and a `working_day_index` column. The `tidyquant::tk_make_timeseries_signature()` helper produces a thirty-plus-column version automatically; rolling your own gives you control over the columns you actually need.
+
+</details>
+
+## What to do next
+
+Now that you have practiced date and time work, here are the next stops:
+
+- [lubridate Exercises in R](lubridate-Exercises-in-R.html) for a deeper drill on lubridate's full API.
+- [R Syntax 101](R-Syntax-101.html) to revisit the foundations that the date system builds on.
+- [dplyr Exercises in R](dplyr-Exercises-in-R.html) to pair date features with grouped summaries.
+- [Apply Family Exercises in R](Apply-Family-Exercises-in-R.html) for the vectorization patterns that complement date math.
