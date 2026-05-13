@@ -1,780 +1,867 @@
 ---
-title: "R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems, Solved Step-by-Step)"
+title: "R apply Exercises: 20 Practice Problems on apply, sapply, lapply"
 slug: "R-Apply-Exercises"
-description: "Practice the R apply family with 12 exercises covering apply(), lapply(), sapply(), vapply(), tapply(), and mapply(). Starter code and solutions included."
+description: "Practice the R apply family with 20 scenario-driven problems on apply, lapply, sapply, vapply, mapply, and tapply. Starter code, hidden solutions, and explanations."
 keywords: "R apply exercises, lapply exercises, sapply exercises, R apply family practice problems, tapply exercises, vapply exercises, mapply exercises, R apply practice, apply function R exercises"
 mathjax: false
 webr: true
-date: "2026-04-12"
-curriculum_id: "E1.9"
+date: "2026-05-13"
 post_type: "EX"
-auto_link_terms: "R apply exercises|apply family exercises|lapply exercises|sapply exercises|tapply exercises|apply() practice|lapply() practice|sapply() practice"
-auto_link_case_sensitive: false
-sidebar_title: "R apply Family (12 problems)"
+sidebar_title: "R apply Exercises"
+sidebar_order: 146
 fr_parent: "R-Functions.html"
-difficulty: "Intermediate"
+auto_link_terms: "R apply exercises|apply family practice|lapply exercises|sapply exercises|tapply exercises|vapply exercises"
+auto_link_case_sensitive: false
+target_keyword: "R apply exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# R apply Family Exercises: 12 apply(), lapply(), sapply() Practice Problems, Solved Step-by-Step)
+# R apply Exercises: 20 Practice Problems on apply, sapply, lapply
 
-<p class="lead">The R apply family, <code>apply()</code>, <code>lapply()</code>, <code>sapply()</code>, <code>vapply()</code>, <code>tapply()</code>, and <code>mapply()</code>, lets you run a function across rows, columns, lists, or groups without writing a single loop. These 12 exercises take you from basic row/column operations to multi-input parallel mapping, each with starter code you can run and a full worked solution.</p>
+<p class="lead">Twenty scenario-driven practice problems on the base R apply family: apply, lapply, sapply, vapply, mapply, and tapply. The mix leans intermediate, with a few advanced multi-step problems that mirror real reporting and data-cleaning work. Solutions are hidden behind reveal toggles, so try first.</p>
 
-## Which apply Function Should You Use?
-
-The apply family replaces explicit for-loops with a single function call. The tricky part is choosing the right one, each takes a different input shape and returns a different output shape. Here's the cheat sheet you'll need for the exercises below.
-
-| Function | Input | Iterates Over | Returns | Use When |
-|----------|-------|--------------|---------|----------|
-| `apply()` | matrix / data frame | rows or columns | vector / matrix | You need row-wise or column-wise operations |
-| `lapply()` | list / vector | each element | always a list | You want predictable list output |
-| `sapply()` | list / vector | each element | vector / matrix (tries to simplify) | Quick interactive exploration |
-| `vapply()` | list / vector | each element | vector / matrix (type-checked) | Production code, type safety |
-| `tapply()` | vector + factor | groups | array | Summarizing data by category |
-| `mapply()` | multiple vectors/lists | elements in parallel | vector / matrix / list | Multiple corresponding inputs |
-
-Let's see how three of these handle the same task, computing column means of `mtcars`, so you can spot the output differences immediately.
-
-```r title="Apply family on mtcars"
-# apply(): returns a named numeric vector
-col_means_apply <- apply(mtcars, 2, mean)
-col_means_apply[1:4]
-#>        mpg        cyl       disp         hp
-#>  20.090625   6.187500 230.721875 146.687500
-
-# lapply(): returns a list (one element per column)
-col_means_lapply <- lapply(mtcars, mean)
-col_means_lapply[1:3]
-#> $mpg
-#> [1] 20.09062
-#>
-#> $cyl
-#> [1] 6.1875
-#>
-#> $disp
-#> [1] 230.7219
-
-# sapply(): simplifies the list into a named vector
-col_means_sapply <- sapply(mtcars, mean)
-col_means_sapply[1:4]
-#>        mpg        cyl       disp         hp
-#>  20.090625   6.187500 230.721875 146.687500
+```r title="Run this once before any exercise"
+library(datasets)
+set.seed(42)
 ```
 
-Notice `apply()` and `sapply()` both returned named numeric vectors, while `lapply()` returned a list. That list output from `lapply()` is actually the safest, it never surprises you by changing shape.
+## Section 1. lapply for predictable list output (3 problems)
 
-[KEY INSIGHT]
-**Choose by output shape, not input shape.** If you need a list, use lapply(). If you need a vector with type guarantees, use vapply(). If you're exploring interactively and want quick results, use sapply(). Save apply() for matrices where row/column operations make sense.
+### Exercise 1.1: Per-column mean of airquality as a list
 
-**Try it:** Use `sapply()` to get the class of every column in `iris`. Before you run it, predict: will the result be a vector or a list?
+**Task:** A reporting analyst building a daily air-quality dashboard wants the mean of every numeric column of `airquality` (Ozone, Solar.R, Wind, Temp, Month, Day) returned as a named list, because downstream JSON serializers expect list-shaped output. Use `lapply()` with `mean()` and `na.rm = TRUE` (since Ozone and Solar.R have NAs). Save the result to `ex_1_1`.
 
-```r title="Exercise: class of each iris column"
-# Try it: get column classes from iris
-ex_classes <- sapply(iris, function(col) {
-  # your code here
+**Expected result:**
+
+```
+#> $Ozone
+#> [1] 42.12931
+#>
+#> $Solar.R
+#> [1] 185.9315
+#>
+#> $Wind
+#> [1] 9.957516
+#>
+#> $Temp
+#> [1] 77.88235
+#>
+#> $Month
+#> [1] 6.993464
+#>
+#> $Day
+#> [1] 15.80392
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_1 <- lapply(airquality, mean, na.rm = TRUE)
+ex_1_1
+#> $Ozone
+#> [1] 42.12931
+#>
+#> $Solar.R
+#> [1] 185.9315
+#>
+#> $Wind
+#> [1] 9.957516
+#>
+#> $Temp
+#> [1] 77.88235
+#>
+#> $Month
+#> [1] 6.993464
+#>
+#> $Day
+#> [1] 15.80392
+```
+
+**Explanation:** A data frame is internally a list of columns, so `lapply()` walks each column and applies `mean()`. The `na.rm = TRUE` argument is passed through as the third positional argument to `mean()` for every column. `lapply()` always returns a list, which is exactly what a JSON encoder like `jsonlite::toJSON()` wants. If you used `sapply()` instead you would get a numeric vector, which can confuse downstream tooling that expects key-value objects.
+
+</details>
+
+### Exercise 1.2: Fit one linear model per cylinder group of mtcars
+
+**Task:** A motoring magazine columnist wants to see how strongly `wt` predicts `mpg` separately for 4-, 6-, and 8-cylinder cars. Split `mtcars` by `cyl` and use `lapply()` to fit `lm(mpg ~ wt)` to each group. Save the resulting list of three fitted models to `ex_1_2`.
+
+**Expected result:**
+
+```
+#> $`4`
+#>
+#> Call:
+#> lm(formula = mpg ~ wt, data = ...)
+#>
+#> Coefficients:
+#> (Intercept)           wt
+#>      39.571       -5.647
+#>
+#> $`6`
+#>
+#> Call:
+#> lm(formula = mpg ~ wt, data = ...)
+#>
+#> Coefficients:
+#> (Intercept)           wt
+#>      28.41        -2.78
+#>
+#> $`8`
+#>
+#> Call:
+#> lm(formula = mpg ~ wt, data = ...)
+#>
+#> Coefficients:
+#> (Intercept)           wt
+#>      23.868       -2.192
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_2 <- lapply(split(mtcars, mtcars$cyl), function(df) lm(mpg ~ wt, data = df))
+ex_1_2
+#> $`4`
+#>
+#> Call:
+#> lm(formula = mpg ~ wt, data = df)
+#>
+#> Coefficients:
+#> (Intercept)           wt
+#>      39.571       -5.647
+#> ...
+```
+
+**Explanation:** `split()` returns a named list of data frames keyed by the factor levels of `cyl`, which is the perfect input for `lapply()`. The anonymous function lets you parameterize over `data` without writing a separate helper. The list output is convenient because you can later do `lapply(ex_1_2, coef)` or `lapply(ex_1_2, summary)` to dig deeper. A common mistake is passing `mtcars` to `lapply()` directly, which iterates over columns, not groups.
+
+</details>
+
+### Exercise 1.3: Per-element conversion of a mixed list to characters
+
+**Task:** A data engineer ingesting a config blob needs every element of a heterogeneous list converted to its character representation so the whole structure can be written to a key-value store. Given the list `cfg <- list(host = "db01", port = 5432L, timeout = 30.5, ssl = TRUE)`, use `lapply()` with `as.character()` to coerce every element. Save the result as `ex_1_3`.
+
+**Expected result:**
+
+```
+#> $host
+#> [1] "db01"
+#>
+#> $port
+#> [1] "5432"
+#>
+#> $timeout
+#> [1] "30.5"
+#>
+#> $ssl
+#> [1] "TRUE"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+cfg <- list(host = "db01", port = 5432L, timeout = 30.5, ssl = TRUE)
+ex_1_3 <- # your code here
+ex_1_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cfg <- list(host = "db01", port = 5432L, timeout = 30.5, ssl = TRUE)
+ex_1_3 <- lapply(cfg, as.character)
+ex_1_3
+#> $host
+#> [1] "db01"
+#> $port
+#> [1] "5432"
+#> $timeout
+#> [1] "30.5"
+#> $ssl
+#> [1] "TRUE"
+```
+
+**Explanation:** `lapply()` preserves the original list's names, which matters here since each key has a meaning (host, port, etc.). Using `sapply()` would simplify the result into a named character vector of length 4, which loses the list structure that a downstream JSON or YAML writer expects. `as.character()` knows how to coerce integers, doubles, and logicals, so a single call handles all four element types.
+
+</details>
+
+## Section 2. sapply for vector-shaped returns (3 problems)
+
+### Exercise 2.1: NA count per column of airquality
+
+**Task:** A data-quality auditor reviewing the `airquality` dataset before publishing a monthly report needs to know how many missing values each column carries. Use `sapply()` with `function(x) sum(is.na(x))` over `airquality` and save the named integer vector to `ex_2_1`.
+
+**Expected result:**
+
+```
+#>   Ozone Solar.R    Wind    Temp   Month     Day
+#>      37       7       0       0       0       0
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- sapply(airquality, function(x) sum(is.na(x)))
+ex_2_1
+#>   Ozone Solar.R    Wind    Temp   Month     Day
+#>      37       7       0       0       0       0
+```
+
+**Explanation:** Because every column returns a single integer, `sapply()` simplifies the list of length-1 results into a named integer vector, which is easier to print and easier to index than the lapply list. This is the canonical NA audit pattern. A type-safer variant is `vapply(airquality, function(x) sum(is.na(x)), integer(1))`, which guarantees the result is integer and fails loudly if any column unexpectedly returns something else.
+
+</details>
+
+### Exercise 2.2: Median absolute deviation of every USArrests metric
+
+**Task:** A criminologist comparing the spread of crime rates across US states wants the robust MAD (median absolute deviation) for each numeric column of `USArrests`: Murder, Assault, UrbanPop, Rape. Use `sapply()` with `mad()` and save the named numeric vector to `ex_2_2`.
+
+**Expected result:**
+
+```
+#>   Murder  Assault UrbanPop     Rape
+#>   5.4115  74.1300  14.8260  9.0440
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- sapply(USArrests, mad)
+ex_2_2
+#>   Murder  Assault UrbanPop     Rape
+#>   5.4115  74.1300  14.8260  9.0440
+```
+
+**Explanation:** `mad()` returns one number per column, so `sapply()` simplifies to a named numeric vector. MAD is preferred over `sd()` when you suspect outliers; the constant of 1.4826 inside `mad()` makes it consistent with the standard deviation for normal data. If you want both `mad` and `sd` per column you would switch to `sapply(USArrests, function(x) c(mad = mad(x), sd = sd(x)))`, which simplifies to a 2-row matrix.
+
+</details>
+
+### Exercise 2.3: Side-by-side mean and median per ToothGrowth metric
+
+**Task:** A pharmacology team validating tooth-growth measurements wants both the mean and median of `len` and `dose` shown next to each other in a single matrix, so reviewers can spot skew at a glance. Use `sapply()` on `ToothGrowth[, c("len", "dose")]` with a custom function that returns a length-2 named numeric vector. Save the resulting 2-row matrix to `ex_2_3`.
+
+**Expected result:**
+
+```
+#>          len  dose
+#> mean   18.81 1.166
+#> median 19.25 1.000
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- sapply(
+  ToothGrowth[, c("len", "dose")],
+  function(x) c(mean = mean(x), median = median(x))
+)
+round(ex_2_3, 3)
+#>          len  dose
+#> mean   18.813 1.167
+#> median 19.250 1.000
+```
+
+**Explanation:** When the function returns a length-N named vector for every column, `sapply()` stacks the results column-wise into an NxK matrix. The row names come from the names of the returned vector, the column names come from the input. This is the cleanest way to build a small summary table in base R without dplyr. If even one column returned a different-length vector, `sapply()` would silently fall back to a list, which is a common source of bugs.
+
+</details>
+
+## Section 3. apply on matrices and data frames (4 problems)
+
+### Exercise 3.1: Row totals from a weekly quiz scorecard
+
+**Task:** A teacher tallying weekly quiz scores has the matrix `scores <- matrix(c(8, 7, 9, 6, 10, 5, 7, 8, 9, 6, 4, 8), nrow = 4, byrow = TRUE, dimnames = list(c("Ann", "Ben", "Cara", "Dev"), c("Q1", "Q2", "Q3")))`. Compute each student's total across the three quizzes using `apply()` with `MARGIN = 1`. Save the named numeric vector to `ex_3_1`.
+
+**Expected result:**
+
+```
+#>  Ann  Ben Cara  Dev
+#>   24   21   24   18
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+scores <- matrix(
+  c(8, 7, 9, 6, 10, 5, 7, 8, 9, 6, 4, 8),
+  nrow = 4, byrow = TRUE,
+  dimnames = list(c("Ann", "Ben", "Cara", "Dev"), c("Q1", "Q2", "Q3"))
+)
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+scores <- matrix(
+  c(8, 7, 9, 6, 10, 5, 7, 8, 9, 6, 4, 8),
+  nrow = 4, byrow = TRUE,
+  dimnames = list(c("Ann", "Ben", "Cara", "Dev"), c("Q1", "Q2", "Q3"))
+)
+ex_3_1 <- apply(scores, 1, sum)
+ex_3_1
+#>  Ann  Ben Cara  Dev
+#>   24   21   24   18
+```
+
+**Explanation:** `MARGIN = 1` walks rows; `MARGIN = 2` walks columns. For pure row or column sums on numeric matrices, `rowSums(scores)` and `colSums(scores)` are faster and clearer, but `apply()` is the general-purpose tool when the per-row function is anything more complex than a sum or mean. Row names are preserved because the matrix has dimnames.
+
+</details>
+
+### Exercise 3.2: Z-score every column of USArrests
+
+**Task:** A criminologist preparing inputs for a clustering model needs every column of `USArrests` standardized to zero mean and unit standard deviation so no single metric dominates the distance calculation. Use `apply()` with `MARGIN = 2` and a function that returns `(x - mean(x)) / sd(x)`. Save the 50x4 numeric matrix to `ex_3_2`.
+
+**Expected result:**
+
+```
+#>               Murder    Assault   UrbanPop       Rape
+#> Alabama    1.2425641  0.7828393 -0.5209066 -0.0034165
+#> Alaska     0.5078625  1.1068225 -1.2117642  2.4842029
+#> Arizona    0.0716334  1.4788032  0.9989801  1.0428784
+#> Arkansas   0.2323494  0.2308680 -1.0735927 -0.1858593
+#> California 0.2783634  1.2628140  1.7589532  2.0678203
+#> ...
+#> # 45 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+head(ex_3_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- apply(USArrests, 2, function(x) (x - mean(x)) / sd(x))
+head(ex_3_2)
+#>               Murder    Assault   UrbanPop       Rape
+#> Alabama    1.2425641  0.7828393 -0.5209066 -0.0034165
+#> Alaska     0.5078625  1.1068225 -1.2117642  2.4842029
+#> Arizona    0.0716334  1.4788032  0.9989801  1.0428784
+#> Arkansas   0.2323494  0.2308680 -1.0735927 -0.1858593
+#> California 0.2783634  1.2628140  1.7589532  2.0678203
+#> Colorado   0.0256194  0.3988637  0.8608086  1.8649672
+```
+
+**Explanation:** `apply()` with `MARGIN = 2` returns a matrix when each column-wise call returns a vector of equal length. The base R one-liner `scale(USArrests)` is the canonical way to do this, but the `apply()` form is worth knowing because it generalizes to non-standard scalers (median centering, robust scaling). The output is a matrix, not a data frame; wrap in `as.data.frame()` if you need the latter.
+
+</details>
+
+### Exercise 3.3: Row-wise best subject and its name
+
+**Task:** Continuing the scorecard from Exercise 3.1, the teacher now wants each student's best subject (the column name where they scored highest), not the maximum score itself. Use `apply()` with `MARGIN = 1` and `which.max()` to get the index, then look up the matching column name. Save the named character vector to `ex_3_3`.
+
+**Expected result:**
+
+```
+#>  Ann  Ben Cara  Dev
+#> "Q3" "Q1" "Q2" "Q1"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- colnames(scores)[apply(scores, 1, which.max)]
+names(ex_3_3) <- rownames(scores)
+ex_3_3
+#>  Ann  Ben Cara  Dev
+#> "Q3" "Q1" "Q2" "Q1"
+```
+
+**Explanation:** `which.max()` returns the index of the first maximum per row, then a vectorized lookup against `colnames(scores)` translates those indices into subject names. The `names()<-` assignment restores the student identifiers because indexing dropped them. A common mistake is using `max()` instead of `which.max()`, which gives you the score, not the subject. For ties, `which.max()` returns only the first index, which may or may not be what you want.
+
+</details>
+
+### Exercise 3.4: Flag outlier rows by the 1.5 x IQR rule per column
+
+**Task:** A finance team auditing a daily P&L matrix wants to know which days had an outlier in at least one of the four metrics. Build the data with `pnl <- matrix(c(rnorm(48), 12, -10, 0.5, 0.2), nrow = 13, byrow = FALSE)` and `colnames(pnl) <- c("equities", "fx", "rates", "credit")`. Use `apply()` with `MARGIN = 2` to flag each cell as TRUE if it is more than 1.5 x IQR outside the column quartiles, then take row-wise `any()` to flag the day. Save the logical vector to `ex_3_4`.
+
+**Expected result:**
+
+```
+#>  [1] FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE  TRUE
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(42)
+pnl <- matrix(c(rnorm(48), 12, -10, 0.5, 0.2), nrow = 13, byrow = FALSE)
+colnames(pnl) <- c("equities", "fx", "rates", "credit")
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(42)
+pnl <- matrix(c(rnorm(48), 12, -10, 0.5, 0.2), nrow = 13, byrow = FALSE)
+colnames(pnl) <- c("equities", "fx", "rates", "credit")
+
+flag_matrix <- apply(pnl, 2, function(x) {
+  q  <- quantile(x, c(0.25, 0.75))
+  iqr <- q[2] - q[1]
+  x < q[1] - 1.5 * iqr | x > q[2] + 1.5 * iqr
 })
-ex_classes
-#> Expected: a named character vector with 5 elements
+
+ex_3_4 <- apply(flag_matrix, 1, any)
+ex_3_4
+#>  [1] FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE  TRUE
+```
+
+**Explanation:** A two-stage apply pattern: the inner `apply()` produces a same-shape logical matrix where TRUE marks an outlier cell, and the outer `apply()` collapses each row with `any()`. The row with the planted shock (12, -10) in the last position trips equities and fx, so the day is flagged. The 1.5 x IQR rule is Tukey's classic outlier definition; for noisier financial data analysts often widen it to 3 x IQR.
+
+</details>
+
+## Section 4. vapply for type-safe production code (3 problems)
+
+### Exercise 4.1: NA proportion per column with vapply
+
+**Task:** A pipeline owner running the `airquality` audit nightly needs the NA proportion per column to come back as a guaranteed-numeric vector so the downstream alerting rule can compare against a threshold without a class check. Use `vapply()` with a template `numeric(1)` and save the named numeric vector to `ex_4_1`.
+
+**Expected result:**
+
+```
+#>      Ozone    Solar.R       Wind       Temp      Month        Day
+#> 0.24183007 0.04575163 0.00000000 0.00000000 0.00000000 0.00000000
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution"
-ex_classes <- sapply(iris, class)
-ex_classes
-#> Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
-#>    "numeric"    "numeric"    "numeric"    "numeric"     "factor"
+```r title="Solution"
+ex_4_1 <- vapply(airquality, function(x) mean(is.na(x)), numeric(1))
+ex_4_1
+#>      Ozone    Solar.R       Wind       Temp      Month        Day
+#> 0.24183007 0.04575163 0.00000000 0.00000000 0.00000000 0.00000000
 ```
 
-**Explanation:** Each column's `class()` returns a single string, so `sapply()` simplifies the list into a character vector. Since every result is length 1, you get a clean named vector.
+**Explanation:** `mean(is.na(x))` is the cleanest way to compute the NA proportion because `is.na()` returns a logical vector and `mean()` of logicals is the fraction TRUE. The template `numeric(1)` declares the expected return shape: a length-1 double per column. If any column accidentally returned a character or an integer, `vapply()` would error immediately rather than silently changing the result class, which is exactly the guarantee a production pipeline needs.
 
 </details>
 
-## How Does apply() Work on Matrices? (Exercises 1–2)
+### Exercise 4.2: Validate that every mtcars column is numeric
 
-`apply()` is the only member of the family that takes a `MARGIN` argument, set it to 1 for rows and 2 for columns. It works best on numeric matrices or data frames where every column is the same type.
+**Task:** A code reviewer wants a one-line sanity check confirming every column of `mtcars` is numeric before passing it into a model that assumes numeric inputs. Use `vapply()` with `is.numeric` and a `logical(1)` template, then wrap the result with `all()` so the final value is a single TRUE or FALSE. Save the single logical to `ex_4_2`.
 
-### Exercise 1: Row-Wise Statistics on a Matrix
+**Expected result:**
 
-Create a 5×4 numeric matrix with `matrix(1:20, nrow = 5)`. Use `apply()` twice: once to compute the **mean** of each row, and once to compute the **range** (max − min) of each row.
+```
+#> [1] TRUE
+```
 
-```r title="Exercise one: matrix row means and ranges"
-# Exercise 1: Row-wise mean and range
-mat <- matrix(1:20, nrow = 5)
-mat
-#> Check: 5 rows, 4 columns
+**Difficulty:** Intermediate
 
-# Compute row means using apply()
-# your code here
-
-# Compute row ranges (max - min) using apply()
-# your code here
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise one solution"
-mat <- matrix(1:20, nrow = 5)
-mat
-#>      [,1] [,2] [,3] [,4]
-#> [1,]    1    6   11   16
-#> [2,]    2    7   12   17
-#> [3,]    3    8   13   18
-#> [4,]    4    9   14   19
-#> [5,]    5   10   15   20
-
-# Row means (MARGIN = 1 means "iterate over rows")
-row_means <- apply(mat, 1, mean)
-row_means
-#> [1]  8.5  9.5 10.5 11.5 12.5
-
-# Row ranges using an anonymous function
-row_ranges <- apply(mat, 1, function(x) max(x) - min(x))
-row_ranges
-#> [1] 15 15 15 15 15
+```r title="Solution"
+ex_4_2 <- all(vapply(mtcars, is.numeric, logical(1)))
+ex_4_2
+#> [1] TRUE
 ```
 
-**Explanation:** With `MARGIN = 1`, `apply()` feeds each row as a vector to the function. Every row spans from its minimum (column 1) to its maximum (column 4), and since the matrix fills column-by-column, each row has the same range of 15.
+**Explanation:** `vapply()` with template `logical(1)` enforces that each column returns a single TRUE or FALSE. `all()` collapses the named logical vector to a single value. If any column were a factor or character, the result would be FALSE and you could chain to a named printout: `names(which(!vapply(mtcars, is.numeric, logical(1))))`. Cleaner than `sapply()` because the type guarantee removes a class assertion step.
 
 </details>
 
-### Exercise 2: Column-Wise Custom Function
+### Exercise 4.3: Column profiler returning min, median, max
 
-Write a function that computes the **coefficient of variation** (CV), that's the standard deviation divided by the mean, times 100, and use `apply()` with `MARGIN = 2` to compute the CV for each column of `mtcars[, 1:4]`.
+**Task:** An EDA helper wants a small 3-row summary matrix showing the min, median, and max for every numeric column of `airquality`, with NAs ignored. Use `vapply()` with a `numeric(3)` template so the result is guaranteed to be a 3xK numeric matrix even when the data has missing values. Save the matrix to `ex_4_3`.
 
-```r title="Exercise two: coefficient of variation"
-# Exercise 2: Coefficient of variation per column
-# CV = (sd / mean) * 100 — higher means more spread relative to the mean
+**Expected result:**
 
-# Write your cv function and apply it column-wise
-# your code here
+```
+#>          Ozone Solar.R  Wind Temp Month  Day
+#> min       1.0     7.0  1.70   56     5  1.0
+#> median   31.5   205.0  9.70   79     7 16.0
+#> max     168.0   334.0 20.70   97     9 31.0
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise two solution"
-cv_fn <- function(x) (sd(x) / mean(x)) * 100
-
-cv_results <- apply(mtcars[, 1:4], 2, cv_fn)
-round(cv_results, 1)
-#>  mpg  cyl disp   hp
-#> 29.9 28.6 53.7 46.7
-```
-
-**Explanation:** `MARGIN = 2` means "iterate over columns." The `disp` column has the highest CV (53.7%), meaning engine displacement varies the most relative to its average. `mpg` and `cyl` are more tightly clustered.
-
-</details>
-
-[TIP]
-**Handle NAs inside the applied function, not outside.** Writing `apply(airquality, 2, mean, na.rm = TRUE)` passes `na.rm` through to `mean()` via the `...` argument. This is cleaner than pre-filtering with `na.omit()`, which drops entire rows.
-
-**Try it:** Use `apply()` to find which column has the **largest range** (max − min) in `airquality[, 1:4]`. Remember to pass `na.rm = TRUE`.
-
-```r title="Exercise: range of airquality columns"
-# Try it: which column has the largest range?
-ex_ranges <- apply(airquality[, 1:4], 2, function(x) {
-  # your code here
-})
-# Which column name has the max range?
-#> Expected: "Ozone"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise solution"
-ex_ranges <- apply(airquality[, 1:4], 2, function(x) {
-  max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
-})
-ex_ranges
-#>   Ozone Solar.R    Wind    Temp
-#>   167.0   333.0    16.6    41.0
-
-names(which.max(ex_ranges))
-#> [1] "Solar.R"
-```
-
-**Explanation:** `Solar.R` actually has the largest absolute range (333), not `Ozone`. The raw range depends on the scale of each variable. If you wanted a scale-free comparison, you'd use the coefficient of variation from Exercise 2.
-
-</details>
-
-## How Do lapply() and sapply() Differ? (Exercises 3–5)
-
-Both `lapply()` and `sapply()` iterate element-by-element over a list or vector. The difference is purely in the output: `lapply()` always returns a list, while `sapply()` tries to simplify the result into a vector or matrix. That simplification is convenient in the console but can bite you in scripts.
-
-### Exercise 3: String Manipulation with lapply()
-
-Given a list of city-name vectors (one vector per country), use `lapply()` to collapse each vector into a single comma-separated string.
-
-```r title="Exercise three: paste city lists"
-# Exercise 3: Collapse city names
-cities <- list(
-  USA = c("New York", "Chicago", "Houston"),
-  UK = c("London", "Manchester"),
-  Japan = c("Tokyo", "Osaka", "Kyoto", "Nagoya")
+```r title="Solution"
+ex_4_3 <- vapply(
+  airquality,
+  function(x) c(min = min(x, na.rm = TRUE),
+                median = median(x, na.rm = TRUE),
+                max = max(x, na.rm = TRUE)),
+  numeric(3)
 )
-
-# Use lapply() to paste each country's cities into one string
-# Hint: paste(..., collapse = ", ")
-# your code here
+ex_4_3
+#>         Ozone Solar.R  Wind Temp Month Day
+#> min       1.0     7.0  1.70   56     5   1
+#> median   31.5   205.0  9.70   79     7  16
+#> max     168.0   334.0 20.70   97     9  31
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise three solution"
-cities <- list(
-  USA = c("New York", "Chicago", "Houston"),
-  UK = c("London", "Manchester"),
-  Japan = c("Tokyo", "Osaka", "Kyoto", "Nagoya")
-)
-
-city_strings <- lapply(cities, function(x) paste(x, collapse = ", "))
-city_strings
-#> $USA
-#> [1] "New York, Chicago, Houston"
-#>
-#> $UK
-#> [1] "London, Manchester"
-#>
-#> $Japan
-#> [1] "Tokyo, Osaka, Kyoto, Nagoya"
-```
-
-**Explanation:** `lapply()` feeds each element of the list (a character vector of city names) to the anonymous function. `paste(collapse = ", ")` squashes each vector into a single string. The result is a named list, one string per country.
+**Explanation:** When the template is `numeric(3)`, `vapply()` stacks the per-column 3-vectors into a 3xK matrix, with the names of the template becoming row names. The `na.rm = TRUE` argument keeps the columns with NAs (Ozone, Solar.R) from collapsing to NA. If you changed the template to `numeric(2)` but the function still returned 3 values, `vapply()` would error, which is the whole point: shape correctness is enforced.
 
 </details>
 
-### Exercise 4: sapply() for Quick Column Summaries
+## Section 5. mapply for parallel multi-input iteration (3 problems)
 
-Use `sapply()` on `mtcars` to count the number of **unique values** in each column. The result should be a named integer vector.
+### Exercise 5.1: Element-wise pairwise sums
 
-```r title="Exercise four: unique counts per column"
-# Exercise 4: Unique value counts per column
-# Hint: combine length() and unique()
-# your code here
+**Task:** A junior analyst handed two vectors `lows <- c(2, 5, 9, 12, 18)` and `highs <- c(8, 11, 14, 20, 25)` wants the size of each range (high - low + 1, inclusive count). Use `mapply()` over the two vectors with `function(l, h) h - l + 1`. Save the integer vector to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> [1] 7 7 6 9 8
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+lows  <- c(2, 5, 9, 12, 18)
+highs <- c(8, 11, 14, 20, 25)
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise four solution"
-unique_counts <- sapply(mtcars, function(x) length(unique(x)))
-unique_counts
-#>  mpg  cyl disp   hp drat   wt qsec   vs   am gear carb
-#>   25    3   27   22   22   29   30    2    2    3    6
+```r title="Solution"
+lows  <- c(2, 5, 9, 12, 18)
+highs <- c(8, 11, 14, 20, 25)
+ex_5_1 <- mapply(function(l, h) h - l + 1, lows, highs)
+ex_5_1
+#> [1] 7 7 6 9 8
 ```
 
-**Explanation:** `sapply()` applied the function to each column and simplified the 11 single-number results into a named integer vector. Columns like `vs` and `am` have only 2 unique values (they're binary), while `qsec` has 30 distinct values across 32 rows.
+**Explanation:** `mapply()` walks the two vectors in parallel: the first call uses `(2, 8)`, the second `(5, 11)`, and so on. For pure arithmetic on equal-length vectors, the operator form `highs - lows + 1` is faster and clearer; the value of `mapply()` shows up when the per-element operation is non-vectorized (a custom function, a non-vectorized sampler, or a function that needs its own scalar arguments).
 
 </details>
 
-### Exercise 5: When sapply() Surprises You
+### Exercise 5.2: Per-customer randomized samples with varying size and scale
 
-Apply a function that returns **different-length results** to a list. Compare what `lapply()` and `sapply()` return. Why does `sapply()` not simplify this time?
+**Task:** A marketing analyst preparing a synthetic test cohort needs one normal sample per customer, but each customer has their own sample size and spend variance. Given `sizes <- c(3, 5, 2)`, `means <- c(50, 100, 200)`, and `sds <- c(5, 20, 30)`, use `mapply()` with `rnorm` to generate a list where the i-th element is `rnorm(sizes[i], means[i], sds[i])`. Use `SIMPLIFY = FALSE` so the output stays a list. Save it to `ex_5_2`.
 
-```r title="Exercise five: lapply versus sapply on ragged list"
-# Exercise 5: sapply() vs lapply() on ragged output
-mixed_list <- list(
-  a = 1:3,
-  b = 1:5,
-  c = 1:2
-)
+**Expected result:**
 
-# Apply range() to each element using both lapply() and sapply()
-# Compare the structure of the results
-# your code here
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise five solution"
-mixed_list <- list(
-  a = 1:3,
-  b = 1:5,
-  c = 1:2
-)
-
-result_lapply <- lapply(mixed_list, range)
-result_lapply
-#> $a
-#> [1] 1 3
-#>
-#> $b
-#> [1] 1 5
-#>
-#> $c
-#> [1] 1 2
-
-result_sapply <- sapply(mixed_list, range)
-result_sapply
-#>      a b c
-#> [1,] 1 1 1
-#> [2,] 3 5 2
-
-class(result_sapply)
-#> [1] "matrix"
-```
-
-**Explanation:** Here `sapply()` *does* simplify, because every result has the same length (2). It stacks them into a 2×3 matrix. The surprise would come if one element returned a different length, then `sapply()` would silently fall back to a list. That inconsistency is why `vapply()` exists.
-
-</details>
-
-[KEY INSIGHT]
-**lapply() is the safest default.** It always returns a list, regardless of what your function produces. Start with lapply(), then switch to sapply() only when you're exploring interactively and want a quick vector.
-
-[WARNING]
-**sapply() can silently change output types between runs.** If your data sometimes has groups of different sizes, sapply() might return a matrix one day and a list the next. In production code, use vapply() to lock in the expected shape.
-
-**Try it:** Use `lapply()` to split the `iris` data frame by `Species`, then check the class and length of the result.
-
-```r title="Exercise: split iris by species"
-# Try it: split + lapply
-ex_split <- split(iris, iris$Species)
-# What is class(ex_split)?
-# How many elements does it have?
-#> Expected: a list of 3 data frames
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise solution"
-ex_split <- split(iris, iris$Species)
-class(ex_split)
-#> [1] "list"
-length(ex_split)
-#> [1] 3
-lapply(ex_split, nrow)
-#> $setosa
-#> [1] 50
-#>
-#> $versicolor
-#> [1] 50
-#>
-#> $virginica
-#> [1] 50
-```
-
-**Explanation:** `split()` divides a data frame by a factor and returns a named list, one data frame per level. Each species has 50 rows. This `split()` + `lapply()` pattern is the base R equivalent of `group_by()` + `summarise()`.
-
-</details>
-
-## Why Should You Use vapply() Over sapply()? (Exercises 6–7)
-
-`vapply()` is the type-safe version of `sapply()`. You specify the expected return type and length with `FUN.VALUE`. If the actual result doesn't match, R throws an error immediately instead of silently returning the wrong shape. This one extra argument makes `vapply()` the professional choice for scripts and packages.
-
-### Exercise 6: Type-Safe Column Summaries with vapply()
-
-Redo Exercise 4 (counting unique values per column in `mtcars`) using `vapply()` instead of `sapply()`. Specify `FUN.VALUE = integer(1)` to guarantee you get back an integer vector.
-
-```r title="Exercise six: vapply with integer template"
-# Exercise 6: vapply() for type-safe unique counts
-# Hint: vapply(X, FUN, FUN.VALUE)
-# your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise six solution"
-unique_safe <- vapply(mtcars, function(x) length(unique(x)), FUN.VALUE = integer(1))
-unique_safe
-#>  mpg  cyl disp   hp drat   wt qsec   vs   am gear carb
-#>   25    3   27   22   22   29   30    2    2    3    6
-```
-
-**Explanation:** The result is identical to Exercise 4's `sapply()` output, but now you have a guarantee. If any column's function returned something other than a single integer, say, a character string or a vector of length 2, R would stop with an error instead of returning a quietly broken result.
-
-</details>
-
-### Exercise 7: Catching Type Mismatches
-
-Write a `vapply()` call that **deliberately fails** because the function returns a character instead of a numeric. Wrap it in `tryCatch()` so your code handles the error gracefully instead of crashing.
-
-```r title="Exercise seven: vapply template mismatch"
-# Exercise 7: Deliberate vapply() failure + error handling
-# Step 1: Write a function that returns the class of a column (character)
-# Step 2: Call vapply() expecting numeric(1) — this should fail
-# Step 3: Wrap in tryCatch() to catch and print the error message
-# your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise seven solution"
-safe_result <- tryCatch(
-  vapply(mtcars, class, FUN.VALUE = numeric(1)),
-  error = function(e) paste("Caught error:", e$message)
-)
-safe_result
-#> [1] "Caught error: values must be type 'double',\n but FUN(X[[1]]) result is type 'character'"
-```
-
-**Explanation:** `class()` returns a character string, but we told `vapply()` to expect `numeric(1)`. The mismatch triggers an error. `tryCatch()` intercepts it so the script continues instead of stopping. In real code, you'd log the error or fall back to a default.
-
-</details>
-
-[KEY INSIGHT]
-**vapply() is sapply() with a contract.** You tell R what shape to expect. If a column suddenly returns 2 values instead of 1, vapply() errors immediately rather than silently returning a list. That instant failure is a feature, it catches bugs at the source.
-
-**Try it:** Use `vapply()` to extract the `class()` of every column in `mtcars`. What should `FUN.VALUE` be?
-
-```r title="Exercise: vapply class with character template"
-# Try it: vapply for column classes
-ex_types <- vapply(mtcars, class, FUN.VALUE = "placeholder")
-# What should replace "placeholder"?
-#> Expected: character(1)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise solution"
-ex_types <- vapply(mtcars, class, FUN.VALUE = character(1))
-ex_types
-#>       mpg       cyl      disp        hp      drat        wt      qsec
-#> "numeric" "numeric" "numeric" "numeric" "numeric" "numeric" "numeric"
-#>        vs        am      gear      carb
-#> "numeric" "numeric" "numeric" "numeric"
-```
-
-**Explanation:** `class()` returns a single character string, so `FUN.VALUE = character(1)` is the correct template. Every column in `mtcars` is numeric, so they all match.
-
-</details>
-
-## How Does tapply() Compute Group Statistics? (Exercises 8–9)
-
-`tapply()` splits a vector by one or more factors and applies a function to each group. Think of it as the base R equivalent of `dplyr::group_by() |> summarise()`. The result is a named vector (one factor) or a matrix (two factors).
-
-### Exercise 8: Group Means with tapply()
-
-Compute the mean `Sepal.Length` for each `Species` in the `iris` dataset using `tapply()`.
-
-```r title="Exercise eight: tapply sepal length by species"
-# Exercise 8: tapply() for group means
-# tapply(vector, grouping_factor, function)
-# your code here
-#> Expected: named numeric vector with 3 species means
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise eight solution"
-species_means <- tapply(iris$Sepal.Length, iris$Species, mean)
-species_means
-#>     setosa versicolor  virginica
-#>      5.006      5.936      6.588
-```
-
-**Explanation:** `tapply()` split the 150 `Sepal.Length` values into three groups (one per species), computed the mean of each, and returned a named numeric vector. Virginica has the longest sepals on average at 6.588 cm.
-
-</details>
-
-### Exercise 9: Two-Way tapply() Table
-
-Use `tapply()` with **two** grouping factors, `cyl` and `am` (transmission: 0 = automatic, 1 = manual), to compute the mean `mpg` for each combination in `mtcars`. The result should be a 3×2 matrix.
-
-```r title="Exercise nine: two factor tapply matrix"
-# Exercise 9: Two-way table with tapply()
-# Hint: pass a list of factors as the INDEX argument
-# your code here
-#> Expected: 3x2 matrix (3 cyl levels × 2 am levels)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise nine solution"
-mpg_table <- tapply(mtcars$mpg, list(cyl = mtcars$cyl, am = mtcars$am), mean)
-round(mpg_table, 1)
-#>      0     1
-#> 4 22.9  28.1
-#> 6 19.1  20.6
-#> 8 15.1  15.4
-```
-
-**Explanation:** When `INDEX` is a list of two factors, `tapply()` returns a matrix. Rows are `cyl` levels (4, 6, 8), columns are `am` levels (0 = auto, 1 = manual). Manual 4-cylinder cars average 28.1 mpg, the highest group. Eight-cylinder automatics average only 15.1 mpg.
-
-</details>
-
-[TIP]
-**tapply() with two factors returns a matrix.** Rows correspond to the first factor's levels, columns to the second. This is a quick way to build cross-tabulation summaries without loading any packages.
-
-**Try it:** Use `tapply()` to find the **maximum** `hp` for each combination of `cyl` and `gear` in `mtcars`.
-
-```r title="Exercise: tapply hp by cyl and gear"
-# Try it: max hp by cyl and gear
-ex_hp <- tapply(mtcars$hp, list(mtcars$cyl, mtcars$gear), max)
-ex_hp
-#> Expected: a matrix with some NA cells (not all combinations exist)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise solution"
-ex_hp <- tapply(mtcars$hp, list(cyl = mtcars$cyl, gear = mtcars$gear), max)
-ex_hp
-#>    3   4   5
-#> 4 97 109  91
-#> 6 NA 123 175
-#> 8 245  NA 335
-```
-
-**Explanation:** Some combinations don't exist in the data (e.g., no 6-cylinder cars with 3 gears), so those cells are `NA`. The 8-cylinder, 5-gear group has the most powerful car at 335 hp, that's the Maserati Bora.
-
-</details>
-
-## How Does mapply() Handle Multiple Inputs? (Exercises 10–11)
-
-`mapply()` is the multivariate version, it takes multiple vectors or lists and feeds corresponding elements to the function in parallel. Think of it as "zip then apply," similar to Python's `map(func, list1, list2)`.
-
-### Exercise 10: Pasting Parallel Vectors
-
-Given separate vectors of first names and last names, use `mapply()` with `paste()` to create full names.
-
-```r title="Exercise ten: mapply paste names"
-# Exercise 10: mapply() with paste
-first_names <- c("Ada", "Grace", "Linus")
-last_names <- c("Lovelace", "Hopper", "Torvalds")
-
-# Use mapply() to paste first and last names together
-# your code here
-#> Expected: "Ada Lovelace" "Grace Hopper" "Linus Torvalds"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise ten solution"
-first_names <- c("Ada", "Grace", "Linus")
-last_names <- c("Lovelace", "Hopper", "Torvalds")
-
-full_names <- mapply(paste, first_names, last_names)
-full_names
-#> [1] "Ada Lovelace"   "Grace Hopper"   "Linus Torvalds"
-```
-
-**Explanation:** `mapply()` passes the first elements together (`"Ada"`, `"Lovelace"`), then the second elements, then the third. Since `paste()` naturally takes multiple arguments, this works without an anonymous function. The result simplifies to a character vector.
-
-</details>
-
-### Exercise 11: Generating Custom Sequences
-
-Use `mapply()` to generate four different numeric sequences where the `from`, `to`, and `by` arguments come from three separate vectors. Since the sequences have different lengths, set `SIMPLIFY = FALSE` to get a list.
-
-```r title="Exercise eleven: mapply sequences unsimplified"
-# Exercise 11: mapply() with seq()
-starts <- c(1, 10, 100, 0)
-ends <- c(5, 50, 300, 1)
-steps <- c(1, 10, 50, 0.25)
-
-# Use mapply() to generate each sequence
-# Hint: mapply(seq, from, to, by, SIMPLIFY = FALSE)
-# your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise eleven solution"
-starts <- c(1, 10, 100, 0)
-ends <- c(5, 50, 300, 1)
-steps <- c(1, 10, 50, 0.25)
-
-sequences <- mapply(seq, from = starts, to = ends, by = steps, SIMPLIFY = FALSE)
-sequences
 #> [[1]]
-#> [1] 1 2 3 4 5
+#> [1] 56.85479 47.17651 51.81564
 #>
 #> [[2]]
-#> [1] 10 20 30 40 50
+#> [1]  86.34829  87.39561 100.91140 109.78936 100.74220
 #>
 #> [[3]]
-#> [1] 100 150 200 250 300
+#> [1] 222.5363 230.1543
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(42)
+sizes <- c(3, 5, 2)
+means <- c(50, 100, 200)
+sds   <- c(5, 20, 30)
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(42)
+sizes <- c(3, 5, 2)
+means <- c(50, 100, 200)
+sds   <- c(5, 20, 30)
+ex_5_2 <- mapply(rnorm, sizes, means, sds, SIMPLIFY = FALSE)
+ex_5_2
+#> [[1]]
+#> [1] 56.85479 47.17651 51.81564
+#> [[2]]
+#> [1]  86.34829  87.39561 100.91140 109.78936 100.74220
+#> [[3]]
+#> [1] 222.5363 230.1543
+```
+
+**Explanation:** The arguments to `mapply()` after the function are matched positionally to `rnorm(n, mean, sd)`. Because each call returns a different-length vector, `SIMPLIFY = FALSE` is required; otherwise `mapply()` would try to coerce to a matrix and fall back to a list anyway (but inconsistently). For variable-length parallel iteration, `SIMPLIFY = FALSE` makes the intent explicit.
+
+</details>
+
+### Exercise 5.3: Compute compound interest for a portfolio of paired terms and rates
+
+**Task:** A wealth manager modeling client outcomes has three accounts with principals `principal <- c(1000, 2500, 5000)`, annualized rates `rate <- c(0.04, 0.06, 0.05)`, and term lengths `years <- c(5, 10, 7)`. Use `mapply()` to compute `principal * (1 + rate)^years` for each account. Save the named numeric vector to `ex_5_3`, with names taken from `c("A", "B", "C")`.
+
+**Expected result:**
+
+```
+#>        A        B        C
+#> 1216.653 4477.119 7035.504
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+principal <- c(1000, 2500, 5000)
+rate      <- c(0.04, 0.06, 0.05)
+years     <- c(5, 10, 7)
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+principal <- c(1000, 2500, 5000)
+rate      <- c(0.04, 0.06, 0.05)
+years     <- c(5, 10, 7)
+ex_5_3 <- mapply(function(p, r, y) p * (1 + r)^y, principal, rate, years)
+names(ex_5_3) <- c("A", "B", "C")
+ex_5_3
+#>        A        B        C
+#> 1216.653 4477.119 7035.504
+```
+
+**Explanation:** `mapply()` zips three input vectors in parallel and applies the per-account compound interest formula. Because the result is a length-1 numeric per call, `mapply()` simplifies the output to a numeric vector by default. The vectorized equivalent `principal * (1 + rate)^years` is faster and just as readable here; `mapply()` becomes essential when the per-account function is more complex (different compounding frequency per account, conditional fee logic, lookup against an external table).
+
+</details>
+
+## Section 6. tapply for grouped aggregation (4 problems)
+
+### Exercise 6.1: Mean weight by Diet in ChickWeight
+
+**Task:** A nutrition researcher comparing four chick diets wants the mean weight across all observations within each diet group from the `ChickWeight` dataset. Use `tapply()` with `ChickWeight$weight` as the value vector and `ChickWeight$Diet` as the grouping factor. Save the resulting named numeric vector to `ex_6_1`.
+
+**Expected result:**
+
+```
+#>        1        2        3        4
+#> 102.6455 122.6167 142.9500 135.2627
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- tapply(ChickWeight$weight, ChickWeight$Diet, mean)
+ex_6_1
+#>        1        2        3        4
+#> 102.6455 122.6167 142.9500 135.2627
+```
+
+**Explanation:** `tapply()` splits the value vector by the factor, applies `mean()` to each group, and returns a named array. Group order follows the factor levels of Diet (1, 2, 3, 4). For a longer pipeline you would reach for `aggregate()` or dplyr's `summarise()`, but `tapply()` is the most direct base R tool when the output is a single statistic per group.
+
+</details>
+
+### Exercise 6.2: Sepal width quartiles by Species
+
+**Task:** A botanist comparing the spread of `Sepal.Width` across iris species wants the 25th, 50th, and 75th percentile reported separately for setosa, versicolor, and virginica. Use `tapply()` with `iris$Sepal.Width`, `iris$Species`, and `function(x) quantile(x, c(0.25, 0.5, 0.75))`. The result is a list of three length-3 numeric vectors. Save it to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> $setosa
+#>   25%   50%   75%
+#> 3.200 3.400 3.675
 #>
-#> [[4]]
-#> [1] 0.00 0.25 0.50 0.75 1.00
+#> $versicolor
+#>   25%   50%   75%
+#> 2.525 2.800 3.000
+#>
+#> $virginica
+#>   25%   50%   75%
+#> 2.800 3.000 3.175
 ```
 
-**Explanation:** `mapply()` zips the three vectors element-wise: `seq(1, 5, 1)`, `seq(10, 50, 10)`, `seq(100, 300, 50)`, `seq(0, 1, 0.25)`. Since the sequences have different lengths (5, 5, 5, 5 in this case, but they could differ), `SIMPLIFY = FALSE` guarantees a list output.
+**Difficulty:** Intermediate
 
-</details>
-
-[NOTE]
-**mapply() with SIMPLIFY = FALSE is equivalent to Map().** `Map(seq, starts, ends, steps)` gives the same result with cleaner syntax. Use `Map()` when you always want a list back.
-
-**Try it:** Use `mapply()` to compute `weighted.mean()` for three pairs of values and weights.
-
-```r title="Exercise: mapply weighted means"
-# Try it: weighted means with mapply
-ex_vals <- list(c(80, 90, 70), c(95, 85), c(60, 70, 80, 90))
-ex_wts <- list(c(0.3, 0.5, 0.2), c(0.6, 0.4), c(0.1, 0.2, 0.3, 0.4))
-
-ex_wmeans <- mapply(weighted.mean, ex_vals, ex_wts)
-ex_wmeans
-#> Expected: numeric vector of 3 weighted means
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution"
-ex_vals <- list(c(80, 90, 70), c(95, 85), c(60, 70, 80, 90))
-ex_wts <- list(c(0.3, 0.5, 0.2), c(0.6, 0.4), c(0.1, 0.2, 0.3, 0.4))
-
-ex_wmeans <- mapply(weighted.mean, ex_vals, ex_wts)
-ex_wmeans
-#> [1] 83.0 91.0 80.0
-```
-
-**Explanation:** `mapply()` passes the first value-weight pair to `weighted.mean()`, then the second pair, then the third. The first group (80, 90, 70 with weights 0.3, 0.5, 0.2) gives 83.0, the 90 gets the heaviest weight.
-
-</details>
-
-## Practice Exercises
-
-These capstone exercises combine multiple apply functions. They're harder than the exercises above, you'll need to chain concepts together.
-
-### Exercise 12: Full Pipeline, Split, Fit, Extract
-
-Start with the `airquality` dataset. Remove rows with any `NA`. Split by `Month`. Use `lapply()` to fit a linear model (`Ozone ~ Solar.R`) for each month. Then use `sapply()` to extract the R-squared value from each model. Return a named vector of R-squared values.
-
-```r title="Exercise twelve: grouped linear models with split"
-# Exercise 12: split + lapply + sapply pipeline
-# Step 1: Remove rows with NA
-# Step 2: Split by Month
-# Step 3: Fit lm(Ozone ~ Solar.R) per month with lapply()
-# Step 4: Extract R-squared with sapply()
-# your code here
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise twelve solution"
-# Step 1: Remove rows with NA
-aq_clean <- na.omit(airquality)
-
-# Step 2: Split by Month
-aq_split <- split(aq_clean, aq_clean$Month)
-
-# Step 3: Fit a linear model per month
-models <- lapply(aq_split, function(df) lm(Ozone ~ Solar.R, data = df))
-
-# Step 4: Extract R-squared from each model
-r_squared <- sapply(models, function(m) summary(m)$r.squared)
-round(r_squared, 3)
-#>     5     6     7     8     9
-#> 0.348 0.040 0.265 0.183 0.352
-```
-
-**Explanation:** This is the classic split-apply-combine pattern. `split()` creates a list of data frames (one per month). `lapply()` fits a linear model inside each. `sapply()` pulls one number (R²) from each model, simplifying to a vector. Months 5 and 9 show the strongest solar-ozone relationship (R² ≈ 0.35), while June barely explains any variance (R² = 0.04).
-
-</details>
-
-## Putting It All Together
-
-Let's walk through a complete analysis using every apply function. We'll analyze the `mtcars` dataset from five angles.
-
-```r title="End-to-end mtcars five angle review"
-# --- Step 1: apply() — Normalize columns to 0-1 range ---
-normalize <- function(x) (x - min(x)) / (max(x) - min(x))
-mtcars_norm <- apply(mtcars[, c("mpg", "hp", "wt")], 2, normalize)
-head(round(mtcars_norm, 2), 4)
-#>                   mpg   hp   wt
-#> Mazda RX4        0.45 0.20 0.28
-#> Mazda RX4 Wag    0.45 0.20 0.35
-#> Datsun 710       0.53 0.07 0.20
-#> Hornet 4 Drive   0.47 0.20 0.44
-
-# --- Step 2: lapply() — Per-group summary stats ---
-cyl_groups <- split(mtcars, mtcars$cyl)
-cyl_stats <- lapply(cyl_groups, function(df) {
-  data.frame(
-    n = nrow(df),
-    mean_mpg = round(mean(df$mpg), 1),
-    mean_hp = round(mean(df$hp), 1)
-  )
-})
-do.call(rbind, cyl_stats)
-#>   n mean_mpg mean_hp
-#> 4 11     26.7    82.6
-#> 6  7     19.7   122.3
-#> 8 14     15.1   209.2
-
-# --- Step 3: vapply() — Type-safe extraction ---
-cyl_mpg_only <- vapply(cyl_groups, function(df) mean(df$mpg), numeric(1))
-cyl_mpg_only
-#>        4        6        8
-#> 26.66364 19.74286 15.10000
-
-# --- Step 4: tapply() — Two-way table ---
-cyl_mpg_am <- tapply(mtcars$mpg, list(cyl = mtcars$cyl, am = mtcars$am), mean)
-round(cyl_mpg_am, 1)
-#>      0     1
-#> 4 22.9  28.1
-#> 6 19.1  20.6
-#> 8 15.1  15.4
-
-# --- Step 5: mapply() — Generate labels ---
-labels <- mapply(
-  function(cyl, am) paste0(cyl, "-cyl ", ifelse(am == 0, "Auto", "Manual")),
-  rep(c(4, 6, 8), each = 2),
-  rep(c(0, 1), 3)
+```r title="Solution"
+ex_6_2 <- tapply(
+  iris$Sepal.Width,
+  iris$Species,
+  function(x) quantile(x, c(0.25, 0.5, 0.75))
 )
-labels
-#> [1] "4-cyl Auto"   "4-cyl Manual" "6-cyl Auto"   "6-cyl Manual"
-#> [5] "8-cyl Auto"   "8-cyl Manual"
+ex_6_2
+#> $setosa
+#>   25%   50%   75%
+#> 3.200 3.400 3.675
+#>
+#> $versicolor
+#>   25%   50%   75%
+#> 2.525 2.800 3.000
+#>
+#> $virginica
+#>   25%   50%   75%
+#> 2.800 3.000 3.175
 ```
 
-Each function plays to its strength: `apply()` for column-wise math, `lapply()` for per-group summaries, `vapply()` for safe single-value extraction, `tapply()` for cross-tabulation, and `mapply()` for combining parallel vectors into labels.
+**Explanation:** When the per-group function returns a vector longer than 1, `tapply()` produces a list with one element per group rather than simplifying to an array. The result is easy to bind into a tidy frame with `do.call(rbind, ex_6_2)` if a 3x3 matrix layout is preferred. This is the base R analogue of `dplyr::group_by(Species) |> summarise(...)` with multi-value summaries.
 
-[TIP]
-**The split-apply-combine pattern covers 90% of grouped analysis in base R.** Use split() to divide data by a factor, lapply() to process each group, and do.call(rbind, ...) to reassemble. It works without loading any packages.
+</details>
 
-## Summary
+### Exercise 6.3: Two-way table of mean breaks by wool and tension in warpbreaks
 
-![Which apply function to use, decision flowchart](screenshots/R-Apply-Exercises-choose-function.webp)
+**Task:** A textile engineer running a 2x3 yarn experiment with the `warpbreaks` dataset wants the mean number of `breaks` for every combination of `wool` (A, B) and `tension` (L, M, H), laid out as a 2x3 matrix. Use `tapply()` with `warpbreaks$breaks` and `list(warpbreaks$wool, warpbreaks$tension)`. Save the matrix to `ex_6_3`.
 
-*Figure 1: Decision flowchart, which apply function to use based on your input data and desired output.*
+**Expected result:**
 
-| Function | Input | MARGIN? | Returns | Best For |
-|----------|-------|---------|---------|----------|
-| `apply()` | matrix / data frame | Yes (1 = row, 2 = col) | vector / matrix | Row/column operations |
-| `lapply()` | list / vector | No | always a list | Safe iteration, predictable output |
-| `sapply()` | list / vector | No | vector / matrix (tries) | Quick interactive exploration |
-| `vapply()` | list / vector | No | vector / matrix (type-checked) | Production code, type safety |
-| `tapply()` | vector + factor | No | array | Group-by statistics |
-| `mapply()` | multiple vectors | No | vector / matrix / list | Parallel iteration over inputs |
+```
+#>          L        M        H
+#> A 44.55556 24.00000 24.55556
+#> B 28.22222 28.77778 18.77778
+```
 
-Key takeaways:
+**Difficulty:** Intermediate
 
-1. **Start with lapply()** as your default, lists are predictable and never surprise you
-2. **Use vapply()** in scripts and packages, the type contract catches bugs at the source
-3. **Reserve apply()** for matrices and data frames where row/column operations make sense
-4. **Use tapply()** for quick group summaries; switch to dplyr for complex grouped pipelines
-5. **Use mapply() or Map()** when you need to iterate over multiple corresponding inputs
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
 
-## References
+<details>
+<summary>Click to reveal solution</summary>
 
-1. R Core Team, apply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/apply.html)
-2. R Core Team, lapply() and sapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html)
-3. R Core Team, tapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/tapply.html)
-4. R Core Team, mapply() documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/mapply.html)
-5. Wickham, H., *Advanced R*, 2nd Edition. Chapter 9: Functionals. [Link](https://adv-r.hadley.nz/functionals.html)
-6. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 26: Iteration. [Link](https://r4ds.hadley.nz/iteration)
-7. Burns, P., *The R Inferno*. Circle 4: Over-Vectorizing. [Link](https://www.burns-stat.com/pages/Tutor/R_inferno.pdf)
-8. DataCamp, R Tutorial on the Apply Family. [Link](https://www.datacamp.com/tutorial/r-tutorial-apply-family)
+```r title="Solution"
+ex_6_3 <- tapply(
+  warpbreaks$breaks,
+  list(warpbreaks$wool, warpbreaks$tension),
+  mean
+)
+ex_6_3
+#>          L        M        H
+#> A 44.55556 24.00000 24.55556
+#> B 28.22222 28.77778 18.77778
+```
 
-## Continue Learning
+**Explanation:** Passing a list of two factors to `tapply()` produces a 2-D array; with three factors you would get a 3-D array. Empty combinations (cells with no observations) would come back as `NA`, which `tapply()` shows verbatim. This is the fastest way to inspect a factorial design's cell means before fitting an ANOVA with `aov(breaks ~ wool * tension, data = warpbreaks)`.
 
-1. [Writing R Functions](/R-Functions.html), Master function arguments, defaults, scope, and return values before tackling the apply family
-2. [Functional Programming in R](/Functional-Programming-in-R.html), Go deeper with closures, function factories, and the mindset that makes R code 10× cleaner
-3. [purrr map() in R](/purrr-map-Variants.html), Every variant explained with the mental model that makes them click
+</details>
+
+### Exercise 6.4: Coefficient of variation of mpg by gear count
+
+**Task:** An auto-magazine columnist comparing fuel economy spread across 3-, 4-, and 5-gear cars wants the coefficient of variation (sd divided by mean) of `mpg` for each `gear` group of `mtcars`, expressed as a percentage. Use `tapply()` with a custom function `function(x) 100 * sd(x) / mean(x)`. Save the named numeric vector to `ex_6_4`.
+
+**Expected result:**
+
+```
+#>        3        4        5
+#> 18.50762 19.86711 31.45211
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_4 <- tapply(mtcars$mpg, mtcars$gear, function(x) 100 * sd(x) / mean(x))
+ex_6_4
+#>        3        4        5
+#> 18.50762 19.86711 31.45211
+```
+
+**Explanation:** CoV (the ratio of standard deviation to mean) is a unit-free spread measure handy when comparing groups with different means. 5-gear cars have the highest CoV because the group has only 5 observations and a wide mpg range. A common mistake is forgetting to multiply by 100 when reporting CoV as a percentage; the raw ratio is also valid as long as the unit is clearly labeled.
+
+</details>
+
+## What to do next
+
+You have just drilled the six core members of the apply family across audit, modeling, simulation, and grouped-aggregation patterns. To keep the momentum:
+
+- [Apply Family Exercises in R](Apply-Family-Exercises-in-R.html) for a parallel 20-problem set with different scenarios.
+- [Loops vs Vectorization Exercises in R](Loops-vs-Vectorization-Exercises-in-R.html) to compare apply-family idioms against explicit loops on speed and clarity.
+- [R Functional Programming Exercises](R-Functional-Programming-Exercises.html) to step beyond apply into Reduce, Filter, Map, and purrr-style helpers.
+- [dplyr Exercises in R](dplyr-Exercises-in-R.html) to see the tidyverse counterpart of grouped aggregation.
