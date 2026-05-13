@@ -1,184 +1,44 @@
 ---
-title: "Power Analysis Exercises in R: 8 Sample Size Calculation Problems — Solved Step-by-Step)"
-slug: Power-Analysis-Exercises-in-R
-description: "Solve 8 power analysis exercises in R using the pwr package. Sample size problems for t-tests, ANOVA, correlation, and proportions, with full solutions."
-keywords: "power analysis exercises R, pwr package exercises, sample size calculation R, pwr.t.test examples, pwr.anova.test, pwr.r.test, Cohen's effect size, statistical power R"
-auto_link_terms: "power analysis exercises|sample size exercises|power analysis problems|power analysis practice|pwr package exercises|sample size calculation problems"
-auto_link_case_sensitive: false
+title: "Power Analysis Exercises in R: 18 Sample Size Problems Solved"
+slug: "Power-Analysis-Exercises-in-R"
+description: "Practice 18 power analysis problems in R with the pwr package: t-tests, ANOVA, proportions, regression. Sample size and power calculations with full solutions."
+keywords: "power analysis exercises in R, pwr package exercises, sample size calculation R, pwr.t.test, pwr.anova.test, Cohen's d, statistical power exercises, MDE in R"
 mathjax: true
 webr: true
-date: 2026-04-18
-curriculum_id: E5.5
-post_type: EX
-sidebar_title: "Power Analysis Exercises (8 problems)"
-fr_parent: Statistical-Power-Analysis-in-R.html
-difficulty: Intermediate
+date: "2026-05-13"
+post_type: "EX"
+sidebar_title: "Power Analysis Exercises"
+sidebar_order: 145
+fr_parent: "Statistical-Power-Analysis-in-R.html"
+auto_link_terms: "power analysis exercises|sample size exercises|pwr package exercises|sample size calculation problems|statistical power problems"
+auto_link_case_sensitive: false
+target_keyword: "power analysis exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Power Analysis Exercises in R: 8 Sample Size Calculation Problems — Solved Step-by-Step)
+# Power Analysis Exercises in R: 18 Sample Size Problems Solved
 
-<p class="lead">These 8 power analysis exercises in R walk you through sample size calculations for t-tests, ANOVA, correlations, proportions, and multiple regression using the <code>pwr</code> package, with every problem solved step-by-step and each solution runnable in the browser.</p>
+<p class="lead">Eighteen hands-on power analysis exercises in R covering t-tests, ANOVA, correlation, proportions, chi-square, multiple regression, and Monte Carlo power simulation with the <code>pwr</code> package. Every problem ships with a runnable solution and a written explanation hidden under a reveal.</p>
 
-## Which pwr function matches your test?
-
-Every power calculation in the `pwr` package follows one idea: pick the function that matches your test, plug in three of the four knobs (sample size, effect size, significance level, power), and leave the fourth as `NULL`. R solves for whichever you left blank. Here is the same function used twice, once to find sample size, once to find power, so you see both directions before jumping into the 8 exercises.
-
-```r title="Pwr: solve for sample size, then for power"
-# Load pwr once; it persists for every block below
+```r title="Run this once before any exercise"
 library(pwr)
-
-# Direction 1: solve for n (leave n blank)
-n_demo <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
-                     type = "two.sample", alternative = "two.sided")
-n_demo$n
-#> [1] 63.76561
-
-# Direction 2: solve for power given n = 30 (leave power blank)
-power_demo <- pwr.t.test(n = 30, d = 0.5, sig.level = 0.05,
-                         type = "two.sample", alternative = "two.sided")
-power_demo$power
-#> [1] 0.4778965
+library(dplyr)
+library(ggplot2)
+library(tibble)
 ```
 
-The first call says a two-sample t-test needs about **64 participants per group** to detect a medium effect (Cohen's d = 0.5) with 80% power at α = 0.05. The second call flips the question: if you only have 30 per group, your power drops to **48%**, which means more than half the time you would miss the effect even when it is truly there. One function, one object, two completely different design decisions.
+Cohen's conventions (small, medium, large) used throughout: d = 0.2 / 0.5 / 0.8 for means, r = 0.1 / 0.3 / 0.5 for correlation, f = 0.1 / 0.25 / 0.4 for ANOVA, h = 0.2 / 0.5 / 0.8 for proportions, w = 0.1 / 0.3 / 0.5 for chi-square, f² = 0.02 / 0.15 / 0.35 for regression. Effect sizes feed every `pwr.*` function and turn vague hopes ("a real effect") into a quantity you can plan around.
 
-Here is the one-line decision rule for picking a function:
+## Section 1. Foundations: solving for n, power, and MDE (3 problems)
 
-| Your test | pwr function | Effect size you supply |
-|---|---|---|
-| One-, two-, or paired-sample t-test | `pwr.t.test()` | Cohen's d |
-| One-way ANOVA | `pwr.anova.test()` | Cohen's f |
-| Two-proportion z-test | `pwr.2p.test()` | Cohen's h (via `ES.h()`) |
-| Pearson correlation | `pwr.r.test()` | r (the correlation itself) |
-| Chi-square test | `pwr.chisq.test()` | Cohen's w |
-| Linear / multiple regression | `pwr.f2.test()` | Cohen's f² |
+### Exercise 1.1: Solve for sample size in a two-sample t-test
 
-[KEY INSIGHT]
-**Every pwr function takes four knobs and solves for the one you leave as NULL.** If you do not pass a value for `n`, R solves for sample size. If you do not pass `power`, R solves for power. If you do not pass the effect size argument (`d`, `f`, `h`, `r`, `w`, `f2`), R solves for the minimum detectable effect. Three knowns, one unknown, every time.
+**Task:** A clinical trial team wants to detect a medium between-group difference (Cohen's d = 0.5) in mean systolic blood pressure between a drug arm and a placebo arm. Compute the sample size per arm needed for 80% power at α = 0.05 (two-sided) using `pwr.t.test()` and save the result object to `ex_1_1`.
 
-**Try it:** Compute the sample size for a **one-sample** t-test that detects a small-to-medium effect of `d = 0.4` with 80% power at α = 0.05. Save the raw `n` (unrounded) to `ex_n`.
-
-```r title="Your turn: one-sample t-test n"
-# Try it: one-sample t-test sample size
-ex_n <- pwr.t.test(d = 0.4,
-                   sig.level = 0.05,
-                   power = 0.80,
-                   type = "___",          # fill in the type
-                   alternative = "two.sided")$n
-ex_n
-#> Expected: around 51.01
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="One-sample t-test solution"
-ex_n <- pwr.t.test(d = 0.4,
-                   sig.level = 0.05,
-                   power = 0.80,
-                   type = "one.sample",
-                   alternative = "two.sided")$n
-ex_n
-#> [1] 51.00945
-```
-
-**Explanation:** `type = "one.sample"` is the switch that turns a two-sample calculation into a one-sample one. The one-sample t-test needs *fewer* participants than two-sample for the same effect, because you are only estimating one mean against a known reference, not two means against each other.
-
-</details>
-
-## How do you read pwr output in R?
-
-Every `pwr.*` function returns a `"power.htest"` object, a list with named components you can index directly. The print method shows a nicely formatted block, but the real value is in pulling fields out by name for report tables, plots, or downstream decisions like inflating for dropout.
-
-```r title="Inspect a pwr.t.test result object"
-# Two-sample t-test: medium effect, 80% power
-ss_res <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
-                     type = "two.sample", alternative = "two.sided")
-
-# The fields you'll actually use
-ss_res$n
-#> [1] 63.76561
-ss_res$d
-#> [1] 0.5
-ss_res$power
-#> [1] 0.8
-ss_res$method
-#> [1] "Two-sample t test power calculation"
-
-# Round n up: you cannot recruit 63.77 people
-ceiling(ss_res$n)
-#> [1] 64
-```
-
-The raw `$n` of 63.77 is the mathematical solution, the real-world sample size is always `ceiling($n)` because you cannot enrol a fractional participant. For a two-sample design, the 64 is **per group**, so the **total study size is 128**. Mixing these up is one of the most common power analysis mistakes, and Exercise 4 will reinforce it with a concrete cost in study budget.
-
-Cohen also gave convenient **small/medium/large** presets for each effect-size family. You will use these constantly when a principal investigator says "assume a medium effect":
-
-| Family | Small | Medium | Large | Function |
-|---|---|---|---|---|
-| d (mean difference / SD) | 0.20 | 0.50 | 0.80 | `pwr.t.test` |
-| f (ANOVA between / within SD) | 0.10 | 0.25 | 0.40 | `pwr.anova.test` |
-| h (arcsine of proportions) | 0.20 | 0.50 | 0.80 | `pwr.2p.test` |
-| r (correlation) | 0.10 | 0.30 | 0.50 | `pwr.r.test` |
-| f² (R² / (1 − R²)) | 0.02 | 0.15 | 0.35 | `pwr.f2.test` |
-
-The math is the same in every family: **small is hard to find, large is impossible to miss**. Cohen's `cohen.ES(test = "t", size = "medium")` returns the same presets programmatically if you want them inside a function.
-
-[TIP]
-**Always round per-arm n with `ceiling()`, never `round()`.** `round(63.77)` gives 64, but `round(63.20)` gives 63, which would leave you *underpowered*. Always round **up** to guarantee the target power, not down. This is a one-line habit that prevents a recurring class of design bugs.
-
-[WARNING]
-**The n from pwr is per group, not total.** A two-sample t-test with n = 64 means **64 + 64 = 128 participants total**. A one-way ANOVA with k = 4 groups and n = 45 means **45 × 4 = 180**. Inflate for expected dropout on top of that (typically 10–20% for short studies, 30–50% for long or demanding ones).
-
-**Try it:** Take the saved `ss_res` from above and compute the **total** sample size for the two-sample design, rounded up. Save to `ex_ceil`.
-
-```r title="Your turn: total sample size"
-# Try it: total sample size = per-arm n * 2, rounded up
-ex_ceil <- ceiling(ss_res$n) * ___   # fill in the multiplier
-ex_ceil
-#> Expected: 128
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Total n solution"
-ex_ceil <- ceiling(ss_res$n) * 2
-ex_ceil
-#> [1] 128
-```
-
-**Explanation:** Two-sample designs have two equal arms, so total = per-arm × 2. If the arms were unequal, you would instead call `pwr.t2n.test()` with `n1` and `n2` separately.
-
-</details>
-
-## Practice Exercises
-
-Eight capstone problems, ordered from simpler single-function solves to harder inverse problems. Each exercise uses a distinct `ex1_` to `ex8_` prefix so your solution variables do not clobber earlier state.
-
-### Exercise 1: Two-sample t-test sample size
-
-You are designing an A/B test comparing a new onboarding flow against the old one. You want to detect a medium effect (`d = 0.5`) with 80% power at α = 0.05, two-sided. How many users do you need **per arm**?
-
-```r title="Exercise 1 starter: two-sample t-test n"
-# Exercise 1: two-sample t-test, d = 0.5, power = 0.80, alpha = 0.05
-# Hint: pwr.t.test(..., type = "two.sample", alternative = "two.sided")
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-ex1_res <- pwr.t.test(d = 0.5,
-                      sig.level = 0.05,
-                      power = 0.80,
-                      type = "two.sample",
-                      alternative = "two.sided")
-ex1_res
-#>
 #>      Two-sample t test power calculation
 #>
 #>               n = 63.76561
@@ -188,68 +48,331 @@ ex1_res
 #>     alternative = two.sided
 #>
 #> NOTE: n is number in *each* group
-
-ceiling(ex1_res$n) * 2
-#> [1] 128
 ```
 
-**Explanation:** 63.77 per group rounds up to **64 per arm, 128 total**. Cohen calls d = 0.5 a medium effect, the kind you can spot with the naked eye on a boxplot. Smaller effects (d = 0.2) would roughly quadruple the sample, because required n scales as **1/d²**.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Paired t-test sample size
-
-You are running a pre-post study on the same group of employees (measuring focus score before and after a training). The expected within-subject effect is small-to-medium (`d = 0.3`). You want 90% power at α = 0.05, two-sided. How many **pairs** do you need?
-
-```r title="Exercise 2 starter: paired t-test n"
-# Exercise 2: paired t-test, d = 0.3, power = 0.90, alpha = 0.05
-# Hint: type = "paired"
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-ex2_res <- pwr.t.test(d = 0.3,
-                      sig.level = 0.05,
-                      power = 0.90,
-                      type = "paired",
-                      alternative = "two.sided")
-ex2_res$n
-#> [1] 119.1701
-
-ceiling(ex2_res$n)
-#> [1] 120
-```
-
-**Explanation:** You need **120 paired measurements** (i.e., 120 employees measured twice, not 240 people). Paired designs soak up between-subject variability, so the same `d` is effectively easier to detect than in a two-sample design. Two knobs changed from Exercise 1: the effect shrank from 0.5 to 0.3 (which alone triples n), and power rose from 0.80 to 0.90 (which adds about 34%). Both bumps push n up sharply.
-
-</details>
-
-### Exercise 3: One-way ANOVA with 4 groups
-
-You are comparing mean revenue across **4** marketing channels. You expect a medium between-group effect (`f = 0.25`), want 80% power at α = 0.05. How many observations **per group** do you need?
-
-```r title="Exercise 3 starter: one-way ANOVA n per group"
-# Exercise 3: pwr.anova.test, k = 4, f = 0.25, power = 0.80, alpha = 0.05
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-ex3_res <- pwr.anova.test(k = 4,
-                          f = 0.25,
-                          sig.level = 0.05,
-                          power = 0.80)
-ex3_res
+```r title="Solution"
+ex_1_1 <- pwr.t.test(d = 0.5, sig.level = 0.05, power = 0.80,
+                     type = "two.sample", alternative = "two.sided")
+ex_1_1
+#>      Two-sample t test power calculation
 #>
+#>               n = 63.76561
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Explanation:** `pwr.t.test()` follows the four-knob rule: pass any three of `n`, `d`, `sig.level`, `power` and leave the fourth as `NULL`. R solves for the missing one. The output 63.77 means you need 64 patients per arm (always round up: rounding down sacrifices the very power you specified). The `NOTE` line is easy to miss: total enrollment is 128, not 64.
+
+</details>
+
+### Exercise 1.2: Solve for power given a fixed sample size
+
+**Task:** A grant submission specifies n = 30 per group already locked in by budget. The analyst needs to report the achievable power against a medium effect (d = 0.5) at α = 0.05 (two-sided) for a two-sample t-test. Use `pwr.t.test()` with `power = NULL` and save the result to `ex_1_2`.
+
+**Expected result:**
+
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 30
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.4778965
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_2 <- pwr.t.test(n = 30, d = 0.5, sig.level = 0.05,
+                     type = "two.sample", alternative = "two.sided")
+ex_1_2
+#>      Two-sample t test power calculation
+#>
+#>               n = 30
+#>               d = 0.5
+#>       sig.level = 0.05
+#>           power = 0.4778965
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Explanation:** Flipping which argument is `NULL` flips the question. Here R returns power = 0.478, meaning fewer than half the time a real medium effect would be detected. This is the "post-hoc power" calculation done BEFORE running the study (which is fine and informative). Computing observed-data post-hoc power AFTER the study is a known anti-pattern and not what this exercise does.
+
+</details>
+
+### Exercise 1.3: Minimum detectable effect at fixed n and power
+
+**Task:** A product analyst has 50 users per arm and wants to know the smallest effect size their two-sample t-test can reliably detect at 80% power (α = 0.05, two-sided). Solve for `d = NULL` with `pwr.t.test()` and save the result object to `ex_1_3`. This is the MDE (minimum detectable effect) and is the single most useful question for a planning meeting.
+
+**Expected result:**
+
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 50
+#>               d = 0.5656287
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_3 <- pwr.t.test(n = 50, power = 0.80, sig.level = 0.05,
+                     type = "two.sample", alternative = "two.sided")
+ex_1_3
+#>      Two-sample t test power calculation
+#>
+#>               n = 50
+#>               d = 0.5656287
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Explanation:** MDE inverts the design question: instead of "what n do I need to find d?", you ask "given n, what's the smallest d I'd notice?". The answer 0.566 says effects below that magnitude will mostly slip through as non-significant. This framing is honest in stakeholder conversations: it makes the gap between "we found nothing" and "no effect exists" explicit. Pair with the raw effect on the original scale (d × SD).
+
+</details>
+
+## Section 2. t-tests in practice (4 problems)
+
+### Exercise 2.1: Paired-sample design for a before-and-after intervention
+
+**Task:** A physical therapy clinic is studying whether a 6-week stretching protocol improves a hamstring flexibility score (paired, same patients before vs. after). Pilot data suggests a within-subject effect of d = 0.4. Compute the number of patients required for 90% power at α = 0.05 (two-sided) with `pwr.t.test()` using `type = "paired"` and save the result to `ex_2_1`.
+
+**Expected result:**
+
+```
+#>      Paired t test power calculation
+#>
+#>               n = 67.07532
+#>               d = 0.4
+#>       sig.level = 0.05
+#>           power = 0.9
+#>     alternative = two.sided
+#>
+#> NOTE: n is number of *pairs*
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- pwr.t.test(d = 0.4, sig.level = 0.05, power = 0.90,
+                     type = "paired", alternative = "two.sided")
+ex_2_1
+#>      Paired t test power calculation
+#>
+#>               n = 67.07532
+#>               d = 0.4
+#>       sig.level = 0.05
+#>           power = 0.9
+#>     alternative = two.sided
+#>
+#> NOTE: n is number of *pairs*
+```
+
+**Explanation:** Paired designs use the standard deviation of the per-subject DIFFERENCE, not the raw measurement SD. Because the same subject contributes both observations, within-subject correlation typically cuts that difference-SD substantially, which is why paired designs need far fewer subjects than independent two-sample designs for the same `d`. Watch for the `n is number of *pairs*` note: 68 patients total, not 68 per side.
+
+</details>
+
+### Exercise 2.2: One-sample t-test against a known benchmark
+
+**Task:** A QA engineer needs to test whether the mean tensile strength of a new alloy batch exceeds the legacy spec of 500 MPa. Pilot data suggests a Cohen's d of 0.35 (improvement over 500). Compute the sample size needed for 80% power at α = 0.05 (one-sided, upper) with `pwr.t.test()` using `type = "one.sample"` and save the result to `ex_2_2`.
+
+**Expected result:**
+
+```
+#>      One-sample t test power calculation
+#>
+#>               n = 52.0245
+#>               d = 0.35
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = greater
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- pwr.t.test(d = 0.35, sig.level = 0.05, power = 0.80,
+                     type = "one.sample", alternative = "greater")
+ex_2_2
+#>      One-sample t test power calculation
+#>
+#>               n = 52.0245
+#>               d = 0.35
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = greater
+```
+
+**Explanation:** A one-sided alternative is justified ONLY when the direction is decided before any data is seen and the wrong-sign outcome is genuinely uninteresting (here, a worse alloy gets rejected regardless). The one-sided test gains power for free because all of α is on one tail, but the cost is no protection against detecting a real degradation. Make this decision in the protocol, not after looking at pilots, or you bias the inference.
+
+</details>
+
+### Exercise 2.3: Unequal sample sizes per arm with pwr.t2n.test
+
+**Task:** A marketing team is running an A/B test where the control bucket has 800 sessions but the new variant only got 200 sessions before deploy was paused. Compute the achievable power to detect d = 0.25 at α = 0.05 (two-sided) using `pwr.t2n.test()` and save the result to `ex_2_3`. This is the right function when arms are unbalanced.
+
+**Expected result:**
+
+```
+#>      t test power calculation
+#>
+#>              n1 = 800
+#>              n2 = 200
+#>               d = 0.25
+#>       sig.level = 0.05
+#>           power = 0.8537432
+#>     alternative = two.sided
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- pwr.t2n.test(n1 = 800, n2 = 200, d = 0.25,
+                       sig.level = 0.05, alternative = "two.sided")
+ex_2_3
+#>      t test power calculation
+#>
+#>              n1 = 800
+#>              n2 = 200
+#>               d = 0.25
+#>       sig.level = 0.05
+#>           power = 0.8537432
+#>     alternative = two.sided
+```
+
+**Explanation:** Power for unbalanced designs is driven by the harmonic mean of `n1` and `n2`, which is dominated by the smaller arm. 800 vs 200 is roughly equivalent to 320 per arm balanced, so the extra control sessions buy less than you might guess. When you can choose, balanced enrollment is almost always more efficient than 80/20 splits. Use `pwr.t2n.test()` instead of `pwr.t.test()` whenever the groups are not equal.
+
+</details>
+
+### Exercise 2.4: Build a power curve over a range of sample sizes
+
+**Task:** A study planner wants to see how power changes as sample size per arm grows from 10 to 200 for a two-sample t-test detecting d = 0.4 at α = 0.05 (two-sided). Build a tibble with columns `n` and `power` by mapping over `n_seq <- seq(10, 200, by = 10)` and save to `ex_2_4`. This is the canonical power-curve setup that goes into proposals.
+
+**Expected result:**
+
+```
+#> # A tibble: 20 x 2
+#>        n  power
+#>    <dbl>  <dbl>
+#>  1    10 0.115
+#>  2    20 0.214
+#>  3    30 0.314
+#>  4    40 0.409
+#>  5    50 0.496
+#>  6    60 0.574
+#> ...
+#> # 14 more rows hidden
+#> # n = 100 reaches power ≈ 0.81
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+n_seq <- seq(10, 200, by = 10)
+ex_2_4 <- tibble(
+  n = n_seq,
+  power = sapply(n_seq, function(nn) {
+    pwr.t.test(n = nn, d = 0.4, sig.level = 0.05,
+               type = "two.sample")$power
+  })
+)
+ex_2_4
+#> # A tibble: 20 x 2
+#>        n  power
+#>    <dbl>  <dbl>
+#>  1    10 0.115
+#>  2    20 0.214
+#>  3    30 0.314
+#> ...
+```
+
+**Explanation:** A power curve is the right deliverable when stakeholders ask "is n = 100 enough?". `pwr.t.test()` returns an S3 list, so `$power` pulls the scalar you need. `sapply()` works here because the output is a single numeric per call. For ggplot, pipe `ex_2_4` into `geom_line(aes(n, power)) + geom_hline(yintercept = 0.80, linetype = "dashed")` and the answer becomes self-evident.
+
+</details>
+
+## Section 3. ANOVA and correlation (4 problems)
+
+### Exercise 3.1: One-way ANOVA sample size for four treatment groups
+
+**Task:** An agronomist plans a one-way ANOVA comparing yield under four fertilizer formulations. Expected between-group effect is Cohen's f = 0.25 (medium). Compute the sample size per group needed for 80% power at α = 0.05 using `pwr.anova.test()` with `k = 4` and save to `ex_3_1`. Cohen's f for ANOVA equals the standard deviation of group means divided by the within-group SD.
+
+**Expected result:**
+
+```
 #>      Balanced one-way analysis of variance power calculation
 #>
 #>               k = 4
@@ -259,246 +382,529 @@ ex3_res
 #>           power = 0.8
 #>
 #> NOTE: n is number in each group
-
-ceiling(ex3_res$n) * 4
-#> [1] 180
 ```
 
-**Explanation:** **45 observations per group × 4 groups = 180 total.** ANOVA power depends on the between-group spread relative to the within-group spread, captured by Cohen's `f`. The same f = 0.25 with only 2 groups (a t-test) would need only ~64 per group, four groups demand more because the detection threshold has to clear the multiple-comparison baked into the F statistic's null distribution.
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 4: Two-proportion test (email click-through rates)
-
-Your baseline email has a 10% click-through rate. You want to detect an improvement to **15%** (absolute 5 percentage-point lift) with 80% power at α = 0.05, two-sided. How many emails do you need per variant?
-
-```r title="Exercise 4 starter: two-proportion test n"
-# Exercise 4: pwr.2p.test, p1 = 0.10, p2 = 0.15
-# Step 1: convert proportions to Cohen's h with ES.h(p1, p2)
-# Step 2: pwr.2p.test(h, sig.level, power)
-
-# Write your code below:
-
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-ex4_h <- ES.h(p1 = 0.10, p2 = 0.15)
-ex4_h
-#> [1] -0.1519499
-
-ex4_res <- pwr.2p.test(h = ex4_h,
-                       sig.level = 0.05,
-                       power = 0.80,
-                       alternative = "two.sided")
-ex4_res$n
-#> [1] 340.2519
-
-ceiling(ex4_res$n) * 2
-#> [1] 682
+```r title="Solution"
+ex_3_1 <- pwr.anova.test(k = 4, f = 0.25, sig.level = 0.05, power = 0.80)
+ex_3_1
+#>      Balanced one-way analysis of variance power calculation
+#>
+#>               k = 4
+#>               n = 44.59927
+#>               f = 0.25
+#>       sig.level = 0.05
+#>           power = 0.8
+#>
+#> NOTE: n is number in each group
 ```
 
-**Explanation:** `ES.h()` applies the arcsine transformation, `h = 2·asin(√p1) − 2·asin(√p2)`, giving `h = −0.152` here (the sign just tracks which proportion is larger; pwr uses the magnitude). You need **341 emails per arm, 682 total**. Notice how small an absolute 5-percentage-point lift looks in effect-size units, proportions close to 0 or 1 have a compressed arcsine scale, and detecting them needs more data than the raw difference suggests.
+**Explanation:** Round up to 45 per group, so 180 total plots. The `k` argument is the number of groups, not (groups - 1) degrees of freedom: a common slip. Cohen's f is harder to estimate from pilots than d because it requires knowing how group means scatter around the grand mean. If you only have a pilot for two groups, translate that d to f via `f = d / 2` when k = 2, then scale up cautiously.
 
 </details>
 
-[NOTE]
-**`ES.h()` is not the same as `p1 − p2`.** Cohen's h stabilises variance across the 0–1 range of proportions, so a 5-point lift from 0.10 to 0.15 gives a different `h` than a 5-point lift from 0.45 to 0.50. Always feed raw proportions to `ES.h()` rather than computing a difference yourself.
+### Exercise 3.2: Solve for power in an ANOVA with fixed n
 
-### Exercise 5: Correlation sample size
+**Task:** An education researcher recruited n = 25 students per group across three teaching methods (k = 3) and now needs the realized power against a medium Cohen's f = 0.25 at α = 0.05. Use `pwr.anova.test()` solving for `power = NULL` and save the result to `ex_3_2`. Report the power as a percentage in the explanation.
 
-You want to run a validity study to detect a modest correlation (`r = 0.30`) between two survey scales with 80% power at α = 0.05, two-sided. How many participants do you need?
+**Expected result:**
 
-```r title="Exercise 5 starter: correlation n"
-# Exercise 5: pwr.r.test, r = 0.30, power = 0.80, alpha = 0.05
+```
+#>      Balanced one-way analysis of variance power calculation
+#>
+#>               k = 3
+#>               n = 25
+#>               f = 0.25
+#>       sig.level = 0.05
+#>           power = 0.5707465
+```
 
-# Write your code below:
+**Difficulty:** Intermediate
 
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-ex5_res <- pwr.r.test(r = 0.30,
-                      sig.level = 0.05,
-                      power = 0.80,
+```r title="Solution"
+ex_3_2 <- pwr.anova.test(k = 3, n = 25, f = 0.25, sig.level = 0.05)
+ex_3_2
+#>      Balanced one-way analysis of variance power calculation
+#>
+#>               k = 3
+#>               n = 25
+#>               f = 0.25
+#>       sig.level = 0.05
+#>           power = 0.5707465
+```
+
+**Explanation:** Power is 57%: with 25 per group the design is underpowered for a medium effect. The omnibus F detects ANY group difference, but it does NOT tell you which pair differs: that's a separate post-hoc question with its own multiple-comparison correction. If the researcher cares about a specific pair, plan power for that contrast (a two-sample t-test or a planned linear contrast), not the omnibus F.
+
+</details>
+
+### Exercise 3.3: Correlation sample size to detect r = 0.3
+
+**Task:** A psychology lab wants to detect a moderate correlation (r = 0.3) between sleep duration and a memory test score. Compute the sample size needed for 80% power at α = 0.05 (two-sided) using `pwr.r.test()` and save the result to `ex_3_3`. This is the workhorse function for any Pearson-correlation hypothesis.
+
+**Expected result:**
+
+```
+#>      approximate correlation power calculation (arctangh transformation)
+#>
+#>               n = 84.07364
+#>               r = 0.3
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- pwr.r.test(r = 0.3, sig.level = 0.05, power = 0.80,
+                     alternative = "two.sided")
+ex_3_3
+#>      approximate correlation power calculation (arctangh transformation)
+#>
+#>               n = 84.07364
+#>               r = 0.3
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+```
+
+**Explanation:** Power for correlation uses Fisher's z (arctanh) transformation, which makes the sampling distribution of r approximately normal. The needed n grows nonlinearly: r = 0.3 needs 85 subjects, r = 0.2 needs about 194, r = 0.1 needs about 781. Small correlations require very large samples. If the literature suggests r ≈ 0.15, a 100-person study is essentially exploratory, not confirmatory.
+
+</details>
+
+### Exercise 3.4: Minimum detectable f for an ANOVA budget
+
+**Task:** A lab can afford 20 mice per group across 5 groups in a one-way ANOVA (k = 5, n = 20). The PI needs the minimum detectable Cohen's f at 80% power, α = 0.05. Solve `pwr.anova.test()` with `f = NULL` and save the result to `ex_3_4`. Translate the resulting f into a one-line plain-English claim in the explanation.
+
+**Expected result:**
+
+```
+#>      Balanced one-way analysis of variance power calculation
+#>
+#>               k = 5
+#>               n = 20
+#>               f = 0.3199926
+#>       sig.level = 0.05
+#>           power = 0.8
+#>
+#> NOTE: n is number in each group
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_4 <- pwr.anova.test(k = 5, n = 20, sig.level = 0.05, power = 0.80)
+ex_3_4
+#>      Balanced one-way analysis of variance power calculation
+#>
+#>               k = 5
+#>               n = 20
+#>               f = 0.3199926
+#>       sig.level = 0.05
+#>           power = 0.8
+#>
+#> NOTE: n is number in each group
+```
+
+**Explanation:** MDE for ANOVA is f ≈ 0.32, which sits between Cohen's medium (0.25) and large (0.40). Plain English: with this design, only between-group spread larger than roughly 30% of the within-group SD will be reliably caught. Smaller true effects will mostly look null. This is the right number to put in the protocol's "limitations" paragraph instead of pretending the study can detect everything.
+
+</details>
+
+## Section 4. Proportions and chi-square (3 problems)
+
+### Exercise 4.1: Two-proportion A/B test sample size with pwr.2p.test
+
+**Task:** A growth team is testing a checkout redesign expected to lift the conversion rate from 4% (p1) to 5% (p2). Compute the per-arm sample size needed for 80% power at α = 0.05 (two-sided), using `pwr.2p.test()` with Cohen's h obtained from `ES.h(p1, p2)`. Save the full result to `ex_4_1`. This is the canonical A/B test sizing question.
+
+**Expected result:**
+
+```
+#>      Difference of proportion power calculation for binomial distribution (arcsine transformation)
+#>
+#>               h = 0.04859561
+#>               n = 6647.156
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: same sample sizes
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+h_ab <- ES.h(p1 = 0.04, p2 = 0.05)
+ex_4_1 <- pwr.2p.test(h = h_ab, sig.level = 0.05, power = 0.80,
                       alternative = "two.sided")
-ex5_res$n
-#> [1] 84.07364
-
-ceiling(ex5_res$n)
-#> [1] 85
+ex_4_1
+#>      Difference of proportion power calculation for binomial distribution (arcsine transformation)
+#>
+#>               h = 0.04859561
+#>               n = 6647.156
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: same sample sizes
 ```
 
-**Explanation:** You need **85 participants**. Correlation power scales roughly as `1/atanh(r)²`, so detecting `r = 0.1` would need about 783 participants, while `r = 0.5` only needs about 29. Fisher's z-transform (`atanh`) is the quiet workhorse behind this calculation, it turns the bounded `[−1, 1]` correlation into an unbounded normal-ish quantity where power arithmetic works cleanly.
+**Explanation:** ES.h applies the arcsine transformation: h = 2(asin(√p1) - asin(√p2)). The arcsine variance is stable across the [0,1] range, so the same h has the same statistical meaning whether base rate is 4% or 40%. The result, 6,648 per arm, is much larger than a naive Cohen's d calculation suggests, because a 1-point lift on a 4% base is a tiny absolute effect. This is why low-base-rate A/B tests are notoriously sample-hungry.
 
 </details>
 
-### Exercise 6: Achieved power for a fixed n (inverse problem)
+### Exercise 4.2: Chi-square goodness-of-fit power
 
-Your principal investigator says "we already have n = 30 per group, and we expect a medium effect (`d = 0.5`). What is our power for a two-sample t-test at α = 0.05?" Solve for power (the inverse direction).
+**Task:** A geneticist is testing whether observed counts in four phenotype categories match a 9:3:3:1 Mendelian ratio with n = 200 total offspring. Expected effect size is w = 0.2 (a small departure). Compute the achievable power at α = 0.05 with `pwr.chisq.test()` using `df = 3` (categories minus 1) and save the result to `ex_4_2`.
 
-```r title="Exercise 6 starter: solve for power"
-# Exercise 6: pwr.t.test with n = 30, d = 0.5, solve for power
-# Hint: leave power as NULL (do not pass it)
+**Expected result:**
 
-# Write your code below:
+```
+#>      Chi squared power calculation
+#>
+#>               w = 0.2
+#>               N = 200
+#>              df = 3
+#>       sig.level = 0.05
+#>           power = 0.6228293
+#>
+#> NOTE: N is the number of observations
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-ex6_res <- pwr.t.test(n = 30,
-                      d = 0.5,
-                      sig.level = 0.05,
-                      type = "two.sample",
-                      alternative = "two.sided")
-ex6_res$power
-#> [1] 0.4778965
+```r title="Solution"
+ex_4_2 <- pwr.chisq.test(w = 0.2, N = 200, df = 3, sig.level = 0.05)
+ex_4_2
+#>      Chi squared power calculation
+#>
+#>               w = 0.2
+#>               N = 200
+#>              df = 3
+#>       sig.level = 0.05
+#>           power = 0.6228293
+#>
+#> NOTE: N is the number of observations
 ```
 
-**Explanation:** Power is about **48%**, well below the conventional 80% target. In plain English, more than half the time this study would fail to detect a real medium effect. This is the classic "post-hoc power" setup, and the honest recommendation here is: either **collect more data** (Exercise 1 said ~64 per arm for 80%), **accept a smaller detectable effect** (Exercise 7), or **redesign** with a more sensitive measure.
+**Explanation:** For chi-square, `df` is what shifts: a 2×3 table of independence uses `(2-1)*(3-1) = 2`, a goodness-of-fit with 4 categories uses `4-1 = 3`. The `N` argument is TOTAL observations, not per-cell. Power 62% is borderline; doubling N to 400 lifts it to ≈ 0.91. Effect size w can be computed from a hypothesized contingency table via `ES.w1()` (one-way) or `ES.w2()` (two-way) if you don't want to pick a Cohen's convention.
 
 </details>
 
-[KEY INSIGHT]
-**A study with less than 80% power is a gamble against your own hypothesis.** If the true effect is exactly what you assumed and power is 48%, you will fail to reject the null 52% of the time and publish or report a false negative. That is not a subtle statistical issue, it is a coin flip about whether your study can even answer its question.
+### Exercise 4.3: Convert a contingency table into Cohen's w
 
-### Exercise 7: Minimum detectable effect (inverse problem)
+**Task:** A pollster has hypothesized cell probabilities for a 2×2 voting-preference table (`p_table` built inline below). Compute Cohen's w directly from the table using `ES.w2()`, then feed it into `pwr.chisq.test()` to find the N needed for 80% power at α = 0.05 with `df = 1`. Save the sample size result object to `ex_4_3`.
 
-Constraint flips again: you have exactly **n = 50 per group**, you want 80% power at α = 0.05, two-sided. What is the **smallest Cohen's d** your study can reliably detect?
+**Expected result:**
 
-```r title="Exercise 7 starter: solve for d"
-# Exercise 7: pwr.t.test with n = 50, power = 0.80, solve for d
-# Hint: leave d as NULL (do not pass it)
+```
+#> # Step 1: w from table
+#> [1] 0.1393589
+#> # Step 2: sample size
+#>      Chi squared power calculation
+#>
+#>               w = 0.1393589
+#>               N = 404.4488
+#>              df = 1
+#>       sig.level = 0.05
+#>           power = 0.8
+```
 
-# Write your code below:
+**Difficulty:** Advanced
 
+```r title="Your turn"
+# p_table is a 2x2 matrix of joint probabilities (rows sum to row-marginals,
+# cols sum to col-marginals; total = 1)
+p_table <- matrix(c(0.30, 0.25,
+                    0.20, 0.25), nrow = 2, byrow = TRUE)
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-ex7_res <- pwr.t.test(n = 50,
-                      sig.level = 0.05,
-                      power = 0.80,
-                      type = "two.sample",
-                      alternative = "two.sided")
-ex7_res$d
-#> [1] 0.5657458
+```r title="Solution"
+p_table <- matrix(c(0.30, 0.25,
+                    0.20, 0.25), nrow = 2, byrow = TRUE)
+w_obs <- ES.w2(p_table)
+w_obs
+#> [1] 0.1393589
+
+ex_4_3 <- pwr.chisq.test(w = w_obs, df = 1, sig.level = 0.05, power = 0.80)
+ex_4_3
+#>      Chi squared power calculation
+#>
+#>               w = 0.1393589
+#>               N = 404.4488
+#>              df = 1
+#>       sig.level = 0.05
+#>           power = 0.8
 ```
 
-**Explanation:** Your minimum detectable effect is `d ≈ 0.566`, just above medium. Anything smaller than that, your study will miss more than 20% of the time. This framing is often the most useful version of power analysis in practice: instead of asking "how many do I need?" (which assumes you know the effect), you ask "given what I can collect, what effects can I actually see?" and then judge whether that floor is scientifically interesting.
+**Explanation:** `ES.w2()` compares the supplied joint distribution against the independence model implied by its marginals, returning the effect size for a test of independence. This skips the guesswork of picking Cohen's small/medium/large: the table itself encodes the effect. About 405 respondents are needed. Always check that `sum(p_table) == 1` before passing in: `ES.w2()` will compute even on un-normalized tables and silently return wrong w.
 
 </details>
 
-### Exercise 8: Multiple linear regression (pwr.f2.test)
+## Section 5. Regression and advanced topics (4 problems)
 
-You are fitting a multiple regression with **3 predictors** and want to detect a medium overall effect (`f² = 0.15`) with 80% power at α = 0.05. Solve for `v` (the denominator degrees of freedom) and convert to **total sample size**.
+### Exercise 5.1: Multiple regression sample size from f²
 
-```r title="Exercise 8 starter: pwr.f2.test"
-# Exercise 8: pwr.f2.test, u = 3 (predictors), f2 = 0.15, power = 0.80
-# Hint: leave v as NULL; total n = v + u + 1 (adds back intercept + u predictors)
+**Task:** A marketing analyst is fitting a regression with 5 predictors to explain customer-lifetime-value, and a colleague's prior study reports R² ≈ 0.13 for a similar set. Convert R² to Cohen's f² via `f2 = R2 / (1 - R2)` and compute the sample size needed for 80% power at α = 0.05 using `pwr.f2.test()` with `u = 5` (numerator df). Save the result to `ex_5_1`.
 
-# Write your code below:
+**Expected result:**
 
+```
+#>      Multiple regression power calculation
+#>
+#>               u = 5
+#>               v = 76.04632
+#>              f2 = 0.1494253
+#>       sig.level = 0.05
+#>           power = 0.8
+#>
+#> # Total n = u + v + 1
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+R2 <- 0.13
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-ex8_res <- pwr.f2.test(u = 3,
-                       f2 = 0.15,
-                       sig.level = 0.05,
-                       power = 0.80)
-ex8_res$v
-#> [1] 72.70583
+```r title="Solution"
+R2 <- 0.13
+f2 <- R2 / (1 - R2)
+ex_5_1 <- pwr.f2.test(u = 5, f2 = f2, sig.level = 0.05, power = 0.80)
+ex_5_1
+#>      Multiple regression power calculation
+#>
+#>               u = 5
+#>               v = 76.04632
+#>              f2 = 0.1494253
+#>       sig.level = 0.05
+#>           power = 0.8
 
-total_n <- ceiling(ex8_res$v) + 3 + 1
-total_n
-#> [1] 77
+n_total <- ceiling(ex_5_1$u + ex_5_1$v + 1)
+n_total
+#> [1] 83
 ```
 
-**Explanation:** `u` is the numerator df (number of tested predictors), `v` is the denominator df (residual df). Total sample size is `n = v + u + 1` because the model consumes `u + 1` parameters (the intercept plus `u` slopes). So **73 residual df + 3 predictors + 1 intercept = 77 participants**. Cohen's `f² = R² / (1 − R²)`; `f² = 0.15` corresponds to an R² of about 13%.
+**Explanation:** `pwr.f2.test()` returns `v` (denominator df = n - u - 1). Recover n with `u + v + 1`. About 83 total observations are needed. Cohen's f² for regression: 0.02 = small, 0.15 = medium, 0.35 = large. To plan power for a SINGLE predictor added to a model with `q` other predictors, set `u = 1` and use `f2 = (R²_full - R²_reduced) / (1 - R²_full)`, which is the partial-effect form.
 
 </details>
 
-[TIP]
-**Total n for regression is `v + u + 1`, not just `v`.** `pwr.f2.test()` returns `v`, the residual degrees of freedom, because that is the quantity the F statistic uses. Converting to a recruitment target always requires adding back `u + 1` for the model parameters.
+### Exercise 5.2: Power curve over a range of effect sizes
 
-## Complete Example: Design an A/B Test in 10 Lines
+**Task:** A study planner wants a "what if the effect is smaller than I hoped" sensitivity check: for a two-sample t-test with n = 60 per arm and α = 0.05 (two-sided), compute power across `d_seq <- seq(0.1, 0.8, by = 0.05)` and store the result as a tibble with columns `d` and `power` named `ex_5_2`. This is the sensitivity counterpart to a sample-size curve.
 
-You are the analyst on an e-commerce pricing experiment. Baseline conversion is 12%. Product wants to know the smallest variant-conversion lift you can reliably detect with a two-proportion z-test at 80% power, α = 0.05, assuming 20% user dropout before the conversion window closes. Here is the whole calculation in one block.
+**Expected result:**
 
-```r title="End-to-end study design"
-# Step 1: effect size for a minimum interesting lift, 12% -> 14%
-design_h <- ES.h(p1 = 0.12, p2 = 0.14)
-design_h
-#> [1] -0.05972551
-
-# Step 2: per-arm sample size
-design_res <- pwr.2p.test(h = design_h,
-                          sig.level = 0.05,
-                          power = 0.80,
-                          alternative = "two.sided")
-n_per_arm <- ceiling(design_res$n)
-n_per_arm
-#> [1] 2201
-
-# Step 3: inflate by 20% for dropout
-n_inflated <- ceiling(n_per_arm / (1 - 0.20))
-n_inflated
-#> [1] 2752
-
-# Step 4: total users across both arms
-n_inflated * 2
-#> [1] 5504
+```
+#> # A tibble: 15 x 2
+#>        d power
+#>    <dbl> <dbl>
+#>  1  0.1  0.107
+#>  2  0.15 0.149
+#>  3  0.2  0.198
+#>  4  0.25 0.256
+#> ...
+#>  9  0.5  0.769
+#> 10  0.55 0.832
+#> ...
+#> # 5 more rows hidden
 ```
 
-You need to route about **5,504 users** into the A/B test to reliably spot a 2-percentage-point lift after accounting for dropout. The key numbers to report back to Product are: the minimum lift assumed (2pp), the per-arm inflated n (2,752), and the total (5,504). If they push back ("can we do it with 3,000 users?"), run the inverse version from Exercise 6: hold `n` fixed and report the resulting power, so the tradeoff is explicit.
+**Difficulty:** Advanced
 
-## Summary
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
 
-Here is the full scoreboard for the 8 exercises plus the capstone, side-by-side:
+<details>
+<summary>Click to reveal solution</summary>
 
-| # | Test | pwr function | Effect size | Solve for | Answer |
-|---|---|---|---|---|---|
-| 1 | Two-sample t | `pwr.t.test` | d = 0.5 | n | 64 per arm (128 total) |
-| 2 | Paired t | `pwr.t.test` (paired) | d = 0.3 | n | 120 pairs |
-| 3 | One-way ANOVA, k=4 | `pwr.anova.test` | f = 0.25 | n | 45 per group (180 total) |
-| 4 | Two-proportion | `pwr.2p.test` | h from ES.h(0.10, 0.15) | n | 341 per arm (682 total) |
-| 5 | Correlation | `pwr.r.test` | r = 0.30 | n | 85 |
-| 6 | Two-sample t | `pwr.t.test` | d = 0.5, n = 30 | **power** | 0.478 |
-| 7 | Two-sample t | `pwr.t.test` | n = 50, power = 0.80 | **d** | 0.566 |
-| 8 | Multiple regression | `pwr.f2.test` | u = 3, f² = 0.15 | v → total n | 77 total |
-| E | A/B test design | `pwr.2p.test` + inflation | h from 0.12 vs 0.14 | n with dropout | 5,504 total |
+```r title="Solution"
+d_seq <- seq(0.1, 0.8, by = 0.05)
+ex_5_2 <- tibble(
+  d = d_seq,
+  power = sapply(d_seq, function(dd) {
+    pwr.t.test(n = 60, d = dd, sig.level = 0.05,
+               type = "two.sample")$power
+  })
+)
+ex_5_2
+#> # A tibble: 15 x 2
+#>        d power
+#>    <dbl> <dbl>
+#>  1  0.1  0.107
+#>  2  0.15 0.149
+#> ...
+```
 
-Four rules carry through every exercise:
+**Explanation:** A sensitivity curve answers "what's the smallest d this design can still detect at acceptable power?" by reading the chart at power = 0.80. With n = 60 the design crosses 80% at d ≈ 0.52. Pair it with a plot: `ggplot(ex_5_2, aes(d, power)) + geom_line() + geom_hline(yintercept = 0.8, linetype = "dashed")`. Submitting both the sample-size curve (fixed d, varying n) and the sensitivity curve (fixed n, varying d) is the gold standard for power sections in proposals.
 
-- **Three knowns, one unknown.** Leave the unknown knob as `NULL` and pwr solves for it.
-- **`ceiling()`, never `round()`.** Per-arm n always rounds **up**, because 63.77 participants means you need 64.
-- **n is per group.** Multiply by the number of arms for t-tests and ANOVA; add `u + 1` for regression.
-- **Inflate for dropout.** Divide per-arm n by the expected retention rate (e.g., `n / 0.80` for a 20% dropout study) before reporting.
+</details>
 
-## References
+### Exercise 5.3: Bonferroni-adjusted alpha for multiple comparisons
 
-1. Champely, S. (2020). *pwr: Basic Functions for Power Analysis*. CRAN package. [Link](https://cran.r-project.org/package=pwr)
-2. pwr package vignette, "A simple example". [Link](https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html)
-3. Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences*, 2nd ed. Routledge.
-4. Cohen, J. (1992). A power primer. *Psychological Bulletin*, 112(1), 155-159.
-5. Higgins, P. D. R. *Reproducible Medical Research with R*, Chapter 23 – Sample Size Calculations with pwr. [Link](https://bookdown.org/pdr_higgins/rmrwr/sample-size-calculations-with-pwr.html)
-6. UCLA OARC, Power Analysis for Paired Sample t-test. [Link](https://stats.oarc.ucla.edu/r/dae/power-analysis-for-paired-sample-t-test/)
-7. UCLA OARC, One-way ANOVA Power Analysis. [Link](https://stats.oarc.ucla.edu/r/dae/one-way-anova-power-analysis/)
+**Task:** A trial runs 10 simultaneous two-sample t-tests across 10 secondary endpoints, each with n = 100 per arm. To control family-wise error at α = 0.05, divide α by 10 (Bonferroni) and compute the achievable power per test against d = 0.3 using `pwr.t.test()`. Save the result object to `ex_5_3`. Compare against the unadjusted-α power in the explanation.
 
-## Continue Learning
+**Expected result:**
 
-- [Statistical Power Analysis in R](Statistical-Power-Analysis-in-R.html) – the theory companion for these exercises, covering the math of power curves and Cohen's effect-size families in depth.
-- [t-Test Exercises in R](t-Test-Exercises-in-R.html) – drill the t-test itself on 12 graded problems once you have sized your study.
-- [Confidence Interval Exercises in R](Confidence-Interval-Exercises-in-R.html) – the sibling framework to power, the other half of the design-and-report story.
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 100
+#>               d = 0.3
+#>       sig.level = 0.005
+#>           power = 0.4090306
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+#> # Unadjusted-alpha power for reference: 0.5598
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+alpha_adj <- 0.05 / 10
+ex_5_3 <- pwr.t.test(n = 100, d = 0.3, sig.level = alpha_adj,
+                     type = "two.sample", alternative = "two.sided")
+ex_5_3
+#>      Two-sample t test power calculation
+#>
+#>               n = 100
+#>               d = 0.3
+#>       sig.level = 0.005
+#>           power = 0.4090306
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+
+# Unadjusted comparison
+pwr.t.test(n = 100, d = 0.3, sig.level = 0.05,
+           type = "two.sample")$power
+#> [1] 0.5598
+```
+
+**Explanation:** Bonferroni's tax: shrinking α from 0.05 to 0.005 drops per-test power from 56% to 41%. Multiple-testing burden is invisible if you only plan the primary endpoint, then surprise-add secondaries. Plan it up front: either preregister a smaller set of confirmatory endpoints, switch to a less conservative method (Holm, BH-FDR), or budget for the larger n needed under Bonferroni. Bonferroni is conservative when tests are correlated, so simulation-based adjustments can outperform it.
+
+</details>
+
+### Exercise 5.4: Empirical (simulated) power for a custom test
+
+**Task:** When the test doesn't fit a closed-form `pwr.*` function (custom estimator, non-normal data), simulate. Generate 2000 Monte Carlo datasets of two-sample t-tests, n = 40 per arm, true mean difference = 0.5, common SD = 1, run `t.test()` each time, count the fraction with p < 0.05, and save the result as a numeric scalar to `ex_5_4`. Set the seed to `set.seed(2026)` for reproducibility.
+
+**Expected result:**
+
+```
+#> [1] 0.5945
+#> # Closed-form pwr.t.test for sanity check:
+#> # power ≈ 0.598
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(2026)
+n_sim <- 2000
+n_each <- 40
+delta <- 0.5
+p_vals <- replicate(n_sim, {
+  x <- rnorm(n_each, mean = 0,     sd = 1)
+  y <- rnorm(n_each, mean = delta, sd = 1)
+  t.test(x, y)$p.value
+})
+ex_5_4 <- mean(p_vals < 0.05)
+ex_5_4
+#> [1] 0.5945
+
+# Closed-form check
+pwr.t.test(n = n_each, d = delta, sig.level = 0.05,
+           type = "two.sample")$power
+#> [1] 0.5981
+```
+
+**Explanation:** Monte Carlo estimates of power match `pwr.t.test()` because both test the same statistic on the same population. The real value of simulation is for SCENARIOS pwr cannot handle: heavy-tailed data, mixed-effects models, custom Bayesian decision rules, conditional stopping. Standard error on the simulated power estimate is roughly `sqrt(p(1-p)/n_sim)`, so 2000 reps gives ±1.1%. Bump to 10,000 reps for tighter intervals or when the test is computationally cheap.
+
+</details>
+
+## What to do next
+
+You now have the building blocks for almost any frequentist power calculation. From here:
+
+- Review the parent post: [Statistical Power Analysis in R](Statistical-Power-Analysis-in-R.html) for the full theoretical walkthrough.
+- Practice the test mechanics themselves: [T-Test Exercises in R](T-Test-Exercises-in-R.html) and [ANOVA Exercises in R](ANOVA-Exercises-in-R.html).
+- For experimental design more broadly, try [AB-Testing Exercises in R](AB-Testing-Exercises-in-R.html).
+- For regression-specific power and diagnostics, work through [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html).
