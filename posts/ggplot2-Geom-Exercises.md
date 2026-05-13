@@ -1,951 +1,641 @@
 ---
-title: "ggplot2 Geom Exercises: 12 Problems, Every Chart Type in R, Solved Step-by-Step"
+title: "ggplot2 Geom Exercises: 16 Practice Problems with Solutions"
 slug: "ggplot2-Geom-Exercises"
-description: "Practice every ggplot2 geom with 12 solved exercises, scatter, bar, line, histogram, boxplot, violin, and more. Runnable starter code and step-by-step solutions."
-keywords: "ggplot2 geom exercises, ggplot2 chart types exercises, geom_point exercises, geom_bar exercises, geom_histogram exercises, ggplot2 exercises with solutions, R visualization exercises, ggplot2 solved problems, geom_boxplot exercises"
+description: "Practice every ggplot2 geom with 16 solved exercises: scatter, bar, histogram, boxplot, line, smooth, tile, and more. Runnable code and full solutions."
+keywords: "ggplot2 geom exercises, geom_point exercises, geom_bar exercises, geom_histogram exercises, ggplot2 boxplot exercises, ggplot2 practice problems, R visualization exercises, ggplot2 exercises with solutions, geom_smooth exercises"
 auto_link_terms: "ggplot2 geom exercises|geom exercises R|ggplot2 chart type exercises|ggplot visualization exercises|geom practice problems|ggplot2 geom practice"
 auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-15"
+date: "2026-05-13"
 curriculum_id: "E3.4"
 post_type: "EX"
-sidebar_title: "ggplot2 Geoms (12 problems)"
+sidebar_title: "ggplot2 Geoms (16 problems)"
 fr_parent: "ggplot2-Distribution-Charts.html"
-difficulty: "Intermediate"
+target_keyword: "ggplot2 geom exercises"
+difficulty: "Mixed"
 ---
 
-# ggplot2 Geom Exercises: 12 Problems, Every Chart Type in R, Solved Step-by-Step
+# ggplot2 Geom Exercises: 16 Practice Problems with Solutions
 
-<p class="lead">Every ggplot2 chart starts with a geom, the function that decides whether your data appears as points, bars, lines, or tiles. These 12 exercises cover every major chart type in R, from scatter plots to heatmaps, each with starter code you can run and a step-by-step solution.</p>
+<p class="lead">Sixteen graded exercises that drill the core ggplot2 geoms used in real R work: points, bars, histograms, boxplots, violins, lines, smooths, tiles, and annotation layers. Every problem ships with runnable starter code and a hidden step-by-step solution.</p>
 
-## What Geom Does Each Chart Type Use?
+Run the setup block once before working through any exercise. Variables and packages persist across blocks, so you can use them anywhere on the page.
 
-Picking the right geom is the single most important decision in any ggplot2 chart. The same data tells a completely different story depending on whether you choose `geom_point()`, `geom_boxplot()`, or `geom_col()`. Here's the cheat sheet you'll need for the exercises below.
-
-| Geom | Chart Type | Primary Aesthetic | Best For |
-|------|-----------|-------------------|----------|
-| `geom_point()` | Scatter plot | x, y | Relationships between two variables |
-| `geom_line()` | Line chart | x, y, group | Trends over time or ordered sequences |
-| `geom_col()` | Bar chart | x, y | Comparing pre-computed values across categories |
-| `geom_bar()` | Bar chart | x | Counting observations per category |
-| `geom_histogram()` | Histogram | x | Distribution shape of one numeric variable |
-| `geom_density()` | Density plot | x | Smooth distribution shape, good for comparing groups |
-| `geom_boxplot()` | Boxplot | x, y | Median, quartiles, outliers across groups |
-| `geom_violin()` | Violin plot | x, y | Full distribution shape across groups |
-| `geom_area()` | Area chart | x, y | Magnitude over time, stacked totals |
-| `geom_tile()` | Heatmap | x, y, fill | Patterns in two-dimensional grids |
-| `geom_smooth()` | Trend line | x, y | Fitted curves overlaid on scatter plots |
-| `geom_text()` | Text labels | x, y, label | Annotating specific data points |
-
-Let's see how three different geoms turn the same `mtcars` dataset into three completely different stories.
-
-```r title="Three geoms on same data"
+```r title="Run this once before any exercise"
 library(ggplot2)
-
-library(reshape2)
-# Same data, three geoms — three stories
-# 1. Scatter: relationship between weight and fuel efficiency
-p_scatter <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 3, color = "#4B6FA5") +
-  labs(title = "Scatter: Weight vs MPG")
-p_scatter
-#> A scatter plot showing heavier cars get worse mileage
-
-# 2. Boxplot: distribution of mpg by cylinder count
-p_box <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
-  geom_boxplot(fill = "#7FB3D8") +
-  labs(title = "Boxplot: MPG by Cylinders", x = "Cylinders")
-p_box
-#> 4-cyl median ~26 mpg, 6-cyl ~20, 8-cyl ~15
-
-# 3. Bar: average mpg per cylinder group
-cyl_means <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
-p_bar <- ggplot(cyl_means, aes(x = factor(cyl), y = mpg)) +
-  geom_col(fill = "#A5C882") +
-  labs(title = "Bar: Mean MPG by Cylinders", x = "Cylinders")
-p_bar
-#> 4-cyl ~26.7, 6-cyl ~19.7, 8-cyl ~15.1
+library(dplyr)
+library(forcats)
+library(tidyr)
+library(tibble)
 ```
 
-Same 32 cars, same mpg variable, but the scatter shows a continuous relationship, the boxplot reveals spread and outliers, and the bar chart compares group averages. The geom you pick determines what question your chart answers.
+## Section 1. Points and scatter geoms (3 problems)
 
-[KEY INSIGHT]
-**The geom is the grammar.** Same data, same aes(), different geom = different chart = different insight. Choosing the right geom is more important than any color, theme, or label you'll ever add.
+### Exercise 1.1: Plot mpg vs wt with a basic scatter geom
 
-**Try it:** Create a `geom_point()` scatter of `iris` with `Sepal.Length` on x and `Petal.Length` on y. Then swap `geom_point()` for `geom_smooth()`. What changes?
+**Task:** A junior analyst onboarding to the team wants to confirm the well-known inverse relationship between vehicle weight and fuel economy. Using the built-in `mtcars` dataset, draw a scatter plot of `mpg` on the y-axis versus `wt` on the x-axis with `geom_point()` and save the plot object to `ex_1_1`.
 
-```r title="Exercise: scatter then smooth"
-# Try it: scatter then smooth
-ex_scatter <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
-  # your code here — first try geom_point(), then swap to geom_smooth()
+**Expected result:**
 
-ex_scatter
-#> Expected: first individual points, then a fitted curve with confidence band
+```
+#> ggplot scatter object
+#> mapping: aes(x = wt, y = mpg)
+#> layer:   geom_point()
+#> visible pattern: clear negative slope, 32 points, mpg falls from ~33 at wt=1.5 to ~10 at wt=5.4
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: scatter and smooth"
-# Points show every observation
-ex_scatter_pts <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
-  geom_point(color = "#4B6FA5")
-ex_scatter_pts
-#> 150 individual points showing a positive relationship
+```r title="Solution"
+ex_1_1 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point()
 
-# Smooth replaces all points with a single fitted curve
-ex_scatter_smooth <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
-  geom_smooth(color = "#E05A4F")
-ex_scatter_smooth
-#> One curve with grey confidence band — the trend without the noise
+ex_1_1
+#> Scatter with 32 points; mpg trends downward as wt increases
 ```
 
-**Explanation:** `geom_point()` shows every observation. `geom_smooth()` replaces them with a fitted curve and confidence band, you see the trend but lose the individual data points. In practice, you layer both together.
+**Explanation:** `aes()` maps data columns to visual channels, and `geom_point()` then draws a layer of points using those mappings. Because both `wt` and `mpg` are numeric, ggplot picks a continuous scale for each axis automatically. Writing the aesthetics inside `geom_point(aes(...))` instead of at the top level gives the same picture, but the global form makes the mapping reusable when you add more layers like `geom_smooth()`.
 
 </details>
 
-## How Do You Plot Relationships and Trends? (Exercises 1–3)
+### Exercise 1.2: Reduce overplotting on a discrete axis with geom_jitter
 
-Scatter plots and line charts are the workhorses of exploratory analysis. Each exercise below focuses on a specific geom's parameters, the aesthetic mappings and arguments that control how your data appears.
+**Task:** A fuel-economy analyst plotting `cty` against the discrete `class` column of `mpg` notices that points stack into vertical strips and obscure density inside each class. Switch from `geom_point()` to `geom_jitter()` with a modest horizontal width and zero vertical noise. Save the chart to `ex_1_2`.
 
-### Exercise 1: Multi-Aesthetic Scatter Plot (geom_point)
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> Jittered scatter: x=class (7 levels: 2seater, compact, midsize, minivan, pickup, subcompact, suv), y=cty
+#> Points spread horizontally inside each class strip
+#> compact/midsize cluster ~ cty 18-25; pickup/SUV cluster ~ cty 10-17
+```
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to color and `cyl` to size. Set alpha to 0.6 to handle overplotting. Add informative axis labels.
+**Difficulty:** Intermediate
 
-```r title="Exercise one: multi aesthetic scatter"
-# Exercise 1: multi-aesthetic scatter
-# Hint: put color and size inside aes()
-
-p1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p1
-#> Expected: scatter with 7 colors (one per class) and varying point sizes
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise one solution: multi aesthetic"
-p1 <- ggplot(mpg, aes(x = displ, y = hwy, color = class, size = cyl)) +
-  geom_point(alpha = 0.6) +
-  labs(
-    x = "Engine Displacement (L)",
-    y = "Highway MPG",
-    color = "Vehicle Class",
-    size = "Cylinders"
-  )
-p1
-#> Compact/subcompact cluster at low displacement + high mpg
-#> SUVs and pickups cluster at high displacement + low mpg
-#> Point sizes show 4-cyl cars are smallest, 8-cyl largest
+```r title="Solution"
+ex_1_2 <- ggplot(mpg, aes(x = class, y = cty)) +
+  geom_jitter(width = 0.2, height = 0, alpha = 0.7)
+
+ex_1_2
+#> 234 points spread horizontally within 7 class strips
 ```
 
-**Explanation:** Mapping `class` to color and `cyl` to size lets you encode four variables in a single chart (x, y, color, size). The `alpha = 0.6` transparency reveals where points stack up. Notice how compact cars cluster in the top-left (small engine, good mileage) while SUVs and pickups fill the bottom-right.
+**Explanation:** `geom_jitter()` adds random noise to point positions so overlapping marks become visible. Setting `height = 0` keeps `cty` values exact and only the x positions wiggle; jittering on a numeric axis would distort the data you came to read. The `width` parameter is in units of the discrete axis (so 0.2 spans 20% of one category). `alpha` gives extra transparency when many points still land on top of each other.
 
 </details>
 
-### Exercise 2: Multi-Series Line Chart (geom_line)
+### Exercise 1.3: Bubble chart by mapping size and color aesthetics on diamonds
 
-**Dataset:** `economics_long` (built-in)
+**Task:** A retailer auditing the `diamonds` table wants a quick visual of how `carat`, `price`, and `cut` interact together. Sample 500 rows for legibility, then plot `price` against `carat` mapping `size` to `depth` and `color` to `cut`. Save the result to `ex_1_3`.
 
-**Task:** Plot all economic indicators in `economics_long` as separate lines. Map `variable` to color. The y-axis is `value01` (pre-scaled 0–1). Add point markers at every 100th observation using indexing.
+**Expected result:**
 
-```r title="Exercise two: multi series lines"
-# Exercise 2: multi-series line chart
-# Hint: economics_long has columns date, variable, value, value01
+```
+#> Bubble scatter: x=carat (0.2-3+), y=price (300-19k)
+#> point size encodes depth (~55-70), color encodes cut (5 levels)
+#> upward fanning pattern from origin, larger fanning at higher carat
+```
 
-p2 <- ggplot(economics_long, aes(x = date, y = value01)) +
-  # your code here — use color = variable
-  labs(x = "Year", y = "Scaled Value (0–1)", color = "Indicator")
-p2
-#> Expected: 5 colored lines (pce, pop, psavert, uempmed, unemploy) over time
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise two solution: multi series lines"
-p2 <- ggplot(economics_long, aes(x = date, y = value01, color = variable)) +
-  geom_line(linewidth = 0.8) +
-  labs(
-    x = "Year",
-    y = "Scaled Value (0–1)",
-    color = "Indicator"
-  )
-p2
-#> pce and pop rise steadily over time
-#> psavert (savings rate) trends downward
-#> unemploy shows cyclical recession spikes
-#> uempmed (median unemployment duration) spikes sharply after 2008
+```r title="Solution"
+set.seed(1)
+sampled <- slice_sample(diamonds, n = 500)
+
+ex_1_3 <- ggplot(sampled, aes(x = carat, y = price, size = depth, color = cut)) +
+  geom_point(alpha = 0.6)
+
+ex_1_3
+#> 500 bubbles, multi-color legend for cut, size legend for depth
 ```
 
-**Explanation:** `geom_line()` connects observations in order of the x-axis. By mapping `variable` to `color`, ggplot draws a separate line for each indicator. The `value01` column rescales everything to 0–1 so all series fit on the same y-axis despite having wildly different units.
+**Explanation:** Mapping numeric columns (`depth`) to `size` and categorical columns (`cut`) to `color` is the standard "bubble chart" recipe. `alpha = 0.6` is critical with 500 overlapping markers because without it the underlying density structure is unreadable. `slice_sample()` is the modern dplyr replacement for `sample_n()`; setting a seed with `set.seed(1)` makes the random draw reproducible across runs and across collaborators.
 
 </details>
 
-### Exercise 3: Compare Smoothing Methods (geom_smooth)
+## Section 2. Bar and column geoms (3 problems)
 
-**Dataset:** `mpg`
+### Exercise 2.1: Count diamonds by cut using geom_bar
 
-**Task:** Create a scatter plot of `displ` vs `hwy`. Overlay two trend lines: one using `method = "lm"` (linear) and one using `method = "loess"` (flexible curve). Give each a different color. Which fits better?
+**Task:** A pricing manager preparing a Monday status update wants a simple frequency chart showing how many diamonds in the `diamonds` table fall into each `cut` category. Use `geom_bar()` (which counts rows automatically) on the `cut` column with no manual `y` aesthetic and save the chart to `ex_2_1`.
 
-```r title="Exercise three: lm and loess overlay"
-# Exercise 3: two smoothing methods on one scatter
-# Hint: add two geom_smooth() layers with different method arguments
+**Expected result:**
 
-p3 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.3) +
-  # your code here — two geom_smooth() layers
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p3
-#> Expected: scattered points with two overlaid trend lines
+```
+#> Bar chart: x=cut (5 levels: Fair, Good, Very Good, Premium, Ideal)
+#> y = count of rows per cut
+#> Ideal tallest (~21551), Fair shortest (~1610)
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise three solution: lm loess overlay"
-p3 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.3, color = "grey50") +
-  geom_smooth(method = "lm", color = "#E05A4F", se = FALSE, linewidth = 1.2) +
-  geom_smooth(method = "loess", color = "#4B6FA5", se = TRUE, linewidth = 1.2) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p3
-#> Red line (lm): straight line, misses the curve at low displacement
-#> Blue line (loess): curves to follow the data's natural shape
-#> loess captures the steeper drop from 2–4L and the flattening above 5L
+```r title="Solution"
+ex_2_1 <- ggplot(diamonds, aes(x = cut)) +
+  geom_bar()
+
+ex_2_1
+#> 5 bars in cut order: Fair (1610), Good (4906), Very Good (12082), Premium (13791), Ideal (21551)
 ```
 
-**Explanation:** `method = "lm"` fits a straight line, simple but it misses the curvature visible in the data. `method = "loess"` (locally estimated scatterplot smoothing) bends to follow local trends. The loess curve reveals that mileage drops steeply from 2 to 4 liters, then levels off. For non-linear relationships, loess is almost always more informative.
+**Explanation:** `geom_bar()` defaults to `stat = "count"`, which silently runs a frequency tally on the categorical column you map to `x`. There is no `y` aesthetic in the original call because ggplot computes it via the stat. The bar order matches the factor levels of `cut`; since `diamonds$cut` is an ordered factor (Fair < Good < ... < Ideal), the bars come out in that natural order without any extra work.
 
 </details>
 
-**Try it:** Add `geom_jitter(width = 0.3, height = 0)` instead of `geom_point()` to a scatter of `mtcars` with `cyl` on x and `mpg` on y. Why does jitter help here?
+### Exercise 2.2: Plot pre-summarised values with geom_col
 
-```r title="Exercise: jitter versus point"
-# Try it: jitter vs point
-ex_jitter <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
-  # your code here — try geom_point() first, then geom_jitter()
+**Task:** A fleet analyst already has a summary table of mean `mpg` per cylinder count and wants ggplot to plot those values literally, not to recount rows. Compute mean `mpg` grouped by `cyl` from `mtcars` with dplyr, then plot the result using `geom_col()` and save to `ex_2_2`.
 
-ex_jitter
-#> Expected: with geom_point, points stack; with jitter, they spread out
+**Expected result:**
+
+```
+#> Bar chart: x=cyl (factor: 4, 6, 8), y=mean mpg
+#> bar heights ~ 26.66, 19.74, 15.10
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: jitter versus point"
-# Without jitter — points overlap and you can't tell how many cars per group
-ex_point <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
-  geom_point(size = 2, color = "#4B6FA5")
-ex_point
-#> Points stack directly on top of each other at each cyl value
+```r title="Solution"
+summary_df <- mtcars |>
+  group_by(cyl) |>
+  summarise(mean_mpg = mean(mpg))
 
-# With jitter — horizontal noise reveals all observations
-ex_jitter <- ggplot(mtcars, aes(x = factor(cyl), y = mpg)) +
-  geom_jitter(width = 0.2, height = 0, size = 2, color = "#E05A4F")
-ex_jitter
-#> Now you can see every car — 11 four-cylinder, 7 six, 14 eight
+ex_2_2 <- ggplot(summary_df, aes(x = factor(cyl), y = mean_mpg)) +
+  geom_col(fill = "steelblue")
+
+ex_2_2
+#> 3 bars: cyl=4 (26.66), cyl=6 (19.74), cyl=8 (15.10)
 ```
 
-**Explanation:** When x is categorical, all points at the same level share the exact same x-coordinate and overlap. `geom_jitter()` adds small random horizontal offsets so you can see every observation. Setting `height = 0` keeps the y-values accurate.
+**Explanation:** `geom_col()` is the right choice when y-values are already computed; it uses `stat = "identity"` so heights map straight to your `y` column. `geom_bar(stat = "identity")` does exactly the same thing; `geom_col()` is shorthand for the common case. Wrapping `cyl` in `factor()` prevents ggplot from drawing a continuous x-axis with extra integer ticks for what is conceptually a three-category variable.
 
 </details>
 
-[TIP]
-**Use geom_jitter() when points overlap heavily.** It adds small random noise to spread observations apart. Set width and height to control how much, use height = 0 when the y-axis is meaningful.
+### Exercise 2.3: Compare stacked, dodged, and filled bar positions
 
-## How Do You Compare Categories with Bars? (Exercises 4–5)
+**Task:** A marketing analyst presenting to leadership wants three side-by-side views of how `clarity` distributes within each `cut` level of `diamonds`. Build three bar charts with `geom_bar()` using `position = "stack"`, `"dodge"`, and `"fill"` respectively, then combine them into a named list saved to `ex_2_3`.
 
-Bar charts answer "how much?" for each category. The key distinction in ggplot2: `geom_col()` takes pre-computed heights, while `geom_bar()` counts rows for you.
+**Expected result:**
 
-### Exercise 4: Summary Bar Chart (geom_col)
+```
+#> Named list of 3 ggplot objects
+#> $stack: stacked bars, total per cut, colored segments by clarity
+#> $dodge: 8 clarity bars side by side within each cut
+#> $fill : 100% filled bars, all reaching 1, comparing clarity share
+```
 
-**Dataset:** `mpg`
+**Difficulty:** Advanced
 
-**Task:** Compute the mean highway mpg for the top 8 manufacturers (by count). Plot as horizontal bars sorted from highest to lowest mpg. Use `reorder()` on the y-axis.
-
-```r title="Exercise four: sorted horizontal bar"
-# Exercise 4: sorted horizontal bar chart
-# Hint: aggregate first, then use geom_col + coord_flip or map manufacturer to y
-
-# Step 1: compute mean hwy per manufacturer
-# Step 2: keep top 8 by number of cars
-# Step 3: plot with geom_col, reorder by mpg
-
-# your code here
-#> Expected: 8 horizontal bars, Honda/Volkswagen near top for efficiency
+```r title="Your turn"
+ex_2_3 <- # your code here
+length(ex_2_3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise four solution: sorted horizontal bar"
-# Compute mean hwy per manufacturer
-mpg_summary <- aggregate(hwy ~ manufacturer, data = mpg, FUN = mean)
+```r title="Solution"
+p_stack <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
+  geom_bar(position = "stack")
 
-# Keep top 8 manufacturers by count
-top8 <- names(sort(table(mpg$manufacturer), decreasing = TRUE))[1:8]
-mpg_top8 <- mpg_summary[mpg_summary$manufacturer %in% top8, ]
+p_dodge <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
+  geom_bar(position = "dodge")
 
-p4 <- ggplot(mpg_top8, aes(x = reorder(manufacturer, hwy), y = hwy)) +
-  geom_col(fill = "#4B6FA5") +
-  coord_flip() +
-  labs(x = NULL, y = "Mean Highway MPG")
-p4
-#> honda      ~28.5
-#> volkswagen ~29.2
-#> toyota     ~24.9
-#> nissan     ~24.6
-#> chevrolet  ~21.9
-#> ford       ~19.4
-#> dodge      ~17.9
-#> audi       ~26.4
+p_fill <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
+  geom_bar(position = "fill")
+
+ex_2_3 <- list(stack = p_stack, dodge = p_dodge, fill = p_fill)
+
+length(ex_2_3)
+#> [1] 3
 ```
 
-**Explanation:** `geom_col()` expects pre-computed y-values, here, the mean mpg we calculated with `aggregate()`. `reorder(manufacturer, hwy)` sorts the factor levels by mpg value so bars appear in ascending order. `coord_flip()` rotates the chart so long manufacturer names read horizontally.
+**Explanation:** The `position` argument tells `geom_bar()` how to handle overlapping groups. `"stack"` (the default for filled bars) sums counts into one bar; `"dodge"` shifts each group side by side so you compare absolute counts; `"fill"` rescales every bar to the same height so you compare proportions rather than totals. The fill version is the right pick when group totals vary widely and you only care about composition. `position_dodge2()` handles uneven group counts more gracefully than plain `"dodge"`.
 
 </details>
 
-### Exercise 5: Stacked vs Dodged vs Filled Bars (geom_bar)
+## Section 3. Distribution geoms (4 problems)
 
-**Dataset:** `diamonds`
+### Exercise 3.1: Histogram of diamond prices with a sensible binwidth
 
-**Task:** Create three bar charts of diamond `cut` (x-axis) filled by `clarity`. Use: (a) the default stacked position, (b) `position = "dodge"` side-by-side, and (c) `position = "fill"` showing proportions. Which reveals the most about the relationship?
+**Task:** A pricing intern auditing the catalog wants to see the shape of the `price` distribution in the `diamonds` table. Plot a histogram of `price` with `geom_histogram()` using `binwidth = 500` to control granularity and a white outline so individual bins are visible. Save the chart to `ex_3_1`.
 
-```r title="Exercise five: three bar positions"
-# Exercise 5: three position adjustments
-# Hint: only change the position argument in geom_bar()
+**Expected result:**
 
-# (a) Stacked (default)
-p5a <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
-  geom_bar() +
-  labs(title = "Stacked")
+```
+#> Histogram: x=price ($300-$19000), y=count
+#> binwidth=500; ~38 bins
+#> strongly right-skewed; tallest bar near price ~$700-1200 with count ~9000+
+```
 
-# (b) Dodged — your code here
+**Difficulty:** Beginner
 
-# (c) Filled — your code here
-
-p5a
-#> Expected: stacked bars where total height = count per cut level
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise five solution: three positions"
-# (a) Stacked — default, shows total count + composition
-p5a <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
-  geom_bar() +
-  labs(title = "Stacked")
-p5a
-#> Ideal has the tallest bar (~21,500 diamonds total)
+```r title="Solution"
+ex_3_1 <- ggplot(diamonds, aes(x = price)) +
+  geom_histogram(binwidth = 500, fill = "steelblue", color = "white")
 
-# (b) Dodged — side-by-side, easier to compare individual clarity levels
-p5b <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
-  geom_bar(position = "dodge") +
-  labs(title = "Dodged")
-p5b
-#> VS2 and SI1 are the most common across all cuts
-
-# (c) Fill — proportional, shows how composition changes across cuts
-p5c <- ggplot(diamonds, aes(x = cut, fill = clarity)) +
-  geom_bar(position = "fill") +
-  labs(title = "Proportional", y = "Proportion")
-p5c
-#> Fair cut has a higher proportion of I1/SI2 (lower clarity)
-#> Ideal cut has more VS1/VVS2 (higher clarity)
+ex_3_1
+#> 38 bins of width $500 spanning $300-$19000, right-skewed distribution
 ```
 
-**Explanation:** Stacked bars show absolute counts and total size. Dodged bars let you compare individual categories across groups. Fill bars normalize each stack to 100%, revealing how the composition shifts, notice that better cuts tend to have better clarity proportions. Each position answers a different question: "how many total?", "how does each category compare?", and "what's the mix?"
+**Explanation:** `binwidth` is preferred over `bins` because it carries interpretable units (dollars here, not "number of buckets"). The default of 30 bins triggers a warning ggplot prints because it almost never matches what your data wants. The white `color` argument outlines each bar so bin boundaries stand out against the fill. Right-skew is typical for prices since there is a floor at $0 but no ceiling on luxury items.
 
 </details>
 
-**Try it:** Create a single `geom_bar(stat = "count")` of `mtcars$cyl`. Then try `geom_col()` with the same raw data (no pre-aggregation). What error do you get?
+### Exercise 3.2: Overlay density curves by cut with alpha blending
 
-```r title="Exercise: geom bar versus col"
-# Try it: geom_bar counts vs geom_col needs pre-computed values
-ex_bar <- ggplot(mtcars, aes(x = factor(cyl))) +
-  # your code here — try geom_bar() then geom_col()
+**Task:** A jeweller curious whether the price distribution shape changes across `cut` quality wants overlapping density curves. Plot `geom_density()` of `price` with `fill = cut` and an alpha of 0.4 so all five curves remain visible. Save the chart to `ex_3_2`.
 
-ex_bar
-#> Expected: geom_bar works (counts rows); geom_col errors without a y aesthetic
+**Expected result:**
+
+```
+#> Overlayed density plot: x=price ($), y=density (smoothed)
+#> 5 colored curves keyed by cut; all right-skewed
+#> peaks cluster around $700-$1200 with slight variation across cuts
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: geom bar versus col"
-# geom_bar() counts rows automatically — no y needed
-ex_bar_count <- ggplot(mtcars, aes(x = factor(cyl))) +
-  geom_bar(fill = "#7FB3D8")
-ex_bar_count
-#> 4-cyl: 11 cars, 6-cyl: 7 cars, 8-cyl: 14 cars
+```r title="Solution"
+ex_3_2 <- ggplot(diamonds, aes(x = price, fill = cut)) +
+  geom_density(alpha = 0.4)
 
-# geom_col() requires a y aesthetic — this will error:
-# ggplot(mtcars, aes(x = factor(cyl))) + geom_col()
-# Error: geom_col requires the following missing aesthetics: y
+ex_3_2
+#> 5 overlapping density curves colored by cut, all right-skewed with similar peaks
 ```
 
-**Explanation:** `geom_bar()` uses `stat = "count"` by default, it counts rows per x-level. `geom_col()` uses `stat = "identity"`, it expects you to supply a pre-computed y-value. If you already have summary statistics, use `geom_col()`. If you want ggplot to count for you, use `geom_bar()`.
+**Explanation:** `geom_density()` runs a kernel density estimator (default bandwidth via `bw.nrd0()`) for each level of the fill grouping. The y-axis is a probability density, not a count, so curves are area-comparable regardless of group size. Without `alpha`, the topmost fill (the highest factor level) hides everything beneath it. For very different group sizes, use `aes(y = after_stat(count))` to weight each density by group n so peak heights reflect frequencies, not pure shape.
 
 </details>
 
-[WARNING]
-**geom_bar() counts rows; geom_col() plots pre-computed values.** Mixing them up is a top ggplot2 error. Remember: geom_bar(stat = "count") is the default, geom_col(stat = "identity") is the default. If your data is already aggregated, use geom_col().
+### Exercise 3.3: Reorder factor levels with fct_reorder for cleaner boxplots
 
-## How Do You Visualize Distributions? (Exercises 6–8)
+**Task:** A car-magazine reviewer wants a boxplot of `mpg::hwy` by `class` ordered from lowest to highest median (not alphabetical, which is the ggplot default). Use `forcats::fct_reorder()` to reorder `class` by median `hwy`, pipe into `ggplot()`, and add `geom_boxplot()`. Save the chart to `ex_3_3`.
 
-Distribution charts answer "how is my data spread?", where values cluster, how wide the range is, and whether outliers lurk at the edges. Each geom reveals a different aspect of the same distribution.
+**Expected result:**
 
-### Exercise 6: Histogram with Binwidth Tuning (geom_histogram)
+```
+#> Boxplot: x=class (reordered low->high by median hwy), y=hwy
+#> 7 boxes
+#> leftmost: pickup (median ~17); rightmost: compact (median ~28)
+```
 
-**Dataset:** `diamonds`
+**Difficulty:** Intermediate
 
-**Task:** Create a histogram of `price` using three different binwidths: 100, 500, and 2000. Add a vertical dashed line at the median price. Which binwidth tells the clearest story?
-
-```r title="Exercise six: histogram binwidth"
-# Exercise 6: histogram binwidth comparison
-# Hint: use geom_vline(xintercept = ..., linetype = "dashed") for the median line
-
-set.seed(42)
-dia_sample <- diamonds[sample(nrow(diamonds), 3000), ]
-
-# Try binwidth = 500 first
-p6 <- ggplot(dia_sample, aes(x = price)) +
-  # your code here
-  labs(x = "Price ($)", y = "Count")
-p6
-#> Expected: bars showing right-skewed distribution with most diamonds under $5000
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise six solution: histogram binwidth"
-set.seed(42)
-dia_sample <- diamonds[sample(nrow(diamonds), 3000), ]
-med_price <- median(dia_sample$price)
+```r title="Solution"
+ex_3_3 <- mpg |>
+  mutate(class = fct_reorder(class, hwy, .fun = median)) |>
+  ggplot(aes(x = class, y = hwy)) +
+  geom_boxplot(fill = "lightyellow")
 
-# binwidth = 100: too noisy
-p6_narrow <- ggplot(dia_sample, aes(x = price)) +
-  geom_histogram(binwidth = 100, fill = "#4B6FA5", color = "white") +
-  geom_vline(xintercept = med_price, linetype = "dashed", color = "red") +
-  labs(title = "binwidth = 100", x = "Price ($)", y = "Count")
-p6_narrow
-#> Jagged bars — hard to see the overall shape through the noise
-
-# binwidth = 500: just right
-p6_mid <- ggplot(dia_sample, aes(x = price)) +
-  geom_histogram(binwidth = 500, fill = "#4B6FA5", color = "white") +
-  geom_vline(xintercept = med_price, linetype = "dashed", color = "red") +
-  labs(title = "binwidth = 500", x = "Price ($)", y = "Count")
-p6_mid
-#> Clear right-skewed shape, peak near $1000, long tail to $18000+
-
-# binwidth = 2000: too smooth
-p6_wide <- ggplot(dia_sample, aes(x = price)) +
-  geom_histogram(binwidth = 2000, fill = "#4B6FA5", color = "white") +
-  geom_vline(xintercept = med_price, linetype = "dashed", color = "red") +
-  labs(title = "binwidth = 2000", x = "Price ($)", y = "Count")
-p6_wide
-#> Only 9 bars — loses the sharp peak and secondary bump around $4000
+ex_3_3
+#> 7 boxes in ascending median order; pickup leftmost (~17), compact rightmost (~28)
 ```
 
-**Explanation:** `binwidth = 100` creates too many bars, noise dominates and the shape is hard to read. `binwidth = 2000` collapses everything into a few fat bars, hiding the steep peak near $1,000 and the secondary bump around $4,000. `binwidth = 500` strikes the right balance: you see the strong right skew, the peak below $1,000, and the gradual tail. The dashed red line marks the median, notice it sits well below the mean because of the skew.
+**Explanation:** Alphabetical ordering is the default but rarely what readers need; a sorted boxplot tells the story at a glance. `fct_reorder()` re-levels the factor by some summary of another variable (median by default; pass `.fun = mean` for the mean). The reorder happens inside the data frame, not on the plot, so any subsequent layer using `class` inherits the new ordering. For descending order, use `fct_reorder(class, hwy, .desc = TRUE)`.
 
 </details>
 
-### Exercise 7: Overlapping Density Curves (geom_density)
+### Exercise 3.4: Layer violin, narrow boxplot, and mean marker for richer distribution view
 
-**Dataset:** `iris`
+**Task:** A health-economics analyst wants a richer view of `iris::Sepal.Length` by `Species` showing both the full distribution shape and the median/IQR summary side by side. Layer `geom_violin()` with `geom_boxplot(width = 0.1)` and add a red mean point using `stat_summary()`. Save the chart to `ex_3_4`.
 
-**Task:** Plot density curves of `Petal.Length` for all three species on one chart. Use `fill` mapped to `Species` with `alpha = 0.4` for transparency. Which species has the narrowest spread?
+**Expected result:**
 
-```r title="Exercise seven: iris density"
-# Exercise 7: overlapping density curves
-# Hint: map fill = Species inside aes(), set alpha outside aes()
+```
+#> Combined violin + narrow boxplot per Species, with red mean dot
+#> setosa narrow at Sepal.Length ~5.0
+#> versicolor wider at ~5.9
+#> virginica widest at ~6.6
+```
 
-p7 <- ggplot(iris, aes(x = Petal.Length)) +
-  # your code here
-  labs(x = "Petal Length (cm)", y = "Density")
-p7
-#> Expected: three overlapping filled curves, setosa narrow and far left
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+ex_3_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise seven solution: iris density"
-p7 <- ggplot(iris, aes(x = Petal.Length, fill = Species)) +
-  geom_density(alpha = 0.4) +
-  labs(x = "Petal Length (cm)", y = "Density", fill = "Species")
-p7
-#> setosa:     sharp peak near 1.5 cm — very narrow spread
-#> versicolor: broader peak around 4.3 cm
-#> virginica:  widest spread, centered around 5.5 cm
+```r title="Solution"
+ex_3_4 <- ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_violin(fill = "lightblue") +
+  geom_boxplot(width = 0.1, fill = "white") +
+  stat_summary(fun = mean, geom = "point", color = "red", size = 3)
+
+ex_3_4
+#> 3 violins with embedded boxplots and red mean dots: setosa, versicolor, virginica
 ```
 
-**Explanation:** `alpha = 0.4` makes the filled areas semi-transparent, so you can see all three distributions even where they overlap. Setosa's density curve is tall and narrow, its petal lengths are tightly clustered. Virginica has the widest spread. Density curves are better than histograms for comparing groups because they don't depend on arbitrary bin choices.
+**Explanation:** Layering geoms top to bottom is the ggplot way to combine views: violin shows the full distribution, boxplot narrows in on the IQR, and `stat_summary()` lets you mark any summary statistic without precomputing it. The `width = 0.1` shrinks the boxplot inside the violin so both stay legible. If you want a mean line rather than a point, swap `geom = "point"` for `geom = "crossbar"` and the same stat draws a horizontal segment at the mean.
 
 </details>
 
-### Exercise 8: Horizontal Notched Boxplot (geom_boxplot)
+## Section 4. Lines, areas, and smooths (3 problems)
 
-**Dataset:** `mpg`
+### Exercise 4.1: Time-series line plot of US unemployment rate
 
-**Task:** Create a boxplot of `hwy` by `class`, flipped horizontally with `coord_flip()`. Add `notch = TRUE` and color outliers red. Which class has the highest median highway mpg?
+**Task:** An economist preparing a one-pager wants to plot the US unemployment rate over time. Using the `economics` dataset, compute a `rate = unemploy / pop` column with dplyr, then pipe into `ggplot()` and draw `geom_line()` with `date` on the x-axis. Save the chart to `ex_4_1`.
 
-```r title="Exercise eight: notched boxplot"
-# Exercise 8: horizontal notched boxplot
-# Hint: outlier.color controls the outlier point color
+**Expected result:**
 
-p8 <- ggplot(mpg, aes(x = class, y = hwy)) +
-  # your code here — add notch and outlier color
-  coord_flip() +
-  labs(x = NULL, y = "Highway MPG")
-p8
-#> Expected: horizontal boxplots with notches showing median confidence intervals
+```
+#> Line chart: x=date (1967-2015), y=unemployment rate (0.012-0.045)
+#> single continuous dark red line
+#> multiple peaks during recession years (~1975, 1982, 1992, 2009)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise eight solution: notched boxplot"
-p8 <- ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
-  geom_boxplot(notch = TRUE, fill = "#7FB3D8", outlier.color = "red", outlier.size = 2) +
-  coord_flip() +
-  labs(x = NULL, y = "Highway MPG")
-p8
-#> subcompact: median ~26, a few outliers above 35
-#> compact:    median ~28, narrow IQR
-#> midsize:    median ~27
-#> 2seater:    median ~25, very tight (only 5 cars)
-#> minivan:    median ~23
-#> suv:        median ~18, several low outliers
-#> pickup:     median ~17, lowest group
+```r title="Solution"
+ex_4_1 <- economics |>
+  mutate(rate = unemploy / pop) |>
+  ggplot(aes(x = date, y = rate)) +
+  geom_line(color = "darkred", linewidth = 0.8)
+
+ex_4_1
+#> Single line spanning 1967-2015 with visible peaks around 1982 and 2009 recessions
 ```
 
-**Explanation:** `notch = TRUE` adds notches around each median, if notches of two boxes don't overlap, their medians are significantly different at roughly 95% confidence. `reorder(class, hwy, FUN = median)` sorts classes by their median mpg value, making the ranking immediately visible. The red outlier points highlight unusual observations.
+**Explanation:** `geom_line()` connects points in x-order, which is exactly what you want for time series. `linewidth` is the modern (ggplot2 3.4+) replacement for `size` on line geoms; `size` still works but emits a deprecation warning. If `date` were a character column instead of a Date class, the line would order alphabetically rather than chronologically (and the chart would be wrong); always cast time-like columns to Date or POSIXct before plotting.
 
 </details>
 
-**Try it:** Add `geom_rug()` below a density plot of `mtcars$mpg`. What extra information does the rug show?
+### Exercise 4.2: Linear fit with confidence band via geom_smooth
 
-```r title="Exercise: density with rug"
-# Try it: density + rug
-ex_rug <- ggplot(mtcars, aes(x = mpg)) +
-  geom_density(fill = "#7FB3D8", alpha = 0.5) +
-  # your code here — add geom_rug()
+**Task:** A car reviewer plotting `mpg` vs `wt` from `mtcars` wants to overlay a linear trend line and its 95% confidence band so readers can judge the fit at a glance. Add `geom_smooth(method = "lm")` on top of `geom_point()` with `se = TRUE` (the default) and save the chart to `ex_4_2`.
 
-ex_rug
-#> Expected: density curve with tick marks along the x-axis for each observation
+**Expected result:**
+
+```
+#> Scatter + linear fit line with gray confidence ribbon
+#> negative slope (~-5.3 mpg per ton of weight)
+#> ribbon narrow at center of wt, wider at extremes
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: density with rug"
-ex_rug <- ggplot(mtcars, aes(x = mpg)) +
-  geom_density(fill = "#7FB3D8", alpha = 0.5) +
-  geom_rug(sides = "b", color = "#4B6FA5", alpha = 0.7)
-ex_rug
-#> Density shows the smooth shape; rug ticks show exact data locations
-#> Cluster of ticks between 15-22 matches the density peak
-#> Sparse ticks above 30 confirm the long right tail has few observations
+```r title="Solution"
+ex_4_2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue")
+
+ex_4_2
+#> 32 points + blue regression line + gray 95% CI ribbon
 ```
 
-**Explanation:** `geom_rug()` draws a tiny tick mark at each observation's value along the axis edge. It reveals the actual sample size and exact positions that the smoothed density curve abstracts away, helpful for spotting gaps or clusters the curve might smooth over.
+**Explanation:** `geom_smooth()` fits a model and draws both the predicted line and its uncertainty ribbon in one layer. `method = "lm"` runs ordinary least squares; the default is `"loess"` for under 1000 rows and `"gam"` otherwise. The `se = TRUE` (default) ribbon is the confidence interval for the mean prediction, not a prediction interval; readers often misread this, so consider adding a caption clarifying which one you are showing.
 
 </details>
 
-[KEY INSIGHT]
-**Boxplots compress distributions into five numbers, they hide bimodality entirely.** Always pair a boxplot with a density or violin plot when the shape of the distribution matters more than the summary statistics.
+### Exercise 4.3: Build a custom confidence ribbon from a fitted lm
 
-## How Do You Build Specialized Charts? (Exercises 9–12)
+**Task:** A statistics consultant wants a publication-quality plot of `mpg ~ wt` with explicit control over the 95% confidence ribbon (rather than the one `geom_smooth` builds internally). Fit `lm()`, predict over a grid with `interval = "confidence"`, then layer `geom_ribbon()` and `geom_line()` on the scatter. Save to `ex_4_3`.
 
-These geoms handle specific visualization tasks that the basic chart types can't: comparing full distribution shapes, showing magnitude over time, revealing patterns in grids, and adding text annotations directly to your plots.
+**Expected result:**
 
-### Exercise 9: Violin + Boxplot Overlay (geom_violin)
+```
+#> Lightblue ribbon between lwr/upr + dark blue fit line + scatter points
+#> ribbon narrows at the data centroid, widens at the wt extremes
+#> ribbon, line, and points all on the same plot
+```
 
-**Dataset:** `mpg`
+**Difficulty:** Advanced
 
-**Task:** Create a violin plot of `hwy` by `drv` (drive type). Overlay a narrow boxplot inside each violin (`width = 0.15`). The violin shows distribution shape; the boxplot adds summary statistics.
-
-```r title="Exercise nine: violin and boxplot"
-# Exercise 9: violin with embedded boxplot
-# Hint: layer geom_violin first, then geom_boxplot on top
-
-p9 <- ggplot(mpg, aes(x = drv, y = hwy)) +
-  # your code here — violin + boxplot overlay
-  labs(x = "Drive Type", y = "Highway MPG")
-p9
-#> Expected: violin shapes with thin boxplots inside each
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise nine solution: violin boxplot"
-p9 <- ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
-  geom_violin(alpha = 0.5) +
-  geom_boxplot(width = 0.15, fill = "white", outlier.size = 1) +
-  labs(x = "Drive Type", y = "Highway MPG") +
-  scale_fill_manual(values = c("4" = "#4B6FA5", "f" = "#E05A4F", "r" = "#A5C882")) +
-  theme(legend.position = "none")
-p9
-#> f (front-wheel): bimodal shape visible in violin — two density peaks
-#> 4 (four-wheel):  compact distribution centered around 19
-#> r (rear-wheel):  wide spread, median near 25
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+grid <- data.frame(wt = seq(min(mtcars$wt), max(mtcars$wt), length.out = 100))
+pred <- predict(fit, newdata = grid, interval = "confidence")
+band <- cbind(grid, as.data.frame(pred))
+
+ex_4_3 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  geom_ribbon(data = band, aes(x = wt, ymin = lwr, ymax = upr),
+              inherit.aes = FALSE, fill = "lightblue", alpha = 0.5) +
+  geom_line(data = band, aes(x = wt, y = fit),
+            inherit.aes = FALSE, color = "darkblue", linewidth = 1)
+
+ex_4_3
+#> 32 points + lightblue 95% CI ribbon + darkblue fit line
 ```
 
-**Explanation:** The violin shows the full distribution shape, notice the front-wheel drive (`f`) has a slight bimodal bump that a boxplot alone would hide. The thin boxplot overlay adds the median, IQR, and outliers on top. This combination gives you the best of both worlds: shape from the violin, summary stats from the box.
+**Explanation:** Building the ribbon manually with `predict(..., interval = "confidence")` gives you control that `geom_smooth()` hides: you can swap to `interval = "prediction"` (wider, accounts for residual variance) or transform the predictions before plotting. `inherit.aes = FALSE` is important because it prevents the ribbon and line layers from inheriting `y = mpg` from the top-level call; without it ggplot would error since `band` has no `mpg` column.
 
 </details>
 
-### Exercise 10: Stacked Area Chart (geom_area)
+## Section 5. 2D density and heatmap geoms (2 problems)
 
-**Dataset:** `economics`
+### Exercise 5.1: Correlation heatmap with geom_tile
 
-**Task:** Create an area chart showing `unemploy` (unemployment in thousands) over time. Fill the area under the curve. Add a horizontal reference line at the mean unemployment level.
+**Task:** A feature engineer wants to spot collinearity in `mtcars` quickly before fitting a regression. Compute the correlation matrix of the 11 numeric columns, pivot it to long format with `pivot_longer()`, then draw a `geom_tile()` heatmap and use `scale_fill_gradient2()` so positive and negative correlations are visually distinct. Save to `ex_5_1`.
 
-```r title="Exercise ten: area with hline"
-# Exercise 10: area chart with reference line
-# Hint: geom_area fills between y and the x-axis
+**Expected result:**
 
-p10 <- ggplot(economics, aes(x = date, y = unemploy)) +
-  # your code here
-  labs(x = "Year", y = "Unemployment (thousands)")
-p10
-#> Expected: filled area showing unemployment cycles from 1967 to 2015
+```
+#> 11x11 tile grid colored from red (-1) through white (0) to blue (1)
+#> diagonal uniformly blue (self-correlation = 1)
+#> strong red tile at mpg-wt (~-0.87) and cyl-disp pairs
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise ten solution: area hline"
-mean_unemp <- mean(economics$unemploy)
+```r title="Solution"
+cor_long <- as.data.frame(cor(mtcars)) |>
+  rownames_to_column("var1") |>
+  pivot_longer(-var1, names_to = "var2", values_to = "corr")
 
-p10 <- ggplot(economics, aes(x = date, y = unemploy)) +
-  geom_area(fill = "#4B6FA5", alpha = 0.6) +
-  geom_hline(yintercept = mean_unemp, linetype = "dashed", color = "#E05A4F") +
-  labs(x = "Year", y = "Unemployment (thousands)")
-p10
-#> Cyclical pattern: spikes during recessions (1982, 1992, 2009)
-#> The 2009 spike (Great Recession) dwarfs all previous peaks
-#> Red dashed line at ~7,657 — mean unemployment across all years
-```
-
-**Explanation:** `geom_area()` fills the region between the line and y = 0, making the magnitude of unemployment visually obvious. The filled area emphasizes the sheer size of recession spikes compared to normal periods. The horizontal mean line helps you instantly spot which periods ran above or below the historical average.
-
-</details>
-
-### Exercise 11: Correlation Heatmap (geom_tile)
-
-**Dataset:** `mtcars`
-
-**Task:** Compute the correlation matrix of all numeric columns in `mtcars`. Reshape it to long format. Plot with `geom_tile()` using `scale_fill_gradient2()` (blue for negative, red for positive, white at zero).
-
-```r title="Exercise eleven: correlation heatmap"
-# Exercise 11: correlation heatmap
-# Hint: use reshape2::melt or manual expansion to get long format
-
-# Step 1: compute correlations
-cor_matrix <- round(cor(mtcars), 2)
-
-# Step 2: convert to long format for ggplot
-# your code here
-
-# Step 3: plot with geom_tile
-# your code here
-#> Expected: square heatmap with color-coded correlation values
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise eleven solution: correlation heatmap"
-# Compute correlation matrix
-cor_matrix <- round(cor(mtcars), 2)
-
-# Convert to long format using base R
-cor_long <- data.frame(
-  Var1 = rep(colnames(cor_matrix), each = ncol(cor_matrix)),
-  Var2 = rep(colnames(cor_matrix), times = nrow(cor_matrix)),
-  value = as.vector(cor_matrix)
-)
-
-p11 <- ggplot(cor_long, aes(x = Var1, y = Var2, fill = value)) +
+ex_5_1 <- ggplot(cor_long, aes(x = var1, y = var2, fill = corr)) +
   geom_tile(color = "white") +
-  scale_fill_gradient2(low = "#4B6FA5", mid = "white", high = "#E05A4F", midpoint = 0) +
-  labs(x = NULL, y = NULL, fill = "Correlation") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-p11
-#> mpg-wt: strong negative (r = -0.87) — dark blue
-#> cyl-disp: strong positive (r = 0.90) — dark red
-#> drat-wt: moderate negative (r = -0.71) — light blue
-#> Diagonal is all 1.0 (each variable with itself)
+  scale_fill_gradient2(low = "red", mid = "white", high = "blue",
+                       midpoint = 0, limits = c(-1, 1))
+
+ex_5_1
+#> 11x11 heatmap; diagonal blue (corr=1); strong red between mpg-wt
 ```
 
-**Explanation:** `geom_tile()` draws one rectangle per x-y combination, colored by the correlation value. `scale_fill_gradient2()` creates a diverging color scale centered at zero, blue for negative correlations, red for positive, white for near-zero. The rotated x-axis labels prevent overlap. This heatmap instantly reveals which mtcars variables move together and which move in opposite directions.
+**Explanation:** A correlation matrix is wide by default (each row a variable, each column a variable), but `geom_tile()` expects long format with three columns: x, y, and fill. `pivot_longer()` reshapes the matrix into one row per (var1, var2, corr) triple. `scale_fill_gradient2()` is the right scale for a signed metric: it sets a midpoint (0 here) so positive and negative correlations get visually distinct hues with white as the neutral.
 
 </details>
 
-### Exercise 12: Bar Chart with Value Labels (geom_text)
+### Exercise 5.2: 2D density heatmap with geom_bin2d on heavy data
 
-**Dataset:** `mpg`
+**Task:** A data scientist wants to visualize the joint density of `price` vs `carat` across all 53,940 rows of `diamonds` without rendering an unreadable point cloud. Use `geom_bin2d()` with `bins = 40` and apply the viridis palette via `scale_fill_viridis_c()` for a perceptually uniform fill. Save to `ex_5_2`.
 
-**Task:** Compute mean `hwy` per `class`. Plot as a bar chart with `geom_col()`. Add `geom_text()` labels showing the exact mean value above each bar. Round to 1 decimal place.
+**Expected result:**
 
-```r title="Exercise twelve: bar with text"
-# Exercise 12: bar chart with text labels
-# Hint: use vjust = -0.5 to position text above bars
+```
+#> Rectangular bin heatmap: x=carat (0-5), y=price ($0-$19k)
+#> viridis fill: yellow=high count, dark purple=low count
+#> dense band along an upward-curving spine from origin
+```
 
-class_summary <- aggregate(hwy ~ class, data = mpg, FUN = mean)
-class_summary$hwy <- round(class_summary$hwy, 1)
+**Difficulty:** Advanced
 
-p12 <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
-  geom_col(fill = "#4B6FA5") +
-  # your code here — add geom_text with labels
-  labs(x = "Vehicle Class", y = "Mean Highway MPG")
-p12
-#> Expected: bar chart with numeric labels floating above each bar
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise twelve solution: bar text"
-class_summary <- aggregate(hwy ~ class, data = mpg, FUN = mean)
-class_summary$hwy <- round(class_summary$hwy, 1)
+```r title="Solution"
+ex_5_2 <- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_bin2d(bins = 40) +
+  scale_fill_viridis_c()
 
-p12 <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
-  geom_col(fill = "#4B6FA5") +
-  geom_text(aes(label = hwy), vjust = -0.5, size = 3.5, fontface = "bold") +
-  labs(x = "Vehicle Class", y = "Mean Highway MPG") +
-  ylim(0, max(class_summary$hwy) * 1.1)
-p12
-#> subcompact: 28.1
-#> compact:    28.3
-#> midsize:    27.3
-#> 2seater:    24.8
-#> minivan:    22.4
-#> suv:        18.1
-#> pickup:     16.9
+ex_5_2
+#> 40x40 bin grid; yellow patch at low carat/price, dark purple at sparse high end
 ```
 
-**Explanation:** `geom_text()` places a text label at each bar's x-y position. `vjust = -0.5` pushes the text above the bar top. `ylim()` extends the y-axis so the tallest label doesn't get clipped. Labeling bars with exact values helps readers make precise comparisons without guessing from the axis grid.
+**Explanation:** For 53,940 points, `geom_point()` produces an unreadable smear. `geom_bin2d()` partitions the x-y plane into a grid, counts observations per cell, and maps count to fill. `geom_hex()` is an alternative using hexagonal bins (smoother visually) but requires the `hexbin` package. The viridis palette is perceptually uniform and colorblind-safe, while the default ggplot continuous palette has uneven brightness that distorts perceived density.
 
 </details>
 
-**Try it:** Replace `geom_text()` with `geom_label()` in Exercise 12's solution. What visual difference do you see?
+## Section 6. Annotation geoms (1 problem)
 
-```r title="Exercise: geom label versus text"
-# Try it: geom_label vs geom_text
-ex_label <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
-  geom_col(fill = "#A5C882") +
-  # your code here — use geom_label instead of geom_text
+### Exercise 6.1: Label outlier points with geom_text restricted to a subset
 
-ex_label
-#> Expected: same bar chart but labels have a white background box
+**Task:** A motorsport analyst plotting `mpg` vs `hp` from `mtcars` wants car names called out only for the four highest-`hp` vehicles, not all 32. Use `slice_max()` to filter, then draw `geom_point()` on the full data and `geom_text()` on the filtered subset with `vjust = -1` so labels float above their markers. Save to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> Scatter of mpg ~ hp with 32 points
+#> 4 text labels above the top-4 hp points
+#> Labels: Maserati Bora, Ford Pantera L, Camaro Z28, Duster 360
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: geom label versus text"
-ex_label <- ggplot(class_summary, aes(x = reorder(class, -hwy), y = hwy)) +
-  geom_col(fill = "#A5C882") +
-  geom_label(aes(label = hwy), vjust = -0.3, size = 3.5) +
-  ylim(0, max(class_summary$hwy) * 1.15)
-ex_label
-#> Same values but each label now has a white rounded-rectangle background
-#> geom_label is easier to read on busy or dark backgrounds
+```r title="Solution"
+top_hp <- mtcars |>
+  rownames_to_column("car") |>
+  slice_max(hp, n = 4)
+
+ex_6_1 <- ggplot(mtcars, aes(x = hp, y = mpg)) +
+  geom_point() +
+  geom_text(data = top_hp, aes(label = car), vjust = -1, size = 3)
+
+ex_6_1
+#> 32 points + 4 labels: Maserati Bora, Ford Pantera L, Camaro Z28, Duster 360
 ```
 
-**Explanation:** `geom_label()` adds a filled rectangle behind the text, making labels readable even over gridlines or colored backgrounds. Use `geom_text()` for clean, minimal annotations and `geom_label()` when readability is more important than aesthetics.
+**Explanation:** Passing a filtered data frame to a single layer is the clean way to highlight a subset; `geom_point()` uses the global data (`mtcars`), while `geom_text()` overrides with `top_hp`. `vjust = -1` nudges the label one unit above the y position so the text does not overlap the marker. For overlapping labels, switch to `ggrepel::geom_text_repel()` which spaces them automatically and draws short leader lines from label to point.
 
 </details>
 
-[TIP]
-**Use geom_label() instead of geom_text() when your chart background is busy.** The white background box behind each label cuts through gridlines, overlapping elements, and dark fill colors that would make plain text hard to read.
+## What to do next
 
-## Practice Exercises
+You have practiced the core geom families in ggplot2. The natural next steps in the visualization track are:
 
-### Exercise 13: Annotated Scatter with Top-N Labels
-
-Write code to create a scatter plot of `mpg` data (`displ` vs `hwy`) with a `geom_smooth(method = "lm")` trend line. Identify the top 3 most fuel-efficient cars (highest `hwy`) and label them with `geom_label()` showing their `model` name. Use `geom_point()` for all cars, then layer the labels only on the top 3.
-
-```r title="Practice: annotated top three scatter"
-# Exercise 13: annotated scatter with selective labels
-# Hint: create a subset of top 3, use it as the data argument in geom_label()
-
-# Write your code below:
-
-#> Expected: scatter + trend line + 3 labeled outliers at the top
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Practice solution: annotated top three"
-# Identify top 3 most fuel-efficient
-top3 <- mpg[order(-mpg$hwy), ][1:3, ]
-
-my_scatter <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.4, color = "grey50") +
-  geom_smooth(method = "lm", color = "#E05A4F", se = FALSE) +
-  geom_point(data = top3, color = "#4B6FA5", size = 3) +
-  geom_label(data = top3, aes(label = model), vjust = -0.8, size = 3, fill = "#FFFFCC") +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-my_scatter
-#> Three labels appear near the top: corolla, civic, new beetle
-#> They sit well above the trend line — exceptionally efficient for their engine size
-```
-
-**Explanation:** The key technique is passing a different `data` argument to `geom_label()`. While `geom_point()` uses all 234 rows, the label layer only sees the 3 rows in `top3`. This pattern, full dataset for the background, subset for annotations, is how you highlight specific observations without cluttering the chart.
-
-</details>
-
-### Exercise 14: Multi-Geom Distribution Comparison
-
-Using the `diamonds` dataset (sample 3000 rows), create three separate plots that each show the distribution of `price` grouped by `cut`, using a different geom for each: (a) `geom_histogram()` with facets, (b) `geom_density()` with overlapping fills, and (c) `geom_boxplot()`. Which visualization reveals the most about how price varies by cut quality?
-
-```r title="Practice: three way diamond"
-# Exercise 14: three ways to show the same distribution
-# Hint: use facet_wrap(~cut) for the histogram, fill = cut for density
-
-set.seed(99)
-dia_ex <- diamonds[sample(nrow(diamonds), 3000), ]
-
-# Write your code below — create my_hist, my_dens, my_box:
-
-#> Expected: three plots showing the same data through different lenses
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Practice solution: three way diamond"
-set.seed(99)
-dia_ex <- diamonds[sample(nrow(diamonds), 3000), ]
-
-# (a) Faceted histogram — one panel per cut
-my_hist <- ggplot(dia_ex, aes(x = price)) +
-  geom_histogram(binwidth = 500, fill = "#4B6FA5", color = "white") +
-  facet_wrap(~cut, scales = "free_y") +
-  labs(title = "Histogram", x = "Price ($)", y = "Count")
-my_hist
-#> Each facet shows the distribution for one cut level
-#> All cuts are right-skewed; Fair has the fewest diamonds
-
-# (b) Overlapping density curves
-my_dens <- ggplot(dia_ex, aes(x = price, fill = cut)) +
-  geom_density(alpha = 0.35) +
-  labs(title = "Density", x = "Price ($)", y = "Density")
-my_dens
-#> All cuts have similar shapes — surprising, Ideal isn't notably cheaper
-#> Overlapping curves make direct comparison easy
-
-# (c) Boxplot — summary statistics by cut
-my_box <- ggplot(dia_ex, aes(x = cut, y = price)) +
-  geom_boxplot(fill = "#7FB3D8") +
-  labs(title = "Boxplot", x = "Cut", y = "Price ($)")
-my_box
-#> Medians are surprisingly similar across cuts (~2500-4000)
-#> Fair has the highest median — counterintuitive until you realize bigger diamonds get Fair cuts
-```
-
-**Explanation:** Each geom tells a different part of the story. The histogram shows per-cut shape and count. The density overlay lets you compare shapes directly. The boxplot compresses everything to five numbers, revealing the surprising fact that Fair-cut diamonds have a *higher* median price (because larger diamonds are more likely to receive a Fair cut, and size drives price more than cut quality). No single chart tells the whole story.
-
-</details>
-
-## Complete Example
-
-Let's bring together multiple geoms to explore the built-in `airquality` dataset from four angles. Each chart uses a different geom to reveal a different aspect of New York's 1973 air quality measurements.
-
-```r title="Capstone: airquality four angles"
-# Clean the data (remove rows with missing values)
-aq <- na.omit(airquality)
-aq$Month <- factor(aq$Month, labels = c("May", "Jun", "Jul", "Aug", "Sep"))
-cat("Clean rows:", nrow(aq), "| Months:", levels(aq$Month), "\n")
-#> Clean rows: 111 | Months: May Jun Jul Aug Sep
-
-# Chart 1: Scatter — Temperature vs Ozone with trend
-p_complete_1 <- ggplot(aq, aes(x = Temp, y = Ozone)) +
-  geom_point(aes(color = Month), size = 2, alpha = 0.7) +
-  geom_smooth(method = "loess", color = "black", se = TRUE) +
-  labs(title = "Scatter: Temp vs Ozone", x = "Temperature (°F)", y = "Ozone (ppb)")
-p_complete_1
-#> Strong positive relationship — hotter days have higher ozone
-#> July/August points cluster at high temp + high ozone
-
-# Chart 2: Boxplot — Ozone by Month
-p_complete_2 <- ggplot(aq, aes(x = Month, y = Ozone, fill = Month)) +
-  geom_boxplot(show.legend = FALSE) +
-  labs(title = "Boxplot: Ozone by Month", y = "Ozone (ppb)")
-p_complete_2
-#> July and August have highest median ozone (~60 ppb)
-#> May has the lowest and tightest distribution
-
-# Chart 3: Histogram — Wind speed distribution
-p_complete_3 <- ggplot(aq, aes(x = Wind)) +
-  geom_histogram(binwidth = 2, fill = "#A5C882", color = "white") +
-  geom_vline(xintercept = mean(aq$Wind), linetype = "dashed", color = "red") +
-  labs(title = "Histogram: Wind Speed", x = "Wind (mph)", y = "Count")
-p_complete_3
-#> Roughly normal, centered around 10 mph
-#> A few calm days (< 4 mph) and gusty days (> 16 mph)
-
-# Chart 4: Heatmap — Mean Ozone by Month and Wind category
-aq$Wind_cat <- cut(aq$Wind, breaks = c(0, 8, 12, 21),
-                   labels = c("Calm", "Moderate", "Gusty"))
-heat_data <- aggregate(Ozone ~ Month + Wind_cat, data = aq, FUN = mean)
-
-p_complete_4 <- ggplot(heat_data, aes(x = Month, y = Wind_cat, fill = Ozone)) +
-  geom_tile(color = "white", linewidth = 1) +
-  scale_fill_gradient(low = "#E8F0FE", high = "#E05A4F") +
-  geom_text(aes(label = round(Ozone, 0)), size = 4) +
-  labs(title = "Heatmap: Mean Ozone", y = "Wind Category", fill = "Ozone\n(ppb)")
-p_complete_4
-#> Calm + July/August = highest ozone (darkest red)
-#> Gusty + May = lowest ozone — wind disperses pollutants
-```
-
-Four different geoms, same dataset, four different insights. The scatter reveals the temperature-ozone relationship. The boxplot compares months. The histogram shows wind's distribution. And the heatmap combines month and wind to find the conditions that produce the worst air quality. Choosing the right geom for each question is the core skill these 12 exercises develop.
-
-## Summary
-
-| Geom | Chart Type | Key Parameters | Best For |
-|------|-----------|----------------|----------|
-| `geom_point()` | Scatter plot | `size`, `alpha`, `shape` | Relationships between two continuous variables |
-| `geom_line()` | Line chart | `linewidth`, `linetype`, `group` | Trends over time, ordered sequences |
-| `geom_smooth()` | Trend line | `method`, `se`, `span` | Overlaying fitted curves on scatter plots |
-| `geom_col()` | Bar chart | `width`, `position` | Plotting pre-computed summary values |
-| `geom_bar()` | Bar chart | `position`, `stat` | Counting observations per category |
-| `geom_histogram()` | Histogram | `binwidth`, `bins`, `boundary` | Distribution shape of one numeric variable |
-| `geom_density()` | Density plot | `bw`, `alpha`, `fill` | Smooth distribution comparison across groups |
-| `geom_boxplot()` | Boxplot | `notch`, `outlier.color`, `width` | Median, IQR, and outliers across groups |
-| `geom_violin()` | Violin plot | `draw_quantiles`, `scale` | Full distribution shape across groups |
-| `geom_area()` | Area chart | `alpha`, `position` | Magnitude over time, stacked composition |
-| `geom_tile()` | Heatmap | `color`, `linewidth` | Patterns in two-dimensional grids |
-| `geom_text()` | Text labels | `vjust`, `hjust`, `size` | Annotating specific data points |
-
-## References
-
-1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 3: Individual geoms. [Link](https://ggplot2-book.org/individual-geoms.html)
-2. ggplot2 documentation, Geom function reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#geoms)
-3. R Graph Gallery, ggplot2 chart types. [Link](https://r-graph-gallery.com/ggplot2-package.html)
-4. Posit cheat sheet, Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
-5. Wilkinson, L., *The Grammar of Graphics*, 2nd Edition. Springer (2005). [Link](https://link.springer.com/book/10.1007/0-387-28695-0)
-6. Healy, K., *Data Visualization: A Practical Introduction*. Princeton University Press (2019). [Link](https://socviz.co/)
-
-## Continue Learning
-
-1. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html), broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
-2. [ggplot2 Distribution Charts](ggplot2-Distribution-Charts.html), deep dive on histograms, density plots, boxplots, and violin charts with parameter tuning guidance
-3. [ggplot2 Scatter Plots](ggplot2-Scatter-Plots.html), comprehensive scatter plot tutorial covering overplotting, grouping, trend lines, and marginal plots
+- [ggplot2 Aesthetics Exercises](ggplot2-Aesthetics-Exercises.html): drill the mapping rules between data and visual channels.
+- [ggplot2 Facets Exercises](ggplot2-Facets-Exercises-in-R.html): break a plot into small multiples by a grouping variable.
+- [ggplot2 Themes Exercises](ggplot2-Themes-Exercises-in-R.html): customize the non-data ink (axis text, legend, panel grid, fonts).
+- [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html): final polish for publication, including titles, captions, scales, and color.
