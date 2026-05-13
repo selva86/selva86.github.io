@@ -1,11 +1,11 @@
 ---
-title: "Regex Exercises in R: 20 Real-World Practice Problems"
+title: "Regex Exercises in R: 25 Real-World Practice Problems"
 slug: "Regex-Exercises-in-R"
-description: "20 regex in R practice problems with stringr: anchors, character classes, quantifiers, capture groups, lookarounds, and real-world text cleaning."
+description: "25 regex in R practice problems with stringr: anchors, character classes, quantifiers, capture groups, lookarounds, and real-world text cleaning workflows."
 keywords: "regex in R exercises, R regular expressions practice, R regex problems, stringr exercises, regex practice in R"
 mathjax: false
 webr: true
-date: "2026-05-12"
+date: "2026-05-13"
 post_type: "EX"
 sidebar_title: "Regex Exercises"
 sidebar_order: 123
@@ -17,15 +17,15 @@ sibling_block_enabled: false
 difficulty: "Mixed"
 ---
 
-# Regex Exercises in R: 20 Real-World Practice Problems
+# Regex Exercises in R: 25 Real-World Practice Problems
 
-<p class="lead">Twenty hands-on practice problems covering anchors, character classes, quantifiers, capture groups, lookarounds, and real-world text cleaning with stringr. Every problem has a verifiable expected result and a hidden solution with an explanation of why the regex works.</p>
+<p class="lead">Twenty-five hands-on practice problems covering anchors, character classes, quantifiers, capture groups, lookarounds, and real-world text cleaning with stringr. Every problem has a verifiable expected result and a hidden solution with an explanation of why the regex works.</p>
 
 ```r title="Run this once before any exercise"
 library(stringr)
 ```
 
-## Section 1. Anchors and character classes (3 problems)
+## Section 1. Anchors and character classes (4 problems)
 
 ### Exercise 1.1: Flag names that begin with an honorific Mr
 
@@ -120,6 +120,38 @@ ex_1_3
 ```
 
 **Explanation:** Both anchors are required: `^\\d{3}` alone would happily match "9999" (the first 3 digits), and `\\d{3}$` alone would match "a456b" if you stripped the last char. The fixed quantifier `{3}` means exactly three, not "three or more". `\\d` is equivalent to `[0-9]` in stringr's ICU engine and reads faster.
+
+</details>
+
+### Exercise 1.4: Accept SKU codes containing only uppercase letters and dashes
+
+**Task:** A merchandising audit wants to accept SKU codes that consist solely of uppercase letters and dashes, with no digits, spaces, or lowercase letters allowed anywhere. Given `sku_v <- c("AB-CD","X-Y-Z","AB1-CD","SHIRT","red-hat","HAT 1","")`, use `str_detect()` with anchors around a character class that includes only uppercase letters and the dash. Save the logical vector to `ex_1_4`.
+
+**Expected result:**
+
+```
+#> [1]  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+sku_v <- c("AB-CD","X-Y-Z","AB1-CD","SHIRT","red-hat","HAT 1","")
+ex_1_4 <- # your code here
+ex_1_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+sku_v <- c("AB-CD","X-Y-Z","AB1-CD","SHIRT","red-hat","HAT 1","")
+ex_1_4 <- str_detect(sku_v, "^[A-Z-]+$")
+ex_1_4
+#> [1]  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE
+```
+
+**Explanation:** Inside a character class, the dash is a range operator (as in `A-Z`), but when it is placed at the very start or end of the class, it loses that meaning and matches a literal hyphen. The `+` quantifier requires at least one character, which is what rejects the empty string. Anchors `^` and `$` ensure that any forbidden character anywhere in the string causes the match to fail.
 
 </details>
 
@@ -221,7 +253,7 @@ ex_2_3
 
 </details>
 
-## Section 3. Capture groups and backreferences (3 problems)
+## Section 3. Capture groups and backreferences (4 problems)
 
 ### Exercise 3.1: Extract the local part of each email address
 
@@ -334,7 +366,53 @@ ex_3_3
 
 </details>
 
-## Section 4. Lookarounds (3 problems)
+### Exercise 3.4: Split file paths into basename and final extension
+
+**Task:** A data-engineering job needs the basename (last path segment before the final dot) and the trailing extension from a vector of file paths so the downstream router can pick the right reader. Given `paths_v <- c("reports/2026/q1.csv","data/raw.tsv","notes.md","archive/old/file.tar.gz","noext")`, use `str_match()` with two capture groups to grab everything after the last slash up to the last dot, plus the extension after that last dot. Save a `data.frame` with columns `basename` and `ext` to `ex_3_4`.
+
+**Expected result:**
+
+```
+#>   basename  ext
+#> 1       q1  csv
+#> 2      raw  tsv
+#> 3    notes   md
+#> 4 file.tar   gz
+#> 5     <NA> <NA>
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+paths_v <- c("reports/2026/q1.csv","data/raw.tsv","notes.md","archive/old/file.tar.gz","noext")
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+paths_v <- c("reports/2026/q1.csv","data/raw.tsv","notes.md","archive/old/file.tar.gz","noext")
+m <- str_match(paths_v, "([^/]+)\\.([^.]+)$")
+ex_3_4 <- data.frame(
+  basename = m[, 2],
+  ext      = m[, 3]
+)
+ex_3_4
+#>   basename  ext
+#> 1       q1  csv
+#> 2      raw  tsv
+#> 3    notes   md
+#> 4 file.tar   gz
+#> 5     <NA> <NA>
+```
+
+**Explanation:** `[^/]+` greedily matches the last path segment up to a slash without crossing one. The literal escaped dot `\\.` separates the basename from the extension, and `[^.]+$` at the end captures only the final extension token. That makes "file.tar.gz" split into basename "file.tar" and ext "gz", the conventional Unix interpretation of multi-suffix filenames. "noext" has no dot at all, so both captures return `NA`.
+
+</details>
+
+## Section 4. Lookarounds (4 problems)
 
 ### Exercise 4.1: Pull dollar amounts using a positive lookbehind
 
@@ -452,7 +530,39 @@ ex_4_3
 
 </details>
 
-## Section 5. Extracting structured fields from real text (4 problems)
+### Exercise 4.4: Extract HTML table cell text using a lookbehind and lookahead
+
+**Task:** A web scraper has a tightly-controlled HTML snippet and wants only the text inside each `<td>...</td>` cell, with the surrounding tags excluded from the result. Given `html <- "<tr><td>Acme</td><td>1200</td><td>USD</td></tr>"`, use `str_extract_all()` combining a positive lookbehind `(?<=<td>)` and a positive lookahead `(?=</td>)` around a class that matches the cell text. Save the unlisted character vector to `ex_4_4`.
+
+**Expected result:**
+
+```
+#> [1] "Acme" "1200" "USD"
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+html <- "<tr><td>Acme</td><td>1200</td><td>USD</td></tr>"
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+html <- "<tr><td>Acme</td><td>1200</td><td>USD</td></tr>"
+ex_4_4 <- str_extract_all(html, "(?<=<td>)[^<]+(?=</td>)")[[1]]
+ex_4_4
+#> [1] "Acme" "1200" "USD"
+```
+
+**Explanation:** The lookbehind `(?<=<td>)` requires the literal opening tag immediately before the match without including it. The lookahead `(?=</td>)` does the same for the closing tag. `[^<]+` stops at the next `<` so the match never crosses into the closing tag. For tightly-structured snippets this is fine, but for messy real-world HTML (nested tags, attributes, comments) reach for `rvest::html_text()` rather than regex.
+
+</details>
+
+## Section 5. Extracting structured fields from real text (5 problems)
 
 ### Exercise 5.1: Extract the 5-digit US ZIP code from each address
 
@@ -597,7 +707,59 @@ ex_5_4
 
 </details>
 
-## Section 6. Cleaning and transforming messy text (4 problems)
+### Exercise 5.5: Pull every IPv4 address from a batch of log lines
+
+**Task:** A SRE auditing access logs needs every IPv4 address mentioned in a vector of log lines, including multiple addresses on the same line. Given `log_v <- c("10.0.0.1 - GET / 200","fail from 192.168.1.42","clean: 8.8.8.8 and 1.1.1.1","no-ip line")`, use `str_extract_all()` with word boundaries around four dot-separated 1-3 digit groups. Save the resulting list to `ex_5_5`.
+
+**Expected result:**
+
+```
+#> [[1]]
+#> [1] "10.0.0.1"
+#> 
+#> [[2]]
+#> [1] "192.168.1.42"
+#> 
+#> [[3]]
+#> [1] "8.8.8.8" "1.1.1.1"
+#> 
+#> [[4]]
+#> character(0)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+log_v <- c("10.0.0.1 - GET / 200","fail from 192.168.1.42","clean: 8.8.8.8 and 1.1.1.1","no-ip line")
+ex_5_5 <- # your code here
+ex_5_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+log_v <- c("10.0.0.1 - GET / 200","fail from 192.168.1.42","clean: 8.8.8.8 and 1.1.1.1","no-ip line")
+ex_5_5 <- str_extract_all(log_v, "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")
+ex_5_5
+#> [[1]]
+#> [1] "10.0.0.1"
+#> 
+#> [[2]]
+#> [1] "192.168.1.42"
+#> 
+#> [[3]]
+#> [1] "8.8.8.8" "1.1.1.1"
+#> 
+#> [[4]]
+#> character(0)
+```
+
+**Explanation:** The word boundaries `\\b` prevent matching inside longer numeric runs and reject malformed octet groups that bleed into adjacent text. Each `\\d{1,3}` accepts a 1-3 digit octet without validating the 0-255 range; that bound is best enforced afterwards by parsing the captured octets to integers and filtering. `str_extract_all()` returns a list with one slot per input line, including `character(0)` when nothing matches.
+
+</details>
+
+## Section 6. Cleaning and transforming messy text (5 problems)
 
 ### Exercise 6.1: Trim and collapse whitespace in raw form input
 
@@ -731,6 +893,39 @@ ex_6_4
 ```
 
 **Explanation:** Splitting the problem in two (normalize then format) is much easier than writing one regex that accepts every input variant. `\\D` is the negation of `\\d` and removes parentheses, dots, dashes, and spaces in one pass. The length gate `^\\d{10}$` rejects "1-415-555-2671" (11 digits with country code) and "555-2671" (7 digits) without complicated logic. The final `str_replace()` weaves the three captures into the canonical form.
+
+</details>
+
+### Exercise 6.5: Strip HTML tags and decode common entity references
+
+**Task:** A content-cleaning script needs to strip HTML tags and convert the three most common entity references (`&amp;`, `&lt;`, `&gt;`) to their literal characters from rich-text input. Given `raw_html <- c("<p>Hello &amp; goodbye</p>","<b>x &lt; y</b>","plain text","<span class=\"x\">tagged</span>")`, first use `str_replace_all()` with `"<[^>]+>"` to remove tags, then use the named-vector form of `str_replace_all()` for the three entity substitutions. Save the cleaned vector to `ex_6_5`.
+
+**Expected result:**
+
+```
+#> [1] "Hello & goodbye" "x < y"           "plain text"      "tagged"
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+raw_html <- c("<p>Hello &amp; goodbye</p>","<b>x &lt; y</b>","plain text","<span class=\"x\">tagged</span>")
+ex_6_5 <- # your code here
+ex_6_5
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+raw_html <- c("<p>Hello &amp; goodbye</p>","<b>x &lt; y</b>","plain text","<span class=\"x\">tagged</span>")
+stripped <- str_replace_all(raw_html, "<[^>]+>", "")
+ex_6_5 <- str_replace_all(stripped, c("&amp;" = "&", "&lt;" = "<", "&gt;" = ">"))
+ex_6_5
+#> [1] "Hello & goodbye" "x < y"           "plain text"      "tagged"
+```
+
+**Explanation:** `<[^>]+>` matches a tag opening `<`, any non-`>` content, and the closing `>` in one shot; the negated class is what stops the match from greedily spanning multiple tags. The named-vector form of `str_replace_all()` applies each `pattern = replacement` mapping in turn across every input string, which is cleaner than three chained calls. For production HTML cleanup with nested or malformed markup, prefer `rvest::html_text()`, which handles entity decoding and attribute parsing correctly.
 
 </details>
 
