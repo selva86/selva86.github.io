@@ -1,33 +1,41 @@
 ---
-title: "dplyr filter() & select() Exercises: 12 Practice Problems, Solved Step-by-Step)"
+title: "dplyr filter() and select() Exercises: 20 Practice Problems in R"
 slug: "dplyr-filter-select-Exercises"
-description: "Practise dplyr filter() and select() with 12 hands-on R problems and worked solutions. Master row filtering and column selection from beginner to advanced."
-keywords: "dplyr filter exercises, dplyr select exercises, filter practice R, select practice R, dplyr practice problems, tidyverse exercises, R data manipulation exercises"
+description: "Practice dplyr filter() and select() with 20 hands-on R problems and worked solutions. Beginner to advanced, every exercise has a hidden answer and explanation."
+keywords: "dplyr filter select exercises, dplyr filter practice, dplyr select practice, dplyr exercises R, tidyverse practice problems, R data manipulation exercises"
 mathjax: false
 webr: true
-date: "2026-04-14"
+date: "2026-05-13"
 curriculum_id: "E2.2"
 post_type: "EX"
-sidebar_title: "filter & select (12 problems)"
+sidebar_title: "filter & select (20 problems)"
+sidebar_order: 145
+fr_parent: "dplyr-filter-select.html"
 auto_link_terms: "dplyr filter exercises|dplyr select exercises|filter and select exercises|filter practice problems|dplyr practice problems"
 auto_link_case_sensitive: false
-fr_parent: "dplyr-filter-select.html"
-difficulty: "Intermediate"
+target_keyword: "dplyr filter select exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# dplyr filter() & select() Exercises: 12 Practice Problems
+# dplyr filter() and select() Exercises: 20 Practice Problems
 
-<p class="lead">The fastest way to master dplyr's <code>filter()</code> and <code>select()</code> is to solve real problems yourself. These 12 runnable exercises take you from single-condition filtering to selection helpers like <code>starts_with()</code> and <code>where()</code>, with a click-to-reveal solution and explanation for every question.</p>
+<p class="lead">Solve 20 short, focused R problems that drill the most important <code>filter()</code> and <code>select()</code> patterns. Every exercise lists the task, the expected output, and a difficulty marker. Click any solution panel to reveal the worked answer and a short explanation when you are ready to compare notes.</p>
 
-## How do you filter rows with a simple condition?
-
-Every analysis starts with the same question: which rows do I care about? dplyr's `filter()` answers it with a condition that evaluates to `TRUE` or `FALSE` for each row. Let's load `dplyr` and run a worked example on `mtcars` so you can see the shape of a filter call before you write your own. We'll use the same R session for all 12 problems, so variables defined in one block stay available in the next.
-
-```r title="filter rows over 25 mpg"
+```r title="Run this once before any exercise"
 library(dplyr)
+library(ggplot2)
+```
 
-# Payoff: keep only the most fuel-efficient cars
-mtcars |> filter(mpg > 25)
+## Section 1. Single-condition row filtering (3 problems)
+
+### Exercise 1.1: Keep the fuel-efficient cars from mtcars
+
+**Task:** Use `filter()` to keep only the rows of the built-in `mtcars` dataset where `mpg` is greater than 25 miles per gallon. The result is a shortlist of the most fuel-efficient cars in the dataset. Save the result to `ex_1_1`.
+
+**Expected result:**
+
+```
 #>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
 #> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
 #> Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
@@ -37,458 +45,731 @@ mtcars |> filter(mpg > 25)
 #> Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
 ```
 
-Six cars exceed 25 mpg, and every one of them is a 4-cylinder model. Reading `filter()` is straightforward, pass the data frame first, then a condition; rows where the condition is `TRUE` come through to the result, everything else is dropped. Now try writing two of your own.
+**Difficulty:** Beginner
 
-**Try it:** Filter `mtcars` to keep only 4-cylinder cars. Save the result to `ex_fours` and print the first few rows.
-
-```r title="Exercise: Filter cylinders equal 4"
-# Exercise 1: one-condition filter
-# Hint: filter(cyl == 4)
-
-ex_fours <- mtcars        # replace this line with your filter call
-nrow(ex_fours)
-#> Expected after your fix: 11
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Four cylinder solution"
-ex_fours <- mtcars |> filter(cyl == 4)
-head(ex_fours, 3)
-#>            mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Datsun 710 22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
-#> Merc 240D  24.4   4  146.7 62 3.69 3.190 20.00  1  0    4    2
-#> Merc 230   22.8   4  140.8 95 3.92 3.150 22.90  1  0    4    2
-nrow(ex_fours)
-#> [1] 11
+```r title="Solution"
+ex_1_1 <- mtcars |> filter(mpg > 25)
+ex_1_1
 ```
 
-**Explanation:** `filter(cyl == 4)` keeps the 11 rows where the cylinder count equals four. Note the double equals, a single `=` is R's assignment operator and would error inside `filter()`.
+**Explanation:** `filter()` keeps rows where the supplied condition evaluates to `TRUE`. Six cars clear the 25-mpg bar and every one of them is a four-cylinder economy compact. A common slip for newcomers is writing `=` instead of `>` when typing fast: only the comparison operators (`>`, `<`, `>=`, `<=`, `==`, `!=`) belong inside `filter()`. Assignment with `=` or `<-` would silently set a column and then drop nothing.
 
 </details>
 
-**Try it:** Filter `starwars` to keep only characters whose `eye_color` is `"blue"`. Save to `ex_blue` and show just the `name` and `eye_color` columns.
+### Exercise 1.2: Pull a budget tier from the diamonds catalog
 
-```r title="Exercise: Filter blue eyes"
-# Exercise 2: filter on a character column
-# Hint: eye_color == "blue"  — strings use ==, wrap them in quotes
+**Task:** A jeweller preparing a seasonal sale wants the budget tier of the `diamonds` catalog, defined as stones priced strictly below $1,000. Filter the `diamonds` dataset to that subset and save the result to `ex_1_2` so it can be exported to the discount flyer.
 
-ex_blue <- starwars       # replace this line with your filter call
-nrow(ex_blue)
-#> Expected after your fix: 19
+**Expected result:**
+
+```
+#> # A tibble: 14,524 x 10
+#>    carat cut       color clarity depth table price     x     y     z
+#>    <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl>
+#> 1   0.23 Ideal     E     SI2      61.5    55   326  3.95  3.98  2.43
+#> 2   0.21 Premium   E     SI1      59.8    61   326  3.89  3.84  2.31
+#> 3   0.23 Good      E     VS1      56.9    65   327  4.05  4.07  2.31
+#> 4   0.29 Premium   I     VS2      62.4    58   334  4.20  4.23  2.63
+#> 5   0.31 Good      J     SI2      63.3    58   335  4.34  4.35  2.75
+#> # 14,519 more rows hidden
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Blue eyes solution"
-ex_blue <- starwars |> filter(eye_color == "blue")
-ex_blue |> select(name, eye_color) |> head()
-#> # A tibble: 6 × 2
-#>   name               eye_color
-#>   <chr>              <chr>
-#> 1 Luke Skywalker     blue
-#> 2 Owen Lars          blue
-#> 3 Beru Whitesun lars blue
-#> 4 Anakin Skywalker   blue
-#> 5 Wilhuff Tarkin     blue
-#> 6 Anakin Skywalker   blue
+```r title="Solution"
+ex_1_2 <- diamonds |> filter(price < 1000)
+ex_1_2
 ```
 
-**Explanation:** String equality uses `==` exactly like numeric equality. Nineteen characters have blue eyes. Strings must be wrapped in quotes; bare words would be interpreted as column names and error.
+**Explanation:** Strictly less than (`<`) is correct because the brief says "strictly below $1,000". Switch to `<=` if the boundary should be inclusive. About 27% of the catalog falls in this tier, which often surprises people because the dataset's price range stretches up to $18,823. The long right tail of the price distribution hides how many entry-level stones the catalog actually contains.
 
 </details>
 
-[WARNING]
-**Never use a single `=` for equality inside filter().** A single `=` is assignment in R, and `filter(mtcars, mpg = 20)` attempts to rename the column rather than test equality. The correct form is always `==`.
+### Exercise 1.3: Keep only compact cars from the mpg dataset
 
-## How do you combine conditions with AND, OR, and `%in%`?
+**Task:** Use `filter()` to keep only the `mpg` rows where the `class` column is exactly `"compact"`. The `mpg` dataset ships with the ggplot2 package and catalogues 234 car models with their EPA fuel economy ratings. Save the compact-only subset to `ex_1_3`.
 
-Real questions almost always involve more than one condition. dplyr lets you stack conditions inside `filter()` with a comma (AND), use the `|` operator (OR), or compare against a set of values with `%in%`. Here is what the AND form looks like on `mtcars`.
+**Expected result:**
 
-```r title="Two conditions with AND"
-# Worked example: keep 4-cylinder cars that are also fuel efficient
-mtcars |> filter(mpg > 20, cyl == 4) |> head(4)
-#>                mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Datsun 710    22.8   4  108  93 3.85 2.320 18.61  1  1    4    1
-#> Merc 240D     24.4   4  146.7 62 3.69 3.190 20.00  1  0    4    2
-#> Merc 230      22.8   4  140.8 95 3.92 3.150 22.90  1  0    4    2
-#> Fiat 128      32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+```
+#> # A tibble: 47 x 11
+#>    manufacturer model    displ  year   cyl trans drv     cty   hwy fl    class
+#>    <chr>        <chr>    <dbl> <int> <int> <chr> <chr> <int> <int> <chr> <chr>
+#> 1  audi         a4         1.8  1999     4 auto~ f        18    29 p     compact
+#> 2  audi         a4         1.8  1999     4 manu~ f        21    29 p     compact
+#> 3  audi         a4         2.0  2008     4 manu~ f        20    31 p     compact
+#> # 44 more rows hidden
 ```
 
-Ten cars meet both conditions. The comma form reads more naturally than `mpg > 20 & cyl == 4`, but the two are identical, dplyr treats a comma-separated list of conditions as an AND chain.
+**Difficulty:** Beginner
 
-**Try it:** From `mtcars`, keep rows where `cyl == 4` AND `mpg > 30`. Save to `ex_econ`.
-
-```r title="Exercise: Four cylinder over 30 mpg"
-# Exercise 3: two conditions with AND
-# Hint: filter(cyl == 4, mpg > 30)
-
-ex_econ <- mtcars         # replace this line with your filter call
-nrow(ex_econ)
-#> Expected after your fix: 4
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Two-condition solution"
-ex_econ <- mtcars |> filter(cyl == 4, mpg > 30)
-print(ex_econ)
-#>                 mpg cyl disp  hp drat    wt  qsec vs am gear carb
-#> Fiat 128       32.4   4 78.7  66 4.08 2.200 19.47  1  1    4    1
-#> Honda Civic    30.4   4 75.7  52 4.93 1.615 18.52  1  1    4    2
-#> Toyota Corolla 33.9   4 71.1  65 4.22 1.835 19.90  1  1    4    1
-#> Lotus Europa   30.4   4 95.1 113 3.77 1.513 16.90  1  1    5    2
+```r title="Solution"
+ex_1_3 <- mpg |> filter(class == "compact")
+ex_1_3
 ```
 
-**Explanation:** Both conditions must be `TRUE` for a row to survive. Four cars pass, all small, light, and fuel-efficient. Writing `filter(cyl == 4 & mpg > 30)` would return the same result; pick whichever form you find more readable.
+**Explanation:** `class == "compact"` is element-wise equality on a character column, so each row's class value is compared to the literal string. Quotes matter here: writing `class == compact` without quotes would search for a variable named `compact` and throw `object 'compact' not found`. There are 47 compact cars across seven manufacturers, making it one of the most common classes in the dataset.
 
 </details>
 
-**Try it:** Keep cars from `mtcars` that have 4 OR 6 cylinders using the `%in%` operator. Save to `ex_46`, then count the rows.
+## Section 2. Combining multiple conditions (4 problems)
 
-```r title="Exercise: Cylinders 4 or 6"
-# Exercise 4: OR with %in%
-# Hint: filter(cyl %in% c(4, 6))
+### Exercise 2.1: Pick setosa flowers with wide petals
 
-ex_46 <- mtcars           # replace this line with your filter call
-nrow(ex_46)
-#> Expected after your fix: 18
+**Task:** Filter the `iris` dataset to rows where `Species` equals `"setosa"` AND `Petal.Width` is at least 0.4 centimetres. Combining two conditions inside `filter()` with a comma (implicit AND) is the single most common dplyr filter pattern in real analysis code. Save the result to `ex_2_1`.
+
+**Expected result:**
+
+```
+#>   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#> 1          5.4         3.9          1.7         0.4  setosa
+#> 2          5.7         4.4          1.5         0.4  setosa
+#> 3          5.1         3.5          1.4         0.3  setosa
+#> ...
+#> nrow(ex_2_1):
+#> [1] 9
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Cylinders 4 and 6 solution"
-ex_46 <- mtcars |> filter(cyl %in% c(4, 6))
-nrow(ex_46)
+```r title="Solution"
+ex_2_1 <- iris |> filter(Species == "setosa", Petal.Width >= 0.4)
+ex_2_1
+```
+
+**Explanation:** Inside `filter()`, commas separate conditions and combine them with logical AND. You could also write `Species == "setosa" & Petal.Width >= 0.4` and get an identical result. Use `|` for OR. A common pitfall: `&&` and `||` (double form) short-circuit and only return one value, which silently breaks vectorised row-wise filtering. Stick to single `&` and `|` inside `filter()` calls.
+
+</details>
+
+### Exercise 2.2: Climatologist flags hot and broken-sensor days
+
+**Task:** A climatologist studying poor air quality wants the `airquality` rows where `Ozone` is greater than 100 OR `Solar.R` is missing entirely. The first condition flags pollution hotspots and the second flags sensor outages. Combine the two with the OR operator `|` and save the result to `ex_2_2`.
+
+**Expected result:**
+
+```
+#>    Ozone Solar.R Wind Temp Month Day
+#> 1     NA      NA 14.3   56     5   5
+#> 2    115     223  5.7   79     5  30
+#> 3    135     269  4.1   84     7   1
+#> ...
+#> nrow(ex_2_2):
+#> [1] 14
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- airquality |> filter(Ozone > 100 | is.na(Solar.R))
+ex_2_2
+```
+
+**Explanation:** Combining conditions with `|` (OR) keeps rows that satisfy either side. Note that the `Ozone > 100` clause alone would silently drop rows where `Ozone` is `NA`, because any comparison against `NA` returns `NA`, which `filter()` treats as `FALSE`. To explicitly include or exclude NAs, wrap with `is.na()` and chain it with `|` or `&`. There are seven rows where `Solar.R` is missing.
+
+</details>
+
+### Exercise 2.3: Use %in% for four or six-cylinder cars
+
+**Task:** Use `filter()` together with the `%in%` operator to keep only `mtcars` rows whose `cyl` column is either 4 or 6. The `%in%` operator reads cleaner than chaining `==` with `|` once you have three or more allowed values. Save the result to `ex_2_3`.
+
+**Expected result:**
+
+```
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Mazda RX4      21.0   6 160.0 110 3.90 2.620 16.46  0  1    4    4
+#> Mazda RX4 Wag  21.0   6 160.0 110 3.90 2.875 17.02  0  1    4    4
+#> Datsun 710     22.8   4 108.0  93 3.85 2.320 18.61  1  1    4    1
+#> Hornet 4 Drive 21.4   6 258.0 110 3.08 3.215 19.44  1  0    3    1
+#> ...
+#> nrow(ex_2_3):
 #> [1] 18
 ```
 
-**Explanation:** `%in%` tests whether each value appears in a vector on the right. Eighteen cars have 4 or 6 cylinders; the remaining 14 are V8s. `%in%` stays readable as the list of allowed values grows, imagine writing ten `|` clauses by hand.
+**Difficulty:** Intermediate
 
-</details>
-
-[TIP]
-**Prefer `%in% c(...)` to chained `|` clauses.** For two allowed values the difference is cosmetic, but once you need three or more, `%in%` keeps the filter one line long and avoids off-by-one operator mistakes.
-
-## How do you safely handle missing values in `filter()`?
-
-Missing values need special treatment because `NA` is not equal to anything, not even itself. You test for missingness with `is.na()`, and you keep non-missing rows with its negation `!is.na()`. The `starwars` tibble has enough `NA` values in `height`, `mass`, and `hair_color` to practise on.
-
-```r title="Filter known mass with is.na"
-# Worked example: how many starwars characters have a known mass?
-starwars |> filter(!is.na(mass)) |> nrow()
-#> [1] 59
-```
-
-Of 87 characters, 59 have a recorded mass. The 28 that don't would silently break a `mean(mass)` call unless you either filter them out first or pass `na.rm = TRUE`. Filtering first is usually clearer, your downstream code doesn't need to carry the special case.
-
-**Try it:** From `starwars`, keep rows where BOTH `height` and `mass` are known. Save to `ex_measured` and report the row count.
-
-```r title="Exercise: Drop missing height and mass"
-# Exercise 5: drop NA in two columns
-# Hint: filter(!is.na(height), !is.na(mass))
-
-ex_measured <- starwars   # replace this line with your filter call
-nrow(ex_measured)
-#> Expected after your fix: 59
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Known measurements solution"
-ex_measured <- starwars |> filter(!is.na(height), !is.na(mass))
-nrow(ex_measured)
-#> [1] 59
+```r title="Solution"
+ex_2_3 <- mtcars |> filter(cyl %in% c(4, 6))
+ex_2_3
 ```
 
-**Explanation:** Both negated-missing tests must hold. Comma = AND. The result matches the single-column version because every row with a known `mass` also has a known `height` in `starwars`, a pattern worth noticing before you assume the two filters are independent.
+**Explanation:** `%in%` returns `TRUE` for each element of the left side that appears anywhere in the right-hand vector. Compared to `cyl == 4 | cyl == 6`, it scales better: just add another value to the vector for an extra allowed level. There are 11 four-cylinder cars and 7 six-cylinder cars in `mtcars`, totalling 18. The complement `!(cyl %in% c(4, 6))` catches the V8s.
 
 </details>
 
-**Try it:** Find all `starwars` characters whose `hair_color` IS missing. Save to `ex_unknown_hair` and list the names.
+### Exercise 2.4: Filter mid-carat diamonds with between()
 
-```r title="Exercise: Keep missing hair color"
-# Exercise 6: keep ONLY the NA rows
-# Hint: filter(is.na(hair_color))  — no negation this time
+**Task:** A jeweller's pricing model focuses on stones between 0.5 and 1.0 carats inclusive, the sweet spot for engagement rings. Use `between()` inside `filter()` to keep only the `diamonds` rows whose `carat` falls in that inclusive range, and save the result to `ex_2_4` for the pricing model input.
 
-ex_unknown_hair <- starwars   # replace this line with your filter call
-nrow(ex_unknown_hair)
-#> Expected after your fix: 5
+**Expected result:**
+
+```
+#> # A tibble: 24,624 x 10
+#>    carat cut       color clarity depth table price     x     y     z
+#>    <dbl> <ord>     <ord> <ord>   <dbl> <dbl> <int> <dbl> <dbl> <dbl>
+#> 1   0.5  Premium   F     SI2      60.7    58  1414  5.13  5.16  3.12
+#> 2   0.51 Premium   F     VS2      59.4    62  1746  5.27  5.30  3.13
+#> 3   0.52 Ideal     F     VS1      61.5    56  1624  5.18  5.21  3.19
+#> ...
+#> # 24,619 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_4 <- # your code here
+ex_2_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Missing hair solution"
-ex_unknown_hair <- starwars |> filter(is.na(hair_color))
-ex_unknown_hair |> pull(name)
-#> [1] "C-3PO"  "R2-D2"  "R5-D4"  "IG-88"  "R4-P17"
+```r title="Solution"
+ex_2_4 <- diamonds |> filter(between(carat, 0.5, 1.0))
+ex_2_4
 ```
 
-**Explanation:** Dropping the `!` flips the test, now you keep the missing rows. Every character with missing hair is a droid, which makes biological sense. Use this pattern whenever you want to investigate why values are missing rather than discard them.
+**Explanation:** `between(x, left, right)` is shorthand for `x >= left & x <= right`. Both bounds are inclusive, matching the jeweller's brief. It is purely a readability convenience: the underlying comparison runs at the same speed as the long form. If you need one bound exclusive, fall back to the explicit `carat >= 0.5 & carat < 1.0` form. About 46% of the catalog fits the engagement-ring range.
 
 </details>
 
-[WARNING]
-**`col == NA` always returns `NA`, never `TRUE`.** Any equality test against `NA` evaluates to `NA`, and `filter()` treats `NA` as "drop this row". The result is an empty data frame and no error. Always use `is.na()` or `!is.na()` for missing-value tests.
+## Section 3. Missing values and slicing helpers (2 problems)
 
-## How do you pick and drop columns with `select()` and its helpers?
+### Exercise 3.1: Drop rows where Ozone is missing
 
-Filtering picks rows; `select()` picks columns. You can list columns by name, drop them with a minus sign, or match them with helper functions like `starts_with()`, `ends_with()`, `contains()`, and `where()`. The order you list columns in `select()` is the order they appear in the output, which makes it a fast way to reorder a data frame.
+**Task:** An analyst preparing the `airquality` dataset for a regression model needs to drop every row where `Ozone` is missing, because the model response variable cannot be `NA`. Use `filter()` together with `!is.na()` to keep only the rows that have a recorded ozone value, and save the result to `ex_3_1`.
 
-```r title="Select three columns reordered"
-# Worked example: pick three columns and reorder them
-starwars |> select(name, mass, height) |> head(3)
-#> # A tibble: 3 × 3
-#>   name            mass height
-#>   <chr>          <dbl>  <int>
-#> 1 Luke Skywalker    77    172
-#> 2 C-3PO             75    167
-#> 3 R2-D2             32     96
+**Expected result:**
+
+```
+#>    Ozone Solar.R Wind Temp Month Day
+#> 1     41     190  7.4   67     5   1
+#> 2     36     118  8.0   72     5   2
+#> 3     12     149 12.6   74     5   3
+#> ...
+#> nrow(ex_3_1):
+#> [1] 116
 ```
 
-`mass` now comes before `height` even though the original tibble had them in the opposite order. `select()` returns a new data frame; it never modifies the source.
+**Difficulty:** Intermediate
 
-**Try it:** From `mtcars`, keep exactly the `mpg`, `hp`, and `wt` columns in that order. Save to `ex_cols`.
-
-```r title="Exercise: Pick mpg hp wt"
-# Exercise 7: select by name
-# Hint: select(mpg, hp, wt)
-
-ex_cols <- mtcars         # replace this line with your select call
-names(ex_cols)
-#> Expected after your fix: "mpg" "hp" "wt"
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Three columns solution"
-ex_cols <- mtcars |> select(mpg, hp, wt)
-head(ex_cols, 3)
-#>                mpg  hp    wt
-#> Mazda RX4     21.0 110 2.620
-#> Mazda RX4 Wag 21.0 110 2.875
-#> Datsun 710    22.8  93 2.320
+```r title="Solution"
+ex_3_1 <- airquality |> filter(!is.na(Ozone))
+ex_3_1
 ```
 
-**Explanation:** Three columns, in the order you listed them. Notice the rownames carry through, `select()` touches columns only, never rows.
+**Explanation:** `is.na()` returns `TRUE` for missing values, so `!is.na()` inverts the test and keeps only the present ones. `airquality` has 37 missing ozone readings out of 153, leaving 116 complete rows. A frequent trap is writing `Ozone != NA`, which returns `NA` for every row because you cannot compare a value to `NA` with `==` or `!=`, and `filter()` then silently drops every row.
 
 </details>
 
-**Try it:** From `mtcars`, DROP the `vs`, `am`, and `carb` columns and keep everything else. Save to `ex_kept`.
+### Exercise 3.2: Top five highest horsepower cars with slice_max
 
-```r title="Exercise: Drop vs am carb"
-# Exercise 8: drop with the minus sign
-# Hint: select(-vs, -am, -carb)
+**Task:** Use `slice_max()` to extract the five `mtcars` rows with the highest `hp`. `slice_max()` is the modern dplyr replacement for sorting by descending value and taking `head(n)`. Save the result to `ex_3_2` and confirm five rows are returned for the top-power leaderboard.
 
-ex_kept <- mtcars         # replace this line with your select call
-names(ex_kept)
-#> Expected after your fix: "mpg" "cyl" "disp" "hp" "drat" "wt" "qsec" "gear"
+**Expected result:**
+
+```
+#>                      mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Maserati Bora       15.0   8 301.0 335 3.54 3.570 14.60  0  1    5    8
+#> Ford Pantera L      15.8   8 351.0 264 3.22 3.170 14.50  0  1    5    4
+#> Duster 360          14.3   8 360.0 245 3.21 3.570 15.84  0  0    3    4
+#> Camaro Z28          13.3   8 350.0 245 3.73 3.840 15.41  0  0    3    4
+#> Chrysler Imperial   14.7   8 440.0 230 3.23 5.345 17.42  0  0    3    4
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Drop columns solution"
-ex_kept <- mtcars |> select(-vs, -am, -carb)
-names(ex_kept)
-#> [1] "mpg"  "cyl"  "disp" "hp"   "drat" "wt"   "qsec" "gear"
+```r title="Solution"
+ex_3_2 <- mtcars |> slice_max(hp, n = 5)
+ex_3_2
 ```
 
-**Explanation:** A leading minus means "drop this one". The remaining eight columns stay in their original order. The equivalent vector form is `select(-c(vs, am, carb))`, use whichever reads better to you.
+**Explanation:** `slice_max(hp, n = 5)` orders rows in descending `hp` and returns the top five. Use `slice_min()` for the opposite end. Ties at the boundary are kept by default, so you may receive more than `n` rows when multiple rows share the cutoff value: pass `with_ties = FALSE` to cap at exactly five. The helper is more readable and faster than the older `arrange(desc(hp)) |> head(5)` idiom for this job.
 
 </details>
 
-**Try it:** From `starwars`, keep every column whose name starts with `"s"`. Save to `ex_s` and print its column names.
+## Section 4. Selecting and renaming columns (3 problems)
 
-```r title="Exercise: Columns starting with s"
-# Exercise 9: select by prefix
-# Hint: select(starts_with("s"))
+### Exercise 4.1: Keep three core columns from mtcars
 
-ex_s <- starwars          # replace this line with your select call
-names(ex_s)
-#> Expected after your fix: "skin_color" "species" "starships"
+**Task:** Use `select()` to keep only the `mpg`, `cyl`, and `hp` columns from `mtcars` and save the result to `ex_4_1`. This is the most basic `select()` pattern: name the columns you want, in the order you want them, and dplyr drops everything you do not name from the result.
+
+**Expected result:**
+
+```
+#>                    mpg cyl  hp
+#> Mazda RX4         21.0   6 110
+#> Mazda RX4 Wag     21.0   6 110
+#> Datsun 710        22.8   4  93
+#> Hornet 4 Drive    21.4   6 110
+#> Hornet Sportabout 18.7   8 175
+#> Valiant           18.1   6 105
+#> ...
+#> # 26 more rows hidden
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Starts-with s solution"
-ex_s <- starwars |> select(starts_with("s"))
-names(ex_s)
-#> [1] "skin_color" "species"    "starships"
+```r title="Solution"
+ex_4_1 <- mtcars |> select(mpg, cyl, hp)
+head(ex_4_1)
 ```
 
-**Explanation:** `starts_with("s")` matches any column whose name begins with `s` (case-insensitive). Three columns qualify. Its siblings are `ends_with()`, `contains()`, and `matches()`, the last one takes a regex for when the pattern is more subtle.
+**Explanation:** `select()` returns a data frame with only the named columns, in the order you list them. The output order matches the call order: `select(hp, cyl, mpg)` would yield the same three columns but rearranged. Unlike `filter()`, which operates on rows, `select()` works on columns, so its arguments are unquoted column names rather than row-level conditions. This is the first verb most analysts reach for after loading data.
 
 </details>
 
-[KEY INSIGHT]
-**Most analysis questions reduce to "which rows, which columns?".** Once `filter()` and `select()` are muscle memory, the rest of the tidyverse, `mutate()`, `summarise()`, `group_by()`, `arrange()`, layers on top of these two foundations without new mental models.
+### Exercise 4.2: Drop one column with negative selection
 
-## Practice Exercises
+**Task:** From the `mpg` dataset, drop only the `fl` column (fuel type) while keeping all other columns. Negative selection with a minus sign is the cleanest way to remove one or two columns without listing every survivor by hand. Save the trimmed tibble to `ex_4_2`.
 
-The first nine exercises drilled one concept at a time. These three capstone problems combine multiple concepts into the kind of pipeline you write in real analysis work. Use fresh variable names (prefixed `my_`) so the solutions don't shadow your earlier exercise variables.
+**Expected result:**
 
-### Exercise 10: Filter then select in one pipeline
+```
+#> # A tibble: 234 x 10
+#>   manufacturer model  displ  year   cyl trans drv     cty   hwy class
+#>   <chr>        <chr>  <dbl> <int> <int> <chr> <chr> <int> <int> <chr>
+#> 1 audi         a4       1.8  1999     4 auto~ f        18    29 compact
+#> 2 audi         a4       1.8  1999     4 manu~ f        21    29 compact
+#> 3 audi         a4       2.0  2008     4 manu~ f        20    31 compact
+#> ...
+#> # 231 more rows hidden
+```
 
-From `mtcars`, find all 8-cylinder cars and keep only the `mpg`, `hp`, and `wt` columns. Save the result to `my_v8s`. Use the pipe to chain `filter()` and `select()` in that order.
+**Difficulty:** Intermediate
 
-```r title="Exercise: Filter then select V8s"
-# Capstone 10: filter → select pipeline
-# Hint: mtcars |> filter(cyl == 8) |> select(mpg, hp, wt)
-
-my_v8s <- mtcars          # replace this line with your full pipeline
-dim(my_v8s)
-#> Expected after your fix: 14 3
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="V8 pipeline solution"
-my_v8s <- mtcars |>
-  filter(cyl == 8) |>
-  select(mpg, hp, wt)
-head(my_v8s, 4)
-#>                    mpg  hp    wt
-#> Hornet Sportabout 18.7 175 3.440
-#> Duster 360        14.3 245 3.570
-#> Merc 450SE        16.8 180 4.070
-#> Merc 450SL        17.3 180 3.730
+```r title="Solution"
+ex_4_2 <- mpg |> select(-fl)
+ex_4_2
 ```
 
-**Explanation:** Order matters, filter first, then select. Doing it the other way around works here but wastes work, because `select()` would have to carry all 32 rows through before the filter narrows them. Filtering early is a universal performance habit in dplyr.
+**Explanation:** Putting a minus sign before a column name removes it from the result; every other column passes through. To drop multiple columns at once, wrap them in `c()`: `select(-c(fl, trans))`. Negative selection composes with helpers too, so `select(-starts_with("c"))` removes every column whose name starts with the letter c. A common confusion is mixing positive and negative selections in one call: keep the call all-positive or all-negative for clarity.
 
 </details>
 
-### Exercise 11: Combine a column range with `where()`
+### Exercise 4.3: Rename columns inline while selecting
 
-From `mtcars`, keep the columns from `mpg` through `hp` (inclusive), then keep only those of that range that are numeric. Save to `my_numeric_range`. Use a single `select()` call with the `&` intersection operator.
+**Task:** A reporting analyst preparing a stakeholder summary wants only three columns from `mtcars`, renamed so they are self-explanatory: `mpg` becomes `fuel_economy`, `hp` becomes `horsepower`, and `wt` becomes `weight_tons`. Do both the selection and the rename in a single `select()` call and save the result to `ex_4_3`.
 
-```r title="Exercise: Intersect selectors mpg to hp"
-# Capstone 11: intersect two selectors with &
-# Hint: select(mpg:hp & where(is.numeric))
+**Expected result:**
 
-my_numeric_range <- mtcars   # replace this line with your select call
-names(my_numeric_range)
-#> Expected after your fix: "mpg" "cyl" "disp" "hp"
+```
+#>                    fuel_economy horsepower weight_tons
+#> Mazda RX4                  21.0        110       2.620
+#> Mazda RX4 Wag              21.0        110       2.875
+#> Datsun 710                 22.8         93       2.320
+#> Hornet 4 Drive             21.4        110       3.215
+#> ...
+#> # 28 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Intersect selectors solution"
-my_numeric_range <- mtcars |> select(mpg:hp & where(is.numeric))
-names(my_numeric_range)
-#> [1] "mpg"  "cyl"  "disp" "hp"
-ncol(my_numeric_range)
-#> [1] 4
+```r title="Solution"
+ex_4_3 <- mtcars |> select(fuel_economy = mpg, horsepower = hp, weight_tons = wt)
+head(ex_4_3)
 ```
 
-**Explanation:** `mpg:hp` selects the four contiguous columns from `mpg` to `hp`. The `&` inside `select()` intersects two tidyselect expressions, only columns matching both stay. Every `mtcars` column is already numeric, so all four survive. On a mixed-type data frame, non-numeric columns in that range would drop out.
+**Explanation:** Inside `select()`, the syntax `new_name = old_name` renames a column while selecting it. The new name goes on the left and the original on the right, which is the opposite of base R's `names()<-` idiom. If you only want to rename without dropping any other columns, reach for `rename()` instead. Doing both in one `select()` call keeps the pipeline shorter for ad-hoc reports that go straight into a slide deck.
 
 </details>
 
-### Exercise 12: Full pipeline on starwars
+## Section 5. Selection helpers (4 problems)
 
-Build a full analysis pipeline on `starwars`. Keep only human characters with a known height above 180 cm, then select `name`, `height`, `mass`, and `homeworld`. Save to `my_tall_humans`.
+### Exercise 5.1: Pull Sepal columns with starts_with
 
-```r title="Exercise: Tall human filter select"
-# Capstone 12: three filter conditions + column selection
-# Hint: filter(species == "Human", !is.na(height), height > 180) |> select(name, height, mass, homeworld)
+**Task:** Use the `starts_with()` selection helper inside `select()` to keep only the columns of `iris` whose name begins with `"Sepal"`. This pattern is essential when your tables follow a naming convention like `prefix_*`, which is common in survey data and feature engineering output. Save the result to `ex_5_1`.
 
-my_tall_humans <- starwars   # replace this line with your full pipeline
-nrow(my_tall_humans)
-#> Expected after your fix: 10
+**Expected result:**
+
+```
+#>   Sepal.Length Sepal.Width
+#> 1          5.1         3.5
+#> 2          4.9         3.0
+#> 3          4.7         3.2
+#> 4          4.6         3.1
+#> 5          5.0         3.6
+#> ...
+#> # 145 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Tall humans solution"
-my_tall_humans <- starwars |>
-  filter(species == "Human", !is.na(height), height > 180) |>
-  select(name, height, mass, homeworld)
-print(my_tall_humans)
-#> # A tibble: 10 × 4
-#>    name              height  mass homeworld
-#>    <chr>              <int> <dbl> <chr>
-#>  1 Darth Vader          202 136   Tatooine
-#>  2 Biggs Darklighter    183  84   Tatooine
-#>  3 Anakin Skywalker     188  84   Tatooine
-#>  4 Wilhuff Tarkin       180  NA   Eriadu
-#>  5 Han Solo             185  80   Corellia
-#>  6 Boba Fett            183  78.2 Kamino
-#>  7 Qui-Gon Jinn         193  89   Naboo
-#>  8 Finis Valorum        180  NA   Coruscant
-#>  9 Bail Prestor Organa  191  NA   Alderaan
-#> 10 Gregar Typho         185  85   Naboo
+```r title="Solution"
+ex_5_1 <- iris |> select(starts_with("Sepal"))
+head(ex_5_1)
 ```
 
-**Explanation:** Three filter conditions stack inside one call: species match, height not missing, height above threshold. The pipeline reads top to bottom like prose, take `starwars`, keep tall humans with known height, show these four columns. This is the dplyr pattern you will reach for constantly.
+**Explanation:** `starts_with()` matches column names that begin with the supplied string and returns them in original order. Companion helpers include `ends_with()`, `contains()`, and `matches()` (full regex). The match is case-insensitive by default; pass `ignore.case = FALSE` if you need exact case. For wide tables (think survey data with `q1_a`, `q1_b`, ...), helpers like these turn a 50-column select into a one-liner.
 
 </details>
 
-## Complete Example
+### Exercise 5.2: Pull dimension columns with any_of
 
-Here is an end-to-end mini-analysis that uses every technique from the twelve exercises together. The business question: *which fuel-efficient cars in `mtcars` have a 4-cylinder engine, moderate horsepower, and a manual gearbox?*
+**Task:** A jewellery analyst auditing physical measurements needs only the three dimension columns of the `diamonds` catalog: `x`, `y`, and `z`. Use `select()` with the `any_of()` helper and a name vector to grab them in one call, then save the result to `ex_5_2`. Using `any_of()` makes the call robust when the column list is built dynamically.
 
-```r title="End-to-end commuter car finder"
-# Analysis: find the sweet-spot commuter cars
-top_cars <- mtcars |>
-  filter(cyl == 4, mpg > 25, hp %in% 60:120, am == 1) |>
-  select(mpg, hp, wt, gear)
-print(top_cars)
-#>                 mpg  hp    wt gear
-#> Fiat 128       32.4  66 2.200    4
-#> Honda Civic    30.4  52 2.200    4
-#> Toyota Corolla 33.9  65 1.835    4
-#> Fiat X1-9      27.3  66 1.935    4
-#> Lotus Europa   30.4 113 1.513    5
+**Expected result:**
+
+```
+#> # A tibble: 53,940 x 3
+#>       x     y     z
+#>   <dbl> <dbl> <dbl>
+#> 1  3.95  3.98  2.43
+#> 2  3.89  3.84  2.31
+#> 3  4.05  4.07  2.31
+#> 4  4.20  4.23  2.63
+#> ...
+#> # 53,936 more rows hidden
 ```
 
-Reading the pipeline in plain language: take every car in `mtcars`, keep those with exactly four cylinders, more than 25 mpg, horsepower between 60 and 120, and a manual transmission (`am == 1`); then show only the mpg, hp, weight, and gear columns. Five cars match. Notice how `%in% 60:120` handled a numeric range, the `60:120` sequence is just a vector of integers, and `%in%` works on any vector, numeric or character. This is the entire template for everyday data filtering: compose a few conditions, pick the columns you want to report, and let the pipe do the rest.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
 
-| Pattern | Code |
-|---|---|
-| Single condition | `filter(df, col > x)` |
-| AND | `filter(df, cond1, cond2)` |
-| OR on a set | `filter(df, col %in% c(a, b))` |
-| Drop missing | `filter(df, !is.na(col))` |
-| Keep only missing | `filter(df, is.na(col))` |
-| Keep columns by name | `select(df, a, b, c)` |
-| Drop columns by name | `select(df, -a, -b)` |
-| Column range | `select(df, a:c)` |
-| By prefix | `select(df, starts_with("x"))` |
-| By type | `select(df, where(is.numeric))` |
-| Intersect selectors | `select(df, a:c & where(is.numeric))` |
-| Chain filter + select | `df \|> filter(...) \|> select(...)` |
+<details>
+<summary>Click to reveal solution</summary>
 
-If you solved all twelve without peeking, you are ready to layer `mutate()`, `arrange()`, and `summarise()` on top of what you know. If some exercises felt rough, pick the failing ones and try them again tomorrow without looking at the solutions.
+```r title="Solution"
+dims <- c("x", "y", "z")
+ex_5_2 <- diamonds |> select(any_of(dims))
+ex_5_2
+```
 
-[TIP]
-**Space your retries out by a day.** One sitting builds recognition; a second sitting 24 hours later builds recall. Re-solving the problems that defeated you on day one is how the pipeline pattern becomes muscle memory.
+**Explanation:** `any_of(dims)` selects every column in the vector that actually exists in the data and silently ignores any that don't. The strict counterpart `all_of()` errors when a name is missing, which is useful when you want a hard contract. Either is far safer than the bare unquoted form `select(x, y, z)` for code that builds column names dynamically (from config files, function arguments, or user input).
 
-## References
+</details>
 
-1. Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 3: Data transformation. [Link](https://r4ds.hadley.nz/data-transform.html)
-2. dplyr documentation, `filter()` reference. [Link](https://dplyr.tidyverse.org/reference/filter.html)
-3. dplyr documentation, `select()` reference. [Link](https://dplyr.tidyverse.org/reference/select.html)
-4. tidyselect, selection helpers language reference. [Link](https://tidyselect.r-lib.org/reference/language.html)
-5. Posit, Data transformation with dplyr cheatsheet. [Link](https://rstudio.github.io/cheatsheets/data-transformation.pdf)
-6. R Core Team, *An Introduction to R*, Logical vectors and NA. [Link](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Logical-vectors)
+### Exercise 5.3: Extract numeric columns with where(is.numeric)
 
-## Continue Learning
+**Task:** Use `select()` together with `where()` and the predicate `is.numeric` to keep only the numeric columns of the `mpg` dataset. The `where()` helper applies a predicate function to each column and returns the columns where the function evaluates to `TRUE`. Save the numeric-only tibble to `ex_5_3`.
 
-- [dplyr filter() and select() Tutorial](dplyr-filter-select.html), the parent tutorial that walks through every pattern in depth with full explanations.
-- [dplyr Exercises: 15 Practice Problems](dplyr-Exercises.html), broader practice across `mutate()`, `summarise()`, `group_by()`, joins, and `across()`.
-- [data.table vs dplyr](data-table-vs-dplyr.html), side-by-side comparison of the two dominant R data-manipulation frameworks.
+**Expected result:**
+
+```
+#> # A tibble: 234 x 5
+#>   displ  year   cyl   cty   hwy
+#>   <dbl> <int> <int> <int> <int>
+#> 1   1.8  1999     4    18    29
+#> 2   1.8  1999     4    21    29
+#> 3   2.0  2008     4    20    31
+#> ...
+#> # 231 more rows hidden
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- mpg |> select(where(is.numeric))
+ex_5_3
+```
+
+**Explanation:** `where(predicate)` evaluates the predicate against each column and keeps the columns where the result is `TRUE`. `is.numeric` matches both integer and double columns. Common variants include `where(is.character)`, `where(is.factor)`, and custom anonymous functions like `where(~ mean(.x, na.rm = TRUE) > 0)` for value-based selection. It is the dplyr equivalent of `Filter(is.numeric, df)` in base R, but composes naturally inside the tidyverse grammar.
+
+</details>
+
+### Exercise 5.4: Move the last column to the front with last_col
+
+**Task:** A data engineer publishing the `mpg` dataset wants the very last column of the table moved to the front and every other column to follow in its original order. Use `select()` with `last_col()` and `everything()` to reorder without retyping any column names, then save the result to `ex_5_4`.
+
+**Expected result:**
+
+```
+#> # A tibble: 234 x 11
+#>   class   manufacturer model displ  year   cyl trans drv     cty   hwy fl
+#>   <chr>   <chr>        <chr> <dbl> <int> <int> <chr> <chr> <int> <int> <chr>
+#> 1 compact audi         a4      1.8  1999     4 auto~ f        18    29 p
+#> 2 compact audi         a4      1.8  1999     4 manu~ f        21    29 p
+#> 3 compact audi         a4      2.0  2008     4 manu~ f        20    31 p
+#> ...
+#> # 231 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_4 <- mpg |> select(last_col(), everything())
+head(ex_5_4)
+```
+
+**Explanation:** `last_col()` returns the index of the rightmost column, and dplyr keeps each named column only once even when it appears in multiple helpers. The result: `class` jumps to position 1, then `everything()` adds the rest in original order without duplicating `class`. The same trick reorders the second-to-last column with `last_col(offset = 1)`. Useful for surfacing identifier columns that exporters tend to bury at the end of a wide table.
+
+</details>
+
+## Section 6. Filter and select together (4 problems)
+
+### Exercise 6.1: Houston-only housing trend feed
+
+**Task:** A real estate analyst building a Houston-only price trend dashboard needs from `txhousing` only the columns `date`, `median`, and `sales`, and only the rows where `city` equals `"Houston"`. Chain `filter()` and `select()` together and save the result to `ex_6_1` for the dashboard data feed.
+
+**Expected result:**
+
+```
+#> # A tibble: 187 x 3
+#>     date median sales
+#>    <dbl>  <dbl> <int>
+#> 1  2000  129200  3041
+#> 2  2000. 131800  4154
+#> 3  2000. 133000  4202
+#> 4  2000. 134300  4061
+#> ...
+#> # 183 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- txhousing |>
+  filter(city == "Houston") |>
+  select(date, median, sales)
+ex_6_1
+```
+
+**Explanation:** Order matters here only for efficiency, not correctness: filtering first means `select()` operates on far fewer rows. Reversing the order would still give an identical result. The pipe `|>` reads top to bottom as "take `txhousing`, filter to Houston, then select the three columns" - much clearer than the nested call `select(filter(txhousing, ...), ...)`. The Houston subset spans roughly 16 years of monthly observations.
+
+</details>
+
+### Exercise 6.2: Premium-cut diamond pricing slice
+
+**Task:** A jeweller pricing premium-cut stones wants only the rows of `diamonds` where `cut` equals `"Premium"`, and only the columns `carat`, `color`, `clarity`, and `price`. Combine `filter()` and `select()` into one pipeline, then save the slice to `ex_6_2` so it can be handed off to the pricing model.
+
+**Expected result:**
+
+```
+#> # A tibble: 13,791 x 4
+#>    carat color clarity price
+#>    <dbl> <ord> <ord>   <int>
+#> 1   0.21 E     SI1       326
+#> 2   0.29 I     VS2       334
+#> 3   0.22 F     SI1       342
+#> 4   0.20 E     SI2       345
+#> ...
+#> # 13,787 more rows hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- diamonds |>
+  filter(cut == "Premium") |>
+  select(carat, color, clarity, price)
+ex_6_2
+```
+
+**Explanation:** This is the canonical analyst pattern: narrow rows first, then narrow columns. The `cut` column in `diamonds` is an ordered factor, but `"Premium"` still works as a character literal because R compares factor levels by their label string. There are 13,791 Premium-cut diamonds in the catalog, just over 25% of the total. Pricing teams typically pair this with a `group_by(color)` summary downstream.
+
+</details>
+
+### Exercise 6.3: Summer pollution audit
+
+**Task:** A climatologist auditing summer pollution wants from `airquality` only the months of June, July, and August, only the rows that have a recorded `Ozone` value, and only the columns `Ozone`, `Temp`, and `Month`. Combine two `filter()` conditions with a `select()` step and save the result to `ex_6_3`.
+
+**Expected result:**
+
+```
+#>    Ozone Temp Month
+#> 1     NA   NA    NA
+#> 2     71   81     6
+#> 3     49   69     6
+#> 4     39   84     6
+#> ...
+#> nrow(ex_6_3):
+#> [1] 83
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- airquality |>
+  filter(Month %in% c(6, 7, 8), !is.na(Ozone)) |>
+  select(Ozone, Temp, Month)
+ex_6_3
+```
+
+**Explanation:** Two comma-separated filter conditions combine with implicit AND, the same as writing `&` between them. `airquality$Month` is numeric, not a factor, so `%in% c(6, 7, 8)` works without quotes around the months. Of the 92 summer rows, 83 have an ozone reading. The 10% missingness rate climbs late in August. Always filter NAs before downstream summary statistics so the row counts in your report match what users see.
+
+</details>
+
+### Exercise 6.4: Fuel-efficient small cars shortlist
+
+**Task:** A consumer-reports analyst wants from `mpg` only the rows where `class` is either `"compact"` or `"subcompact"` and `hwy` (highway mpg) is at least 30. From those rows, keep just `manufacturer`, `model`, `class`, and `hwy`. Chain `filter()` and `select()` and save the result to `ex_6_4` for the shortlist.
+
+**Expected result:**
+
+```
+#> # A tibble: 39 x 4
+#>   manufacturer model     class      hwy
+#>   <chr>        <chr>     <chr>    <int>
+#> 1 audi         a4        compact     30
+#> 2 audi         a4        compact     31
+#> 3 audi         a4 quattro compact     31
+#> ...
+#> # 36 more rows hidden
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_4 <- # your code here
+ex_6_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_4 <- mpg |>
+  filter(class %in% c("compact", "subcompact"), hwy >= 30) |>
+  select(manufacturer, model, class, hwy)
+ex_6_4
+```
+
+**Explanation:** `%in%` plus a numeric threshold is the typical "small fuel-efficient car" shopping query. The pipeline order (filter then select) is conventional: it narrows the data before exposing only the columns the consumer report cares about. Thirty-nine rows survive both filters. Watch out for duplicate `manufacturer`-`model` pairs across model years: here that's expected, because each row is one model-year combination rather than a single car.
+
+</details>
+
+## What to do next
+
+You've drilled the full grammar of `filter()` and `select()` across 20 problems. To go deeper, work through these next:
+
+- [dplyr filter() in R](dplyr-filter-in-R.html): the long-form reference for `filter()` patterns including row-wise comparisons, `if_any()`, and `if_all()`.
+- [dplyr select() in R](dplyr-select-in-R.html): every selection helper (`starts_with`, `ends_with`, `matches`, `num_range`, `where`) with worked examples.
+- [dplyr arrange and slice](dplyr-arrange-slice.html): combine row filters with ordering, `slice_head`, `slice_min`, and `slice_sample` to build leaderboards.
+- [dplyr Exercises in R](dplyr-Exercises-in-R.html): the umbrella exercise hub covering all six core dplyr verbs end to end.
