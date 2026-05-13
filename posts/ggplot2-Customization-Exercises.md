@@ -1,684 +1,761 @@
 ---
-title: "ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems, Solved Step-by-Step"
+title: "ggplot2 Customization Exercises in R: 17 Theme & Scale Practice Problems"
 slug: "ggplot2-Customization-Exercises"
-description: "Practice ggplot2 customization with 10 theme and scale exercises. Covers theme(), element_text(), scale_color_brewer(), custom themes, all with runnable solutions."
-keywords: "ggplot2 customization exercises, ggplot2 theme exercises, ggplot2 scale exercises, theme() practice problems, ggplot2 exercises with solutions, ggplot2 theme practice, scale_color_brewer exercises, custom ggplot2 theme practice"
-auto_link_terms: "ggplot2 customization exercises|ggplot2 theme exercises|ggplot2 scale exercises|theme exercises R|ggplot2 customization practice|ggplot2 theme practice problems"
-auto_link_case_sensitive: false
+description: "Practice ggplot2 customization with 17 hands-on problems on themes, scales, axes, legends, labels, and reusable house styles. Solutions and explanations included."
+keywords: "ggplot2 customization exercises, ggplot2 theme exercises, ggplot2 scale exercises, theme() practice problems, ggplot2 exercises with solutions, custom ggplot2 theme practice, scale_color_manual practice, ggplot2 legend exercises"
 mathjax: false
 webr: true
-date: "2026-04-15"
+date: "2026-05-13"
 curriculum_id: "E3.3"
 post_type: "EX"
-sidebar_title: "ggplot2 Customization (10 problems)"
+sidebar_title: "ggplot2 Customization (17 problems)"
+sidebar_order: 145
 fr_parent: "ggplot2-Themes-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "ggplot2 customization exercises|ggplot2 theme exercises|ggplot2 scale exercises|theme practice problems|custom ggplot2 theme|scale_color_manual practice"
+auto_link_case_sensitive: false
+target_keyword: "ggplot2 customization exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
+# ggplot2 Customization Exercises in R: 17 Theme & Scale Practice Problems
 
-# ggplot2 Customization Exercises: 10 Theme & Scale Practice Problems, Solved Step-by-Step
+<p class="lead">Seventeen runnable exercises that drill the four customization layers in ggplot2: theme presets, targeted theme() element overrides, colour and axis scales, and legend or label fine-tuning. Every problem ships with a hidden solution, an expected result, and an explanation of why the chosen approach is the idiomatic one.</p>
 
-<p class="lead">Themes control how a ggplot2 chart looks, fonts, backgrounds, grid lines, legend placement, and scales control how data maps to colours, axis limits, and labels. These 10 exercises build your customization skills from basic theme swaps to a full reusable house style, each with runnable starter code and a step-by-step solution.</p>
-
-## What Do Themes and Scales Control?
-
-Themes and scales are the two customization layers in ggplot2. A theme changes the non-data elements, everything around your data points, bars, or lines. A scale changes how data values translate into visual properties like position, colour, and size.
-
-Here's how a single plot transforms when you add one theme and one scale function. Run the code to see the before-and-after.
-
-```r title="Default versus customised scatter"
+```r title="Run this once before any exercise"
 library(ggplot2)
 library(scales)
+library(dplyr)
+```
 
-# Default ggplot2 styling
-p_base <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+## Section 1. Theme presets and quick swaps (3 problems)
+
+### Exercise 1.1: Apply theme_minimal with a larger base font
+
+**Task:** Build a scatter plot of `mpg` versus `wt` from `mtcars`, coloured by `factor(cyl)`. Apply `theme_minimal()` with a base font size of 14 so the chart reads well in a slide deck. Save the finished plot object to `ex_1_1`.
+
+**Expected result:**
+
+```
+#> Scatter of weight vs mpg, points coloured by cylinder count.
+#> White panel, no grey background, axis labels and tick text noticeably
+#> larger than ggplot2's 11-point default; faint grid lines remain.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_1 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
   geom_point(size = 3) +
-  labs(
-    title = "Fuel Efficiency vs Weight",
-    x = "Weight (1000 lbs)",
-    y = "Miles per Gallon",
-    colour = "Cylinders"
-  )
-p_base
-#> Scatter plot with grey background, default colours
+  theme_minimal(base_size = 14)
 
-# Now: one theme + one scale = a polished chart
-p_styled <- p_base +
-  theme_minimal(base_size = 13) +
-  scale_colour_brewer(palette = "Set1")
-p_styled
-#> Same data, but clean background and vibrant categorical colours
+ex_1_1
+#> Scatter of weight vs mpg with light minimal theme and 14pt fonts.
 ```
 
-The data didn't change, only the presentation did. `theme_minimal()` stripped the grey background and border, and `scale_colour_brewer()` replaced the default hue cycle with a ColorBrewer palette designed for readability.
+**Explanation:** `theme_minimal()` strips the grey panel and axis lines but keeps faint grid lines, which works well for slides and reports. Passing `base_size = 14` rescales every text element at once, so axis titles, tick labels, and legend text all grow proportionally; setting fonts piece by piece in `theme()` would mean four or five separate `element_text()` calls. Use `base_family` the same way to swap fonts globally.
 
-Here's a quick reference for the functions you'll practice in these exercises.
+</details>
 
-| Customization | Function | Controls |
-|---|---|---|
-| Complete theme swap | `theme_minimal()`, `theme_classic()`, etc. | All non-data elements at once |
-| Individual element | `theme(element = ...)` | One specific visual property |
-| Text styling | `element_text(size, face, angle, colour)` | Fonts, rotation, colour |
-| Background/border | `element_rect(fill, colour, linewidth)` | Rectangles (panels, legend, strips) |
-| Line styling | `element_line(colour, linewidth, linetype)` | Grid lines, axis lines |
-| Remove element | `element_blank()` | Delete any theme element |
-| Categorical colour | `scale_colour_brewer(palette)` | Discrete colour palette |
-| Manual colour | `scale_fill_manual(values)` | Hand-picked colours |
-| Axis formatting | `scale_y_continuous(labels, limits, breaks)` | Numeric axis display |
+### Exercise 1.2: Compare theme_classic and theme_bw side by side
 
-[KEY INSIGHT]
-**Themes change the stage, scales change the translation.** A theme is like redecorating the room your chart lives in. A scale is like changing the language your data speaks, a number becomes a dollar amount, a category becomes a specific colour.
+**Task:** Create two plot objects from the `iris` dataset showing `Sepal.Length` versus `Petal.Length` coloured by `Species`. Apply `theme_classic()` to the first and `theme_bw()` to the second so a reviewer can compare line-only versus boxed presentations. Save them to `ex_1_2_classic` and `ex_1_2_bw`, then save the *list* `list(classic = ex_1_2_classic, bw = ex_1_2_bw)` to `ex_1_2`.
 
-**Try it:** Take `p_base` and apply `theme_classic()` with `scale_colour_brewer(palette = "Set2")`. How does the look change from the styled version above?
+**Expected result:**
 
-```r title="Exercise: swap theme and palette"
-# Try it: swap theme and palette
-ex_swap <- p_base +
-  # your code here
-  NULL
+```
+#> ex_1_2$classic: scatter with axis lines only, no panel border, no grid.
+#> ex_1_2$bw:      scatter inside a black rectangular border with light grid.
+#> Both share the iris colour mapping and identical data layer.
+```
 
-ex_swap
-#> Expected: clean axis lines, no grid, Set2 pastel colours
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Theme-and-palette solution"
-ex_swap <- p_base +
-  theme_classic(base_size = 13) +
-  scale_colour_brewer(palette = "Set2")
-ex_swap
-#> Scatter with axis lines only, no grid, pastel Set2 palette
+```r title="Solution"
+base <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
+  geom_point(size = 2)
+
+ex_1_2_classic <- base + theme_classic()
+ex_1_2_bw      <- base + theme_bw()
+ex_1_2 <- list(classic = ex_1_2_classic, bw = ex_1_2_bw)
+ex_1_2
+#> $classic and $bw plots, identical data, different surrounds.
 ```
 
-**Explanation:** `theme_classic()` removes grid lines and the background box, leaving only axis lines, a common journal style. `"Set2"` uses softer pastel tones compared to the bolder `"Set1"`.
+**Explanation:** Saving the shared layer to `base` and adding the theme afterwards is the cleanest way to compare presets without retyping the geom. `theme_classic()` removes the panel border and gridlines for a publication look; `theme_bw()` keeps the black border plus a soft grid, which suits exploratory work where you still need to read off values. Both inherit from `theme_grey()` and override only the elements they change.
 
 </details>
 
-## How Do You Switch and Layer Themes? (Exercises 1–3)
+### Exercise 1.3: Set a base font family and base line size globally
 
-These first three exercises focus on `theme()` and its element functions. You'll apply built-in themes, remove elements with `element_blank()`, and style text with `element_text()`. Each exercise builds on a familiar built-in dataset.
+**Task:** Take the same `mpg` scatter from Exercise 1.1 and apply `theme_light()` with `base_size = 12`, `base_family = "sans"`, and `base_line_size = 0.4`. The thinner baseline width should make axis lines and ticks visibly lighter than the default. Save the finished plot to `ex_1_3`.
 
-### Exercise 1: Apply a Built-In Theme
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> Light grey panel scatter with thinner-than-default axis ticks and
+#> sans-family text. No code-level errors and no warning about missing fonts.
+```
 
-**Task:** Create a boxplot of `hwy` (y-axis) grouped by `class` (x-axis). Apply `theme_light()`. Add the title "Highway MPG by Vehicle Class" and label the axes "Vehicle Class" and "Highway MPG".
+**Difficulty:** Intermediate
 
-```r title="Exercise: boxplot with themelight"
-# Exercise 1: boxplot with theme_light
-p1 <- ggplot(mpg, aes(x = class, y = hwy)) +
-  # your code here
-  NULL
-
-p1
-#> Expected: boxplot with 7 classes, light theme, titled axes
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="themelight solution"
-p1 <- ggplot(mpg, aes(x = class, y = hwy)) +
-  geom_boxplot(fill = "#7FB3D8") +
-  theme_light() +
-  labs(
-    title = "Highway MPG by Vehicle Class",
-    x = "Vehicle Class",
-    y = "Highway MPG"
-  )
-p1
-#> Boxplot: compact and subcompact have highest medians (~28-29),
-#> pickups and SUVs lowest (~17). Light grey grid, white background.
+```r title="Solution"
+ex_1_3 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+  geom_point(size = 3) +
+  theme_light(base_size = 12, base_family = "sans", base_line_size = 0.4)
+
+ex_1_3
+#> theme_light scatter with thinner ticks, sans font.
 ```
 
-**Explanation:** `theme_light()` gives a clean white background with subtle grey grid lines, less stark than `theme_bw()`, more structured than `theme_minimal()`. The `fill` argument colours the boxes, making group boundaries easier to see.
+**Explanation:** Every built-in theme accepts `base_line_size` and `base_rect_size`, which scale all line and rectangle elements proportionally. This is the right knob when you want every axis tick, panel border, and grid line uniformly thinner; reaching for individual `element_line(linewidth = 0.4)` calls is verbose and forgets to update grid lines. `"sans"` always resolves on Windows, macOS, and Linux, so it is a safer default than naming Helvetica or Arial directly.
 
 </details>
 
-### Exercise 2: Remove Grid Lines and Style Line Elements
+## Section 2. Targeted theme() element overrides (3 problems)
 
-**Dataset:** `mtcars`
+### Exercise 2.1: Rotate x-axis tick labels for crowded categorical axes
 
-**Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Start with `theme_bw()`, then add `theme()` to:
-1. Remove minor grid lines entirely
-2. Change major grid lines to dashed, light grey (`"grey85"`)
-3. Make the panel border thicker (linewidth 1.5)
+**Task:** A retailer compiled price-class counts from the `diamonds` dataset by cut and clarity, and the long clarity labels overlap when plotted unrotated. Build a bar chart of `count(diamonds, clarity)` with `clarity` on x and `n` on y, then rotate the x-axis tick labels 45 degrees with right-justified anchoring. Save to `ex_2_1`.
 
-```r title="Exercise: customise grid lines"
-# Exercise 2: customize grid lines
-p2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 3, colour = "#4B6FA5") +
-  theme_bw() +
+**Expected result:**
+
+```
+#> Bar chart, 8 bars (I1, SI2, SI1, VS2, VS1, VVS2, VVS1, IF) on x.
+#> Tick labels printed at 45 degrees, ending flush against the tick.
+#> Counts on y range from roughly 700 to 13000.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+clarity_counts <- count(diamonds, clarity)
+ex_2_1 <- ggplot(clarity_counts, aes(x = clarity, y = n)) +
+  geom_col(fill = "steelblue") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ex_2_1
+#> Bar chart of clarity counts with rotated x labels.
+```
+
+**Explanation:** `axis.text.x` inherits from `axis.text`, so overriding it touches only the bottom axis and leaves y tick text alone. `hjust = 1` is the trick people miss: rotated text rotates around its anchor, and without right-justification the labels float away from their ticks. For more than ten categories or words longer than six characters, prefer `coord_flip()` or `scale_x_discrete(guide = guide_axis(n.dodge = 2))` rather than steeper angles.
+
+</details>
+
+### Exercise 2.2: Move the legend, restyle the legend background, and add a panel border
+
+**Task:** Style a `geom_point()` of `mpg` versus `wt` from `mtcars`, coloured by `factor(cyl)`. Move the legend to the bottom of the plot, give the legend background a pale grey fill with no border, and draw a thin black border around the panel. Save the finished plot to `ex_2_2`.
+
+**Expected result:**
+
+```
+#> Scatter inside a thin black panel border. Legend sits below the plot,
+#> oriented horizontally, on a pale grey rectangular background with no
+#> visible legend border.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+  geom_point(size = 3) +
+  theme_minimal(base_size = 12) +
   theme(
-    # your code here
-  ) +
-  labs(title = "Weight vs Fuel Efficiency", x = "Weight (1000 lbs)", y = "MPG")
+    legend.position   = "bottom",
+    legend.background = element_rect(fill = "grey95", colour = NA),
+    panel.border      = element_rect(fill = NA, colour = "black", linewidth = 0.5)
+  )
 
-p2
-#> Expected: scatter with no minor grid, dashed major grid, thick border
+ex_2_2
+#> Bottom-legend scatter with grey legend strip and bordered panel.
+```
+
+**Explanation:** `element_rect()` is the right element for any rectangular region: legend background, panel border, plot background, facet strips. `fill = NA` is the only way to keep the panel border line without filling the panel itself; passing `fill = "white"` would override your colour scale's defaults. Setting `colour = NA` on the legend background suppresses its outline cleanly without resorting to `element_blank()`, which would also remove the fill.
+
+</details>
+
+### Exercise 2.3: Hide the minor grid lines and lighten the major grid
+
+**Task:** Build a line chart of `economics$unemploy` over `economics$date`. Hide all minor grid lines using `element_blank()`, and recolour the major grid lines to a very light grey (`grey90`) with `linewidth = 0.3`. Save the plot to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> Time-series line of US unemployment, 1967-2015.
+#> No minor grid lines visible.
+#> Major grid lines present but barely visible, in pale grey.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Grid-lines solution"
-p2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 3, colour = "#4B6FA5") +
-  theme_bw() +
+```r title="Solution"
+ex_2_3 <- ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line(colour = "steelblue") +
+  theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
-    panel.grid.major = element_line(colour = "grey85", linetype = "dashed"),
-    panel.border = element_rect(colour = "black", linewidth = 1.5)
-  ) +
-  labs(title = "Weight vs Fuel Efficiency", x = "Weight (1000 lbs)", y = "MPG")
-p2
-#> Scatter plot: no minor grid, dashed light grey major grid,
-#> thick black border. Heavier cars cluster at lower MPG.
-```
-
-**Explanation:** `element_blank()` removes an element completely, no line, no space. `element_line()` controls line properties: `linetype = "dashed"` draws dashes instead of solid lines, and `colour = "grey85"` makes them subtle. `element_rect()` styles rectangles like the panel border.
-
-</details>
-
-### Exercise 3: Customize Axis and Title Text
-
-**Dataset:** `diamonds` (random sample of 500 rows)
-
-**Task:** Create a bar chart counting diamonds by `cut`. Then customize the text:
-1. Rotate x-axis labels 45 degrees (with `hjust = 1` for alignment)
-2. Set the plot title to 16pt bold
-3. Make axis titles 12pt and bold
-4. Apply `theme_minimal()` as the base
-
-```r title="Exercise: text customisation"
-# Exercise 3: text customization
-set.seed(42)
-d_small <- diamonds[sample(nrow(diamonds), 500), ]
-
-p3 <- ggplot(d_small, aes(x = cut)) +
-  geom_bar(fill = "#A5C882") +
-  theme_minimal() +
-  theme(
-    # your code here
-  ) +
-  labs(title = "Diamond Quality Distribution", x = "Cut Quality", y = "Count")
-
-p3
-#> Expected: bar chart with angled labels, bold title at 16pt, bold axis titles
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Text-customisation solution"
-set.seed(42)
-d_small <- diamonds[sample(nrow(diamonds), 500), ]
-
-p3 <- ggplot(d_small, aes(x = cut)) +
-  geom_bar(fill = "#A5C882") +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    plot.title = element_text(size = 16, face = "bold"),
-    axis.title = element_text(size = 12, face = "bold")
-  ) +
-  labs(title = "Diamond Quality Distribution", x = "Cut Quality", y = "Count")
-p3
-#> Bar chart: Ideal has the most diamonds, Fair the fewest.
-#> X-axis labels angled at 45°, large bold title, bold axis titles.
-```
-
-**Explanation:** `axis.text.x` controls only x-axis tick labels. `angle = 45` rotates them, and `hjust = 1` right-aligns so they don't overlap the ticks. `plot.title` and `axis.title` each accept `element_text()`, `face = "bold"` makes text bold, `size` sets the point size.
-
-</details>
-
-[TIP]
-**Always set hjust = 1 when angling x-axis labels.** Without it, the rotated text anchors at the centre and floats away from the tick marks. With `hjust = 1`, the right edge of each label sits directly above its tick.
-
-## How Do You Control Colours with Scales? (Exercises 4–6)
-
-Scales control the mapping between data values and visual properties. These exercises focus on colour and axis scales, the two you'll use most often when customizing real charts.
-
-### Exercise 4: Apply a ColorBrewer Palette
-
-**Dataset:** `iris`
-
-**Task:** Create a scatter plot of `Sepal.Length` (x) vs `Petal.Length` (y), coloured by `Species`. Apply `scale_colour_brewer(palette = "Dark2")`. Set the legend title to "Iris Species" and apply `theme_minimal()`.
-
-```r title="Exercise: ColorBrewer palette"
-# Exercise 4: ColorBrewer palette
-p4 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
-  geom_point(size = 2.5) +
-  # your code here
-  labs(x = "Sepal Length (cm)", y = "Petal Length (cm)")
-
-p4
-#> Expected: scatter with 3 species in Dark2 colours, clean theme
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="ColorBrewer solution"
-p4 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, colour = Species)) +
-  geom_point(size = 2.5) +
-  scale_colour_brewer(palette = "Dark2") +
-  theme_minimal() +
-  labs(
-    x = "Sepal Length (cm)",
-    y = "Petal Length (cm)",
-    colour = "Iris Species"
+    panel.grid.major = element_line(colour = "grey90", linewidth = 0.3)
   )
-p4
-#> Scatter: setosa clusters bottom-left (short petals), virginica top-right.
-#> Dark2 palette: teal, orange, purple — high contrast, colourblind-safe.
+
+ex_2_3
+#> Unemployment line with hidden minor grid and pale major grid.
 ```
 
-**Explanation:** `scale_colour_brewer()` picks a palette from the ColorBrewer project, designed by cartographers for visual clarity. `"Dark2"` is a qualitative palette, distinct, saturated colours for categorical data. The `colour` argument inside `labs()` renames the legend title.
+**Explanation:** `panel.grid.minor` and `panel.grid.major` inherit from `panel.grid`, so overriding them at the leaf level lets you keep major grid hints while killing the minor ones. `element_blank()` is the canonical "remove this" element; setting `colour = NA` would leave an invisible line that still consumes layout space. Pale major grid lines are a common journal style: they orient the eye without competing with the data layer.
 
 </details>
 
-### Exercise 5: Assign Custom Colours with scale_fill_manual
+## Section 3. Colour and fill scales (3 problems)
 
-**Dataset:** `mtcars`
+### Exercise 3.1: Apply a manual three-colour palette to a categorical fill
 
-**Task:** Compute mean `mpg` by `cyl` using `aggregate()`. Create a bar chart (`geom_col`) of mean MPG per cylinder group with `fill = factor(cyl)`. Assign these exact colours:
-- 4 cylinders → `"#2C7BB6"` (blue)
-- 6 cylinders → `"#ABD9E9"` (light blue)
-- 8 cylinders → `"#D7191C"` (red)
+**Task:** Plot the `count(diamonds, cut)` distribution as a bar chart with `cut` on x and `n` on y, filling by `cut`. Apply a manual five-colour palette using `scale_fill_manual()` with the values `c("Fair" = "#7f7f7f", "Good" = "#bcbd22", "Very Good" = "#17becf", "Premium" = "#e377c2", "Ideal" = "#1f77b4")`. Save to `ex_3_1`.
 
-Apply `theme_minimal()` and remove the legend (it's redundant with the x-axis).
+**Expected result:**
 
-```r title="Exercise: custom fill colours"
-# Exercise 5: custom fill colours
-cyl_means <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+```
+#> Five vertical bars labelled Fair, Good, Very Good, Premium, Ideal.
+#> Bars filled with grey, olive, teal, pink, blue in that left-to-right order.
+#> Y axis spans 0 to ~22000.
+```
 
-p5 <- ggplot(cyl_means, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cut_counts <- count(diamonds, cut)
+ex_3_1 <- ggplot(cut_counts, aes(x = cut, y = n, fill = cut)) +
   geom_col() +
-  # your code here
-  labs(title = "Mean Fuel Efficiency by Cylinder Count",
-       x = "Cylinders", y = "Mean MPG")
+  scale_fill_manual(values = c(
+    "Fair"      = "#7f7f7f",
+    "Good"      = "#bcbd22",
+    "Very Good" = "#17becf",
+    "Premium"   = "#e377c2",
+    "Ideal"     = "#1f77b4"
+  )) +
+  theme_minimal(base_size = 12)
 
-p5
-#> Expected: 3 bars in blue, light blue, red — no legend
+ex_3_1
+#> Five-bar chart with the named manual palette.
+```
+
+**Explanation:** Naming the palette vector by level (rather than passing an unnamed vector of five colours) is defensive: the colour for "Ideal" stays correct even if the factor levels get reordered upstream. `scale_fill_manual()` overrides the default discrete hue cycle and triggers an automatic legend keyed off the same names. If a level is missing from `values`, ggplot2 will raise a clear error instead of silently recycling a colour.
+
+</details>
+
+### Exercise 3.2: Use scale_color_brewer with a sequential palette for an ordered factor
+
+**Task:** Plot `price` versus `carat` from `diamonds`, coloured by `clarity`. Because `clarity` is an ordered factor running from worst (I1) to best (IF), pick `scale_colour_brewer(palette = "YlOrRd", direction = -1)` so the worst clarity reads as deep red and the best as pale yellow. Save the finished plot to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> Scatter of carat (x) vs price (y) on a busy plot.
+#> Eight colours from deep red (I1) to pale yellow (IF) along the legend,
+#> reflecting the ordered nature of clarity from worst to best.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Custom-fill solution"
-cyl_means <- aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
+```r title="Solution"
+ex_3_2 <- ggplot(diamonds, aes(x = carat, y = price, colour = clarity)) +
+  geom_point(alpha = 0.4, size = 0.6) +
+  scale_colour_brewer(palette = "YlOrRd", direction = -1) +
+  theme_minimal(base_size = 12)
 
-p5 <- ggplot(cyl_means, aes(x = factor(cyl), y = mpg, fill = factor(cyl))) +
-  geom_col() +
-  scale_fill_manual(values = c("4" = "#2C7BB6", "6" = "#ABD9E9", "8" = "#D7191C")) +
-  theme_minimal() +
-  theme(legend.position = "none") +
+ex_3_2
+#> Carat vs price scatter, eight-step red-yellow legend.
+```
+
+**Explanation:** `direction = -1` flips a ColorBrewer ramp without you having to look up the reversed palette name. Sequential ramps like YlOrRd encode magnitude order, which matches an ordered factor like `clarity`; using `Set1` (a qualitative palette) would imply the categories are unordered and waste the hue information. `alpha = 0.4` is essential here because there are 53,940 points; without it the lower clarities completely overplot the higher ones.
+
+</details>
+
+### Exercise 3.3: Map a continuous variable to scale_fill_viridis_c with reversed direction
+
+**Task:** Compute the count of diamonds per (cut, color) combination using `count(diamonds, cut, color)`, then draw a heatmap with `cut` on x, `color` on y, and the count `n` mapped to `fill`. Apply `scale_fill_viridis_c(option = "magma", direction = -1)` so the highest counts read as bright yellow and the lowest as deep purple. Save the plot to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> 5 x 7 tile grid (5 cuts on x, 7 colors D-J on y).
+#> Tiles coloured on the magma ramp, brightest yellow tiles in the
+#> Ideal column for mid-range colors (E, F, G), darkest purple in
+#> Fair-color-J corner.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+combo_counts <- count(diamonds, cut, color)
+ex_3_3 <- ggplot(combo_counts, aes(x = cut, y = color, fill = n)) +
+  geom_tile() +
+  scale_fill_viridis_c(option = "magma", direction = -1) +
+  theme_minimal(base_size = 12)
+
+ex_3_3
+#> Magma heatmap of cut by color counts.
+```
+
+**Explanation:** The `_c` suffix marks viridis as the continuous variant; `_d` would expect a discrete fill and error here. Magma works well on either light or dark backgrounds and is colour-blind safe like all viridis options. `direction = -1` makes the brightest end of the ramp encode the largest values, which inverts the default and matches the convention that "more = lighter" in heatmaps used in printed reports.
+
+</details>
+
+## Section 4. Continuous and discrete axes (3 problems)
+
+### Exercise 4.1: Format y-axis tick labels as US dollars with thousand separators
+
+**Task:** A finance team wants the `price` axis on a `diamonds` carat-vs-price scatter to read as currency. Plot `price` versus `carat` and apply `scale_y_continuous(labels = label_dollar())` from the scales package so a tick at 5000 prints as `$5,000`. Save the plot to `ex_4_1`.
+
+**Expected result:**
+
+```
+#> Carat vs price scatter.
+#> Y-axis tick labels read as $0, $5,000, $10,000, $15,000 (or similar).
+#> No errors about missing labels, no warning about formatter.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.3, size = 0.6) +
+  scale_y_continuous(labels = label_dollar()) +
+  theme_minimal(base_size = 12)
+
+ex_4_1
+#> Scatter with y-axis tick labels formatted as $X,XXX.
+```
+
+**Explanation:** `label_dollar()` is the modern replacement for the old `dollar_format()` and ships with sensible defaults: dollar prefix, comma thousands separator, no decimal places. Passing it as `labels = label_dollar()` (with parens) is intentional, the scale needs the formatting function, not its name. For other currencies, swap in `prefix = "EUR "` or `suffix = " kr"`; for percentages, the analogous helper is `label_percent()`.
+
+</details>
+
+### Exercise 4.2: Set custom breaks, limits, and a log10 transformation on the x-axis
+
+**Task:** A pricing analyst wants to inspect the long tail of diamond prices on a log scale. Plot `price` (x) versus `carat` (y) from `diamonds`, applying `scale_x_log10(limits = c(300, 20000), breaks = c(500, 1000, 2500, 5000, 10000), labels = label_dollar())` so the x-axis reads as currency on a log10 grid with the listed break values. Save to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> Scatter with log-spaced x-axis showing $500, $1,000, $2,500, $5,000, $10,000.
+#> Points span from carat ~0.2 (low) to ~5 (high) on the y-axis.
+#> A few points outside the [300, 20000] price window are dropped (with
+#> a warning about removed rows).
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_2 <- ggplot(diamonds, aes(x = price, y = carat)) +
+  geom_point(alpha = 0.3, size = 0.6) +
+  scale_x_log10(
+    limits = c(300, 20000),
+    breaks = c(500, 1000, 2500, 5000, 10000),
+    labels = label_dollar()
+  ) +
+  theme_minimal(base_size = 12)
+
+ex_4_2
+#> Log10 carat-vs-price scatter, custom dollar breaks.
+```
+
+**Explanation:** Combining `breaks`, `labels`, and a transform inside one `scale_x_log10()` call is cleaner than chaining separate scale functions, which would conflict. `limits` here clips data, so a few extreme rows drop and ggplot warns; if you only want to zoom the view without dropping data, use `coord_cartesian(xlim = ...)` instead. `label_dollar()` operates on the original units, not the log-transformed ones, which is exactly what readers expect.
+
+</details>
+
+### Exercise 4.3: Reorder a discrete x-axis by the median y value
+
+**Task:** Plot a boxplot of `mpg` per `class` from the `mpg` dataset, but reorder the x-axis so classes are sorted by ascending median highway mileage rather than alphabetically. Use `aes(x = reorder(class, hwy, FUN = median), y = hwy)`, then relabel the x-axis as `"Vehicle class (sorted by median highway mpg)"` via `labs()`. Save to `ex_4_3`.
+
+**Expected result:**
+
+```
+#> Boxplot per vehicle class, x ordered left-to-right from lowest to
+#> highest median hwy (e.g. pickup, suv, minivan, midsize, ..., compact, subcompact).
+#> X-axis title reads "Vehicle class (sorted by median highway mpg)".
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- ggplot(mpg, aes(x = reorder(class, hwy, FUN = median), y = hwy)) +
+  geom_boxplot(fill = "lightsteelblue") +
+  labs(x = "Vehicle class (sorted by median highway mpg)", y = "Highway mpg") +
+  theme_minimal(base_size = 12)
+
+ex_4_3
+#> Boxplots ordered by ascending median hwy.
+```
+
+**Explanation:** `reorder(x, y, FUN)` is the base R way to make a factor whose level order is driven by a summary of another variable; ggplot2 reads that order off the factor and uses it for the discrete axis. The forcats package offers `fct_reorder()` with the same semantics if you prefer the tidyverse spelling. Without `reorder()`, the x-axis sorts factor levels alphabetically, which is rarely what a reader wants for ordinal comparisons.
+
+</details>
+
+## Section 5. Legends, labels, and annotations (3 problems)
+
+### Exercise 5.1: Override the colour legend title and remove the size legend
+
+**Task:** Plot a `geom_point()` of `mpg` versus `wt` from `mtcars`, mapping `colour = factor(cyl)` and `size = hp`. Use `labs(colour = "Cylinders")` to rename the colour legend, and use `guides(size = "none")` to suppress the `hp` size legend so the chart only shows one legend entry. Save the final plot to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> Scatter with point sizes that vary by hp (visible) but only one legend
+#> on the right titled "Cylinders" with three entries (4, 6, 8).
+#> No "hp" or "size" legend block visible.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_1 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl), size = hp)) +
+  geom_point(alpha = 0.8) +
+  labs(colour = "Cylinders") +
+  guides(size = "none") +
+  theme_minimal(base_size = 12)
+
+ex_5_1
+#> Scatter with hp-sized points and only the cylinders colour legend.
+```
+
+**Explanation:** `labs()` is the convenience wrapper for axis and legend titles, and renaming the legend is just `labs(colour = "...")` matched to whichever aesthetic you mapped. `guides(size = "none")` is the canonical way to hide a single legend without disabling the underlying mapping; setting `theme(legend.position = "none")` would hide every legend on the plot. Use `guide_legend(override.aes = list(size = 4))` when you need to keep a legend but want consistent symbol sizes.
+
+</details>
+
+### Exercise 5.2: Add a styled title, subtitle, and caption with custom typography
+
+**Task:** Build a `geom_point()` of `mpg` versus `wt` from `mtcars`. Use `labs()` to set a title, subtitle, and caption, then style them inside `theme()`: title bold and 16pt, subtitle italic and grey40, caption right-aligned and 9pt. Save the plot to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> Scatter with three text rows above and below the panel.
+#> Title in bold 16pt, subtitle in italic grey, caption right-aligned in
+#> small grey text below the panel. The plot itself is unchanged.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3, colour = "steelblue") +
   labs(
-    title = "Mean Fuel Efficiency by Cylinder Count",
-    x = "Cylinders",
-    y = "Mean MPG"
+    title    = "Fuel efficiency vs vehicle weight",
+    subtitle = "1974 Motor Trend road tests, n = 32",
+    caption  = "Source: built-in mtcars dataset"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", colour = "grey40"),
+    plot.caption  = element_text(hjust = 1, colour = "grey40", size = 9)
   )
-p5
-#> 4-cyl: ~26.7 mpg (blue), 6-cyl: ~19.7 (light blue), 8-cyl: ~15.1 (red).
-#> No legend — colour + x-axis labels tell the story.
+
+ex_5_2
+#> Scatter with styled title, subtitle, and right-aligned caption.
 ```
 
-**Explanation:** `scale_fill_manual()` accepts a named vector, each name matches a level of the fill variable, each value is a colour. Using named values ensures the right colour always maps to the right group, even if the data order changes. `legend.position = "none"` hides the legend when it's redundant.
+**Explanation:** `plot.title`, `plot.subtitle`, and `plot.caption` are independent elements; styling each separately gives the bold/italic/small typographic hierarchy expected in a published chart. The caption defaults to right alignment in newer ggplot2, but setting `hjust = 1` makes the intent explicit and survives a future default change. Use `theme(plot.title.position = "plot")` if you want titles to align with the full plot edge rather than the panel edge.
 
 </details>
 
-### Exercise 6: Format Axis Labels and Set Limits
+### Exercise 5.3: Annotate a single highlighted point with an arrow and label
 
-**Dataset:** `diamonds` (random sample of 1000 rows)
+**Task:** A code reviewer wants the most fuel-efficient car in `mtcars` flagged on a scatter of `mpg` versus `wt`. Identify the row with the maximum `mpg` (Toyota Corolla, mpg = 33.9, wt = 1.835), then build a scatter that adds an `annotate("text", ...)` label reading the car's name and an `annotate("segment", ...)` arrow pointing to the row. Save the plot to `ex_5_3`.
 
-**Task:** Create a scatter plot of `carat` (x) vs `price` (y). Then:
-1. Format the y-axis as dollars with commas using `scale_y_continuous(labels = scales::dollar)`
-2. Set the x-axis range from 0 to 3 using `scale_x_continuous(limits = ...)`
-3. Apply `theme_light()`
+**Expected result:**
 
-```r title="Exercise: axis formatting"
-# Exercise 6: axis formatting
-set.seed(99)
-d_sample <- diamonds[sample(nrow(diamonds), 1000), ]
+```
+#> Scatter of wt (x) vs mpg (y).
+#> A short arrow ends near the top-left point; the text "Toyota Corolla"
+#> sits above-and-right of the arrow's start.
+```
 
-p6 <- ggplot(d_sample, aes(x = carat, y = price)) +
-  geom_point(alpha = 0.4, colour = "#4B6FA5") +
-  # your code here
-  labs(title = "Diamond Price vs Carat", x = "Carat Weight", y = "Price")
+**Difficulty:** Advanced
 
-p6
-#> Expected: scatter with $ y-axis labels, x-axis 0-3, light theme
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Axis-formatting solution"
-set.seed(99)
-d_sample <- diamonds[sample(nrow(diamonds), 1000), ]
+```r title="Solution"
+top_car <- mtcars[which.max(mtcars$mpg), ]
 
-p6 <- ggplot(d_sample, aes(x = carat, y = price)) +
-  geom_point(alpha = 0.4, colour = "#4B6FA5") +
-  scale_y_continuous(labels = scales::dollar) +
-  scale_x_continuous(limits = c(0, 3)) +
-  theme_light() +
-  labs(title = "Diamond Price vs Carat", x = "Carat Weight", y = "Price")
-p6
-#> Scatter: exponential-looking relationship — price rises steeply above 1.5 carat.
-#> Y-axis shows $0, $5,000, $10,000, $15,000. X-axis runs 0 to 3.
+ex_5_3 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3, colour = "grey60") +
+  annotate(
+    "segment",
+    x = 2.6, y = 32, xend = top_car$wt + 0.05, yend = top_car$mpg,
+    arrow = arrow(length = unit(0.2, "cm")),
+    colour = "firebrick"
+  ) +
+  annotate(
+    "text",
+    x = 2.7, y = 32.5, label = "Toyota Corolla",
+    hjust = 0, colour = "firebrick", fontface = "bold"
+  ) +
+  theme_minimal(base_size = 12)
+
+ex_5_3
+#> Scatter with red arrow and label flagging Toyota Corolla.
 ```
 
-**Explanation:** `scales::dollar` is a label formatter from the `scales` package, it adds a `$` prefix and comma separators. `limits = c(0, 3)` restricts the x-axis range and drops points outside that window. Any `scales::` formatter (percent, comma, scientific) works the same way inside `labels`.
+**Explanation:** `annotate()` adds geoms whose values are constants, not pulled from a data frame, so they do not pollute the colour or fill scale. `arrow(length = unit(0.2, "cm"))` from the grid package controls arrowhead size, and unit() is loaded by ggplot2 itself. For label collision avoidance with many highlighted points, switch to `ggrepel::geom_text_repel()`, but `annotate()` is the cleanest tool when you want to flag exactly one observation.
 
 </details>
 
-[WARNING]
-**Setting axis limits with scale_x_continuous removes data outside the range.** Points beyond the limits are silently dropped, which affects computed statistics like trend lines. If you want to zoom without removing data, use `coord_cartesian(xlim = c(0, 3))` instead.
+## Section 6. Composing a reusable house style (3 problems)
 
-## How Do You Customize Legends, Backgrounds, and Strips? (Exercises 7–8)
+### Exercise 6.1: Define a custom theme function and apply it to two different plots
 
-Legends, panel backgrounds, and facet strips are all theme elements controlled by `element_rect()` and `element_text()`. These two exercises practise the elements most people struggle with, positioning and styling the decorations around the data.
+**Task:** A reporting team wants every chart in their weekly digest to share the same look. Write a function `theme_digest()` that wraps `theme_minimal(base_size = 12)` and then layers a `theme()` block setting bold 14pt title, grey40 axis text, and `panel.grid.minor = element_blank()`. Apply it to a scatter of `mpg` versus `wt` from `mtcars` (save as `p_scatter`) and to a column chart of `count(diamonds, cut)` (save as `p_bar`). Save `list(scatter = p_scatter, bar = p_bar)` to `ex_6_1`.
 
-### Exercise 7: Move and Style the Legend
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> ex_6_1$scatter and ex_6_1$bar render with identical typography:
+#>   bold 14pt title, grey40 axis text, no minor grid.
+#> Both inherit theme_minimal otherwise. Function reusable on any plot.
+```
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), coloured by `drv` (drive type). Then:
-1. Move the legend to the bottom of the plot
-2. Give the legend a light grey background (`"grey95"`) with a thin grey border
-3. Set legend text to 11pt
-4. Apply `theme_minimal()`
+**Difficulty:** Advanced
 
-```r title="Exercise: legend customisation"
-# Exercise 7: legend customization
-p7 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
-  geom_point(size = 2.5) +
-  theme_minimal() +
-  theme(
-    # your code here
-  ) +
-  labs(title = "Fuel Efficiency by Drive Type",
-       x = "Engine Displacement (L)", y = "Highway MPG", colour = "Drive")
-
-p7
-#> Expected: legend at bottom, light grey box around it, 11pt text
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Legend solution"
-p7 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
-  geom_point(size = 2.5) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    legend.background = element_rect(fill = "grey95", colour = "grey80", linewidth = 0.3),
-    legend.text = element_text(size = 11)
-  ) +
-  labs(
-    title = "Fuel Efficiency by Drive Type",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG",
-    colour = "Drive"
-  )
-p7
-#> Scatter: front-wheel drive (f) clusters at lower displacement/higher mpg.
-#> Legend sits below the plot in a subtle grey box.
-```
-
-**Explanation:** `legend.position = "bottom"` moves the legend below the plot area. `legend.background` takes `element_rect()`, `fill` sets the background colour, `colour` the border, and `linewidth` the border thickness. `legend.text` controls the category labels inside the legend.
-
-</details>
-
-### Exercise 8: Style Facet Strip Panels
-
-**Dataset:** `mpg`
-
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y) faceted by `drv`. Customize:
-1. Set strip background to navy (`"#2C3E50"`)
-2. Set strip text to white, bold, 11pt
-3. Set panel background to white
-4. Keep `theme_minimal()` as the base
-
-```r title="Exercise: facet strip styling"
-# Exercise 8: facet strip styling
-p8 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(colour = "#4B6FA5", alpha = 0.6) +
-  facet_wrap(~drv) +
-  theme_minimal() +
-  theme(
-    # your code here
-  ) +
-  labs(title = "MPG by Drive Type", x = "Displacement (L)", y = "Highway MPG")
-
-p8
-#> Expected: 3 facet panels with navy strip headers, white bold text
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Facet-strip solution"
-p8 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(colour = "#4B6FA5", alpha = 0.6) +
-  facet_wrap(~drv) +
-  theme_minimal() +
-  theme(
-    strip.background = element_rect(fill = "#2C3E50", colour = "#2C3E50"),
-    strip.text = element_text(colour = "white", face = "bold", size = 11),
-    panel.background = element_rect(fill = "white", colour = NA)
-  ) +
-  labs(title = "MPG by Drive Type", x = "Displacement (L)", y = "Highway MPG")
-p8
-#> Three panels (4, f, r) with dark navy headers and white bold text.
-#> Front-wheel cars show highest highway mpg, rear-wheel the lowest.
-```
-
-**Explanation:** `strip.background` controls the coloured bar above each facet panel. `strip.text` styles the text inside that bar. Setting both `fill` and `colour` of the strip to the same navy prevents a contrasting border from showing. `panel.background` fills each panel's plotting area.
-
-</details>
-
-[TIP]
-**Set the strip border colour to match the fill.** By default, `element_rect()` draws a thin black border. If your strip fill is dark, that border is invisible. But on lighter fills, a mismatched border looks messy. Setting `colour = fill_colour` gives a clean edge.
-
-## Can You Build a Reusable Custom Theme? (Exercises 9–10)
-
-Real-world reporting means applying the same visual style to dozens of charts. Writing a custom theme function saves you from copy-pasting `theme()` calls across every plot. These final exercises combine everything above into a reusable workflow.
-
-### Exercise 9: Build a theme_report() Function
-
-**Task:** Write a function called `theme_report()` that returns a ggplot2 theme with these settings:
-- Base: `theme_minimal(base_size = 13)`
-- Plot title: 16pt, bold
-- Plot subtitle: 12pt, italic, grey (`"grey40"`)
-- Axis titles: 12pt, bold
-- Plot caption: 9pt, grey (`"grey50"`)
-- Major grid: light grey (`"grey90"`), dashed
-- Minor grid: removed
-- Legend position: bottom
-
-Test it by applying `theme_report()` to a scatter of `mtcars` `wt` vs `mpg`.
-
-```r title="Exercise: reusable themereport"
-# Exercise 9: build a reusable theme
-theme_report <- function() {
-  # your code here
-}
-
-# Test it
-p9 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 3, colour = "#4B6FA5") +
-  theme_report() +
-  labs(
-    title = "Weight vs Fuel Efficiency",
-    subtitle = "Data from the 1974 Motor Trend magazine",
-    caption = "Source: mtcars dataset",
-    x = "Weight (1000 lbs)", y = "Miles per Gallon"
-  )
-p9
-#> Expected: clean minimal plot with bold title, italic grey subtitle, dashed grid
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="themereport solution"
-theme_report <- function() {
-  theme_minimal(base_size = 13) +
+```r title="Solution"
+theme_digest <- function(base_size = 12) {
+  theme_minimal(base_size = base_size) +
     theme(
-      plot.title = element_text(size = 16, face = "bold"),
-      plot.subtitle = element_text(size = 12, face = "italic", colour = "grey40"),
-      axis.title = element_text(size = 12, face = "bold"),
-      plot.caption = element_text(size = 9, colour = "grey50"),
-      panel.grid.major = element_line(colour = "grey90", linetype = "dashed"),
-      panel.grid.minor = element_blank(),
-      legend.position = "bottom"
+      plot.title       = element_text(face = "bold", size = 14),
+      axis.text        = element_text(colour = "grey40"),
+      panel.grid.minor = element_blank()
     )
 }
 
-p9 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  geom_point(size = 3, colour = "#4B6FA5") +
-  theme_report() +
-  labs(
-    title = "Weight vs Fuel Efficiency",
-    subtitle = "Data from the 1974 Motor Trend magazine",
-    caption = "Source: mtcars dataset",
-    x = "Weight (1000 lbs)", y = "Miles per Gallon"
-  )
-p9
-#> Bold title, italic grey subtitle, dashed light grid, no minor grid,
-#> bold axis titles, grey caption at bottom-right.
+p_scatter <- ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point(size = 3, colour = "steelblue") +
+  labs(title = "Fuel efficiency by weight") +
+  theme_digest()
+
+p_bar <- ggplot(count(diamonds, cut), aes(x = cut, y = n)) +
+  geom_col(fill = "steelblue") +
+  labs(title = "Diamond cut distribution") +
+  theme_digest()
+
+ex_6_1 <- list(scatter = p_scatter, bar = p_bar)
+ex_6_1
+#> Two plots sharing the digest typography.
 ```
 
-**Explanation:** A custom theme function wraps `theme_minimal()` and layers your `theme()` tweaks on top. Because it's a function, you call `theme_report()` on any plot, no copy-pasting. The `+` operator inside the function merges the base theme with your overrides.
+**Explanation:** Wrapping the boilerplate in a function gives a single place to update the house style; revising the title size touches one definition rather than every plot. `theme_minimal() + theme(...)` returns a single theme object, which is what `+` adds to the plot. The `base_size` parameter lets the same function produce slide-deck-sized variants without duplicating code, and you can extend the pattern with `scale_*` defaults via `scale_colour_discrete()` overrides.
 
 </details>
 
-[KEY INSIGHT]
-**A custom theme function is the single most time-saving ggplot2 trick for professionals.** Once you define `theme_report()`, every chart in your project gets consistent styling with one line of code. Update the function once, and every plot updates automatically.
+### Exercise 6.2: Combine a custom theme with a custom default colour scale
 
-### Exercise 10: Publication-Ready Plot, Theme + Scale Combined
+**Task:** Extend Exercise 6.1 by writing a second helper, `digest_palette`, that returns a named character vector of three brand colours: navy `"#1f3b73"`, gold `"#d4a017"`, and crimson `"#a23b3b"`. Build a `geom_point()` of `mpg` versus `wt` from `mtcars` coloured by `factor(cyl)` and apply both `theme_digest()` and `scale_colour_manual(values = digest_palette)`. Save the finished plot to `ex_6_2`.
 
-**Dataset:** `airquality` (built-in, May through September temperatures)
+**Expected result:**
 
-**Task:** Build a complete, publication-ready line chart:
-1. Compute mean `Temp` per `Month` using `aggregate()`
-2. Create a line chart with points: `geom_line() + geom_point()`, colour by `factor(Month)`
-3. Apply `theme_report()` from Exercise 9
-4. Use `scale_colour_brewer(palette = "YlOrRd")` (yellow-orange-red for temperature)
-5. Label the x-axis with month names using `scale_x_continuous(breaks = 5:9, labels = month.abb[5:9])`
-6. Add title "Average Temperature by Month", subtitle "New York, May–September 1973", and caption "Source: airquality dataset"
-7. Remove the legend, colour is redundant with the x-axis labels
+```
+#> Scatter with three colours, navy / gold / crimson, mapped to cyl 4, 6, 8.
+#> Same typography as ex_6_1 (bold title, grey40 axis text, no minor grid).
+#> Legend titled "factor(cyl)" with three swatches in brand colours.
+```
 
-```r title="Exercise: publication-ready line chart"
-# Exercise 10: publication-ready plot
-aq_summary <- aggregate(Temp ~ Month, data = airquality, FUN = mean)
+**Difficulty:** Advanced
 
-p10 <- ggplot(aq_summary, aes(x = Month, y = Temp, colour = factor(Month))) +
-  # your code here
-  NULL
-
-p10
-#> Expected: line chart, month names on x-axis, warm colour palette, no legend
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Publication-ready solution"
-aq_summary <- aggregate(Temp ~ Month, data = airquality, FUN = mean)
+```r title="Solution"
+digest_palette <- c("4" = "#1f3b73", "6" = "#d4a017", "8" = "#a23b3b")
 
-p10 <- ggplot(aq_summary, aes(x = Month, y = Temp, colour = factor(Month))) +
-  geom_line(linewidth = 1.2, colour = "grey60") +
-  geom_point(size = 4) +
-  scale_colour_brewer(palette = "YlOrRd") +
-  scale_x_continuous(breaks = 5:9, labels = month.abb[5:9]) +
-  theme_report() +
-  theme(legend.position = "none") +
-  labs(
-    title = "Average Temperature by Month",
-    subtitle = "New York, May\u2013September 1973",
-    caption = "Source: airquality dataset",
-    x = "Month",
-    y = "Temperature (\u00B0F)"
-  )
-p10
-#> Line chart rising from May (~65°F) to July (~84°F), dipping slightly in Sep.
-#> Points coloured yellow (May) through red (Sep). Clean, print-ready layout.
+ex_6_2 <- ggplot(mtcars, aes(x = wt, y = mpg, colour = factor(cyl))) +
+  geom_point(size = 3) +
+  labs(title = "Fuel efficiency by weight, brand colours") +
+  scale_colour_manual(values = digest_palette) +
+  theme_digest()
+
+ex_6_2
+#> Scatter in brand navy/gold/crimson with digest typography.
 ```
 
-**Explanation:** The line connects months in grey (a neutral connector), while the points carry the colour encoding. `scale_colour_brewer("YlOrRd")` is a sequential palette, light yellow for cooler months, deep red for the hottest. `month.abb[5:9]` converts numeric months to abbreviations. Removing the legend avoids redundancy since the x-axis already shows month names.
+**Explanation:** Naming the palette by factor level (`"4"`, `"6"`, `"8"`) locks the mapping so cylinder 4 always renders navy regardless of factor sort order. Splitting palette and theme into two separate helpers keeps each concern focused: typography lives in `theme_digest()`, colour lives in `digest_palette`. For full brand kits, expose a `scale_colour_digest()` convenience function that wraps `scale_colour_manual(values = digest_palette, ...)` so analysts never type the palette name directly.
 
 </details>
 
-## Complete Example
+### Exercise 6.3: Save a plot to disk at a specific size and resolution for print
 
-Here's a full pipeline combining themes, scales, and facets into one polished chart. This uses concepts from every exercise above.
+**Task:** Take the `ex_6_2` plot from Exercise 6.2 and save it to disk as `digest_chart.png` at 6 inches wide, 4 inches tall, and 300 dpi using `ggsave()`. Capture the absolute file path returned by `normalizePath("digest_chart.png")` (after saving) and store it in `ex_6_3`. The check is whether the saved file exists at that path with non-zero size.
 
-```r title="Faceted bar chart with full customisation"
-# Complete example: faceted bar chart with full customization
-dia_summary <- aggregate(price ~ cut + color, data = diamonds, FUN = mean)
+**Expected result:**
 
-p_complete <- ggplot(dia_summary, aes(x = color, y = price, fill = cut)) +
-  geom_col(position = "dodge") +
-  scale_fill_brewer(palette = "Blues") +
-  scale_y_continuous(labels = scales::dollar) +
-  facet_wrap(~cut, nrow = 1) +
-  theme_report() +
-  theme(
-    strip.background = element_rect(fill = "#2C3E50", colour = "#2C3E50"),
-    strip.text = element_text(colour = "white", face = "bold", size = 10),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
-    legend.position = "none"
-  ) +
-  labs(
-    title = "Average Diamond Price by Colour and Cut",
-    subtitle = "Higher colour grades (D\u2013F) don\u2019t always mean higher prices",
-    caption = "Source: ggplot2 diamonds dataset",
-    x = "Colour Grade",
-    y = "Mean Price"
-  )
-p_complete
-#> Five facet panels (Fair through Ideal), each showing 7 colour-grade bars.
-#> Fair-cut diamonds in colour J are the priciest (~$4,800) — because they're
-#> larger stones. Ideal-cut diamonds are cheaper on average — more small stones.
-#> Navy strip headers, dollar y-axis, rotated x-labels, no legend (redundant with facets).
+```
+#> ex_6_3 contains an absolute path string ending in "digest_chart.png".
+#> file.exists(ex_6_3) is TRUE.
+#> file.info(ex_6_3)$size is greater than 1000 bytes (a real PNG, not empty).
 ```
 
-This chart reveals a counterintuitive pattern: lower-quality cuts can have higher average prices because cut quality and carat weight are negatively correlated. The customization layers, theme, scales, facets, strip styling, work together to make this insight immediately visible.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
 
-| Exercise | Concept | Key Functions |
-|---|---|---|
-| 1 | Apply built-in theme | `theme_light()`, `labs()` |
-| 2 | Remove and restyle grid lines | `element_blank()`, `element_line(linetype)` |
-| 3 | Customize text elements | `element_text(angle, size, face, hjust)` |
-| 4 | ColorBrewer categorical palette | `scale_colour_brewer(palette)` |
-| 5 | Custom colours with named vector | `scale_fill_manual(values)` |
-| 6 | Axis formatting and limits | `scale_y_continuous(labels)`, `scale_x_continuous(limits)` |
-| 7 | Legend position and background | `legend.position`, `legend.background` |
-| 8 | Facet strip styling | `strip.background`, `strip.text` |
-| 9 | Reusable custom theme function | `theme_minimal() + theme(...)` in a function |
-| 10 | Publication-ready combined plot | Theme + scale + labs + legend removal |
+<details>
+<summary>Click to reveal solution</summary>
 
-The customization pattern in every exercise is the same: start with a complete theme, then layer `theme()` tweaks and `scale_*()` functions on top. Once that pattern clicks, you can style any ggplot2 chart.
+```r title="Solution"
+ggsave(
+  filename = "digest_chart.png",
+  plot     = ex_6_2,
+  width    = 6, height = 4, units = "in",
+  dpi      = 300
+)
+ex_6_3 <- normalizePath("digest_chart.png")
+ex_6_3
+#> e.g. "/tmp/Rtmpxyz/digest_chart.png" (varies by environment)
 
-## References
+file.exists(ex_6_3)
+#> [1] TRUE
+```
 
-1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 17: Themes. [Link](https://ggplot2-book.org/themes.html)
-2. ggplot2 documentation, theme() reference. [Link](https://ggplot2.tidyverse.org/reference/theme.html)
-3. ggplot2 documentation, Scales reference. [Link](https://ggplot2.tidyverse.org/reference/index.html#scales)
-4. ggplot2 documentation, Complete themes. [Link](https://ggplot2.tidyverse.org/reference/ggtheme.html)
-5. ColorBrewer 2.0, Colour palettes for cartography and data visualization. [Link](https://colorbrewer2.org/)
-6. Scherer, C., *A ggplot2 Tutorial for Beautiful Plotting in R* (2019). [Link](https://www.cedricscherer.com/2019/08/05/a-ggplot2-tutorial-for-beautiful-plotting-in-r/)
+**Explanation:** `ggsave()` infers the output device from the file extension, so `.png` triggers PNG, `.pdf` triggers PDF, no extra arguments needed. Specifying `width`, `height`, and `units = "in"` together with `dpi = 300` produces a 1800x1200 raster suitable for print; the default device size is whatever your current graphics window happens to be, which is rarely reproducible. For vector output, switch to `.pdf` or `.svg` and drop the `dpi` argument since vectors are resolution-independent.
 
-## Continue Learning
+</details>
 
-1. [ggplot2 Themes](ggplot2-Themes-in-R.html), Deep dive into the theme() system, all 8 built-in themes, the element inheritance tree, and building custom house styles from scratch.
-2. [ggplot2 Scales](ggplot2-Scales.html), Full reference for every scale function: position, colour, fill, size, alpha, plus breaks, labels, limits, and transformations.
-3. [Publication-Ready Figures](Publication-Quality-Figures-in-R.html), Export polished charts for papers and presentations with the right DPI, dimensions, and file format.
+## What to do next
+
+- Drill the foundational theme grammar in [ggplot2 Themes in R](ggplot2-Themes-in-R.html), the parent post for this hub.
+- Practice the colour scales side of customization with [ggplot2 Color Scales Exercises in R](ggplot2-Color-Scales-Exercises-in-R.html).
+- Build out the underlying chart skills first via [ggplot2 Exercises in R](ggplot2-Exercises-in-R.html).
+- Step into multi-panel layout work with [ggplot2 Facets Exercises in R](ggplot2-Facets-Exercises-in-R.html).
