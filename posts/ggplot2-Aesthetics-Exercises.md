@@ -1,853 +1,711 @@
 ---
-title: "ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems, Solved Step-by-Step"
+title: "ggplot2 Aesthetics Exercises: 18 aes() Practice Problems with Solutions"
 slug: "ggplot2-Aesthetics-Exercises"
-description: "Practice ggplot2 aesthetics with 10 colour, fill, size, shape, and alpha exercises, each with runnable starter code and detailed step-by-step solutions in R."
-keywords: "ggplot2 aesthetics exercises, ggplot2 color exercises, ggplot2 fill exercises, ggplot2 size exercises, aes() practice problems, ggplot2 exercises with solutions, R visualization exercises, ggplot2 colour mapping practice"
-auto_link_terms: "ggplot2 aesthetics exercises|aes exercises R|ggplot2 color fill exercises|ggplot2 aesthetic practice|aesthetics practice problems|ggplot2 aes exercises"
-auto_link_case_sensitive: false
+description: "Practice ggplot2 aesthetics: 18 color, fill, size, shape, alpha, and scale exercises with runnable starter code and step-by-step solutions in R."
+keywords: "ggplot2 aesthetics exercises, aes() practice, ggplot2 color exercises, ggplot2 fill, ggplot2 size, ggplot2 shape, ggplot2 alpha, R visualization practice"
 mathjax: false
 webr: true
-date: "2026-04-15"
-curriculum_id: "E3.2"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_title: "ggplot2 Aesthetics (10 problems)"
+sidebar_title: "ggplot2 Aesthetics (18 problems)"
+sidebar_order: 305
 fr_parent: "ggplot2-Aesthetics-aes-Map-Data.html"
-difficulty: "Intermediate"
+auto_link_terms: "ggplot2 aesthetics exercises|aes exercises R|ggplot2 color fill exercises|ggplot2 aesthetic practice|aesthetics practice problems|ggplot2 aes exercises"
+auto_link_case_sensitive: false
+target_keyword: "ggplot2 aesthetics exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
+# ggplot2 Aesthetics Exercises: 18 aes() Practice Problems with Solutions
 
-# ggplot2 Aesthetics Exercises: 10 color, fill, size Practice Problems, Solved Step-by-Step
+<p class="lead">Eighteen exercises on mapping data to colour, fill, size, shape, alpha, and linetype with <code>aes()</code>. Each problem ships with a starter code box, an expected result, and a hidden solution that explains the reasoning. Solutions are collapsed so you can attempt every problem before peeking.</p>
 
-<p class="lead">The <code>aes()</code> function maps data columns to visual properties like colour, fill, size, and shape, but knowing the syntax and choosing the right mapping for the right chart are different skills. These 10 exercises build that skill progressively, from single-aesthetic scatter plots to publication-ready multi-layered visualizations.</p>
-
-## Which Aesthetic Controls What?
-
-Every visual channel in ggplot2 is controlled by a different aesthetic. Colour draws outlines and point borders, fill paints interiors, size scales point and line width, shape swaps the symbol, and alpha adjusts transparency. The table below is your cheat sheet for the exercises that follow.
-
-| Aesthetic | What It Controls | Works With | Best For |
-|-----------|-----------------|------------|----------|
-| `colour` | Point colour, line colour, outline | All geoms | Categorical groups, continuous gradients |
-| `fill` | Interior colour | Bars, boxes, shapes 21-25, areas | Bar charts, filled shapes, density plots |
-| `size` | Point diameter, line width | Points, lines, text | Continuous magnitude (bubble charts) |
-| `shape` | Point symbol (circle, triangle, etc.) | Points only | Categorical groups (≤6 levels) |
-| `alpha` | Transparency (0 = invisible, 1 = solid) | All geoms | Overplotting, de-emphasizing layers |
-| `linetype` | Dash pattern (solid, dashed, dotted) | Lines, smooth, segments | Distinguishing series (≤6 levels) |
-
-Let's see how mapping two aesthetics at once turns a plain scatter into a rich, multi-variable chart.
-
-```r title="Intro multi aesthetic scatter"
-# Load ggplot2 and create a multi-aesthetic scatter
+```r title="Run this once before any exercise"
 library(ggplot2)
-
-ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
-  geom_point(alpha = 0.7) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG",
-       colour = "Vehicle Class", size = "Cylinders")
-#> Compact/subcompact cluster top-left (small engine, good mileage)
-#> SUVs and pickups cluster bottom-right (large engine, low mileage)
-#> Point sizes show 4-cyl cars are smallest, 8-cyl largest
-#> Two legends appear: one for colour, one for size
+library(dplyr)
+library(scales)
 ```
 
-One scatter plot, four variables encoded (x, y, colour, size). That is the power of `aes()`, it turns a two-dimensional chart into a window onto your entire dataset. The `colour = class` part goes *inside* `aes()` because it maps a data column, while `alpha = 0.7` stays *outside* because it is a fixed value that applies to every point.
+## Section 1. Mapping colour and fill (3 problems)
 
-[KEY INSIGHT]
-**Inside aes() = data-driven, outside aes() = constant.** When you write `aes(colour = class)`, ggplot2 picks a different colour for each class. When you write `geom_point(colour = "steelblue")`, every point gets the same colour.
+### Exercise 1.1: Colour points by vehicle class on the mpg dataset
 
-**Try it:** In the scatter above, replace `colour = class` with `shape = drv`, what changes?
+**Task:** A junior analyst learning ggplot2 wants to see how fuel efficiency relates to engine size, broken out by the type of vehicle. Build a scatter of `hwy` against `displ` from the `mpg` dataset and map `colour` to `class` inside `aes()`. Save the plot to `ex_1_1`.
 
-```r title="Exercise: swap shape and colour"
-# Try it: swap colour for shape
-ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
-  geom_point(alpha = 0.7) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-#> Expected: three shapes (triangle, circle, square) for drv values 4/f/r
+**Expected result:**
+
+```
+#> Scatter plot of hwy vs displ
+#> Points coloured by vehicle class (7 categories: 2seater, compact, midsize, minivan, pickup, subcompact, suv)
+#> Legend titled "class" appears on the right
+#> Compact and subcompact cars cluster in the upper-left (small displ, high hwy)
+#> Pickups and SUVs sit in the lower-right (large displ, low hwy)
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
+**Difficulty:** Beginner
 
-```r title="Exercise solution: swap shape and colour"
-ggplot(mpg, aes(x = displ, y = hwy, shape = drv, size = cyl)) +
-  geom_point(alpha = 0.7, colour = "steelblue") +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG",
-       shape = "Drive Type", size = "Cylinders")
-#> Three shapes: circle (4wd), triangle (front), square (rear)
-#> Without colour mapping, all points are steelblue
-#> Shape distinguishes drive type, size distinguishes cylinders
-```
-
-**Explanation:** Replacing `colour` with `shape` switches from colour-coding to symbol-coding. Shape works well for `drv` because it has only 3 levels. Adding a fixed `colour = "steelblue"` outside `aes()` keeps all points the same colour while shape does the grouping.
-
-</details>
-
-## How Do You Map Colour and Fill? (Exercises 1–3)
-
-Colour and fill are the two most-used aesthetics, but they behave differently depending on the geom. Points use colour for the dot itself. Bars use fill for the body and colour for the border. Shapes 21-25 accept *both*, fill for the interior and colour for the outline.
-
-### Exercise 1: Colour a Scatter by Category
-
-**Dataset:** `mpg`
-
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to colour. Add informative axis labels and a legend title.
-
-```r title="Exercise one: colour a scatter"
-# Exercise 1: colour a scatter by category
-# Hint: colour goes inside aes()
-
-p1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(size = 2.5) +
-  # your code here — add colour mapping
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p1
-#> Expected: 7 colours (one per class) with auto-generated legend
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise one solution: colour scatter"
-p1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
-  geom_point(size = 2.5) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG",
-       colour = "Vehicle Class")
-p1
-#> 7 distinct colours — compact (teal), midsize (green), suv (pink), etc.
-#> Compact and subcompact cluster at low displacement + high mpg
-#> SUVs and pickups sit at high displacement + low mpg
+```r title="Solution"
+ex_1_1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
+  geom_point()
+ex_1_1
+#> Scatter with seven coloured groups; default discrete palette
 ```
 
-**Explanation:** Placing `colour = class` inside `aes()` tells ggplot2 to assign a different colour to each unique value in the `class` column. The legend is generated automatically. The `labs(colour = "Vehicle Class")` overrides the default legend title from the column name.
+**Explanation:** `colour = class` lives inside `aes()` because it is a data-driven mapping: ggplot2 assigns a different colour to each level of `class`. Putting `colour = "blue"` outside `aes()` would paint every point the same blue and silently break the grouping. The default discrete palette is hue-based; you can swap it later with `scale_colour_brewer()` or `scale_colour_viridis_d()`.
 
 </details>
 
-### Exercise 2: Fill a Bar Chart by Category
+### Exercise 1.2: Fill bars of a count plot by transmission type
 
-**Dataset:** `mpg`
+**Task:** A reporting analyst wants a bar chart counting cars in `mpg` by drivetrain (`drv`), with each bar internally split and coloured by transmission type (`trans`). Use `geom_bar()` and map `fill` to `trans`. Save the chart to `ex_1_2`.
 
-**Task:** Create a bar chart counting vehicles per `class`. Fill the bars by `drv` (drive type: 4, f, r). Use `position = "dodge"` to place bars side-by-side instead of stacked.
+**Expected result:**
 
-```r title="Exercise two: dodged bar chart"
-# Exercise 2: filled dodged bar chart
-# Hint: fill goes inside aes(), position inside geom_bar()
+```
+#> Stacked bar chart, x = drv (3 levels: 4, f, r)
+#> Each bar split into coloured segments, one per trans level (10 transmission variants)
+#> Legend on the right titled "trans"
+#> The "f" (front-wheel) bar is tallest; the "r" (rear-wheel) bar is shortest
+```
 
-p2 <- ggplot(mpg, aes(x = class)) +
-  # your code here — add fill mapping and position
-  labs(x = "Vehicle Class", y = "Count")
-p2
-#> Expected: groups of 2-3 bars per class, each bar a different drv colour
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise two solution: dodged bar"
-p2 <- ggplot(mpg, aes(x = class, fill = drv)) +
-  geom_bar(position = "dodge") +
-  labs(x = "Vehicle Class", y = "Count", fill = "Drive Type")
-p2
-#> Each class has up to 3 bars: 4wd, front-wheel, rear-wheel
-#> SUVs are mostly 4wd, compacts are mostly front-wheel
-#> 2seater has only rear-wheel drive (single bar)
+```r title="Solution"
+ex_1_2 <- ggplot(mpg, aes(x = drv, fill = trans)) +
+  geom_bar()
+ex_1_2
+#> Stacked bar chart with 10 transmission segments per drivetrain
 ```
 
-**Explanation:** `fill = drv` colours the *interior* of each bar. `position = "dodge"` places bars side-by-side so you can compare counts within each class. Without `"dodge"`, bars would stack on top of each other, useful for showing totals, but harder for comparing individual groups.
+**Explanation:** For bars, `fill` paints the interior while `colour` would only outline the bar edges, which is rarely what you want. `geom_bar()` defaults to `stat = "count"`, so you only supply the `x` variable; ggplot2 tallies rows. To switch from stacked to side-by-side, add `position = "dodge"`. To compare proportions across drivetrains rather than absolute counts, use `position = "fill"`.
 
 </details>
 
-### Exercise 3: Colour vs Fill with Shape 21
+### Exercise 1.3: Combine outline colour and fill on a histogram
 
-**Dataset:** `mtcars`
+**Task:** A data engineer profiling the `diamonds` dataset wants a histogram of `price` where each bar has a white outline (so adjacent bars are visually separated) and the interior fill is mapped to `cut`. Build that histogram and save it to `ex_1_3`.
 
-**Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Use `shape = 21` (fillable circle). Map `factor(cyl)` to fill. Set colour (border) to `"black"` and size to 3.
+**Expected result:**
 
-```r title="Exercise three: shape with fill and colour"
-# Exercise 3: fill + colour with shape 21
-# Hint: shape 21 accepts both colour (border) and fill (interior)
+```
+#> Stacked histogram of price (30 bins by default)
+#> Each bar split by cut (Fair, Good, Very Good, Premium, Ideal)
+#> White outlines visually separate bars
+#> Right-skewed distribution: tall bars on the left, long tail to the right
+```
 
-p3 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  # your code here — use shape = 21, fill inside aes, colour outside
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon")
-p3
-#> Expected: black-bordered circles with coloured fills for 4/6/8 cylinders
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise three solution: shape fill colour"
-p3 <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
-  geom_point(shape = 21, colour = "black", size = 3) +
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon",
-       fill = "Cylinders")
-p3
-#> 4-cyl points: light red/salmon fill, top-left (light, efficient)
-#> 6-cyl points: green fill, middle
-#> 8-cyl points: blue fill, bottom-right (heavy, thirsty)
-#> Every point has a crisp black border
+```r title="Solution"
+ex_1_3 <- ggplot(diamonds, aes(x = price, fill = cut)) +
+  geom_histogram(colour = "white", bins = 30)
+ex_1_3
+#> Stacked histogram, white bar outlines, fill by cut
 ```
 
-**Explanation:** Shapes 21-25 are the only point shapes that accept both `fill` (interior) and `colour` (border). By mapping `fill` to cylinder count and fixing `colour = "black"`, each point gets a coloured interior with a clean black outline. This two-channel approach is especially useful when points overlap, the black border keeps each point visually distinct.
+**Explanation:** This exercise mixes a data-driven mapping (`fill = cut` inside `aes()`) with a constant aesthetic (`colour = "white"` outside `aes()` inside `geom_histogram()`). That is the canonical way to apply a fixed visual style on top of a mapping. Putting `colour = "white"` inside `aes()` would attempt to treat the literal string "white" as a one-level factor and produce a single red line plus a misleading legend entry.
 
 </details>
 
-[TIP]
-**Shapes 21-25 are your two-channel friends.** Only these shapes support both fill and colour. Shape 21 (circle), 22 (square), 23 (diamond), 24 (triangle up), 25 (triangle down). Use them whenever you need both a coloured interior and a distinct border.
+## Section 2. Mapping size, shape, and alpha (3 problems)
 
-**Try it:** Change Exercise 3 from `shape = 21` to `shape = 16` (regular filled circle). What happens to the fill aesthetic?
+### Exercise 2.1: Scale point size by cylinder count on a bubble chart
 
-```r title="Exercise: shape 16 ignores fill"
-# Try it: shape 16 vs 21
-ex_fill <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
-  geom_point(shape = 16, colour = "black", size = 3) +
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon")
-ex_fill
-#> Expected: fill is ignored — all points are the same colour
+**Task:** A car reviewer comparing fuel efficiency wants a bubble chart of `mpg` showing `hwy` versus `displ`, with the point size encoding `cyl` (number of cylinders). Build the plot using `geom_point()` with `size` mapped inside `aes()`. Save it to `ex_2_1`.
+
+**Expected result:**
+
+```
+#> Scatter of hwy vs displ
+#> Point sizes scale with cyl (4, 5, 6, 8 cylinders)
+#> 4-cyl points are smallest, 8-cyl points largest
+#> Legend titled "cyl" with four size keys on the right
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: shape 16 ignores fill"
-# Shape 16 ignores fill entirely
-ex_fill_16 <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
-  geom_point(shape = 16, colour = "black", size = 3)
-ex_fill_16
-#> All points are solid black — fill mapping is silently ignored
-
-# Switch back to shape 21 to restore fill
-ex_fill_21 <- ggplot(mtcars, aes(x = wt, y = mpg, fill = factor(cyl))) +
-  geom_point(shape = 21, colour = "black", size = 3)
-ex_fill_21
-#> Coloured fills return — 4-cyl red, 6-cyl green, 8-cyl blue
+```r title="Solution"
+ex_2_1 <- ggplot(mpg, aes(x = displ, y = hwy, size = cyl)) +
+  geom_point()
+ex_2_1
+#> Bubble chart with point size proportional to cylinder count
 ```
 
-**Explanation:** Shape 16 is a "solid" shape, it only responds to `colour`, not `fill`. When you map `fill` with a non-fillable shape, ggplot2 silently ignores the mapping. No error, no warning, just missing visual encoding. Always pair fill mappings with shapes 21-25.
+**Explanation:** `size` inside `aes()` produces a continuous size scale when the variable is numeric; ggplot2 maps the range of `cyl` to a default radius range of 1 to 6 mm. The variable `cyl` is technically discrete (only 4 values), so you may prefer `as.factor(cyl)` if you want a discrete legend with one entry per cylinder count. To set every point to the same size, write `geom_point(size = 3)` outside `aes()`.
 
 </details>
 
-## How Do You Control Size and Alpha? (Exercises 4–6)
+### Exercise 2.2: Encode drivetrain with point shape on a scatter plot
 
-Size and alpha are the go-to aesthetics for continuous variables. Size encodes magnitude, a bigger point means a bigger value. Alpha encodes density, lowering transparency reveals where hundreds of points pile up on top of each other.
+**Task:** A take-home interviewer wants to know whether candidates remember that `shape` accepts only discrete variables. Build a scatter of `hwy` versus `displ` from `mpg` and map `shape` to `drv` (three levels). Save the plot to `ex_2_2`.
 
-### Exercise 4: Map Size to a Continuous Variable
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> Scatter of hwy vs displ
+#> Three point shapes (circle, triangle, square) for 4WD, FWD, RWD
+#> Legend titled "drv" with the three shapes
+#> No colour mapping; all points are black
+```
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `cty` (city mpg) to size. Set colour to `"steelblue"` and alpha to 0.5.
+**Difficulty:** Intermediate
 
-```r title="Exercise four: size for continuous"
-# Exercise 4: size mapping for continuous variable
-# Hint: size goes inside aes(), colour and alpha go outside
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
 
-p4 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- ggplot(mpg, aes(x = displ, y = hwy, shape = drv)) +
+  geom_point()
+ex_2_2
+#> Scatter with three shapes mapped to drivetrain
+```
+
+**Explanation:** Shape is a discrete-only aesthetic; ggplot2 will warn if you try to map a continuous variable. The default palette cycles through 6 shapes, after which extra levels are dropped with a warning. For more than 6 categories you must supply your own palette via `scale_shape_manual(values = c(...))`. Shape combined with colour is a common accessibility pattern (colour-blind users distinguish shapes even when colours blur).
+
+</details>
+
+### Exercise 2.3: Fade overplotted points with alpha on the diamonds dataset
+
+**Task:** A code reviewer points out that a `diamonds` scatter of `price` versus `carat` is hopelessly overplotted because there are 53,940 points. Rebuild the scatter with `alpha = 0.1` set as a constant outside `aes()` so dense regions become visible. Save it to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> Scatter of price (y) vs carat (x), 53,940 points
+#> Each point is 10% opaque; dense regions look dark, sparse regions almost invisible
+#> A clear price-carat curve emerges that was hidden by overplotting before
+#> No legend (alpha is a constant, not a mapping)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(alpha = 0.1)
+ex_2_3
+#> Scatter with translucent points; density structure visible
+```
+
+**Explanation:** Alpha is the transparency channel: 0 is invisible, 1 is fully opaque. Setting `alpha` outside `aes()` is the standard fix for overplotting, because 10 overlapping 10%-opacity points sum to a fully opaque pixel and progressively darker shades mark density. If you map `alpha` inside `aes()` to a variable instead, you get a transparency gradient with a legend, which is rarely as readable as `geom_hex()` or `geom_density_2d()` for raw density.
+
+</details>
+
+## Section 3. Mapping vs setting: a critical distinction (3 problems)
+
+### Exercise 3.1: Set a constant colour outside aes() on a scatter plot
+
+**Task:** A hackathon participant has accidentally written `aes(colour = "steelblue")` and is confused that every point became salmon-pink with a legend entry that says "steelblue". Fix the code so all points are actually steel blue, then save the corrected plot to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> Scatter of hwy vs displ from mpg
+#> All points are steel blue (#4682B4)
+#> NO legend (constant aesthetic, not a data mapping)
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(colour = "steelblue")
+ex_3_1
+#> All points coloured steel blue, no legend
+```
+
+**Explanation:** The single most common ggplot2 mistake. When `colour = "steelblue"` sits inside `aes()`, ggplot2 treats the literal string "steelblue" as a single-level factor, maps it through the default hue scale (which starts at salmon), and creates a one-entry legend. To set a fixed visual property, the argument goes OUTSIDE `aes()`, as a literal argument to `geom_point()`. Mnemonic: inside `aes()` is data-driven, outside `aes()` is a constant.
+
+</details>
+
+### Exercise 3.2: Mix one mapping and two constants on a bar chart
+
+**Task:** A growth team analyst wants a bar chart of `mpg` counts by `class`, where bars are filled by `class` (data-driven), have a black outline (constant), and use a constant bar width of 0.7. Build the plot and save it to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> Bar chart, x = class, height = count
+#> Each bar filled by its class (7 colours)
+#> Black outline on every bar
+#> Bars slightly narrower than default (width = 0.7)
+#> Legend titled "class" with 7 entries
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- ggplot(mpg, aes(x = class, fill = class)) +
+  geom_bar(colour = "black", width = 0.7)
+ex_3_2
+#> Bar chart with class-filled, black-outlined, narrower bars
+```
+
+**Explanation:** Three aesthetics, two of them constant. `fill = class` is the only data-driven mapping and is the only one inside `aes()`. `colour = "black"` and `width = 0.7` are both fixed values handed to `geom_bar()` directly. A common pitfall: writing `aes(colour = "black")` would draw red outlines and create a useless legend entry labelled "black". Mapping and setting always coexist in production charts; you must train the eye to spot which is which.
+
+</details>
+
+### Exercise 3.3: Conditional aesthetic with an inline ifelse mapping
+
+**Task:** A statistician wants to highlight cars with 6 or more cylinders in red and the rest in grey, on a `mpg` scatter of `hwy` versus `displ`. Use an inline `ifelse()` inside `aes(colour = ...)` plus `scale_colour_identity()` to bypass the default palette. Save the plot to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> Scatter of hwy vs displ
+#> Points with cyl >= 6 are coloured red
+#> Points with cyl < 6 are coloured grey50
+#> No legend (scale_colour_identity uses the literal colour names)
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- ggplot(mpg, aes(x = displ, y = hwy,
+                         colour = ifelse(cyl >= 6, "red", "grey50"))) +
   geom_point() +
-  # your code here — add size mapping and fixed aesthetics
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p4
-#> Expected: larger points for higher city mpg, all steelblue
+  scale_colour_identity()
+ex_3_3
+#> Red highlights for 6+ cyl, grey for the rest, no legend
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise four solution: size continuous"
-p4 <- ggplot(mpg, aes(x = displ, y = hwy, size = cty)) +
-  geom_point(colour = "steelblue", alpha = 0.5) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG",
-       size = "City MPG")
-p4
-#> Largest points (high city mpg) cluster in the top-left
-#> Smallest points (low city mpg) sit bottom-right
-#> Alpha = 0.5 lets overlapping points show through
-```
-
-**Explanation:** `size = cty` inside `aes()` scales each point's diameter proportionally to its city mpg value. Higher city mpg = larger point. The `colour` and `alpha` are set outside `aes()` as fixed values, so every point gets the same steelblue colour and 50% transparency regardless of the data.
+**Explanation:** This is an advanced pattern called "identity scale": you compute the colour string per-row inside `aes()`, then `scale_colour_identity()` tells ggplot2 to interpret those strings as literal R colours rather than running them through a palette. Without `scale_colour_identity()`, the levels "red" and "grey50" would be mapped through the default hue palette to salmon and teal, which is the opposite of what you want. To add a legend back, use `scale_colour_identity(guide = "legend")` with `breaks` and `labels`.
 
 </details>
 
-### Exercise 5: Use Alpha to Reveal Overplotting
+## Section 4. Multi-aesthetic compositions (3 problems)
 
-**Dataset:** `diamonds` (first 2000 rows)
+### Exercise 4.1: Encode four variables on a single mpg scatter
 
-**Task:** Create a scatter plot of `carat` (x) vs `price` (y) using the first 2000 rows of diamonds. Map `cut` to colour. Set alpha to 0.15 so dense regions stand out.
+**Task:** A performance reviewer challenges you to encode four variables on one scatter plot: `displ` on x, `hwy` on y, `class` as colour, and `cyl` as size. Use `mpg` and `geom_point()` with `alpha = 0.7` set outside `aes()` for readability. Save the result to `ex_4_1`.
 
-```r title="Exercise five: alpha for overplotting"
-# Exercise 5: alpha for overplotting
-# Hint: subset diamonds first, then alpha outside aes()
+**Expected result:**
 
-diamonds_sub <- diamonds[1:2000, ]
-p5 <- ggplot(diamonds_sub, aes(x = carat, y = price)) +
-  geom_point() +
-  # your code here — add colour mapping and low alpha
-  labs(x = "Carat", y = "Price ($)")
-p5
-#> Expected: semi-transparent cloud, dense regions appear darker
+```
+#> Four-variable scatter
+#> x = displ, y = hwy, colour = class (7 levels), size = cyl
+#> Points 70% opaque
+#> Two legends: one for class (colour swatches), one for cyl (size circles)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise five solution: alpha overplotting"
-diamonds_sub <- diamonds[1:2000, ]
-p5 <- ggplot(diamonds_sub, aes(x = carat, y = price, colour = cut)) +
-  geom_point(alpha = 0.15, size = 1.5) +
-  labs(x = "Carat", y = "Price ($)", colour = "Cut Quality")
-p5
-#> Dense clusters at 0.3-0.5 carat and $500-$2000 appear as solid colour
-#> Sparse high-carat points are almost invisible at alpha 0.15
-#> Ideal cut (often highest quality) spans all price ranges
-```
-
-**Explanation:** With 2000 points, a standard scatter becomes a mess of overlapping dots. Setting `alpha = 0.15` makes each individual point nearly invisible, but where many points stack up, the combined opacity creates a solid-looking region. This "alpha heat" effect reveals density patterns that a regular scatter hides completely.
-
-</details>
-
-### Exercise 6: Build a Bubble Chart with Size + Colour
-
-**Dataset:** `mtcars`
-
-**Task:** Create a scatter plot of `wt` (x) vs `mpg` (y). Map `hp` to size (bubble chart), `factor(gear)` to colour, and set alpha to 0.7.
-
-```r title="Exercise six: bubble size and colour"
-# Exercise 6: bubble chart — size + colour
-# Hint: size and colour both inside aes()
-
-p6 <- ggplot(mtcars, aes(x = wt, y = mpg)) +
-  # your code here — map hp to size and gear to colour
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon")
-p6
-#> Expected: bubbles sized by horsepower, coloured by gear count
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise six solution: bubble chart"
-p6 <- ggplot(mtcars, aes(x = wt, y = mpg, size = hp, colour = factor(gear))) +
-  geom_point(alpha = 0.7) +
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon",
-       size = "Horsepower", colour = "Gears")
-p6
-#> Large bubbles (high hp) cluster bottom-right (heavy, gas-guzzling)
-#> Small bubbles (low hp) sit top-left (light, efficient)
-#> 3-gear cars (red) are mostly heavy; 4-gear (green) mostly light
-#> Two legends appear: one for size, one for colour
-```
-
-**Explanation:** A bubble chart encodes three variables beyond x and y: `size = hp` turns each point into a bubble whose area reflects horsepower, while `colour = factor(gear)` separates gearbox types. The `alpha = 0.7` prevents large bubbles from completely hiding smaller ones behind them. Bubble charts are powerful but can get crowded, keep the dataset small (under 100 points) for readability.
-
-</details>
-
-[WARNING]
-**Never map size to a categorical variable.** Mapping `size = factor(gear)` would assign arbitrary point sizes to gear levels 3, 4, and 5. Readers instinctively interpret bigger points as "more", when categories have no magnitude, the visual weight is misleading.
-
-**Try it:** In Exercise 6, swap `size = hp` for `size = factor(gear)`. Why is the result misleading?
-
-```r title="Exercise: size on categorical"
-# Try it: size on a categorical variable
-ex_size <- ggplot(mtcars, aes(x = wt, y = mpg, size = factor(gear),
-                               colour = factor(gear))) +
-  geom_point(alpha = 0.7) +
-  labs(x = "Weight (1000 lbs)", y = "Miles per Gallon")
-ex_size
-#> Expected: ggplot warns "Using size for a discrete variable is not advised"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise solution: size on categorical"
-# Bad: size on categorical variable
-ex_size_bad <- ggplot(mtcars, aes(x = wt, y = mpg, size = factor(gear),
-                                    colour = factor(gear))) +
+```r title="Solution"
+ex_4_1 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, size = cyl)) +
   geom_point(alpha = 0.7)
-ex_size_bad
-#> Warning: Using size for a discrete variable is not advised
-#> 5-gear points are biggest — but 5 gears isn't "more" than 3 in a visual sense
-#> Readers think big circle = big value, which misrepresents the data
+ex_4_1
+#> Multi-aesthetic scatter with two legends and 70% opacity
 ```
 
-**Explanation:** ggplot2 warns you because size implies magnitude. A 5-gear car is not "more" than a 3-gear car the way 300 horsepower is "more" than 100. For categorical variables, use colour or shape instead, they signal "different" without implying "bigger."
+**Explanation:** ggplot2 automatically generates one legend per data-driven aesthetic, so mapping both `colour` and `size` yields two legends. Beware of cognitive load: charts with more than 3 mapped aesthetics quickly become unreadable. A clean alternative is to facet on one variable and keep only colour or size as a mapping. The constant `alpha = 0.7` reduces overplotting without itself creating a legend.
 
 </details>
 
-## How Do You Use Shape and Linetype? (Exercises 7–8)
+### Exercise 4.2: Use linetype and colour together on a time-series plot
 
-Shape and linetype are inherently categorical aesthetics, they create discrete visual groups rather than continuous gradients. Shape offers about 25 symbols, but human perception tops out at distinguishing 5-6. Linetype has exactly 6 built-in patterns. Keep your category count low.
+**Task:** A reporting analyst wants a line chart from `economics` of `unemploy` over `date`, with a horizontal reference line at the mean unemployment level. The data line should be solid blue, and the reference line should be dashed red. Save the plot to `ex_4_2`.
 
-### Exercise 7: Map Shape to a Categorical Variable
+**Expected result:**
 
-**Dataset:** `iris`
+```
+#> Time-series line of unemploy vs date (1967-2015)
+#> Data line: solid, steelblue
+#> Horizontal reference line: dashed, red, at y = mean(unemploy)
+#> No legend (all aesthetics are constants)
+```
 
-**Task:** Create a scatter plot of `Sepal.Length` (x) vs `Petal.Length` (y). Map `Species` to both colour *and* shape for maximum group separation.
+**Difficulty:** Intermediate
 
-```r title="Exercise seven: colour and shape iris"
-# Exercise 7: dual mapping — colour + shape
-# Hint: put both colour and shape inside aes()
-
-p7 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  # your code here — map Species to both colour and shape
-  labs(x = "Sepal Length (cm)", y = "Petal Length (cm)")
-p7
-#> Expected: 3 species with distinct colours AND shapes, one combined legend
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise seven solution: iris colour shape"
-p7 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
-                         colour = Species, shape = Species)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  labs(x = "Sepal Length (cm)", y = "Petal Length (cm)")
-p7
-#> Setosa: red circles, bottom-left cluster (short petals)
-#> Versicolor: green triangles, middle cluster
-#> Virginica: blue squares, top-right cluster (long petals)
-#> One combined legend shows colour + shape together
+```r title="Solution"
+ex_4_2 <- ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line(colour = "steelblue", linetype = "solid") +
+  geom_hline(yintercept = mean(economics$unemploy),
+             colour = "red", linetype = "dashed")
+ex_4_2
+#> Time-series with dashed red mean reference line
 ```
 
-**Explanation:** When you map the same variable to both `colour` and `shape`, ggplot2 merges the legends into one. This is called "redundant encoding", it helps readers who are colourblind (they see the shape) and readers in greyscale prints. It is one of the most effective accessibility patterns in data visualization.
+**Explanation:** Both aesthetic arguments are constants here (no `aes()` wrappers), so no legend appears. `linetype` accepts named strings ("solid", "dashed", "dotted", "dotdash", "longdash", "twodash") or integers 0 to 6. `geom_hline()` inherits the parent ggplot but only consumes `yintercept`; the x mapping is ignored. To make the reference legend-visible, you would map a constant string inside `aes()` and customise the scale, which is rarely worth it for a single reference line.
 
 </details>
 
-### Exercise 8: Linetype for Multi-Series Comparison
+### Exercise 4.3: Group, colour, and linetype on a multi-series chart
 
-**Dataset:** `economics_long` (filtered to 3 variables)
+**Task:** A finance team report needs three sales lines on one chart, one per region. Build the inline data shown below, then plot `sales` over `month` grouped by `region`, with both `colour` and `linetype` mapped to `region`. Save the plot to `ex_4_3`.
 
-**Task:** Filter `economics_long` to keep only `psavert`, `uempmed`, and `unemploy`. Plot `date` (x) vs `value01` (y). Map `variable` to both colour *and* linetype.
+```r
+sales_df <- data.frame(
+  month  = rep(1:6, 3),
+  sales  = c(100, 120, 130, 115, 140, 150,
+              80,  95, 110, 105, 125, 140,
+             150, 145, 160, 170, 180, 195),
+  region = rep(c("North", "South", "East"), each = 6)
+)
+```
 
-```r title="Exercise eight: linetype economics"
-# Exercise 8: linetype + colour for line charts
-# Hint: filter first, then map linetype inside aes()
+**Expected result:**
 
-econ_sub <- economics_long[economics_long$variable %in%
-  c("psavert", "uempmed", "unemploy"), ]
-p8 <- ggplot(econ_sub, aes(x = date, y = value01)) +
-  # your code here — add colour and linetype mappings
-  labs(x = "Year", y = "Scaled Value (0–1)")
-p8
-#> Expected: 3 lines, each with distinct colour AND dash pattern
+```
+#> Three lines, one per region
+#> Different colour AND different linetype per region (redundant encoding for clarity)
+#> Single combined legend (titled "region") because both aesthetics map to the same variable
+#> X axis: month 1-6, Y axis: sales 80-195
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+sales_df <- data.frame(
+  month  = rep(1:6, 3),
+  sales  = c(100, 120, 130, 115, 140, 150,
+              80,  95, 110, 105, 125, 140,
+             150, 145, 160, 170, 180, 195),
+  region = rep(c("North", "South", "East"), each = 6)
+)
+
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise eight solution: linetype economics"
-econ_sub <- economics_long[economics_long$variable %in%
-  c("psavert", "uempmed", "unemploy"), ]
-p8 <- ggplot(econ_sub, aes(x = date, y = value01,
-                             colour = variable, linetype = variable)) +
-  geom_line(linewidth = 0.8) +
-  labs(x = "Year", y = "Scaled Value (0–1)",
-       colour = "Indicator", linetype = "Indicator")
-p8
-#> psavert (savings rate): trends downward over decades
-#> uempmed (median unemployment duration): spikes sharply after 2008
-#> unemploy (total unemployed): cyclical peaks around recessions
-#> Combined legend shows colour + linetype together
+```r title="Solution"
+sales_df <- data.frame(
+  month  = rep(1:6, 3),
+  sales  = c(100, 120, 130, 115, 140, 150,
+              80,  95, 110, 105, 125, 140,
+             150, 145, 160, 170, 180, 195),
+  region = rep(c("North", "South", "East"), each = 6)
+)
+
+ex_4_3 <- ggplot(sales_df, aes(x = month, y = sales,
+                              colour = region, linetype = region,
+                              group = region)) +
+  geom_line(size = 1)
+ex_4_3
+#> Three lines with redundant colour+linetype encoding, one legend
 ```
 
-**Explanation:** Just as mapping one variable to both colour and shape creates redundant encoding for points, mapping one variable to both colour and linetype does the same for lines. The result is accessible in colour prints, greyscale prints, *and* low-resolution screens. Always use `labs()` with identical names for both aesthetics, that is what tells ggplot2 to merge the legends.
+**Explanation:** When two aesthetics map to the same variable, ggplot2 merges their legends into a single combined guide. This is a useful accessibility pattern: a reader who cannot distinguish red from green can still tell the lines apart by dash pattern. The `group = region` is technically redundant when `colour` already groups, but it is good practice to make grouping explicit, especially when adding `geom_smooth()` or `geom_ribbon()` layers that do not auto-group.
 
 </details>
 
-[NOTE]
-**ggplot2 has exactly 6 linetype values: solid, dashed, dotted, dotdash, longdash, twodash.** For more than 6 series, switch to colour or use facets instead.
+## Section 5. Controlling scales for aesthetics (3 problems)
 
-**Try it:** Add `scale_shape_manual(values = c(1, 4, 17))` to Exercise 7 to override the default shapes. What symbols do you get?
+### Exercise 5.1: Apply a viridis colour scale to a continuous aesthetic
 
-```r title="Exercise: manual shape scale"
-# Try it: custom shapes
-ex_manual <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
-                               colour = Species, shape = Species)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  # your code here — add scale_shape_manual()
-  labs(x = "Sepal Length (cm)", y = "Petal Length (cm)")
-ex_manual
-#> Expected: shape 1 (hollow circle), shape 4 (X), shape 17 (solid triangle)
+**Task:** A product manager wants a `diamonds` scatter of `price` versus `carat` with `colour` mapped to `depth` (a continuous variable) and the default rainbow palette replaced with viridis for colour-blind accessibility. Save the plot to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> Scatter of price vs carat
+#> Points coloured on a viridis gradient (dark purple to yellow) by depth
+#> Continuous colour bar legend titled "depth" on the right
+#> Lower depth values are dark purple, higher values are yellow
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: manual shape scale"
-ex_manual <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
-                               colour = Species, shape = Species)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  scale_shape_manual(values = c(1, 4, 17)) +
-  labs(x = "Sepal Length (cm)", y = "Petal Length (cm)")
-ex_manual
-#> Setosa: hollow circle (1)
-#> Versicolor: X mark (4)
-#> Virginica: solid triangle (17)
+```r title="Solution"
+ex_5_1 <- ggplot(diamonds, aes(x = carat, y = price, colour = depth)) +
+  geom_point(alpha = 0.5) +
+  scale_colour_viridis_c()
+ex_5_1
+#> Scatter with viridis gradient and continuous colour bar
 ```
 
-**Explanation:** `scale_shape_manual(values = c(1, 4, 17))` replaces ggplot2's default shapes (circle, triangle, square) with your chosen symbols. Shape numbers 0-14 are hollow, 15-20 are solid, and 21-25 accept both fill and colour. The `values` vector maps to factor levels in alphabetical order: setosa gets shape 1, versicolor gets 4, virginica gets 17.
+**Explanation:** `scale_colour_viridis_c()` is the continuous variant; the `_d()` suffix is for discrete data. Viridis is the standard accessible palette because it is perceptually uniform (equal data steps look like equal colour steps) and remains distinguishable for the most common forms of colour-blindness. The continuous mapping automatically produces a vertical colour bar guide rather than a discrete keyed legend.
 
 </details>
 
-## How Do You Override Default Aesthetic Scales? (Exercises 9–10)
+### Exercise 5.2: Use scale_fill_manual to enforce brand colours on a bar chart
 
-ggplot2 picks colours, sizes, and shapes automatically, but defaults rarely match what a report or presentation needs. The `scale_*` functions let you override every automatic choice: `scale_colour_manual()` for exact colours, `scale_colour_brewer()` for perceptually tested palettes, `scale_size_continuous()` for size ranges, and many more.
+**Task:** An audit team wants a bar chart of `mpg` count by `class` with three classes explicitly recoloured: "suv" in firebrick, "compact" in steelblue, and "subcompact" in goldenrod. All other classes should keep their default colours via the `values` named vector trick. Save the plot to `ex_5_2`.
 
-### Exercise 9: Custom Colour Palette with scale_colour_manual
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> Bar chart, x = class, height = count
+#> SUV bar is firebrick red
+#> Compact bar is steel blue
+#> Subcompact bar is goldenrod yellow
+#> Other four bars use the default hue palette
+#> Legend titled "class"
+```
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `drv` to colour. Use `scale_colour_manual()` to set custom colours: `"4" = "#E05A4F"` (red), `"f" = "#4B6FA5"` (blue), `"r" = "#6AAB9C"` (teal). Add a proper legend title.
+**Difficulty:** Advanced
 
-```r title="Exercise nine: custom colour palette"
-# Exercise 9: custom colour palette
-# Hint: scale_colour_manual(values = c(...)) with named vector
-
-p9 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  # your code here — add scale_colour_manual with named colours
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p9
-#> Expected: red = 4wd, blue = front, teal = rear (not ggplot defaults)
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise nine solution: custom palette"
-p9 <- ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  scale_colour_manual(
-    values = c("4" = "#E05A4F", "f" = "#4B6FA5", "r" = "#6AAB9C"),
-    name = "Drive Type"
-  ) +
-  labs(x = "Engine Displacement (L)", y = "Highway MPG")
-p9
-#> 4wd (red): scattered across mid-to-high displacement
-#> Front-wheel (blue): concentrated at lower displacement + higher mpg
-#> Rear-wheel (teal): few points, high displacement, low mpg
+```r title="Solution"
+default_pal <- scales::hue_pal()(7)
+classes <- levels(factor(mpg$class))
+brand <- c(suv = "firebrick", compact = "steelblue", subcompact = "goldenrod")
+final_colours <- setNames(default_pal, classes)
+final_colours[names(brand)] <- brand
+
+ex_5_2 <- ggplot(mpg, aes(x = class, fill = class)) +
+  geom_bar() +
+  scale_fill_manual(values = final_colours)
+ex_5_2
+#> Bars with three custom colours, rest default
 ```
 
-**Explanation:** `scale_colour_manual()` replaces ggplot2's default colour palette with your exact hex codes. Using a *named* vector (`"4" = "#E05A4F"`) guarantees each level gets the right colour regardless of factor ordering. The `name` argument sets the legend title. This is essential for brand-consistent reports, presentations, or publications.
+**Explanation:** `scale_fill_manual(values = ...)` takes a NAMED vector where names match factor levels. The trick here is to build that named vector by starting from `scales::hue_pal()` (ggplot2's default discrete palette) and overwriting three entries with brand colours. Without naming the vector, the order must match the factor levels exactly. This pattern is common in client reports where corporate brand colours are non-negotiable for a subset of categories.
 
 </details>
 
-### Exercise 10: Publication-Ready Multi-Aesthetic Plot
+### Exercise 5.3: Customise the size legend with scale_size_continuous
 
-**Dataset:** `mpg`
+**Task:** A scout reviewing player stats wants a bubble chart with bubbles ranging from 2 to 12 mm (default is 1 to 6 mm) and only three legend breaks: 50, 100, and 200. Build a scatter from `mpg` using `displ`, `hwy`, and `cty` for the size mapping, then customise the size scale. Save it to `ex_5_3`.
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Map `class` to colour and `drv` to shape. Set `size = 3` and `alpha = 0.7`. Add `scale_colour_brewer(palette = "Set2")` for a colourblind-friendly palette. Include complete labels and `theme_minimal()`.
+**Expected result:**
 
-```r title="Exercise ten: publication ready plot"
-# Exercise 10: publication-ready multi-aesthetic plot
-# Hint: combine aes mappings + scale + theme + labs
+```
+#> Scatter of hwy vs displ
+#> Bubble sizes range from 2 mm (small cty) to 12 mm (large cty)
+#> Size legend shows exactly three keys at cty = 15, 25, 35
+#> Larger bubble range than ggplot2 default
+```
 
-p10 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here:
-  # 1. Map class to colour and drv to shape in aes or geom
-  # 2. Add scale_colour_brewer(palette = "Set2")
-  # 3. Add labs() with title, subtitle, axis labels, legend titles
-  # 4. Add theme_minimal()
-  labs(x = "Engine Displacement (L)")
-p10
-#> Expected: polished scatter with brewer colours, shape-coded drive types
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise ten solution: publication ready"
-p10 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
-  geom_point(size = 3, alpha = 0.7) +
-  scale_colour_brewer(palette = "Set2") +
-  labs(
-    title = "Engine Size vs Highway Mileage",
-    subtitle = "234 vehicles from the EPA fuel economy dataset",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG",
-    colour = "Vehicle Class",
-    shape = "Drive Type"
-  ) +
-  theme_minimal()
-p10
-#> 7 muted "Set2" colours (colourblind-safe) for vehicle class
-#> 3 shapes (circle, triangle, square) for drive type
-#> Clean minimal grid, no grey background
-#> Two separate legends: one for colour, one for shape
+```r title="Solution"
+ex_5_3 <- ggplot(mpg, aes(x = displ, y = hwy, size = cty)) +
+  geom_point(alpha = 0.6) +
+  scale_size_continuous(range = c(2, 12), breaks = c(15, 25, 35))
+ex_5_3
+#> Bubble chart with custom size range and three legend keys
 ```
 
-**Explanation:** This plot layers four aesthetics: x position, y position, colour, and shape, encoding five variables from `mpg` in a single chart. `scale_colour_brewer(palette = "Set2")` provides a palette designed by Cynthia Brewer for maximum perceptual contrast including under colour-vision deficiency. The `theme_minimal()` strips the grey background and heavy gridlines, giving a cleaner look for reports and slides.
+**Explanation:** `range = c(min_mm, max_mm)` controls the radius span in millimetres; the default 1 to 6 is often too subtle for presentations. `breaks` cherry-picks the values shown in the legend without changing the data mapping itself. For area-proportional bubbles (where data is mapped to area, not radius), use `scale_size_area()` instead, which is the better choice when bubble area is meant to represent a quantity (population, revenue).
 
 </details>
 
-[KEY INSIGHT]
-**scale_*_manual() gives exact control; scale_*_brewer() gives perceptually tested palettes.** Use manual when you need specific brand colours. Use brewer when you want a scientifically validated palette that works for colourblind readers, printers, and projectors.
+## Section 6. Real-world aesthetics workflows (3 problems)
 
-**Try it:** Replace `palette = "Set2"` with `palette = "Dark2"` in Exercise 10, which palette has better contrast on a white background?
+### Exercise 6.1: Highlight a single category by setting all others to grey
 
-```r title="Exercise: Dark2 Brewer palette"
-# Try it: swap brewer palettes
-ex_brewer <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
-  geom_point(size = 3, alpha = 0.7) +
-  # your code here — try scale_colour_brewer(palette = "Dark2")
-  theme_minimal()
-ex_brewer
-#> Expected: darker, higher-contrast colours than Set2
+**Task:** A code reviewer asks you to draw attention to "suv" in a `mpg` scatter of `hwy` versus `displ`, with SUVs in red and every other class in grey. Use an inline `ifelse()` and `scale_colour_identity()` plus `alpha = 0.8`. Save the plot to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> Scatter of hwy vs displ
+#> SUV points: red, 80% opaque
+#> All other classes: grey70, 80% opaque
+#> No legend
+#> SUVs visually pop out from the muted background
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise solution: Dark2 Brewer palette"
-ex_brewer <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
-  geom_point(size = 3, alpha = 0.7) +
-  scale_colour_brewer(palette = "Dark2") +
-  labs(colour = "Vehicle Class", shape = "Drive Type") +
-  theme_minimal()
-ex_brewer
-#> Dark2 colours: deeper greens, purples, oranges
-#> Higher contrast against white than Set2's pastels
-#> Better for slides and print; Set2 is gentler for on-screen reading
+```r title="Solution"
+ex_6_1 <- ggplot(mpg, aes(x = displ, y = hwy,
+                         colour = ifelse(class == "suv", "red", "grey70"))) +
+  geom_point(alpha = 0.8, size = 2) +
+  scale_colour_identity()
+ex_6_1
+#> SUVs in red, all other classes muted in grey
 ```
 
-**Explanation:** "Dark2" uses more saturated, higher-contrast colours than "Set2". On a white background or projected slide, Dark2 pops more. On a screen in a long article, Set2 is easier on the eyes. The choice depends on your medium, there is no universal "best" palette.
+**Explanation:** The grey-out pattern is a standard storytelling device: it suppresses irrelevant detail and lets one category dominate visually. The `ifelse()` inside `aes()` computes a per-row colour string, and `scale_colour_identity()` interprets those literal strings as R colours. For multi-category highlights, swap `ifelse()` for `dplyr::case_when()` or pre-compute a `highlight` column before plotting.
 
 </details>
 
-## Practice Exercises
+### Exercise 6.2: Order factor levels to control legend and stacking order
 
-These capstone exercises combine multiple concepts from the exercises above. Each one requires you to choose *which* aesthetics to use, not just *how* to use them.
+**Task:** A compliance officer wants the `diamonds` cut legend (Fair, Good, Very Good, Premium, Ideal) reversed so "Ideal" appears at the top of a stacked bar chart and the legend. Use `forcats::fct_rev()` or `factor()` with explicit `levels` to reorder, then build a stacked bar of count by `color` filled by `cut`. Save it to `ex_6_2`.
 
-### Exercise 11: Dashboard-Style Three-Chart Comparison
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> Stacked bar chart, x = color (D-J), fill = cut (reordered)
+#> "Ideal" segment is at the BOTTOM of each bar (drawn last, on top)
+#> Legend lists cut levels in order: Ideal, Premium, Very Good, Good, Fair
+#> Color D has the most diamonds, J has the fewest
+```
 
-**Task:** Create three separate plots from `mpg`:
-1. A scatter plot of `displ` vs `hwy`, colour by `class`, alpha = 0.6
-2. A dodged bar chart of `class` counts, fill by `drv`
-3. A boxplot of `hwy` by `class`, fill by `class`
+**Difficulty:** Advanced
 
-Give each plot a descriptive title.
-
-```r title="Capstone one: three chart comparison"
-# Capstone Exercise 1: three-chart comparison
-# Hint: each plot uses a different aesthetic focus
-
-# Chart 1: colour scatter
-cap_scatter <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here
-  labs(title = "Displacement vs Mileage")
-
-# Chart 2: fill bar
-cap_bar <- ggplot(mpg, aes(x = class)) +
-  # your code here
-  labs(title = "Vehicle Count by Class and Drive")
-
-# Chart 3: fill boxplot
-cap_box <- ggplot(mpg, aes(x = class, y = hwy)) +
-  # your code here
-  labs(title = "Mileage Distribution by Class")
-
-cap_scatter
-cap_bar
-cap_box
-#> Expected: three distinct charts, each showcasing a different aesthetic
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Capstone one solution: three chart"
-# Chart 1: colour scatter
-cap_scatter <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
-  geom_point(size = 2, alpha = 0.6) +
-  labs(title = "Displacement vs Mileage",
-       x = "Engine Displacement (L)", y = "Highway MPG",
-       colour = "Class") +
-  theme_minimal()
-cap_scatter
-#> 7 colour groups, compact/subcompact top-left, SUVs bottom-right
+```r title="Solution"
+diamonds_reord <- diamonds |>
+  mutate(cut = factor(cut, levels = c("Ideal", "Premium", "Very Good", "Good", "Fair")))
 
-# Chart 2: fill dodged bar
-cap_bar <- ggplot(mpg, aes(x = class, fill = drv)) +
-  geom_bar(position = "dodge") +
-  labs(title = "Vehicle Count by Class and Drive",
-       x = "Vehicle Class", y = "Count", fill = "Drive") +
-  theme_minimal()
-cap_bar
-#> SUVs mostly 4wd, compacts mostly front-wheel, 2seater rear only
-
-# Chart 3: fill boxplot
-cap_box <- ggplot(mpg, aes(x = class, y = hwy, fill = class)) +
-  geom_boxplot(alpha = 0.7, show.legend = FALSE) +
-  labs(title = "Mileage Distribution by Class",
-       x = "Vehicle Class", y = "Highway MPG") +
-  theme_minimal()
-cap_box
-#> Compact/subcompact: high median + tight spread
-#> Pickup/SUV: low median + wide spread with outliers
+ex_6_2 <- ggplot(diamonds_reord, aes(x = color, fill = cut)) +
+  geom_bar()
+ex_6_2
+#> Stacked bar with cut reordered, Ideal segment at bottom
 ```
 
-**Explanation:** Each chart uses a different aesthetic strategy: the scatter uses `colour` to group continuous data, the bar chart uses `fill` to subdivide counts, and the boxplot uses `fill` to visually separate categories (with `show.legend = FALSE` since the x-axis already labels the groups). Choosing the right aesthetic for each geom is as important as choosing the right geom.
+**Explanation:** Factor level order controls three things at once: legend order (top to bottom), stack order (bottom to top of the bar), and dodge order (left to right). Reordering with `factor(x, levels = ...)` or `forcats::fct_relevel()` is therefore the lever for visual hierarchy. A common gotcha: ggplot2 stacks the FIRST factor level at the BOTTOM of the bar; reversing the legend pushes "Ideal" to the bottom of each bar, which is usually the position the eye scans to first.
 
 </details>
 
-### Exercise 12: Before/After Aesthetic Upgrade
+### Exercise 6.3: Build a publication-ready chart with mapped and constant aesthetics combined
 
-**Dataset:** `diamonds` (sample of 1500 rows)
+**Task:** A take-home interviewer asks for a polished `diamonds` scatter of `price` versus `carat`, with `colour` mapped to `cut` using viridis, `alpha = 0.3` constant for overplotting, `size = 0.7` constant for density, and a black-and-white theme override. Save it to `ex_6_3`.
 
-**Task:** Start with a "bad" default scatter of `carat` vs `price`. Then progressively upgrade it:
-1. Add `colour = cut`
-2. Set `alpha = 0.2` for overplotting
-3. Apply `scale_colour_viridis_d()` for a colourblind-safe palette
-4. Add complete labels with `labs()`
-5. Apply `theme_minimal()`
+**Expected result:**
 
-Show each step building on the previous.
+```
+#> Scatter of price vs carat, 53,940 points
+#> Colour mapped to cut (5 levels) using viridis discrete palette
+#> All points at 30% alpha, fixed small size
+#> theme_bw() background (white panel, grey gridlines)
+#> Legend titled "cut" with 5 viridis swatches
+```
 
-```r title="Capstone two: progressive upgrade"
-# Capstone Exercise 2: progressive aesthetic upgrade
-# Hint: build on the same base, adding one layer per step
+**Difficulty:** Advanced
 
-set.seed(42)
-d_sample <- diamonds[sample(nrow(diamonds), 1500), ]
-
-# Step 1: bare scatter (the "before")
-cap_before <- ggplot(d_sample, aes(x = carat, y = price)) +
-  geom_point()
-cap_before
-#> Black blob, no insight — this is what we're fixing
-
-# Steps 2-5: your upgraded version (the "after")
-cap_after <- ggplot(d_sample, aes(x = carat, y = price)) +
-  # your code here — add colour, alpha, scale, labs, theme
-  geom_point()
-cap_after
-#> Expected: colourblind-safe, transparent, well-labeled, clean plot
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Capstone two solution: progressive upgrade"
-set.seed(42)
-d_sample <- diamonds[sample(nrow(diamonds), 1500), ]
-
-# Before: uninformative black blob
-cap_before <- ggplot(d_sample, aes(x = carat, y = price)) +
-  geom_point()
-cap_before
-#> 1500 black dots stacked on each other — no groups, no transparency
-
-# After: progressive upgrade
-cap_after <- ggplot(d_sample, aes(x = carat, y = price, colour = cut)) +
-  geom_point(alpha = 0.2, size = 1.5) +
-  scale_colour_viridis_d(option = "D") +
-  labs(
-    title = "Diamond Price vs Carat Weight",
-    subtitle = "1,500 random diamonds, coloured by cut quality",
-    x = "Carat",
-    y = "Price ($)",
-    colour = "Cut"
-  ) +
-  theme_minimal()
-cap_after
-#> Yellow-to-purple viridis palette: Fair = dark purple, Ideal = bright yellow
-#> Alpha = 0.2 reveals dense clusters at 0.3-1.0 carat
-#> Higher-carat diamonds command exponentially higher prices
-#> Cut quality is mixed across all carat ranges (no clean separation)
+```r title="Solution"
+ex_6_3 <- ggplot(diamonds, aes(x = carat, y = price, colour = cut)) +
+  geom_point(alpha = 0.3, size = 0.7) +
+  scale_colour_viridis_d() +
+  theme_bw()
+ex_6_3
+#> Polished scatter, viridis discrete colours, theme_bw, small translucent points
 ```
 
-**Explanation:** Five aesthetic choices transformed a black blob into an informative chart. `colour = cut` adds group separation. `alpha = 0.2` reveals density. `scale_colour_viridis_d()` provides a palette that works in colour, greyscale, and for colourblind readers. `labs()` tells the reader what they are looking at. `theme_minimal()` removes visual clutter. Each layer adds information, that is the aesthetic upgrade workflow.
+**Explanation:** This problem ties every concept in the hub together: one data-driven mapping (`colour = cut`), two constants outside `aes()` (`alpha`, `size`), a custom scale (`scale_colour_viridis_d()` for an accessible discrete palette), and a theme override. The order of layers matters for legibility, but the order of scale and theme additions does not. To override the legend dot opacity (so legend swatches look solid even though points are 30% alpha), append `guides(colour = guide_legend(override.aes = list(alpha = 1, size = 3)))`.
 
 </details>
 
-## Complete Example
+## What to do next
 
-Let's build a single chart from scratch, adding one aesthetic at a time so you can see how each layer transforms the visualization. We will use the `mpg` dataset to answer: "How does engine size relate to fuel efficiency across vehicle classes and drive types?"
-
-```r title="Step one: bare scatter"
-# Step 1: bare scatter — just x and y
-step1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point()
-step1
-#> 234 black dots — we see a negative trend but nothing else
-```
-
-Position alone tells us engine size and mileage are negatively correlated. But which cars are which? Let's add colour.
-
-```r title="Step two: add colour mapping"
-# Step 2: add colour = class
-step2 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class)) +
-  geom_point(size = 2.5)
-step2
-#> 7 colours appear — compact cars top-left, SUVs bottom-right
-#> The negative trend is actually several parallel clusters
-```
-
-Now the story deepens, the overall trend is actually multiple class-specific trends layered on top of each other.
-
-```r title="Step three: add shape mapping"
-# Step 3: add shape = drv for drive type
-step3 <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
-  geom_point(size = 2.5, alpha = 0.7)
-step3
-#> Circles (4wd), triangles (front), squares (rear)
-#> Front-wheel drives cluster at small engines, 4wd at large
-```
-
-Two categorical encodings give us five variables in one chart. But the default colours are not ideal for presentations.
-
-```r title="Step four: polished final plot"
-# Step 4: override scale + add polish
-final_plot <- ggplot(mpg, aes(x = displ, y = hwy, colour = class, shape = drv)) +
-  geom_point(size = 2.5, alpha = 0.7) +
-  scale_colour_brewer(palette = "Set2") +
-  labs(
-    title = "Engine Size vs Highway Mileage",
-    subtitle = "234 vehicles — colour = class, shape = drive type",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG",
-    colour = "Vehicle Class",
-    shape = "Drive Type"
-  ) +
-  theme_minimal()
-final_plot
-#> Colourblind-safe Set2 palette on a clean white grid
-#> Two legends: one for colour (class), one for shape (drv)
-#> The full story: class determines the baseline, drive type refines it
-```
-
-Four steps, four aesthetic additions, one complete story. The bare scatter told us "bigger engines get worse mileage." The finished chart tells us "compact front-wheel cars get the best mileage, SUVs and 4wd trucks get the worst, and the relationship is steeper for some classes than others."
-
-## Summary
-
-| Aesthetic | Best For | Works With | Key Scale Override |
-|-----------|----------|------------|-------------------|
-| `colour` | Categorical groups, gradients | All geoms | `scale_colour_manual()`, `scale_colour_brewer()` |
-| `fill` | Bar/box interiors, shapes 21-25 | Bars, boxes, areas, shapes 21-25 | `scale_fill_manual()`, `scale_fill_brewer()` |
-| `size` | Continuous magnitude | Points, lines, text | `scale_size_continuous(range = c(1, 10))` |
-| `shape` | Categorical groups (≤6) | Points only | `scale_shape_manual(values = c(...))` |
-| `alpha` | Overplotting, de-emphasis | All geoms | `scale_alpha_continuous(range = c(0.1, 1))` |
-| `linetype` | Categorical series (≤6) | Lines, smooth, segments | `scale_linetype_manual(values = c(...))` |
-
-**Three rules to remember:**
-1. Inside `aes()` = data-driven mapping. Outside `aes()` = fixed constant.
-2. Shapes 21-25 accept *both* `colour` (border) and `fill` (interior), all other shapes ignore fill.
-3. Map the same variable to two aesthetics (colour + shape, or colour + linetype) for redundant encoding that works in print, greyscale, and for colourblind readers.
-
-## References
-
-1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Springer (2024). Chapter 2.4: Colour, size, shape and other aesthetic attributes. [Link](https://ggplot2-book.org/getting-started.html#sec-aesthetics)
-2. ggplot2 documentation, Aesthetic specifications vignette. [Link](https://ggplot2.tidyverse.org/articles/ggplot2-specs.html)
-3. ggplot2 documentation, Colour related aesthetics: colour, fill, and alpha. [Link](https://ggplot2.tidyverse.org/reference/aes_colour_fill_alpha.html)
-4. R Graph Gallery, Dealing with color in ggplot2. [Link](https://r-graph-gallery.com/ggplot2-color.html)
-5. Posit cheat sheet, Data visualization with ggplot2. [Link](https://rstudio.github.io/cheatsheets/data-visualization.pdf)
-6. Healy, K., *Data Visualization: A Practical Introduction*. Princeton University Press (2019). Chapter 3. [Link](https://socviz.co/makeplot.html)
-7. ColorBrewer 2.0, Colour advice for cartography and data visualization. [Link](https://colorbrewer2.org/)
-
-## Continue Learning
-
-1. [ggplot2 aes(): Map Any Variable to Any Visual Property](ggplot2-Aesthetics-aes-Map-Data.html), the parent tutorial covering every aesthetic in depth with theory, examples, and scale overrides
-2. [ggplot2 Exercises (15 problems)](ggplot2-Exercises.html), broader ggplot2 practice covering aesthetics, scales, facets, themes, and coordinate systems
-3. [ggplot2 Geom Exercises (12 problems)](ggplot2-Geom-Exercises.html), practice choosing the right chart type with geom_point, geom_bar, geom_boxplot, and more
+- [ggplot2 aesthetics tutorial: aes() and mapping data](ggplot2-Aesthetics-aes-Map-Data.html) for the conceptual reference behind every problem above.
+- [ggplot2 exercises: 50 real-world practice problems](ggplot2-Exercises-in-R.html) for a broader workout covering geoms, facets, scales, and themes.
+- [Data wrangling exercises in R](Data-Wrangling-Exercises-in-R.html) to practise the dplyr verbs you used in Section 5 and 6 before plotting.
