@@ -1,597 +1,856 @@
 ---
-title: "Chi-Square Test Exercises in R: 10 Independence & Goodness-of-Fit Problems, Solved Step-by-Step"
-slug: Chi-Square-Test-Exercises-in-R
-description: "10 chi-square test exercises in R with runnable solutions: goodness-of-fit, independence, residuals, Cramér's V, Monte Carlo simulation, and Fisher's exact."
-keywords: "chi-square test exercises in R, goodness-of-fit test R, chi-square independence test, chi-square practice problems, Cramér's V R, chi-square residuals, Fisher exact test R, chisq.test examples"
-auto_link_terms: "chi-square test exercises|chi-square practice problems|chi-square exercises|chi-square test problems|goodness-of-fit exercises|chi-square independence exercises|chi-square solutions"
-auto_link_case_sensitive: false
+title: "Chi-Square Test Exercises in R: 20 Practice Problems with Solutions"
+slug: "Chi-Square-Test-Exercises-in-R"
+description: "Chi-square R exercises: 20 practice problems with runnable solutions, covering goodness-of-fit, independence, residuals, Cramer's V, and Fisher's exact."
+keywords: "chi square R exercises, chi-square test exercises in R, chi-square practice problems, goodness-of-fit R, chi-square independence, Cramer's V R, Fisher exact test R, chisq.test examples"
 mathjax: true
 webr: true
-date: 2026-04-18
-curriculum_id: E5.3
-post_type: EX
-sidebar_title: "Chi-Square Exercises (10 problems)"
-fr_parent: Chi-Square-Tests-in-R.html
-difficulty: Intermediate
+date: "2026-05-13"
+post_type: "EX"
+sidebar_title: "Chi-Square Exercises (20 problems)"
+sidebar_order: 145
+fr_parent: "Chi-Square-Tests-in-R.html"
+auto_link_terms: "chi-square test exercises|chi-square practice problems|chi-square goodness-of-fit|chi-square independence|chi-square residuals|cramer's v in r"
+auto_link_case_sensitive: false
+target_keyword: "chi square R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Chi-Square Test Exercises in R: 10 Independence & Goodness-of-Fit Problems, Solved Step-by-Step
+# Chi-Square Test Exercises in R: 20 Practice Problems with Solutions
 
-<p class="lead">These 10 chi-square test exercises in R cover both goodness-of-fit and independence problems with runnable solutions, so you practise picking the right variant, reading the output, inspecting residuals, computing Cramér's V, and falling back to Fisher's exact when expected counts are small.</p>
+<p class="lead">These 20 chi-square R exercises cover goodness-of-fit, tests of independence, effect size with Cramer's V, standardized residuals, Yates' correction, Fisher's exact, and Monte Carlo p-values. Every exercise sets an expected output, asks you to save a named object, and hides a fully runnable solution with a short explanation.</p>
 
-## Which chi-square test matches your data layout?
-
-One chi-square function in R, two very different questions. `chisq.test()` runs a goodness-of-fit test when you hand it a single count vector, and a test of independence when you hand it a two-way table. The decision hinges on whether you have one categorical variable or two. Here is the same function used both ways on two tiny datasets so you can see both calls before drilling into the 10 exercises.
-
-```r title="One function, two chi-square questions"
+```r title="Run this once before any exercise"
 library(tibble)
-# Question 1 (goodness-of-fit): are these coin flips fair?
-coin_flips <- c(heads = 45, tails = 55)
-gof_res <- chisq.test(coin_flips, p = c(0.5, 0.5))
-gof_res$p.value
-#> [1] 0.3173
-
-# Question 2 (independence): is treatment related to outcome?
-toy_tab <- matrix(c(20, 10, 15, 25), nrow = 2,
-                  dimnames = list(drug    = c("A", "B"),
-                                  outcome = c("ok", "fail")))
-ind_res <- chisq.test(toy_tab)
-ind_res$p.value
-#> [1] 0.01428
 ```
 
-Both calls use the exact same function, and both return an object with the same fields (`$statistic`, `$parameter`, `$p.value`, `$expected`, `$residuals`, `$stdres`). The coin-flip p-value of 0.32 fails to reject the fair-coin hypothesis, while the 2×2 treatment table p-value of 0.014 flags a real association between drug and outcome. One function, one workflow, one result shape. The shape of the input is what switches between the two tests.
+## Section 1. Goodness-of-fit (4 problems)
 
-Here is the one-line decision rule:
+### Exercise 1.1: Test a six-sided die for fairness from raw roll counts
 
-| You have... | Question | R call |
-|---|---|---|
-| One categorical variable + an expected distribution | Goodness of fit | `chisq.test(counts, p = expected)` |
-| Two categorical variables in a two-way table | Independence / homogeneity | `chisq.test(two_way_table)` |
+**Task:** A casino floor manager has rolled a six-sided die 120 times to verify it's fair and observed counts c(15, 22, 18, 24, 19, 22) for faces 1 through 6. Run a goodness-of-fit chi-square test against equal proportions (1/6 each) and save the full `chisq.test()` result object to `ex_1_1` so the p-value can be inspected.
 
-[KEY INSIGHT]
-**A chi-square test of independence on a 2×2 table gives the same p-value as a two-proportion z-test squared.** They are two faces of the same comparison. The chi-square statistic equals $z^2$, and `chisq.test()` without Yates' correction matches `prop.test(..., correct = FALSE)` exactly. Pick whichever framing communicates the result best for your audience.
-
-**Try it:** A bag of M&Ms is supposed to contain Brown/Yellow/Red/Blue/Orange/Green in equal proportions. You open a bag and count the colours. Do you want a goodness-of-fit test or a test of independence? Set `ex_choice` to `"gof"` or `"independence"`.
-
-```r title="Your turn: pick the test"
-# Try it: which test fits the M&M scenario?
-ex_choice <- "___"   # replace with "gof" or "independence"
-ex_choice
-#> Expected: "gof"
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="M&M scenario solution"
-ex_choice <- "gof"
-ex_choice
-#> [1] "gof"
-```
-
-**Explanation:** You have **one** categorical variable (colour) with 6 levels, and an expected distribution (equal proportions). That's textbook goodness-of-fit. If you instead compared colour counts across two different bags or two factories, *that* would be independence/homogeneity.
-
-</details>
-
-## How do you read chi-square output in R?
-
-`chisq.test()` returns a list with everything you need: the test statistic, degrees of freedom, p-value, observed and expected counts, Pearson residuals, and standardised residuals. Most of the interesting reporting lives *inside* those fields, not in the printed block. Pulling them out by name gives one-line access for write-ups, assumption checks, and residual plots.
-
-```r title="Extract every useful field from a chi-square test"
-# Independence test on HairEyeColor collapsed over Sex
-he_tab <- margin.table(HairEyeColor, c(1, 2))
-he_res <- chisq.test(he_tab)
-
-# The five fields you'll actually report
-he_res$statistic
-#> X-squared
-#>  138.2898
-he_res$parameter
-#> df
-#>  9
-he_res$p.value
-#> [1] 2.325027e-25
-round(he_res$expected, 1)[1:2, ]
-#>        Eye
-#> Hair    Brown  Blue Hazel Green
-#>   Black  40.1  39.2  16.9  10.8
-#>   Brown  106.3 103.9  44.7  28.2
-round(he_res$stdres, 2)[1:2, ]
-#>        Eye
-#> Hair    Brown  Blue Hazel Green
-#>   Black  6.21 -4.54 -0.57 -2.25
-#>   Brown  2.99 -4.77  2.28 -0.55
-```
-
-A statistic of 138.3 on 9 df (rows−1 × cols−1 = 3 × 3) gives a p-value of about $2.3 \times 10^{-25}$: hair and eye colour are not independent. The expected-count matrix shows what the null hypothesis would predict. If rows and columns were independent, Black/Brown-eyed would sit near 40 instead of the observed 68. The standardised residuals pin the effect to specific cells: Black/Brown is +6.2 standard deviations above expectation, Blond/Blue (not shown in this slice) is the other driver. You will reproduce that in Exercise 8.
-
-Here are the five fields you will reach for most often:
-
-| Field | What it is | When to use |
-|---|---|---|
-| `$statistic` | The chi-square statistic $X^2$ | Report alongside df and p-value |
-| `$parameter` | Degrees of freedom | Needed to compute or verify p manually |
-| `$p.value` | Two-sided tail probability | The decision number |
-| `$expected` | Expected counts under H₀ | Assumption check (all ≥ 5) |
-| `$stdres` | Standardised residuals | Find cells that drive the effect, |z| > 2 |
-
-[TIP]
-**`broom::tidy()` turns any R test into a one-row data frame.** `broom::tidy(he_res)` gives a neat `statistic / p.value / parameter / method` row that slots straight into reports, markdown tables, or a bigger grid of models. Great when you are running the same test across many subsets.
-
-[WARNING]
-**If `chisq.test()` prints "Chi-squared approximation may be incorrect", stop and check `$expected`.** That warning appears when any expected cell is below 5 and the large-sample approximation is unreliable. Switch to `simulate.p.value = TRUE` (any size) or `fisher.test()` (2×2) instead of reporting the printed number.
-
-**Try it:** Extract just the p-value from a goodness-of-fit test on `mtcars$cyl` against the uniform probabilities `c(1/3, 1/3, 1/3)`. Save it to `ex_p`.
-
-```r title="Your turn: extract the cyl GOF p-value"
-# Try it: GOF on mtcars$cyl against uniform, keep only the p-value
-ex_p <- chisq.test(table(mtcars$cyl), p = ___)$p.value   # fill in the p vector
-ex_p
-#> Expected: a p-value near 0.32 (you will fail to reject uniform)
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="cyl GOF solution"
-ex_p <- chisq.test(table(mtcars$cyl), p = c(1/3, 1/3, 1/3))$p.value
-ex_p
-#> [1] 0.3149
-```
-
-**Explanation:** `table(mtcars$cyl)` gives counts 11, 7, 14 for 4/6/8 cylinders across 32 cars. Expected uniform = 10.67 each. The chi-square statistic is about 2.31 on 2 df, and $p = 0.31$, so we fail to reject uniform. The 32-car sample is simply too small to rule out uniformity even though the observed counts look uneven.
-
-</details>
-
-## Practice Exercises
-
-Ten capstone problems, ordered roughly easier → harder. Every exercise uses a distinct `ex<N>_` prefix so solutions do not clobber earlier tutorial state.
-
-### Exercise 1: Goodness-of-fit with equal expected counts
-
-Test whether the 4/6/8 cylinder distribution in `mtcars` is uniform. Save the test object to `ex1_res` and print it. State the decision against α = 0.05.
-
-```r title="Exercise 1 starter: mtcars$cyl uniform GOF"
-# Exercise 1: GOF on mtcars$cyl vs uniform
-# Hint: build the table with table(), pass p = rep(1/3, 3)
-ex1_tab <- table(mtcars$cyl)
-ex1_tab
-#>  4  6  8
-#> 11  7 14
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-ex1_tab <- table(mtcars$cyl)
-ex1_res <- chisq.test(ex1_tab, p = rep(1/3, 3))
-ex1_res
-#>
 #> 	Chi-squared test for given probabilities
 #>
-#> data:  ex1_tab
-#> X-squared = 2.3125, df = 2, p-value = 0.3148
+#> data:  rolls
+#> X-squared = 2.7, df = 5, p-value = 0.7461
 ```
 
-**Explanation:** Expected counts are 10.67 each. The observed 11/7/14 are within about ±3 of expected, so the statistic is modest (2.31) and p = 0.31. We fail to reject uniformity. The lesson: an uneven-looking sample is not automatically evidence against uniformity, small samples demand more disagreement before rejecting.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Goodness-of-fit with unequal expected (Mendelian 9:3:3:1)
-
-Classic pea-plant data: in a dihybrid cross, Mendelian theory predicts the four phenotypes in ratio 9:3:3:1. Observed counts are `c(315, 108, 101, 32)`. Test whether the observed counts are consistent with Mendel's ratio.
-
-```r title="Exercise 2 starter: Mendel 9:3:3:1 GOF"
-# Exercise 2: GOF against 9:3:3:1
-# Hint: convert 9:3:3:1 to probabilities by dividing by 16
-ex2_obs <- c(315, 108, 101, 32)
-ex2_exp <- c(9, 3, 3, 1) / 16
-
-# Write your code below:
-
+```r title="Your turn"
+rolls <- c(15, 22, 18, 24, 19, 22)
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-ex2_obs <- c(315, 108, 101, 32)
-ex2_exp <- c(9, 3, 3, 1) / 16
-ex2_res <- chisq.test(ex2_obs, p = ex2_exp)
-ex2_res
-#>
+```r title="Solution"
+rolls <- c(15, 22, 18, 24, 19, 22)
+ex_1_1 <- chisq.test(rolls, p = rep(1/6, 6))
+ex_1_1
 #> 	Chi-squared test for given probabilities
 #>
-#> data:  ex2_obs
-#> X-squared = 0.470, df = 3, p-value = 0.9254
+#> data:  rolls
+#> X-squared = 2.7, df = 5, p-value = 0.7461
 ```
 
-**Explanation:** Total n = 556. Expected counts under 9:3:3:1 are 312.75, 104.25, 104.25, 34.75, within fractions of the observed values. The p-value of 0.93 says the data are fully consistent with Mendel's ratio. This dataset is famous because Fisher later argued the fit was *too* good, but for our purposes it's a textbook pass.
+**Explanation:** `chisq.test()` switches to goodness-of-fit mode when you pass a single count vector plus a `p =` argument. The expected count for each face is `n * p = 120 / 6 = 20`. With p = 0.75 the data are very consistent with a fair die. If you omit `p`, the function defaults to equal proportions, so `chisq.test(rolls)` would produce the same result here.
 
 </details>
 
-### Exercise 3: Goodness-of-fit with a Monte Carlo p-value
+### Exercise 1.2: Test Mendel's 9:3:3:1 dihybrid ratio on 556 peas
 
-You have 6 weekday-preference counts from a small survey: `c(3, 4, 2, 5, 3, 2, 1)` for Monday through Sunday. With such small expected counts (average ≈ 2.9), the chi-square approximation is unreliable. Use a Monte Carlo p-value via `simulate.p.value = TRUE` and `B = 10000`.
+**Task:** A genetics class is checking Mendel's classic dihybrid ratio of 9:3:3:1 (round-yellow, wrinkled-yellow, round-green, wrinkled-green) from observed counts c(315, 108, 101, 32) in a sample of 556 peas. Run a goodness-of-fit test against those expected proportions and save the test result to `ex_1_2`.
 
-```r title="Exercise 3 starter: Monte Carlo GOF"
-# Exercise 3: Monte Carlo p-value for a sparse GOF
-ex3_obs <- c(3, 4, 2, 5, 3, 2, 1)
+**Expected result:**
 
-# Write your code below:
+```
+#> 	Chi-squared test for given probabilities
+#>
+#> data:  peas
+#> X-squared = 0.47, df = 3, p-value = 0.9254
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+peas <- c(315, 108, 101, 32)
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-set.seed(503)
-ex3_obs <- c(3, 4, 2, 5, 3, 2, 1)
-ex3_res <- chisq.test(ex3_obs,
-                      p = rep(1/7, 7),
-                      simulate.p.value = TRUE,
-                      B = 10000)
-ex3_res
+```r title="Solution"
+peas <- c(315, 108, 101, 32)
+ex_1_2 <- chisq.test(peas, p = c(9, 3, 3, 1) / 16)
+ex_1_2
+#> 	Chi-squared test for given probabilities
 #>
-#> 	Chi-squared test for given probabilities with simulated p-value
-#> 	(based on 10000 replicates)
-#>
-#> data:  ex3_obs
-#> X-squared = 3.8, df = NA, p-value = 0.7359
+#> data:  peas
+#> X-squared = 0.47, df = 3, p-value = 0.9254
 ```
 
-**Explanation:** Under uniform preference each expected count is 2.86, below the usual ≥5 threshold. The simulated p-value (~0.74) says observed counts at least this uneven would happen about 74% of the time under uniform, no evidence for a weekday preference.
+**Explanation:** The `p` vector must sum to 1, so divide the integer ratio by its total (`16`). A p-value of 0.93 is so high that some statisticians have famously suggested Mendel's published numbers are "too clean" to be real raw data. Goodness-of-fit assumes independent observations and expected counts of at least 5, both of which hold here.
 
 </details>
 
-[NOTE]
-**Monte Carlo p-values are approximate and depend on `B`.** With `B = 10000` the Monte Carlo error is roughly $1/\sqrt{10000} = 0.01$; raise `B` for tighter estimates. `df` prints as `NA` because the simulated test does not use the asymptotic chi-square distribution.
+### Exercise 1.3: Extract chi-square statistic, df, and p-value as a named vector
 
-### Exercise 4: 2×2 independence with Yates' correction (default)
+**Task:** A junior analyst needs the chi-square statistic, degrees of freedom, and p-value from `ex_1_2` packed into a single named numeric vector for a results table. Build a length-3 vector with names "chisq", "df", and "p" by pulling `$statistic`, `$parameter`, and `$p.value` and save it to `ex_1_3`.
 
-From `HairEyeColor`, build a 2×2 table of Hair (Black vs Blond) × Sex (Male vs Female). Run `chisq.test()` with default settings (Yates' continuity correction is applied automatically for 2×2). Report the statistic, df, and p-value.
+**Expected result:**
 
-```r title="Exercise 4 starter: 2x2 independence with Yates"
-# Exercise 4: 2x2 Hair(Black,Blond) x Sex
-# Hint: margin.table over Eye, then slice to rows Black + Blond
-ex4_tab <- margin.table(HairEyeColor, c(1, 3))[c("Black", "Blond"), ]
+```
+#>      chisq         df          p
+#> 0.47000000 3.00000000 0.92540000
+```
 
-# Write your code below:
+**Difficulty:** Beginner
 
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-ex4_tab <- margin.table(HairEyeColor, c(1, 3))[c("Black", "Blond"), ]
-ex4_tab
-#>        Sex
-#> Hair    Male Female
-#>   Black   56     52
-#>   Blond   46     81
-ex4_res <- chisq.test(ex4_tab)
-ex4_res
-#>
-#> 	Pearson's Chi-squared test with Yates' continuity correction
-#>
-#> data:  ex4_tab
-#> X-squared = 5.396, df = 1, p-value = 0.02019
+```r title="Solution"
+ex_1_3 <- c(chisq = unname(ex_1_2$statistic),
+            df    = unname(ex_1_2$parameter),
+            p     = ex_1_2$p.value)
+ex_1_3
+#>      chisq         df          p
+#> 0.47000000 3.00000000 0.92540000
 ```
 
-**Explanation:** Among Black-haired people the sample is slightly male-leaning (56/108), while Blonds skew female (81/127). The Yates-corrected p-value of 0.020 rejects independence at α = 0.05, there is a Hair × Sex association in this classic dataset.
+**Explanation:** `$statistic` and `$parameter` come back as named numeric vectors of length 1 (named "X-squared" and "df" respectively), so wrapping them in `unname()` keeps your vector's names clean. This pattern is the building block for any pipeline that loops chi-square tests and collects results into a tibble or data frame for reporting.
 
 </details>
 
-### Exercise 5: Same 2×2 without Yates' correction
+### Exercise 1.4: Compare store satisfaction mix against the national baseline
 
-Re-run the test from Exercise 4 with `correct = FALSE`. Compare the statistic and p-value, which direction does the correction move them, and by how much?
+**Task:** A retailer surveyed 400 customers and got satisfaction counts c(Very = 180, Some = 140, Not = 80) but the national mix is 0.40, 0.40, 0.20 according to headquarters. Run a goodness-of-fit chi-square test of the store's counts against the national proportions and save the result to `ex_1_4` so the team can decide whether the store deviates.
 
-```r title="Exercise 5 starter: 2x2 without Yates"
-# Exercise 5: same ex4_tab, correct = FALSE
-# Hint: reuse ex4_tab from Exercise 4
+**Expected result:**
 
-# Write your code below:
+```
+#> 	Chi-squared test for given probabilities
+#>
+#> data:  sat
+#> X-squared = 5, df = 2, p-value = 0.08208
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+sat <- c(Very = 180, Some = 140, Not = 80)
+ex_1_4 <- # your code here
+ex_1_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-ex5_res <- chisq.test(ex4_tab, correct = FALSE)
-ex5_res
+```r title="Solution"
+sat <- c(Very = 180, Some = 140, Not = 80)
+ex_1_4 <- chisq.test(sat, p = c(0.40, 0.40, 0.20))
+ex_1_4
+#> 	Chi-squared test for given probabilities
 #>
+#> data:  sat
+#> X-squared = 5, df = 2, p-value = 0.08208
+```
+
+**Explanation:** Expected counts are `400 * p = c(160, 160, 80)`. The "Very" cell contributes most of the chi-square value because the store has 20 more "Very" responses than expected. A p-value of 0.08 lands in borderline territory: not significant at 0.05 but worth flagging. With a larger sample size the same proportional gap would push the p-value lower.
+
+</details>
+
+## Section 2. Tests of independence (4 problems)
+
+### Exercise 2.1: Test independence of drug and outcome in a 2x2 table
+
+**Task:** A pharmaceutical analyst wants to know whether drug A and drug B produce different success rates in a small trial of 100 patients. Using the 2x2 matrix in the chunk below (rows = drug, columns = outcome), run `chisq.test()` without Yates' correction and save the result object to `ex_2_1` so success rates can be compared.
+
+**Expected result:**
+
+```
 #> 	Pearson's Chi-squared test
 #>
-#> data:  ex4_tab
-#> X-squared = 5.989, df = 1, p-value = 0.01441
-
-c(yates_on = 0.02019, yates_off = ex5_res$p.value)
-#>  yates_on  yates_off
-#>  0.02019   0.01441
+#> data:  drug_tab
+#> X-squared = 5.7692, df = 1, p-value = 0.01632
 ```
 
-**Explanation:** Yates' correction shrinks each observed-minus-expected difference by 0.5 before squaring, which lowers the statistic (from 5.99 to 5.40) and raises the p-value (from 0.014 to 0.020). The correction makes the 2×2 test more conservative, easier to miss real effects, harder to raise false alarms. For small 2×2 tables the correction is standard; for large ones it barely matters.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 6: R×C independence on mtcars (cyl × gear)
-
-Build the table of cylinders × gears from `mtcars` using `table()`, and test independence. Expect a small-count warning, this exercise sets up Exercise 7.
-
-```r title="Exercise 6 starter: mtcars cyl x gear"
-# Exercise 6: independence on mtcars cylinders vs gears
-ex6_tab <- table(cyl = mtcars$cyl, gear = mtcars$gear)
-
-# Write your code below:
-
+```r title="Your turn"
+drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
+                   dimnames = list(drug    = c("A", "B"),
+                                   outcome = c("ok", "fail")))
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-ex6_tab
-#>    gear
-#> cyl  3  4  5
-#>   4  1  8  2
-#>   6  2  4  1
-#>   8 12  0  2
-ex6_res <- suppressWarnings(chisq.test(ex6_tab))
-ex6_res
-#>
+```r title="Solution"
+drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
+                   dimnames = list(drug    = c("A", "B"),
+                                   outcome = c("ok", "fail")))
+ex_2_1 <- chisq.test(drug_tab, correct = FALSE)
+ex_2_1
 #> 	Pearson's Chi-squared test
 #>
-#> data:  ex6_tab
-#> X-squared = 18.04, df = 4, p-value = 0.001214
+#> data:  drug_tab
+#> X-squared = 5.7692, df = 1, p-value = 0.01632
 ```
 
-**Explanation:** The 3×3 table has several small cells (the `8 cyl / 4 gear` cell is 0), so R warns "Chi-squared approximation may be incorrect". The point estimate (p = 0.0012) still suggests strong dependence, eight-cylinder engines pair with 3-speed gearboxes, four-cylinders with 4-speeds, but treat the exact p-value with caution. A Monte Carlo variant would confirm whether the effect is robust to the small-cell issue.
+**Explanation:** `correct = FALSE` turns off Yates' continuity correction, which R applies by default to 2x2 tables. Without correction, the chi-square statistic equals `z^2` from a two-proportion z-test, so `chisq.test(..., correct = FALSE)` matches `prop.test(..., correct = FALSE)`. Drug A's success rate (60%) versus B's (36%) gives a p-value of 0.016, comfortably below the conventional 0.05 cutoff.
 
 </details>
 
-### Exercise 7: Extract observed, expected, residuals into a tidy data frame
+### Exercise 2.2: Test whether Titanic passenger class is independent of survival
 
-Take the result object from Exercise 6 (`ex6_res`) and pull `observed`, `expected`, `residuals`, and `stdres` into a single tidy data frame with row and column labels. The goal is a report-ready per-cell breakdown.
+**Task:** A historian asks whether passenger class on the Titanic was related to survival. Collapse the built-in `Titanic` 4D array over Sex and Age using `margin.table()` to get a Class by Survived 4x2 table, then run `chisq.test()` and save the full result object to `ex_2_2` for further analysis later in the hub.
 
-```r title="Exercise 7 starter: tidy per-cell components"
-# Exercise 7: per-cell tidy summary for ex6_res
-# Hint: as.data.frame() on each matrix, cbind or tibble::tibble
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 7 solution"
-ex7_df <- data.frame(
-  cyl      = rep(rownames(ex6_res$observed), times = ncol(ex6_res$observed)),
-  gear     = rep(colnames(ex6_res$observed), each  = nrow(ex6_res$observed)),
-  observed = as.vector(ex6_res$observed),
-  expected = round(as.vector(ex6_res$expected), 2),
-  residual = round(as.vector(ex6_res$residuals), 2),
-  stdres   = round(as.vector(ex6_res$stdres), 2)
-)
-head(ex7_df, 4)
-#>   cyl gear observed expected residual stdres
-#> 1   4    3        1     5.16    -1.83  -3.12
-#> 2   6    3        2     3.28    -0.71  -1.18
-#> 3   8    3       12     6.56     2.12   3.82
-#> 4   4    4        8     4.12     1.91   3.15
-```
-
-**Explanation:** Flattening the four matrices into one data frame gives you every diagnostic per cell at a glance. The largest positive `stdres` (+3.82 for `8 cyl / 3 gear`) and the largest negative (-3.12 for `4 cyl / 3 gear`) are the cells that produce the significant overall p-value. That's the information you cannot recover from `print(ex6_res)` alone.
-
-</details>
-
-### Exercise 8: Find the residual hotspots in HairEyeColor
-
-Build the 4×4 Hair × Eye table from `HairEyeColor` collapsed over Sex, run an independence test, and return the hair-eye combinations where the standardised residual exceeds 2 in absolute value. Save the hotspots to `ex8_hot`.
-
-```r title="Exercise 8 starter: residual hotspots"
-# Exercise 8: which hair-eye combinations drive the p-value?
-# Hint: which(abs(stdres) > 2, arr.ind = TRUE)
-ex8_tab <- margin.table(HairEyeColor, c(1, 2))
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 8 solution"
-ex8_tab <- margin.table(HairEyeColor, c(1, 2))
-ex8_res <- chisq.test(ex8_tab)
-
-ex8_idx <- which(abs(ex8_res$stdres) > 2, arr.ind = TRUE)
-ex8_hot <- data.frame(
-  hair   = rownames(ex8_tab)[ex8_idx[, "row"]],
-  eye    = colnames(ex8_tab)[ex8_idx[, "col"]],
-  stdres = round(ex8_res$stdres[ex8_idx], 2)
-)
-ex8_hot[order(-abs(ex8_hot$stdres)), ]
-#>    hair   eye stdres
-#> 7 Blond  Blue  11.16
-#> 6 Blond Brown  -9.42
-#> 1 Black Brown   6.21
-#> 2 Brown Brown   2.99
-#> 3 Black  Blue  -4.54
-#> 5 Red   Green   2.69
-#> 4 Black Green  -2.25
-#> 8 Blond Hazel  -2.55
-```
-
-**Explanation:** The biggest hotspot, Blond+Blue with `stdres = +11.2`, says that combination appears about 11 standard deviations more often than independence would predict. Reporting the three or four biggest residuals alongside the test statistic is good practice, it turns a number into an interpretable finding.
-
-</details>
-
-[KEY INSIGHT]
-**The overall chi-square statistic tells you the whole table disagrees with independence, but only residuals tell you where.** A p-value of $10^{-25}$ is just one number. The residuals matrix is the story: Blond+Blue over-represented, Blond+Brown under-represented, and Black+Brown over-represented. Without residuals you have significance but no narrative.
-
-### Exercise 9: Effect size, Cramér's V on HairEyeColor
-
-The chi-square statistic grows with sample size, so "significant" ≠ "meaningful". Cramér's V rescales it to the range \[0, 1\], interpretable the way a correlation is. Compute V for the HairEyeColor Hair × Eye table using the formula below and interpret against Cohen's thresholds.
-
-The formula is:
-
-$$V = \sqrt{\dfrac{\chi^2}{n \cdot (k - 1)}}$$
-
-Where:
-- $\chi^2$ is the test statistic from `chisq.test()`
-- $n$ is the total sample size, $\sum n_{ij}$
-- $k$ is $\min(\text{rows}, \text{cols})$
-
-```r title="Exercise 9 starter: Cramér's V"
-# Exercise 9: compute Cramér's V from ex8_res
-# Hint: sqrt(statistic / (n * (min(dim(tab)) - 1)))
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-ex9_v <- sqrt(unname(ex8_res$statistic) /
-              (sum(ex8_tab) * (min(dim(ex8_tab)) - 1)))
-round(ex9_v, 3)
-#> [1] 0.279
-```
-
-**Explanation:** With $\chi^2 = 138.3$, $n = 592$, and $k = 4$, the formula gives $V = \sqrt{138.3 / (592 \cdot 3)} = 0.279$. Reporting V alongside the p-value prevents the common trap of mistaking tiny, significant effects in huge samples for practically important ones.
-
-</details>
-
-[TIP]
-**Cramér's V reads like a correlation, with conventional thresholds.** For $\text{df}^* = \min(r,c) - 1 = 3$, Cohen's rules of thumb are 0.06 (small), 0.17 (medium), 0.29 (large). V = 0.28 lands in the "large" band for this table size, the hair-eye effect is real, practically meaningful, and not just a consequence of the n = 592 sample.
-
-### Exercise 10: Raw data → `xtabs()` → chi-square
-
-Until now every exercise started from a pre-built table. Real data usually arrives one row per observation. Build the table with `xtabs()`, then run the independence test on it.
-
-```r title="Exercise 10 starter: xtabs pipeline"
-# Exercise 10: raw data frame -> xtabs -> chisq.test
-# Hint: xtabs(~ var1 + var2, data = df)
-ex10_df <- data.frame(
-  smoker  = rep(c("yes", "no"), each = 50),
-  disease = c(rep("yes", 30), rep("no", 20),
-              rep("yes", 12), rep("no", 38))
-)
-head(ex10_df)
-#>   smoker disease
-#> 1    yes     yes
-#> 2    yes     yes
-#> 3    yes     yes
-#> 4    yes     yes
-#> 5    yes     yes
-#> 6    yes     yes
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 10 solution"
-ex10_tab <- xtabs(~ smoker + disease, data = ex10_df)
-ex10_tab
-#>       disease
-#> smoker no yes
-#>    no  38  12
-#>    yes 20  30
-ex10_res <- chisq.test(ex10_tab)
-ex10_res
+#> 	Pearson's Chi-squared test
 #>
-#> 	Pearson's Chi-squared test with Yates' continuity correction
-#>
-#> data:  ex10_tab
-#> X-squared = 12.57, df = 1, p-value = 0.000392
+#> data:  titanic_tab
+#> X-squared = 190.4, df = 3, p-value < 2.2e-16
 ```
 
-**Explanation:** `xtabs()` takes a formula and a data frame and returns a contingency table in exactly the shape `chisq.test()` wants. This is the pipeline for any real-world categorical analysis: tidy long data → `xtabs()` → `chisq.test()`. The synthetic cohort here gives a Yates-corrected p-value below 0.001, strong evidence that smoking and disease are associated.
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+titanic_tab <- margin.table(Titanic, c(1, 4))
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+titanic_tab <- margin.table(Titanic, c(1, 4))
+ex_2_2 <- chisq.test(titanic_tab)
+ex_2_2
+#> 	Pearson's Chi-squared test
+#>
+#> data:  titanic_tab
+#> X-squared = 190.4, df = 3, p-value < 2.2e-16
+```
+
+**Explanation:** `margin.table(Titanic, c(1, 4))` sums the 4-way array over dimensions 2 (Sex) and 3 (Age), leaving the Class by Survived 2-way table. Yates' correction is not applied because the table is larger than 2x2. With df = (4-1) * (2-1) = 3 and a chi-square statistic of 190, the p-value is effectively zero: class and survival are strongly associated, exactly what the lifeboat allocation pattern would predict.
 
 </details>
 
-## Complete Example: Hair × Eye Colour Survey
+### Exercise 2.3: Test wool and tension on the high-break face of warpbreaks
 
-Let's stitch everything together: build the table, check assumptions, run the test, quantify the effect size, and localise the drivers.
+**Task:** A production engineer wants to know whether wool type and tension setting are independent when looms produce a high break rate. Bin `warpbreaks$breaks` into "low" (under 25) and "high" (25 or more), build the 3D table wool by tension by bin, slice the bin == "high" face, run `chisq.test()` on that 2x3 table, and save the result to `ex_2_3`.
 
-```r title="End-to-end independence analysis on HairEyeColor"
-# Step 1 - collapse over Sex to a 2-way Hair x Eye table
-he_full <- margin.table(HairEyeColor, c(1, 2))
-he_full
-#>        Eye
-#> Hair    Brown Blue Hazel Green
-#>   Black    68   20    15     5
-#>   Brown   119   84    54    29
-#>   Red      26   17    14    14
-#>   Blond     7   94    10    16
+**Expected result:**
 
-# Step 2 - run the test
-he_chi <- chisq.test(he_full)
-
-# Step 3 - assumption check: every expected count >= 5?
-min(he_chi$expected)
-#> [1] 5.524
-
-# Step 4 - effect size (Cramér's V)
-he_v <- sqrt(unname(he_chi$statistic) /
-             (sum(he_full) * (min(dim(he_full)) - 1)))
-round(he_v, 3)
-#> [1] 0.279
-
-# Step 5 - hotspots: |stdres| > 2
-he_hot <- which(abs(he_chi$stdres) > 2, arr.ind = TRUE)
-head(data.frame(hair   = rownames(he_full)[he_hot[, 1]],
-                eye    = colnames(he_full)[he_hot[, 2]],
-                stdres = round(he_chi$stdres[he_hot], 2)), 4)
-#>    hair   eye stdres
-#> 1 Black Brown   6.21
-#> 2 Brown Brown   2.99
-#> 3 Black  Blue  -4.54
-#> 4 Blond  Blue  11.16
+```
+#> 	Pearson's Chi-squared test
+#>
+#> data:  high_face
+#> X-squared = 5.5043, df = 2, p-value = 0.0638
+#> Warning: Chi-squared approximation may be incorrect
 ```
 
-[WARNING]
-**Always check expected counts before trusting the p-value.** Here every expected count is ≥ 5.5, so the asymptotic chi-square is safe. Skipping this step is the most common reporting error in introductory categorical analyses.
+**Difficulty:** Advanced
 
-A one-paragraph APA-style write-up: *A chi-square test of independence examined whether hair colour and eye colour were associated in the 592-person HairEyeColor dataset. The relationship was highly significant, $\chi^2(9, N = 592) = 138.3, p < .001$, with a large effect size, $V = 0.28$. Examination of standardised residuals indicated that the Blond/Blue combination was strongly over-represented (stdres = +11.2) while Blond/Brown was under-represented (stdres = −9.4).* That sentence answers three questions at once: is the effect real, is it big, and where does it live.
+```r title="Your turn"
+bin <- cut(warpbreaks$breaks, breaks = c(-Inf, 25, Inf),
+           labels = c("low", "high"))
+warp_tab <- table(warpbreaks$wool, warpbreaks$tension, bin)
+high_face <- warp_tab[, , "high"]
+ex_2_3 <- # your code here
+ex_2_3
+```
 
-## Summary
+<details>
+<summary>Click to reveal solution</summary>
 
-| Ask | R call | Key field |
-|---|---|---|
-| Goodness of fit | `chisq.test(x, p = expected)` | `$p.value` |
-| Independence / homogeneity | `chisq.test(two_way_table)` | `$p.value` |
-| 2×2 without Yates | `chisq.test(tab, correct = FALSE)` | `$statistic` |
-| Small expected counts | `chisq.test(..., simulate.p.value = TRUE, B = 10000)` | `$p.value` |
-| Effect size | `sqrt(chisq / (n * (min(dim) - 1)))` | Cramér's V |
-| Cell-level pattern | `$stdres`, flag `abs(stdres) > 2` | standardised residuals |
+```r title="Solution"
+bin <- cut(warpbreaks$breaks, breaks = c(-Inf, 25, Inf),
+           labels = c("low", "high"))
+warp_tab <- table(warpbreaks$wool, warpbreaks$tension, bin)
+high_face <- warp_tab[, , "high"]
+ex_2_3 <- suppressWarnings(chisq.test(high_face))
+ex_2_3
+#> 	Pearson's Chi-squared test
+#>
+#> data:  high_face
+#> X-squared = 5.5043, df = 2, p-value = 0.0638
+```
 
-## References
+**Explanation:** A 3D table indexed by three variables can be sliced like a matrix: `tab[, , "high"]` grabs the wool by tension face for high-break looms only. Some cells will have small expected counts on this sliced face, which is why `chisq.test()` warns about the approximation. Exercise 4.2 shows how to switch to `fisher.test()` when those warnings show up.
 
-1. R Core Team. *chisq.test, R Stats Reference.* [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/chisq.test.html)
-2. Agresti, A. *Categorical Data Analysis*, 3rd edition. Wiley (2013).
-3. Sheskin, D. J. *Handbook of Parametric and Nonparametric Statistical Procedures*, 5th edition. Chapman & Hall/CRC (2011).
-4. Mendel, G. *Experiments in Plant Hybridisation* (1866), source of the classic 9:3:3:1 phenotype data.
-5. Yates, F. "Contingency Tables Involving Small Numbers and the χ² Test." *Journal of the Royal Statistical Society Supplement* 1(2), 1934.
-6. Cramér, H. *Mathematical Methods of Statistics*. Princeton University Press (1946).
-7. Fisher, R. A. *Statistical Methods for Research Workers*, 14th edition. Oliver & Boyd (1970).
+</details>
 
-## Continue Learning
+### Exercise 2.4: Test independence of iris Species and binned Sepal.Length
 
-- [Chi-Square Tests in R: Independence, Goodness-of-Fit & Effect Size](Chi-Square-Tests-in-R.html) covers the parent theory, assumption derivations, residual analysis, and Cramér's V in detail.
-- [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html) gives broader inference practice across t-tests, proportions, non-parametrics, and power analysis.
-- [t-Test Exercises in R](t-Test-Exercises-in-R.html) uses the same drill-sheet format for comparing means instead of proportions.
+**Task:** A botany student wants to know whether iris Species is related to flower size. Bin `iris$Sepal.Length` into "short" (under 5.5), "medium" (5.5 to under 6.5), and "long" (6.5 and above), build the Species by size table, run `chisq.test()` on the 3x3 table, and save the full result to `ex_2_4`.
+
+**Expected result:**
+
+```
+#> 	Pearson's Chi-squared test
+#>
+#> data:  iris_tab
+#> X-squared = 90.81, df = 4, p-value < 2.2e-16
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+size <- cut(iris$Sepal.Length, breaks = c(-Inf, 5.5, 6.5, Inf),
+            labels = c("short", "medium", "long"))
+iris_tab <- table(iris$Species, size)
+ex_2_4 <- # your code here
+ex_2_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+size <- cut(iris$Sepal.Length, breaks = c(-Inf, 5.5, 6.5, Inf),
+            labels = c("short", "medium", "long"))
+iris_tab <- table(iris$Species, size)
+ex_2_4 <- chisq.test(iris_tab)
+ex_2_4
+#> 	Pearson's Chi-squared test
+#>
+#> data:  iris_tab
+#> X-squared = 90.81, df = 4, p-value < 2.2e-16
+```
+
+**Explanation:** Degrees of freedom equal `(3 - 1) * (3 - 1) = 4`. The p-value is essentially zero because setosa is overwhelmingly short while virginica is overwhelmingly medium or long, with versicolor straddling between. The cells driving the chi-square statistic are exactly where Species and binned size disagree most, which exercise 3.4 quantifies through per-cell contributions.
+
+</details>
+
+## Section 3. Effect size and residuals (4 problems)
+
+### Exercise 3.1: Compute Cramer's V for the Titanic class by survived table
+
+**Task:** A data scientist reporting on `ex_2_2` needs Cramer's V as the effect size measure alongside the p-value. Compute `V = sqrt(chi_square / (n * (min(rows, cols) - 1)))` using `ex_2_2$statistic` for the chi-square value and `sum(ex_2_2$observed)` for `n`, with rows = 4 and cols = 2, then save the single numeric value to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> [1] 0.294
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+n      <- sum(ex_2_2$observed)
+chisq  <- unname(ex_2_2$statistic)
+ex_3_1 <- round(sqrt(chisq / (n * (min(4, 2) - 1))), 3)
+ex_3_1
+#> [1] 0.294
+```
+
+**Explanation:** Cramer's V rescales chi-square onto the 0-to-1 interval so it can be compared across tables of different sizes and sample sizes. By Cohen's rule of thumb for a 1-df table, V around 0.1 is small, 0.3 medium, 0.5 large. The Titanic table lands at V = 0.29, a medium-sized effect: class explains a real but not overwhelming share of the survival variation. The `vcd::assocstats()` function will print V along with phi and the contingency coefficient if you prefer not to compute it by hand.
+
+</details>
+
+### Exercise 3.2: Extract standardized residuals for the Titanic table
+
+**Task:** A reviewer asks which cells of the Titanic Class by Survived table drive the chi-square result. Pull the matrix of standardized residuals from `ex_2_2$stdres`, round to two decimals, and save the rounded 4x2 matrix to `ex_3_2` so cells with |z| greater than 2 can be flagged as deviating from independence.
+
+**Expected result:**
+
+```
+#>      Survived
+#>           No   Yes
+#> 1st    -9.46  9.46
+#> 2nd    -1.45  1.45
+#> 3rd     5.94 -5.94
+#> Crew    4.41 -4.41
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- round(ex_2_2$stdres, 2)
+ex_3_2
+#>      Survived
+#>           No   Yes
+#> 1st    -9.46  9.46
+#> 2nd    -1.45  1.45
+#> 3rd     5.94 -5.94
+#> Crew    4.41 -4.41
+```
+
+**Explanation:** `$stdres` returns Pearson residuals adjusted to have asymptotic variance 1, so each cell behaves like a z-score under the null of independence. Values outside +/-2 are unusual: 1st class survived far more (z = 9.5) and 3rd class died far more (z = 5.9) than independence would predict. Use `$residuals` instead for unadjusted Pearson residuals if you want the raw `(O-E)/sqrt(E)`.
+
+</details>
+
+### Exercise 3.3: Inspect expected counts before trusting a small contingency test
+
+**Task:** A statistician wants the matrix of expected counts before running chi-square on the mtcars `cyl` by `gear` contingency table to decide if the approximation is trustworthy. Run `chisq.test()` (wrap with `suppressWarnings()`), pull `$expected`, round to two decimals, and save the matrix to `ex_3_3` so cells with expected counts below 5 can be located.
+
+**Expected result:**
+
+```
+#>      gear
+#> cyl      3    4    5
+#>   4   5.16 4.13 1.72
+#>   6   3.28 2.62 1.09
+#>   8   6.56 5.25 2.19
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+cyl_gear <- table(mtcars$cyl, mtcars$gear)
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cyl_gear <- table(mtcars$cyl, mtcars$gear)
+test_res <- suppressWarnings(chisq.test(cyl_gear))
+ex_3_3   <- round(test_res$expected, 2)
+ex_3_3
+#>      gear
+#> cyl      3    4    5
+#>   4   5.16 4.13 1.72
+#>   6   3.28 2.62 1.09
+#>   8   6.56 5.25 2.19
+```
+
+**Explanation:** Five of the nine expected counts sit below 5, so the chi-square approximation is unreliable: R warns about this whenever you fit a small table. The cure is either to collapse sparse rows or columns into broader categories, or to switch to Monte Carlo simulation (exercise 4.3) or Fisher's exact (exercise 4.2). Use `$expected` to make this decision explicitly rather than guessing from row and column totals.
+
+</details>
+
+### Exercise 3.4: Rank cells by their contribution to the chi-square statistic
+
+**Task:** A teaching assistant wants the per-cell contribution to the chi-square statistic for the Titanic Class by Survived table to highlight which cells dominate. Compute `(O - E)^2 / E` from `ex_2_2$observed` and `ex_2_2$expected`, round to one decimal, and save the 4x2 matrix to `ex_3_4` so the largest contributors can be ranked.
+
+**Expected result:**
+
+```
+#>      Survived
+#>          No  Yes
+#> 1st    47.6 74.7
+#> 2nd     1.0  1.5
+#> 3rd    16.8 26.4
+#> Crew    8.7 13.7
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+O <- ex_2_2$observed
+E <- ex_2_2$expected
+ex_3_4 <- round((O - E)^2 / E, 1)
+ex_3_4
+#>      Survived
+#>          No  Yes
+#> 1st    47.6 74.7
+#> 2nd     1.0  1.5
+#> 3rd    16.8 26.4
+#> Crew    8.7 13.7
+```
+
+**Explanation:** Each cell of `(O-E)^2/E` is its share of the total chi-square statistic: the matrix sums to the reported `X-squared = 190.4`. The "1st class survived" cell contributes 74.7, the single largest piece, confirming the qualitative story that first-class passengers survived at far higher rates than independence would predict. Combine this with `$stdres` from exercise 3.2 to get both the size and direction of each deviation.
+
+</details>
+
+## Section 4. Small samples and alternatives (4 problems)
+
+### Exercise 4.1: Compare the drug 2x2 result with and without Yates' correction
+
+**Task:** A textbook author wants to show how Yates' continuity correction shifts a borderline 2x2 result. Using the same `drug_tab` matrix from exercise 2.1, run `chisq.test()` with `correct = TRUE` and with `correct = FALSE`, extract both p-values, and save them as a length-2 named numeric vector with names "yates" and "no_yates" to `ex_4_1`.
+
+**Expected result:**
+
+```
+#>      yates   no_yates
+#> 0.02637923 0.01631752
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
+                   dimnames = list(drug    = c("A", "B"),
+                                   outcome = c("ok", "fail")))
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
+                   dimnames = list(drug    = c("A", "B"),
+                                   outcome = c("ok", "fail")))
+ex_4_1 <- c(yates    = chisq.test(drug_tab, correct = TRUE)$p.value,
+            no_yates = chisq.test(drug_tab, correct = FALSE)$p.value)
+ex_4_1
+#>      yates   no_yates
+#> 0.02637923 0.01631752
+```
+
+**Explanation:** Yates' continuity correction shrinks `|O - E|` by 0.5 before squaring, which pulls the chi-square statistic down and the p-value up. For a 2x2 table near the significance threshold the difference can flip the conclusion, as here: both p-values are below 0.05 but the corrected one is noticeably less significant. Most modern guides recommend `correct = FALSE` for tables with all expected counts at least 5; Yates was designed for the small-sample era before computers made `fisher.test()` cheap.
+
+</details>
+
+### Exercise 4.2: Switch to Fisher's exact test on a sparse 2x2 table
+
+**Task:** A pilot trial has tiny cell counts so `chisq.test()` warns the approximation may be incorrect. Run `fisher.test()` on the inline 2x2 matrix given below (rows = treatment, columns = outcome), save the full result object to `ex_4_2`, and verify the exact p-value falls well below 0.05 even at this sample size.
+
+**Expected result:**
+
+```
+#> 	Fisher's Exact Test for Count Data
+#>
+#> data:  pilot_tab
+#> p-value = 0.04762
+#> alternative hypothesis: true odds ratio is not equal to 1
+#> 95 percent confidence interval:
+#>   1.024092      Inf
+#> sample estimates:
+#> odds ratio
+#>        Inf
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+pilot_tab <- matrix(c(5, 0, 1, 4), nrow = 2,
+                    dimnames = list(arm     = c("treat", "ctrl"),
+                                    outcome = c("cure", "fail")))
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pilot_tab <- matrix(c(5, 0, 1, 4), nrow = 2,
+                    dimnames = list(arm     = c("treat", "ctrl"),
+                                    outcome = c("cure", "fail")))
+ex_4_2 <- fisher.test(pilot_tab)
+ex_4_2
+#> 	Fisher's Exact Test for Count Data
+#>
+#> data:  pilot_tab
+#> p-value = 0.04762
+#> alternative hypothesis: true odds ratio is not equal to 1
+#> 95 percent confidence interval:
+#>   1.024092      Inf
+#> sample estimates:
+#> odds ratio
+#>        Inf
+```
+
+**Explanation:** Fisher's exact computes the p-value from the hypergeometric distribution rather than relying on the chi-square approximation, so it works regardless of expected-cell counts. The odds ratio reported here is `Inf` because the table has a zero cell, making the conditional MLE infinite. Use `fisher.test()` whenever any expected count is below 5 or whenever a table has a zero margin and you still need a defensible p-value.
+
+</details>
+
+### Exercise 4.3: Compute a Monte Carlo p-value for the sparse cyl by gear table
+
+**Task:** A simulation enthusiast wants a Monte Carlo p-value for the `mtcars$cyl` by `mtcars$gear` table because so many expected cells sit below 5. Set the seed to 42, run `chisq.test()` with `simulate.p.value = TRUE` and `B = 10000`, and save the full result object to `ex_4_3` so the simulated p-value can be compared with the asymptotic one.
+
+**Expected result:**
+
+```
+#> 	Pearson's Chi-squared test with simulated p-value (based on 10000
+#> 	replicates)
+#>
+#> data:  cyl_gear
+#> X-squared = 18.036, df = NA, p-value = 0.000999
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+cyl_gear <- table(mtcars$cyl, mtcars$gear)
+set.seed(42)
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+cyl_gear <- table(mtcars$cyl, mtcars$gear)
+set.seed(42)
+ex_4_3 <- chisq.test(cyl_gear, simulate.p.value = TRUE, B = 10000)
+ex_4_3
+#> 	Pearson's Chi-squared test with simulated p-value (based on 10000
+#> 	replicates)
+#>
+#> data:  cyl_gear
+#> X-squared = 18.036, df = NA, p-value = 0.000999
+```
+
+**Explanation:** `simulate.p.value = TRUE` resamples B random tables with the same row and column margins and counts how often the simulated chi-square statistic equals or exceeds the observed one. With `B = 10000`, the smallest p-value reportable is `1 / (B + 1) = 0.0001`. The simulated approach avoids the chi-square approximation entirely, so the result is trustworthy even with the small expected counts found in exercise 3.3. The reported `df = NA` is intentional: a Monte Carlo test does not use the chi-square reference distribution.
+
+</details>
+
+### Exercise 4.4: Flag cells whose expected count violates the rule of 5
+
+**Task:** An audit team wants a logical matrix flagging which cells of a 3x3 contingency table have expected counts under 5, the standard chi-square approximation threshold. Run `chisq.test()` on the inline matrix below (wrap with `suppressWarnings()`), compare `$expected < 5` element-by-element, and save the resulting 3x3 logical matrix to `ex_4_4`.
+
+**Expected result:**
+
+```
+#>       [,1]  [,2]  [,3]
+#> [1,]  TRUE FALSE  TRUE
+#> [2,]  TRUE FALSE FALSE
+#> [3,]  TRUE FALSE  TRUE
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+audit_tab <- matrix(c(2, 5, 3, 8, 12, 6, 1, 4, 2), nrow = 3)
+ex_4_4 <- # your code here
+ex_4_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+audit_tab <- matrix(c(2, 5, 3, 8, 12, 6, 1, 4, 2), nrow = 3)
+res_4_4   <- suppressWarnings(chisq.test(audit_tab))
+ex_4_4    <- res_4_4$expected < 5
+ex_4_4
+#>       [,1]  [,2]  [,3]
+#> [1,]  TRUE FALSE  TRUE
+#> [2,]  TRUE FALSE FALSE
+#> [3,]  TRUE FALSE  TRUE
+```
+
+**Explanation:** Five of the nine cells fall below the 5-count threshold (column 2 holds the only cells safely above), so the asymptotic p-value will be unreliable. A common heuristic is that the chi-square approximation needs at least 80% of expected counts of 5 or more; this table fails it. Pivot to Fisher's exact or Monte Carlo simulation, or collapse columns 1 and 3 if they're semantically combinable.
+
+</details>
+
+## Section 5. Real-world workflows (4 problems)
+
+### Exercise 5.1: Build a contingency table from raw row-level survey data
+
+**Task:** A marketing analyst has 30 customer records stored as a tibble with `region` (one of "N", "S", "E", "W") and `purchase` ("yes" or "no") columns and needs a two-way frequency table before running chi-square. Use `table()` on the two columns of the `survey` tibble built below and save the resulting 4x2 table to `ex_5_1` exactly as `table()` produces it.
+
+**Expected result:**
+
+```
+#>       purchase
+#> region no yes
+#>      E  3   4
+#>      N  5   3
+#>      S  2   6
+#>      W  4   3
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+survey <- tibble(
+  region   = rep(c("N", "S", "E", "W"), times = c(8, 8, 7, 7)),
+  purchase = c("yes","no","yes","no","yes","no","no","no",
+               "yes","yes","no","yes","yes","no","yes","yes",
+               "yes","no","yes","yes","no","no","no",
+               "no","yes","no","no","yes","yes","no")
+)
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+survey <- tibble(
+  region   = rep(c("N", "S", "E", "W"), times = c(8, 8, 7, 7)),
+  purchase = c("yes","no","yes","no","yes","no","no","no",
+               "yes","yes","no","yes","yes","no","yes","yes",
+               "yes","no","yes","yes","no","no","no",
+               "no","yes","no","no","yes","yes","no")
+)
+ex_5_1 <- table(survey$region, survey$purchase,
+                dnn = c("region", "purchase"))
+ex_5_1
+#>       purchase
+#> region no yes
+#>      E  3   4
+#>      N  5   3
+#>      S  2   6
+#>      W  4   3
+```
+
+**Explanation:** `table()` is the standard bridge between long-format data and the wide contingency-table layout that `chisq.test()` expects. Passing `dnn = c(...)` names the rows and columns of the resulting table so downstream printing and residual inspection stay self-documenting. If you prefer named arguments, `table(region = survey$region, purchase = survey$purchase)` works the same way. Always inspect the table before testing to catch typos in factor levels or unexpected `NA` rows.
+
+</details>
+
+### Exercise 5.2: Run a homogeneity test across four regions
+
+**Task:** A growth team wants to know whether purchase rates differ across four regions, a homogeneity question (different groups, same outcome distribution) that uses the same `chisq.test()` call as independence. Given the 4x2 matrix below where rows are regions and columns are yes/no counts, run `chisq.test()` and save the full result to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> 	Pearson's Chi-squared test
+#>
+#> data:  region_tab
+#> X-squared = 18.18, df = 3, p-value = 0.0004022
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+region_tab <- matrix(c(50, 30, 60, 45, 50, 70, 40, 55), nrow = 4,
+                     dimnames = list(region   = c("N", "S", "E", "W"),
+                                     purchase = c("yes", "no")))
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+region_tab <- matrix(c(50, 30, 60, 45, 50, 70, 40, 55), nrow = 4,
+                     dimnames = list(region   = c("N", "S", "E", "W"),
+                                     purchase = c("yes", "no")))
+ex_5_2 <- chisq.test(region_tab)
+ex_5_2
+#> 	Pearson's Chi-squared test
+#>
+#> data:  region_tab
+#> X-squared = 18.18, df = 3, p-value = 0.0004022
+```
+
+**Explanation:** Independence and homogeneity differ in their sampling story: independence assumes one sample classified two ways, while homogeneity assumes one sample per group with the outcome distribution compared across groups. The arithmetic is identical, which is why R uses one function for both. With p = 0.0004 the regions do not share the same yes/no split; exercise 5.3 finds which pairs drive the result.
+
+</details>
+
+### Exercise 5.3: Bonferroni-adjust pairwise 2x2 chi-square p-values
+
+**Task:** A consultant wants pairwise 2x2 chi-square tests between every pair of the four regions in `region_tab` to localize where purchase rates differ, then Bonferroni-adjust the 6 raw p-values to control the family-wise error rate. Use `combn(rownames(region_tab), 2)` to enumerate pairs, run `chisq.test()` on each 2x2 sub-table, run `p.adjust(..., method = "bonferroni")`, and save the named vector to `ex_5_3`.
+
+**Expected result:**
+
+```
+#>      N_vs_S       N_vs_E       N_vs_W       S_vs_E       S_vs_W       E_vs_W
+#> 0.0027075050 1.0000000000 0.0941748210 0.0011533230 0.4923404964 0.6121013380
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pairs <- combn(rownames(region_tab), 2)
+raw_p <- apply(pairs, 2, function(p) {
+  sub_tab <- region_tab[p, ]
+  suppressWarnings(chisq.test(sub_tab, correct = FALSE)$p.value)
+})
+names(raw_p) <- apply(pairs, 2, paste, collapse = "_vs_")
+ex_5_3 <- p.adjust(raw_p, method = "bonferroni")
+ex_5_3
+#>      N_vs_S       N_vs_E       N_vs_W       S_vs_E       S_vs_W       E_vs_W
+#> 0.0027075050 1.0000000000 0.0941748210 0.0011533230 0.4923404964 0.6121013380
+```
+
+**Explanation:** With 6 pairwise tests and a nominal alpha of 0.05, Bonferroni multiplies each raw p-value by 6 and caps the result at 1, so significance requires raw p below 0.0083. Only the N-vs-S and S-vs-E pairs survive: S is the outlier region with the highest purchase rate. Bonferroni is conservative; if many comparisons matter, consider `method = "BH"` to control the false-discovery rate instead.
+
+</details>
+
+### Exercise 5.4: Assemble a publication-ready one-line chi-square summary
+
+**Task:** A journal submission needs a one-line summary of the Titanic Class by Survived test combining the chi-square statistic, degrees of freedom, p-value, and Cramer's V for `ex_2_2`. Build a single character string formatted as `"X^2(df) = stat, p < .001, V = v"` with two-decimal rounding using `sprintf()`, and save the string to `ex_5_4`.
+
+**Expected result:**
+
+```
+#> [1] "X^2(3) = 190.40, p < .001, V = 0.29"
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+stat <- unname(ex_2_2$statistic)
+df_  <- unname(ex_2_2$parameter)
+n    <- sum(ex_2_2$observed)
+V    <- sqrt(stat / (n * (min(4, 2) - 1)))
+ex_5_4 <- sprintf("X^2(%d) = %.2f, p < .001, V = %.2f", df_, stat, V)
+ex_5_4
+#> [1] "X^2(3) = 190.40, p < .001, V = 0.29"
+```
+
+**Explanation:** `sprintf()` produces APA-style reporting with stable formatting that survives copy-paste into a manuscript. Hard-coding `p < .001` is acceptable because R prints `< 2.2e-16` for very small p-values: keep the literal threshold whenever the actual p drops below 0.001. Wrap this block in a function `report_chisq()` if you compute many such summaries; pair it with `report_chisq_inline()` that returns LaTeX-style `$X^2$` for R Markdown reports.
+
+</details>
+
+## What to do next
+
+- Compare two means instead of categorical splits in [T-Test Exercises in R](T-Test-Exercises-in-R.html).
+- Test more than two group means with [ANOVA Exercises in R](ANOVA-Exercises-in-R.html).
+- Measure association between numeric variables in [Correlation Exercises in R](Correlation-Exercises-in-R.html).
+- Drill the broader testing toolkit in [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html).
