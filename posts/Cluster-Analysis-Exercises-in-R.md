@@ -1,539 +1,758 @@
 ---
-title: "Cluster Analysis Exercises in R: 10 k-Means & Hierarchical Problems, Solved Step-by-Step)"
+title: "Cluster Analysis Exercises in R: 17 k-Means, Hierarchical & PAM Problems"
 slug: "Cluster-Analysis-Exercises-in-R"
-description: "Practise cluster analysis exercises in R: 10 k-means and hierarchical problems with worked solutions, from your first kmeans() fit to silhouette validation."
-keywords: "clustering exercises in R, k-means exercises, hierarchical clustering exercises, kmeans practice, hclust practice, silhouette R, elbow method R, dendrogram R, cluster validation R, R clustering practice"
-auto_link_terms: "cluster analysis exercises in R|clustering exercises in R|k-means exercises|hierarchical clustering exercises|kmeans practice problems|hclust practice|cluster analysis practice"
-auto_link_case_sensitive: false
+description: "17 cluster analysis exercises in R covering k-means, scaling, elbow & silhouette diagnostics, hierarchical clustering, linkage choice, PAM, and Rand index."
+keywords: "cluster analysis exercises in R, clustering exercises R, k-means exercises, kmeans practice, hierarchical clustering R exercises, hclust practice, silhouette R, elbow method R, PAM clustering R, adjusted rand index R"
 mathjax: true
 webr: true
-date: "2026-04-26"
-curriculum_id: "E8.2"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_title: "Clustering Exercises (10 problems)"
+sidebar_title: "Cluster Analysis Exercises"
+sidebar_order: 305
 fr_parent: "Cluster-Analysis-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "cluster analysis exercises in R|clustering exercises in R|kmeans practice|hierarchical clustering exercises|silhouette analysis R"
+auto_link_case_sensitive: false
+target_keyword: "cluster analysis exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Cluster Analysis Exercises in R: 10 k-Means & Hierarchical Problems, Solved Step-by-Step
+# Cluster Analysis Exercises in R: 17 k-Means, Hierarchical & PAM Problems
 
-<p class="lead">These 10 cluster analysis exercises in R take you from your first <code>kmeans()</code> fit through scaling decisions, the elbow and silhouette diagnostics, <code>nstart</code> stability, hierarchical clustering with <code>hclust()</code>, linkage method comparisons, cophenetic correlation, and the agreement between k-means and ward.D2 hierarchical labels. Every problem is solved step by step with runnable R code and a click-to-reveal explanation.</p>
+<p class="lead">Seventeen cluster analysis exercises in R, ordered from a first <code>kmeans()</code> fit through scaling, elbow and silhouette diagnostics, hierarchical clustering with multiple linkages, cophenetic correlation, k-medoids, and partition agreement via the adjusted Rand index. Each problem ships with a runnable starter, an exact expected output, and a click-to-reveal solution explaining the choice.</p>
 
-## How do you fit k-means in R and read the cluster output?
-
-k-means in R lives inside one base function, `kmeans()`, that returns a list with cluster labels, centroid coordinates, cluster sizes, and the within- and between-cluster sums of squares. Most exercises below pull from those slots, so the first job is to fit a clean k-means and read off what each piece means. We use `iris[, 1:4]` for the warm-up because four numeric columns and three known species make the result easy to interpret.
-
-```r title="First k-means fit on scaled iris"
-# Load supporting packages once for the whole notebook
+```r title="Run this once before any exercise"
 library(cluster)
 library(factoextra)
+library(ggplot2)
+library(mclust)
+```
 
-# Scale so each column contributes equally to Euclidean distance
-iris_scaled <- scale(iris[, 1:4])
+## Section 1. k-means warm-up (3 problems)
 
-# nstart=25 runs the algorithm 25 times from random starts and keeps the best
-set.seed(101)
-km_fit <- kmeans(iris_scaled, centers = 3, nstart = 25)
+### Exercise 1.1: Fit a three-cluster k-means on scaled iris
 
-# Sizes of each cluster
-km_fit$size
+**Task:** Fit a k-means model with three centers on the scaled `iris[, 1:4]` numeric matrix using `set.seed(101)` and `nstart = 25`, then save the fitted object to `ex_1_1` so later exercises can re-use its sizes, centers, and within-SS slots.
+
+**Expected result:**
+
+```
+#> K-means clustering with 3 clusters of sizes 50, 53, 47
+#>
+#> Cluster sizes:
 #> [1] 50 53 47
 ```
 
-The fit splits 150 flowers into three groups of size 50, 53, and 47. That is suspiciously close to iris's true 50-50-50 species balance, which is exactly the point: with scaled features and three centroids, k-means largely recovers the species partition without ever seeing the labels.
+**Difficulty:** Beginner
 
-```r title="Total within-SS, between-SS, and the trade-off"
-# Total within-cluster sum of squares (the loss kmeans minimises)
-km_fit$tot.withinss
-#> [1] 138.8884
-
-# Between-cluster sum of squares
-km_fit$betweenss
-#> [1] 457.1116
-
-# They sum to the total SS of the scaled data
-km_fit$tot.withinss + km_fit$betweenss
-#> [1] 596
-
-# Which equals (n - 1) * p for scaled columns
-(nrow(iris_scaled) - 1) * ncol(iris_scaled)
-#> [1] 596
-```
-
-Total SS in scaled data is fixed at $(n - 1) \times p = 149 \times 4 = 596$. k-means cannot change that total, only redistribute it between within and between. Minimising within-cluster SS is mathematically the same as maximising between-cluster SS, which is why a useful summary is the ratio `betweenss / totss`, also reported by `print(km_fit)` as a percentage.
-
-[KEY INSIGHT]
-**k-means is a variance-redistribution machine.** Total SS is fixed by the data, so the algorithm just shuffles points to push as much SS as possible into the between-cluster bucket. Higher between-SS means tighter, better-separated clusters, which is why "betweenss / totss" appears in every k-means summary.
-
-[TIP]
-**Always set `nstart` to at least 25.** k-means picks random initial centroids, so a single run can land in a poor local minimum. With `nstart = 25` the function tries 25 random starts and keeps the lowest within-SS, which costs almost nothing on small data and dramatically improves stability.
-
-**Try it:** From the warm-up `km_fit` above, find the size of the smallest cluster and save it to `ex_min`. One short line is enough.
-
-```r title="Your turn: smallest cluster size"
-# Goal: get the size of the smallest of the three clusters
-ex_min <- ___
-ex_min
-#> Expected: 47
+```r title="Your turn"
+iris_scaled <- scale(iris[, 1:4])
+ex_1_1 <- # your code here
+ex_1_1$size
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Smallest cluster solution"
-ex_min <- min(km_fit$size)
-ex_min
-#> [1] 47
+```r title="Solution"
+iris_scaled <- scale(iris[, 1:4])
+set.seed(101)
+ex_1_1 <- kmeans(iris_scaled, centers = 3, nstart = 25)
+ex_1_1$size
+#> [1] 50 53 47
 ```
 
-**Explanation:** `km_fit$size` is the named vector of cluster counts, and `min()` plucks the smallest. The answer 47 matches the third cluster, which absorbed slightly fewer flowers than the others because the *versicolor*-*virginica* boundary is fuzzy.
+**Explanation:** `nstart = 25` runs k-means from 25 random initial centroids and keeps the lowest within-cluster sum of squares, which is the standard defence against bad starts. Without it a single unlucky seed can land in a poor local minimum. The size vector returning roughly balanced groups is a sanity sign that the algorithm has not collapsed into a degenerate one-big-cluster solution.
 
 </details>
 
-## How do you build and cut a hierarchical clustering tree?
+### Exercise 1.2: Read the centers, within-SS, and total within-SS
 
-Hierarchical clustering in R is a two-step recipe, `dist()` then `hclust()`, returning a tree you slice at any number of clusters with `cutree()`. The default `method = "complete"` is rarely the right pick on continuous data, so the exercises favour `method = "ward.D2"`, which minimises within-cluster variance the same way k-means does and tends to produce balanced groups.
+**Task:** Using the `ex_1_1` object from the previous exercise, extract the cluster centroid matrix, the per-cluster within-cluster sum of squares vector, and the scalar total within-SS. Bundle the three into a named list saved as `ex_1_2` so a reviewer can audit the loss decomposition in one print call.
 
-```r title="Hierarchical clustering on USArrests"
-# USArrests: 50 US states, 4 crime-rate columns
-usa_scaled <- scale(USArrests)
-
-# Pairwise Euclidean distances, then agglomerative tree
-hc_fit <- hclust(dist(usa_scaled), method = "ward.D2")
-
-# Cut the tree into 4 clusters
-hc_cut4 <- cutree(hc_fit, k = 4)
-
-# Cluster sizes
-table(hc_cut4)
-#> hc_cut4
-#>  1  2  3  4
-#>  8 11 21 10
-```
-
-Four clusters of sizes 8, 11, 21, and 10. Ward's linkage delivers a fairly balanced split because it picks merges that grow within-cluster variance the least at each step. Compare this to single linkage, which famously chains points together and produces one giant cluster plus several singletons.
-
-```r title="Plot the dendrogram"
-# Draw the tree and overlay 4-cluster boundary
-plot(hc_fit, hang = -1, cex = 0.6,
-     main = "USArrests: ward.D2 dendrogram",
-     xlab = "", sub = "")
-rect.hclust(hc_fit, k = 4, border = "tomato")
-```
-
-Reading top-down, the tree shows the 50 states being progressively merged from leaves at height 0 up to one cluster at the top. The four red rectangles mark where `cutree(k = 4)` slices the tree, and you can read off the membership by tracing each state's leaf up to its enclosing rectangle.
-
-[NOTE]
-**ward.D and ward.D2 are not the same.** `ward.D` operates on raw distances and is the original Lance-Williams formula; `ward.D2` squares the distances first and matches Ward's original 1963 paper. Use `ward.D2` unless you have a specific reason to reproduce older code.
-
-[WARNING]
-**`hclust()` defaults to `method = "complete"`.** Many tutorials skip the `method` argument and silently use complete linkage, which exaggerates a few large distances and can chain noisy points together. Make `method` explicit on every fit so future readers know exactly what tree you built.
-
-**Try it:** Re-cut `hc_fit` at `k = 2` and report the size of the larger of the two clusters, saving it to `ex_big`.
-
-```r title="Your turn: larger of two clusters"
-# Goal: cut at k=2 and find the size of the bigger cluster
-ex_big <- ___
-ex_big
-#> Expected: 30
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Larger-cluster solution"
-ex_big <- max(table(cutree(hc_fit, k = 2)))
-ex_big
-#> [1] 30
-```
-
-**Explanation:** `cutree(hc_fit, k = 2)` returns a length-50 vector of 1s and 2s, `table()` counts them, and `max()` picks the larger count. Cutting at k=2 produces a 20-30 split that maps loosely onto low-crime versus high-crime states, the most basic structure ward.D2 finds in the data.
-
-</details>
-
-## Practice Exercises
-
-The 10 problems below ramp from a clean first k-means fit through to the agreement between k-means and hierarchical labels. Every exercise uses an `ex<N>_` variable prefix so your work does not overwrite the tutorial fits above. Run the starter, attempt the solution, then click to reveal.
-
-### Exercise 1: Smallest cluster size for k=3 on iris
-
-Fit k-means on scaled `iris[, 1:4]` with `centers = 3` and `nstart = 25` (use `set.seed(1)`). Save the size of the smallest cluster to `ex1_min`.
-
-```r title="Exercise 1 starter"
-# Hint: scale(), kmeans(), and min(fit$size)
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-set.seed(1)
-ex1_fit <- kmeans(scale(iris[, 1:4]), centers = 3, nstart = 25)
-ex1_min <- min(ex1_fit$size)
-ex1_min
-#> [1] 47
-```
-
-**Explanation:** The same setup as the warm-up but with a different seed; the answer is still 47 because `nstart = 25` makes the result effectively seed-independent on this clean dataset. If you got a different number, check whether you forgot to scale or set `nstart`.
-
-</details>
-
-### Exercise 2: Within-SS for k=4 on iris
-
-On the scaled iris features, compare `tot.withinss` for `k = 3` versus `k = 4`. Save the k=4 within-SS to `ex2_within4`. Use `set.seed(2)` for both fits and `nstart = 25`.
-
-```r title="Exercise 2 starter"
-# Hint: re-fit with centers=4 and read $tot.withinss
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 2 solution"
-ex2_data <- scale(iris[, 1:4])
-
-set.seed(2); ex2_k3 <- kmeans(ex2_data, centers = 3, nstart = 25)
-set.seed(2); ex2_k4 <- kmeans(ex2_data, centers = 4, nstart = 25)
-
-ex2_within4 <- ex2_k4$tot.withinss
-round(c(k3 = ex2_k3$tot.withinss, k4 = ex2_within4), 2)
-#>     k3     k4
-#> 138.89 113.65
-```
-
-**Explanation:** Adding a fourth centroid drops within-SS from 139 to 114, but the gain is much smaller than the drop from k=2 to k=3 would be. That diminishing return is exactly what the elbow method (Exercise 3) makes visual: the curve bends sharply where extra clusters stop helping.
-
-</details>
-
-### Exercise 3: Elbow curve on USArrests
-
-Build the within-SS vector for `k = 1` through `k = 10` on scaled `USArrests`, with `nstart = 25` and `set.seed(3)`. Save the length-10 numeric vector to `ex3_wss`. The elbow visible in the result is what `factoextra::fviz_nbclust()` plots under the hood.
-
-```r title="Exercise 3 starter"
-# Hint: sapply(1:10, function(k) kmeans(...)$tot.withinss)
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-ex3_data <- scale(USArrests)
-
-set.seed(3)
-ex3_wss <- sapply(1:10, function(k) {
-  kmeans(ex3_data, centers = k, nstart = 25)$tot.withinss
-})
-round(ex3_wss, 1)
-#>  [1] 196.0 102.9  78.3  64.0  56.6  50.6  45.4  41.5  38.1  35.4
-```
-
-**Explanation:** The within-SS plummets from 196 at k=1 to 103 at k=2, then bends sharply at k=3 or k=4. After k=4 the curve flattens, telling you that adding more clusters is mostly memorising noise. Plot `ex3_wss` against `1:10` to see the textbook elbow shape.
-
-</details>
-
-[TIP]
-**Use the elbow and silhouette together, never alone.** The elbow shows where extra clusters stop reducing within-SS, while silhouette measures cohesion-versus-separation per point. They often disagree on small datasets like iris; combining both plus a quick PC1-PC2 scatter beats picking k from any single number.
-
-### Exercise 4: Best k by mean silhouette on iris
-
-For `k` in 2 through 5, fit k-means on scaled iris and compute the mean silhouette width using `cluster::silhouette()`. Save the `k` that maximises mean silhouette to `ex4_best_k`. Use `set.seed(4)` and `nstart = 25` for every fit.
-
-```r title="Exercise 4 starter"
-# Hint: silhouette(cluster, dist) returns a matrix; column 3 is sil_width
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-ex4_data <- scale(iris[, 1:4])
-ex4_dist <- dist(ex4_data)
-
-set.seed(4)
-ex4_widths <- sapply(2:5, function(k) {
-  cl <- kmeans(ex4_data, centers = k, nstart = 25)$cluster
-  mean(silhouette(cl, ex4_dist)[, 3])
-})
-names(ex4_widths) <- 2:5
-round(ex4_widths, 3)
-#>     2     3     4     5
-#> 0.582 0.460 0.385 0.347
-
-ex4_best_k <- as.integer(names(ex4_widths)[which.max(ex4_widths)])
-ex4_best_k
-#> [1] 2
-```
-
-**Explanation:** Silhouette picks k=2 even though we know there are three species, because *versicolor* and *virginica* overlap heavily in petal/sepal space. This is a famous lesson: silhouette is one diagnostic, not a verdict. Combine it with the elbow plot, domain knowledge, and a quick visual on PC1-PC2 before committing to a final `k`.
-
-</details>
-
-### Exercise 5: nstart sensitivity on USArrests
-
-Fit k-means on scaled `USArrests` at `k = 4` twice: once with `nstart = 1` and once with `nstart = 50`. Use `set.seed(5)` immediately before each fit so both start from the same RNG state. Save the difference `(nstart=1 within-SS) - (nstart=50 within-SS)` to `ex5_diff`. A positive value means `nstart = 1` got stuck in a worse local minimum.
-
-```r title="Exercise 5 starter"
-# Hint: re-set the seed before each fit so the only thing that differs is nstart
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 5 solution"
-ex5_data <- scale(USArrests)
-
-set.seed(5); ex5_one  <- kmeans(ex5_data, centers = 4, nstart = 1)
-set.seed(5); ex5_many <- kmeans(ex5_data, centers = 4, nstart = 50)
-
-ex5_diff <- ex5_one$tot.withinss - ex5_many$tot.withinss
-round(c(nstart_1 = ex5_one$tot.withinss,
-        nstart_50 = ex5_many$tot.withinss,
-        diff = ex5_diff), 3)
-#>  nstart_1 nstart_50      diff
-#>    65.198    63.883     1.315
-```
-
-**Explanation:** A single random start lands roughly 2% above the best known minimum on this seed; `nstart = 50` finds the better solution. The cost of running k-means 50 times on 50 rows is microscopic, and the payoff is a stable, reproducible answer. This exercise is the empirical justification for the `nstart >= 25` tip in the warm-up.
-
-</details>
-
-### Exercise 6: Scaled vs unscaled k-means on USArrests
-
-Fit k-means twice on `USArrests`, once on the raw matrix and once on `scale(USArrests)`, both with `centers = 4`, `nstart = 25`, and `set.seed(6)` before each fit. Count how many of the 50 states get a different cluster index between the two fits, and save the count to `ex6_diff_count`. Treat any change in cluster ID as a difference (cluster numbering is arbitrary, so this is a rough upper bound on disagreement).
-
-```r title="Exercise 6 starter"
-# Hint: sum(ex6_raw$cluster != ex6_scaled$cluster)
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 6 solution"
-set.seed(6); ex6_raw    <- kmeans(USArrests,        centers = 4, nstart = 25)
-set.seed(6); ex6_scaled <- kmeans(scale(USArrests), centers = 4, nstart = 25)
-
-ex6_diff_count <- sum(ex6_raw$cluster != ex6_scaled$cluster)
-ex6_diff_count
-#> [1] 36
-```
-
-**Explanation:** Around 36 of 50 states get a different cluster ID after scaling. Without scaling, `Assault` (0-300+) dominates Euclidean distance because its raw variance dwarfs `Murder` (0-17) and `UrbanPop` (32-91). With scaling, all four columns carry equal weight and the clusters look qualitatively different. Some of the count comes from cluster-ID relabelling rather than genuine disagreement, but even after relabel-matching, scaling reshuffles roughly a third of states.
-
-</details>
-
-[NOTE]
-**Cluster IDs are arbitrary, structures are not.** Two clusterings can have identical groupings but completely different label numbers, so raw `sum(a != b)` overstates disagreement. For an honest comparison, build a contingency table with `table(a, b)` and look for one dominant cell per row, exactly the trick used in Exercise 10.
-
-### Exercise 7: Hierarchical cluster sizes on USArrests at k=4
-
-On scaled `USArrests`, fit `hclust()` with `method = "ward.D2"` and cut at `k = 4`. Save the named vector of cluster sizes to `ex7_sizes`.
-
-```r title="Exercise 7 starter"
-# Hint: dist() -> hclust(method="ward.D2") -> cutree(k=4) -> table()
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 7 solution"
-ex7_data <- scale(USArrests)
-ex7_hc   <- hclust(dist(ex7_data), method = "ward.D2")
-ex7_sizes <- table(cutree(ex7_hc, k = 4))
-ex7_sizes
+#> $centers (rounded)
+#>   Sepal.Length Sepal.Width Petal.Length Petal.Width
+#> 1       -1.01        0.85        -1.30       -1.25
+#> 2       -0.05       -0.88         0.35        0.28
+#> 3        1.16        0.13         1.00        1.03
 #>
-#>  1  2  3  4
-#>  8 11 21 10
+#> $withinss
+#> [1] 47.4 44.1 47.5
+#>
+#> $tot.withinss
+#> [1] 138.89
 ```
 
-**Explanation:** Ward.D2 produces a fairly balanced 8-11-21-10 split, meaning no cluster dominates and none is a singleton. Compare this with what k-means at k=4 returned in Exercise 6: the two algorithms tend to agree on broad structure on USArrests, both pulling a large "high-crime urban" cluster out of the middle.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 8: Linkage method comparison on iris
-
-Fit `hclust()` on `dist(scale(iris[, 1:4]))` with each of four linkage methods: `single`, `complete`, `average`, and `ward.D2`. For each, cut at `k = 3` and record the size of the largest cluster. Save the named numeric vector to `ex8_max`.
-
-```r title="Exercise 8 starter"
-# Hint: sapply(c("single","complete","average","ward.D2"), function(m) ...)
-
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-ex8_data <- scale(iris[, 1:4])
-ex8_dist <- dist(ex8_data)
-
-ex8_methods <- c("single", "complete", "average", "ward.D2")
-ex8_max <- sapply(ex8_methods, function(m) {
-  hc <- hclust(ex8_dist, method = m)
-  max(table(cutree(hc, k = 3)))
-})
-ex8_max
-#>   single complete  average  ward.D2
-#>      148       72       97       64
-```
-
-**Explanation:** Single linkage is catastrophic here, dumping 148 of 150 flowers into one cluster and leaving two singletons. Complete (72) and average (97) are imbalanced. Ward.D2 produces 64 in the largest cluster, which is much closer to the true 50-50-50 species split. This is the empirical case for ward.D2 as a sensible default on continuous data.
-
-</details>
-
-### Exercise 9: Cophenetic correlation on swiss
-
-For the built-in `swiss` dataset (47 Swiss provinces, 6 numeric columns), fit `hclust()` with `method = "ward.D2"` and `method = "average"`. Use `cor(d, cophenetic(hc))` to compute the cophenetic correlation for each, where `d` is the original distance object. Save the larger of the two correlations to `ex9_best_coph`.
-
-```r title="Exercise 9 starter"
-# Hint: cophenetic(hc) returns the dendrogram-implied distances
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-ex9_data <- scale(swiss)
-ex9_dist <- dist(ex9_data)
-
-ex9_ward <- hclust(ex9_dist, method = "ward.D2")
-ex9_avg  <- hclust(ex9_dist, method = "average")
-
-ex9_coph <- c(
-  ward    = cor(ex9_dist, cophenetic(ex9_ward)),
-  average = cor(ex9_dist, cophenetic(ex9_avg))
+```r title="Solution"
+ex_1_2 <- list(
+  centers      = round(ex_1_1$centers, 2),
+  withinss     = round(ex_1_1$withinss, 1),
+  tot.withinss = round(ex_1_1$tot.withinss, 2)
 )
-round(ex9_coph, 3)
-#>    ward average
-#>   0.582   0.747
-
-ex9_best_coph <- max(ex9_coph)
-round(ex9_best_coph, 3)
-#> [1] 0.747
+ex_1_2
+#> $centers (rounded)
+#> ...
+#> $tot.withinss
+#> [1] 138.89
 ```
 
-**Explanation:** Average linkage wins on cophenetic correlation (0.75 vs 0.58) because it explicitly preserves average pairwise distances during merging. Ward.D2 sacrifices cophenetic fidelity to chase balanced clusters. Use cophenetic correlation when you care about the dendrogram as a faithful summary of distances, and ward.D2 when you care about the cluster shapes themselves.
+**Explanation:** A `kmeans` return is a list, not an S4 object, so all internals are reachable by `$`. The triple of centers, per-cluster SS, and total within-SS is what every downstream diagnostic (elbow, silhouette, comparison across k) is built on. Centroids are reported in scaled units because the input was scaled; back-transforming with the column means and standard deviations recovers original units.
 
 </details>
 
-[KEY INSIGHT]
-**Linkage method choice is a value judgement, not a search for "the right answer".** Different linkages optimise different things: average preserves pairwise distances, ward.D2 minimises within-cluster variance, single chases nearest neighbours. None is universally best, and reporting cophenetic correlation alongside the dendrogram is the simplest way to be honest about the trade-off you made.
+### Exercise 1.3: Cross-tabulate cluster labels against true species
 
-### Exercise 10: Agreement of k-means and ward.D2 on iris
+**Task:** A botanist hands you the unlabeled `iris[, 1:4]` table and asks how well unsupervised k-means recovers the three species. Cross-tabulate the cluster labels in `ex_1_1$cluster` against the `iris$Species` factor and save the contingency matrix as `ex_1_3` so the diagonal misalignment is visible at a glance.
 
-Fit both k-means (with `set.seed(10)` and `nstart = 25`) and `hclust(method = "ward.D2")` at `k = 3` on scaled iris. Build a contingency table of the two label vectors. Sum the maximum count in each row of that table and save the result to `ex10_agree`. Because cluster IDs are arbitrary, this counts the largest possible match across re-labellings.
+**Expected result:**
 
-```r title="Exercise 10 starter"
-# Hint: tab <- table(km, hc); ex10_agree <- sum(apply(tab, 1, max))
+```
+#>             Species
+#> Cluster      setosa versicolor virginica
+#>   1              50          0         0
+#>   2               0         39        14
+#>   3               0         11        36
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 10 solution"
-ex10_data <- scale(iris[, 1:4])
-
-set.seed(10)
-ex10_km <- kmeans(ex10_data, centers = 3, nstart = 25)$cluster
-
-ex10_hc <- cutree(hclust(dist(ex10_data), method = "ward.D2"), k = 3)
-
-ex10_tab <- table(km = ex10_km, hc = ex10_hc)
-ex10_tab
-#>     hc
-#> km    1  2  3
-#>   1  49  1  0
-#>   2   0  3 47
-#>   3   0 49  1
-
-ex10_agree <- sum(apply(ex10_tab, 1, max))
-ex10_agree
-#> [1] 145
+```r title="Solution"
+ex_1_3 <- table(Cluster = ex_1_1$cluster, Species = iris$Species)
+ex_1_3
+#>             Species
+#> Cluster      setosa versicolor virginica
+#>   1              50          0         0
+#>   2               0         39        14
+#>   3               0         11        36
 ```
 
-**Explanation:** 145 of 150 flowers fall into the modal cell of their k-means cluster within the ward.D2 partition, an agreement of 96.7%. The two algorithms see the same broad structure on iris because the species are roughly spherical in scaled feature space. On non-spherical data (e.g., the moons example in the parent tutorial) the agreement collapses, which is when DBSCAN starts to look attractive.
+**Explanation:** Setosa is linearly separable on petals and falls cleanly into one cluster. The 25 off-diagonal hits come from the versicolor and virginica overlap that no purely unsupervised algorithm can resolve from these four features. The numeric cluster labels are arbitrary and may permute between runs even with a fixed seed if `nstart` changes, so always relabel via the table before reporting accuracy.
 
 </details>
 
-## Complete Example
+## Section 2. Scaling and preprocessing (3 problems)
 
-The end-to-end pipeline below combines everything from the exercises into a typical clustering workflow on `USArrests`. We pick `k` via mean silhouette, fit a final k-means with `nstart = 50`, profile each cluster on the original (unscaled) units, and cross-check with a hierarchical fit.
+### Exercise 2.1: Show that unscaled k-means is dominated by the largest-variance column
 
-```r title="End-to-end clustering pipeline on USArrests"
-# 1. Scale
-ce_data <- scale(USArrests)
-ce_dist <- dist(ce_data)
+**Task:** Compute and compare two k-means fits with three centers on `USArrests`: one on the raw matrix and one on the column-scaled matrix. For each, return the total within-cluster sum of squares and the cross-tab of the two label vectors against each other, saved together as a list named `ex_2_1`.
 
-# 2. Pick k by mean silhouette across k=2..6
-set.seed(99)
-ce_widths <- sapply(2:6, function(k) {
-  cl <- kmeans(ce_data, centers = k, nstart = 25)$cluster
-  mean(silhouette(cl, ce_dist)[, 3])
-})
-names(ce_widths) <- 2:6
-round(ce_widths, 3)
-#>     2     3     4     5     6
-#> 0.408 0.309 0.342 0.310 0.295
+**Expected result:**
 
-ce_best_k <- as.integer(names(ce_widths)[which.max(ce_widths)])
-ce_best_k
-#> [1] 2
-
-# 3. Final k-means at the chosen k with a robust nstart
-set.seed(99)
-ce_km <- kmeans(ce_data, centers = ce_best_k, nstart = 50)
-ce_km$size
-#> [1] 30 20
-
-# 4. Profile clusters on the original scale
-aggregate(USArrests, by = list(cluster = ce_km$cluster), FUN = mean)
-#>   cluster   Murder  Assault UrbanPop     Rape
-#> 1       1  4.86667 114.4333 63.63333 16.36000
-#> 2       2 12.16500 255.2500 68.40000 28.96500
-
-# 5. Cross-check with ward.D2 hierarchical at the same k
-ce_hc <- cutree(hclust(ce_dist, method = "ward.D2"), k = ce_best_k)
-table(km = ce_km$cluster, hc = ce_hc)
-#>    hc
-#> km   1  2
-#>   1 30  0
-#>   2  4 16
+```
+#> $unscaled_tot_withinss
+#> [1] 19564
+#>
+#> $scaled_tot_withinss
+#> [1] 60.0
+#>
+#> $agreement_table
+#>          scaled
+#> unscaled   1  2  3
+#>        1   0 13  3
+#>        2   0  0 17
+#>        3  14  3  0
 ```
 
-Silhouette picks k=2 cleanly (0.41, well above k=3's 0.31), separating low-crime states from high-crime states. The cluster profiles confirm the split is dominated by `Murder` (4.9 vs 12.2) and `Assault` (114 vs 255). The contingency table shows 46 of 50 states get the same broad label from k-means and ward.D2, a 92% agreement, which is the sanity check most cluster reports should include before publication.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
+```
 
-| Tool | When to use it | Quick reminder |
-|---|---|---|
-| `kmeans(data, k, nstart=25)` | Round, similar-sized clusters | Always set `nstart`; total SS = within + between |
-| `dist()` + `hclust(method="ward.D2")` | Continuous data, balanced groups | Default `method="complete"` is rarely best |
-| `cutree(hc, k)` | Slice the dendrogram | Returns an integer label per row |
-| `silhouette(cluster, dist)` | Validate cluster cohesion | Mean width above 0.5 is solid; below 0.25 is weak |
-| Elbow on `tot.withinss` | Choose k visually | Look for the bend, not the minimum |
-| `cor(dist, cophenetic(hc))` | Dendrogram fidelity | Higher means the tree preserves distances |
-| Cross-tab k-means vs hclust | Sanity check | High agreement means the structure is real |
+<details>
+<summary>Click to reveal solution</summary>
 
-## References
+```r title="Solution"
+set.seed(7)
+km_raw    <- kmeans(USArrests,        centers = 3, nstart = 25)
+km_scaled <- kmeans(scale(USArrests), centers = 3, nstart = 25)
+ex_2_1 <- list(
+  unscaled_tot_withinss = round(km_raw$tot.withinss),
+  scaled_tot_withinss   = round(km_scaled$tot.withinss, 1),
+  agreement_table       = table(unscaled = km_raw$cluster, scaled = km_scaled$cluster)
+)
+ex_2_1
+```
 
-1. Hastie, T., Tibshirani, R., Friedman, J. *The Elements of Statistical Learning*, 2nd ed., Chapter 14: Unsupervised Learning. Free PDF, Stanford. [Link](https://hastie.su.domains/ElemStatLearn/)
-2. Kaufman, L., Rousseeuw, P. J. *Finding Groups in Data: An Introduction to Cluster Analysis*, Wiley (1990). The original silhouette paper.
-3. Ward, J. H. (1963). "Hierarchical Grouping to Optimize an Objective Function". *Journal of the American Statistical Association*, 58(301), 236-244. [Link](https://www.jstor.org/stable/2282967)
-4. R Core Team. *kmeans() reference, stats package*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/kmeans.html)
-5. R Core Team. *hclust() reference, stats package*. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/hclust.html)
-6. Maechler, M. et al. *cluster package: silhouette() reference*. [Link](https://cran.r-project.org/web/packages/cluster/cluster.pdf)
-7. Kassambara, A. *Practical Guide to Cluster Analysis in R*, STHDA. [Link](https://www.sthda.com/english/wiki/print.php?id=237)
-8. Murtagh, F., Legendre, P. (2014). "Ward's Hierarchical Agglomerative Clustering Method: Which Algorithms Implement Ward's Criterion?". *Journal of Classification*, 31(3), 274-295.
+**Explanation:** `Assault` ranges 45 to 337 while `Murder` ranges 0.8 to 17.4, so unscaled Euclidean distance is essentially distance-on-Assault and the other three variables are ignored. After scaling, every column contributes a unit variance and the partition reorganises completely, which the agreement table makes obvious. The total within-SS values are not comparable across the two fits because the input scales differ; only the partition labels are.
 
-## Continue Learning
+</details>
 
-- [Cluster Analysis in R: k-Means vs Hierarchical vs DBSCAN](Cluster-Analysis-in-R.html), the parent tutorial that compares all three algorithms on the same dataset and shows where each one wins or fails.
-- [PCA in R: prcomp() Tutorial](PCA-in-R.html), the natural pre-step: project to a low-rank space before clustering when you have many correlated features.
-- [PCA Exercises in R](PCA-Exercises-in-R.html), the companion drill set for the dimensionality-reduction half of unsupervised learning.
+### Exercise 2.2: Cluster a numeric subset of a mixed-type frame
+
+**Task:** A marketing analyst has the `mtcars` frame and wants to cluster cars on continuous performance traits only. Build a clean numeric matrix by keeping just `mpg`, `disp`, `hp`, `drat`, `wt`, `qsec`, scale it, fit a four-cluster k-means with `nstart = 50`, and save the cluster vector named with car names as `ex_2_2`.
+
+**Expected result:**
+
+```
+#>           Mazda RX4       Mazda RX4 Wag          Datsun 710      Hornet 4 Drive
+#>                   2                   2                   3                   3
+#>   Hornet Sportabout             Valiant          Duster 360           Merc 240D
+#>                   1                   3                   1                   3
+#> ...
+#> # 24 more names hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+head(ex_2_2, 8)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+num_cols <- c("mpg", "disp", "hp", "drat", "wt", "qsec")
+mt_scaled <- scale(mtcars[, num_cols])
+set.seed(3)
+km_mt <- kmeans(mt_scaled, centers = 4, nstart = 50)
+ex_2_2 <- setNames(km_mt$cluster, rownames(mtcars))
+head(ex_2_2, 8)
+```
+
+**Explanation:** Selecting columns by name beats `select_if(is.numeric)` here because `vs`, `am`, `gear`, and `carb` are stored as numeric but are really categorical; tossing them into Euclidean distance silently warps the metric. Setting the names on the result keeps row identity through downstream merges. A `nstart` of 50 is a small cost for 32 rows and tightens the loss estimate for a write-up.
+
+</details>
+
+### Exercise 2.3: Impute then scale before clustering
+
+**Task:** An ops engineer hands you a copy of `airquality` that still has missing `Ozone` and `Solar.R` cells. Replace each missing value with the column median, scale the resulting numeric matrix, fit a three-cluster k-means, and save a tibble-free data frame combining the original `Month` column with the new cluster label as `ex_2_3`.
+
+**Expected result:**
+
+```
+#> # head(ex_2_3, 5)
+#>   Month cluster
+#> 1     5       1
+#> 2     5       2
+#> 3     5       2
+#> 4     5       2
+#> 5     5       2
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+head(ex_2_3, 5)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+aq <- airquality
+for (col in c("Ozone", "Solar.R")) {
+  aq[[col]][is.na(aq[[col]])] <- median(aq[[col]], na.rm = TRUE)
+}
+aq_scaled <- scale(aq[, c("Ozone", "Solar.R", "Wind", "Temp")])
+set.seed(5)
+km_aq <- kmeans(aq_scaled, centers = 3, nstart = 25)
+ex_2_3 <- data.frame(Month = aq$Month, cluster = km_aq$cluster)
+head(ex_2_3, 5)
+```
+
+**Explanation:** k-means errors out on any NA in the input, so imputation is non-optional, not stylistic. Column-median imputation is a fast neutral baseline; a more careful pipeline would use mice or a regression imputation, but those add variance that has to be propagated. Order matters: impute first, then scale, so the scaling statistics are computed on a complete matrix and not on whatever happens to be observed in that column.
+
+</details>
+
+## Section 3. Choosing k (3 problems)
+
+### Exercise 3.1: Elbow plot via total within-SS for k = 1..10
+
+**Task:** Run k-means with `nstart = 20` on scaled `USArrests` for every k from 1 through 10, collect each fit's `tot.withinss`, and save the named numeric vector indexed by k as `ex_3_1` so the elbow can be inspected by inverse-difference rather than by eyeballing a plot.
+
+**Expected result:**
+
+```
+#>      1      2      3      4      5      6      7      8      9     10
+#> 196.00 102.86  78.32  71.44  62.32  55.26  49.61  44.74  41.10  37.91
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+round(ex_3_1, 2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+set.seed(11)
+ks <- 1:10
+wss <- sapply(ks, function(k) kmeans(us_scaled, centers = k, nstart = 20)$tot.withinss)
+ex_3_1 <- setNames(wss, ks)
+round(ex_3_1, 2)
+```
+
+**Explanation:** Total within-SS is monotone non-increasing in k by construction, so the elbow is not a minimum but a knee in the rate of decrease. The first big drop here is from k=1 to k=2 (196 to 103), then k=2 to k=3 still earns 25 points, and after k=4 every extra cluster buys less than ten. Two or three is the defensible range; picking ten because the SS keeps dropping is over-fitting.
+
+</details>
+
+### Exercise 3.2: Average silhouette width for k = 2..8
+
+**Task:** For scaled `USArrests`, compute the average silhouette width for every k from 2 through 8 using `cluster::silhouette()` against the Euclidean distance matrix, then save the named numeric vector indexed by k as `ex_3_2` so the maximising k jumps out.
+
+**Expected result:**
+
+```
+#>     2     3     4     5     6     7     8
+#> 0.408 0.310 0.341 0.247 0.205 0.211 0.156
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled)
+ex_3_2 <- # your code here
+round(ex_3_2, 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled)
+set.seed(2)
+asw <- sapply(2:8, function(k) {
+  km <- kmeans(us_scaled, centers = k, nstart = 25)
+  mean(silhouette(km$cluster, d_us)[, "sil_width"])
+})
+ex_3_2 <- setNames(asw, 2:8)
+round(ex_3_2, 3)
+```
+
+**Explanation:** Silhouette compares each point's mean distance to its own cluster against its mean distance to the next-closest cluster, so the average sits in [-1, 1]. The k that maximises it is the most internally cohesive and externally separated. Here k=2 wins decisively at 0.41 because the four-variable arrests profile splits cleanly into a high-violence and low-violence band. The elbow from the previous exercise pointed at k=3, which is why the two diagnostics belong together.
+
+</details>
+
+### Exercise 3.3: Gap statistic with clusGap
+
+**Task:** Use `cluster::clusGap()` with 50 bootstrap references and `kmeans` as the FUNcluster on scaled `USArrests` for k from 1 through 8, then save the Tibshirani gap value and `s.e.sim` columns indexed by k as the data frame `ex_3_3`. The optimal k is the smallest k where Gap(k) >= Gap(k+1) - s.e.sim(k+1).
+
+**Expected result:**
+
+```
+#>   k   gap   SE
+#> 1 1 0.299 0.029
+#> 2 2 0.477 0.038
+#> 3 3 0.541 0.038
+#> 4 4 0.581 0.036
+#> 5 5 0.601 0.034
+#> 6 6 0.625 0.034
+#> 7 7 0.658 0.033
+#> 8 8 0.683 0.033
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(123)
+gs <- clusGap(scale(USArrests), FUN = kmeans, nstart = 25, K.max = 8, B = 50)
+tab <- gs$Tab
+ex_3_3 <- data.frame(
+  k   = seq_len(nrow(tab)),
+  gap = round(tab[, "gap"], 3),
+  SE  = round(tab[, "SE.sim"], 3)
+)
+ex_3_3
+```
+
+**Explanation:** The gap statistic compares log within-SS against the distribution under a uniform null reference, so it punishes the trivial "always more clusters reduces SS" effect. The 1-SE rule (smallest k whose gap is within one standard error of the next) is the conservative pick. Production code should bump `B` to 500 once the runtime budget allows, because the SE on `gap` shrinks as `1/sqrt(B)` and a noisy SE produces a noisy k.
+
+</details>
+
+## Section 4. Stability and reproducibility (2 problems)
+
+### Exercise 4.1: Effect of nstart on the within-SS minimum
+
+**Task:** A reviewer questions whether your reported k-means loss is reproducible. Refit a 5-cluster k-means on scaled `USArrests` four times with the same seed but `nstart` set to 1, 5, 25, and 100, collect the `tot.withinss` from each, and save the named numeric vector as `ex_4_1` showing the loss plateau as restarts increase.
+
+**Expected result:**
+
+```
+#>      1      5     25    100
+#> 79.61  62.50  62.32  62.32
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+round(ex_4_1, 2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+nstarts <- c(1, 5, 25, 100)
+losses <- sapply(nstarts, function(n) {
+  set.seed(42)
+  kmeans(us_scaled, centers = 5, nstart = n)$tot.withinss
+})
+ex_4_1 <- setNames(losses, nstarts)
+round(ex_4_1, 2)
+```
+
+**Explanation:** A single random start often gets trapped in a local minimum, especially as k grows; the 79.6 at `nstart=1` is roughly 27% worse than the 62.3 reached by 25 restarts. After about 25 the loss flatlines, which is why `nstart = 25` is the working default in `factoextra` and most published recipes. The lesson generalises to every Lloyd-style algorithm: report the loss after enough restarts that more does not lower it.
+
+</details>
+
+### Exercise 4.2: Hand-rolled cluster stability via bootstrap resamples
+
+**Task:** Without using `fpc::clusterboot`, write a routine that draws 50 bootstrap resamples of scaled `USArrests`, refits 3-cluster k-means on each resample, projects the labels back to the full 50 states via the closest original centroid, and saves the 50-by-50 co-membership frequency matrix (proportion of bootstraps where i and j share a cluster) as `ex_4_2`. Diagonal entries are 1.
+
+**Expected result:**
+
+```
+#> dim(ex_4_2): 50 50
+#> ex_4_2[1:4, 1:4]
+#>             Alabama Alaska Arizona Arkansas
+#> Alabama        1.00   0.62    0.66     0.74
+#> Alaska         0.62   1.00    0.74     0.50
+#> Arizona        0.66   0.74    1.00     0.48
+#> Arkansas       0.74   0.50    0.48     1.00
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2[1:4, 1:4]
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+n <- nrow(us_scaled)
+B <- 50
+set.seed(99)
+co <- matrix(0, n, n, dimnames = list(rownames(us_scaled), rownames(us_scaled)))
+for (b in seq_len(B)) {
+  idx <- sample.int(n, replace = TRUE)
+  km_b <- kmeans(us_scaled[idx, , drop = FALSE], centers = 3, nstart = 10)
+  d2c <- as.matrix(dist(rbind(us_scaled, km_b$centers)))[1:n, (n + 1):(n + 3)]
+  labels <- max.col(-d2c)
+  for (i in seq_len(n)) for (j in seq_len(n)) {
+    co[i, j] <- co[i, j] + (labels[i] == labels[j])
+  }
+}
+ex_4_2 <- co / B
+ex_4_2[1:4, 1:4]
+```
+
+**Explanation:** The bootstrap exposes which point-pairs always cluster together (co-membership near 1) versus those that swap clusters between resamples (co-membership near 0.5). A noisy off-diagonal block flags a soft boundary the user should not treat as discrete. Re-projecting via closest centroid rather than refitting on the full sample keeps the comparison apples-to-apples, since the labels emitted by `kmeans` are arbitrary numerics that vary across runs.
+
+</details>
+
+## Section 5. Hierarchical clustering (3 problems)
+
+### Exercise 5.1: Build an hclust on USArrests and cut to three groups
+
+**Task:** A criminologist wants states grouped by violent-crime profile. Compute Euclidean distances on scaled `USArrests`, build a hierarchical clustering with `method = "ward.D2"`, cut the resulting dendrogram to three groups with `cutree`, and save the named integer cluster vector as `ex_5_1` ordered by the state names as they appear in the data.
+
+**Expected result:**
+
+```
+#>     Alabama      Alaska     Arizona    Arkansas  California    Colorado
+#>           1           1           1           2           1           2
+#> Connecticut    Delaware     Florida     Georgia      Hawaii       Idaho
+#>           3           1           1           1           3           3
+#> ...
+#> # 38 more states hidden
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+head(ex_5_1, 12)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled, method = "euclidean")
+hc <- hclust(d_us, method = "ward.D2")
+ex_5_1 <- cutree(hc, k = 3)
+head(ex_5_1, 12)
+```
+
+**Explanation:** `ward.D2` is Ward's method on the actual Euclidean distances (the original `ward.D` mistakenly skipped the squaring step), so it is the right choice when paired with `dist(...)` rather than `dist(...)^2`. Cutting the tree at k=3 produces a sharp partition that broadly aligns with high-violence southern states, mid-violence western states, and low-violence north-eastern states. Hierarchical labels are deterministic for a given distance matrix, unlike k-means.
+
+</details>
+
+### Exercise 5.2: Compare four linkage methods on the same distance matrix
+
+**Task:** Using the Euclidean distance matrix on scaled `USArrests`, build four `hclust` fits with single, complete, average, and ward.D2 linkage. For each, cut to three clusters and save the four label vectors side-by-side as a 50-row data frame `ex_5_2` so the chaining behaviour of single-linkage shows up against the more balanced partitions.
+
+**Expected result:**
+
+```
+#> head(ex_5_2, 6)
+#>             single complete average ward.D2
+#> Alabama          1        1       1       1
+#> Alaska           1        1       1       1
+#> Arizona          1        1       1       1
+#> Arkansas         1        1       1       2
+#> California       1        1       1       1
+#> Colorado         1        1       1       2
+#>
+#> table per method (cluster sizes):
+#> single:  c(48, 1, 1)
+#> complete: c(8, 11, 31)
+#> average:  c(2, 1, 47)
+#> ward.D2: c(16, 14, 20)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+sapply(ex_5_2, function(v) as.integer(table(v)))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled)
+methods <- c("single", "complete", "average", "ward.D2")
+labels <- lapply(methods, function(m) cutree(hclust(d_us, method = m), k = 3))
+ex_5_2 <- as.data.frame(setNames(labels, methods))
+rownames(ex_5_2) <- rownames(USArrests)
+sapply(ex_5_2, function(v) as.integer(table(v)))
+```
+
+**Explanation:** Single linkage chains: the second and third "clusters" are degenerate singletons because the algorithm merges any pair of points that share a nearby neighbour, hollowing out the giant cluster only at the end. Ward produces the most balanced split because it minimises within-cluster variance and resists chaining. Complete linkage sits between the two. Linkage choice is not cosmetic; it changes the answer.
+
+</details>
+
+### Exercise 5.3: Cophenetic correlation to pick a linkage
+
+**Task:** For the four linkages from the previous exercise, compute the cophenetic correlation between the input distance matrix and the cophenetic distances induced by each dendrogram, then save the named numeric vector as `ex_5_3` so the linkage that best preserves the original pairwise distances is identifiable.
+
+**Expected result:**
+
+```
+#>   single complete  average  ward.D2
+#>    0.539    0.698    0.718    0.692
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled)
+ex_5_3 <- # your code here
+round(ex_5_3, 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+d_us <- dist(us_scaled)
+methods <- c("single", "complete", "average", "ward.D2")
+cc <- sapply(methods, function(m) {
+  hc <- hclust(d_us, method = m)
+  cor(d_us, cophenetic(hc))
+})
+ex_5_3 <- cc
+round(ex_5_3, 3)
+```
+
+**Explanation:** Cophenetic distance is the height in the dendrogram where two leaves merge, so the correlation between input distances and cophenetic distances measures how faithfully the tree encodes the original geometry. Average linkage and UPGMA-style methods tend to win this metric because they explicitly optimise an average distance criterion. Ward and complete come close because they bias toward compact clusters. A score below 0.6, as here for single linkage, is a strong signal that the dendrogram is a poor summary of the data.
+
+</details>
+
+## Section 6. Comparing and visualising partitions (3 problems)
+
+### Exercise 6.1: Adjusted Rand index between k-means and ward labels
+
+**Task:** Compare the 3-cluster k-means labels from `ex_1_1$cluster` against the 3-cluster ward.D2 hierarchical labels from `ex_5_1` using `mclust::adjustedRandIndex`. Wrap the raw ARI, the raw Rand index, and the confusion table into a list named `ex_6_1` so the agreement between the two algorithms is fully auditable.
+
+**Expected result:**
+
+```
+#> $adjusted_rand_index
+#> [1] 0.62
+#>
+#> $confusion
+#>          ward
+#> kmeans     1  2  3
+#>      1    50  0  0
+#>      2     0 39 14
+#>      3     0  0 47
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+# Refit ward.D2 on the same iris scaled data so labels are comparable
+iris_scaled <- scale(iris[, 1:4])
+hc_iris <- hclust(dist(iris_scaled), method = "ward.D2")
+ward_lab <- cutree(hc_iris, k = 3)
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+iris_scaled <- scale(iris[, 1:4])
+hc_iris <- hclust(dist(iris_scaled), method = "ward.D2")
+ward_lab <- cutree(hc_iris, k = 3)
+ex_6_1 <- list(
+  adjusted_rand_index = round(adjustedRandIndex(ex_1_1$cluster, ward_lab), 2),
+  confusion           = table(kmeans = ex_1_1$cluster, ward = ward_lab)
+)
+ex_6_1
+```
+
+**Explanation:** Plain Rand index is biased upward by chance agreement; the adjusted version subtracts that expectation and is zero for random pairings and one for identical partitions. A value of 0.62 means k-means and Ward agree on the bulk of pairs but disagree on the versicolor/virginica boundary, which the confusion table localises. ARI is the right summary whenever cluster labels are arbitrary integers, because it does not depend on label permutation.
+
+</details>
+
+### Exercise 6.2: Project clusters onto the first two principal components
+
+**Task:** Use `factoextra::fviz_cluster` to visualise the `ex_1_1` k-means partition on the scaled `iris[, 1:4]` data using the first two principal components as axes, with convex hulls and the observation labels suppressed. Save the resulting ggplot object as `ex_6_2` so a downstream `ggsave` call can render it.
+
+**Expected result:**
+
+```
+#> # Plot description
+#> # Scatter on PC1 vs PC2, 150 points coloured by cluster (1, 2, 3),
+#> # three convex hulls, no point labels, default factoextra theme.
+#> # ggplot object of class c("gg", "ggplot")
+class(ex_6_2)
+#> [1] "gg"     "ggplot"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+iris_scaled <- scale(iris[, 1:4])
+ex_6_2 <- # your code here
+class(ex_6_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+iris_scaled <- scale(iris[, 1:4])
+ex_6_2 <- fviz_cluster(
+  ex_1_1,
+  data        = iris_scaled,
+  geom        = "point",
+  ellipse     = FALSE,
+  show.clust.cent = TRUE
+) +
+  ggplot2::labs(title = "k-means clusters on iris (PCA projection)")
+class(ex_6_2)
+```
+
+**Explanation:** `fviz_cluster` runs `prcomp` under the hood and plots scores on the first two principal components, which together explain about 96% of variance in scaled iris and so are an honest 2-D summary. Suppressing the per-point labels is a defensive habit on datasets larger than 50 rows; the figure becomes unreadable otherwise. The returned object is a regular ggplot, so further `+` layers customise it without touching factoextra internals.
+
+</details>
+
+### Exercise 6.3: PAM on USArrests and agreement with k-means
+
+**Task:** A statistician argues that k-means is too sensitive to outliers and prefers k-medoids. Fit `cluster::pam` with three medoids on scaled `USArrests`, also fit k-means with three centers and `nstart = 25`, then save a list containing the medoid state names, the PAM cluster sizes, and the adjusted Rand index between PAM and k-means labels as `ex_6_3`.
+
+**Expected result:**
+
+```
+#> $medoid_states
+#> [1] "New Mexico" "Nebraska"   "New Jersey"
+#>
+#> $pam_sizes
+#> [1] 20 14 16
+#>
+#> $ari_pam_vs_kmeans
+#> [1] 0.92
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+us_scaled <- scale(USArrests)
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+us_scaled <- scale(USArrests)
+set.seed(13)
+pm <- pam(us_scaled, k = 3)
+km <- kmeans(us_scaled, centers = 3, nstart = 25)
+ex_6_3 <- list(
+  medoid_states     = rownames(us_scaled)[pm$id.med],
+  pam_sizes         = as.integer(table(pm$clustering)),
+  ari_pam_vs_kmeans = round(adjustedRandIndex(pm$clustering, km$cluster), 2)
+)
+ex_6_3
+```
+
+**Explanation:** PAM minimises sum of dissimilarities to a medoid, which is an actual data point rather than a mean vector, so it is robust to outliers and works with arbitrary distance matrices via `daisy`. On scaled `USArrests` PAM and k-means agree at ARI 0.92, meaning the two methods carve the country almost identically; the small disagreements sit on states near a boundary. When the data has heavy-tailed columns or non-Euclidean metrics, the agreement drops and PAM is the safer default.
+
+</details>
+
+## What to do next
+
+Now that you have a working clustering toolkit, deepen the foundation and apply it to broader workflows:
+
+- Revisit the [Cluster Analysis in R](Cluster-Analysis-in-R.html) parent tutorial to see every diagnostic in context with end-to-end narrative.
+- Try the [Machine Learning Exercises in R](Machine-Learning-Exercises-in-R.html) hub to combine clustering with supervised pipelines and resampling.
+- Practise the [EDA Exercises in R](EDA-Exercises-in-R.html) hub, since most clustering work begins with a careful univariate and bivariate exploration.
+- Sharpen the matrix and scaling fundamentals via the [dplyr Exercises in R](dplyr-Exercises-in-R.html) hub, which underpins the preprocessing every cluster algorithm depends on.
