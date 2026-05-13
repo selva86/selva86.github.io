@@ -1,164 +1,174 @@
 ---
-title: "R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems, Solved Step-by-Step"
+title: "R Data Import Exercises: 17 read_csv() and fread() Practice Problems"
 slug: "R-Data-Import-Exercises"
-description: "Ten hands-on R data import exercises: read_csv(), read_delim(), column types, NA handling, skipping metadata, multi-file reads, with full worked solutions."
-keywords: "R data import exercises, read_csv exercises, readr practice, read_delim exercises, col_types exercises, import practice problems R, readxl exercises, R csv parsing practice"
+description: "Seventeen R data import exercises drilling read_csv(), col_types, NA handling, fread(), JSON, and multi-file workflows, each with a worked solution."
+keywords: "R data import exercises, read_csv exercises, readr practice problems, fread exercises, col_types tutorial, NA handling R, R read_delim exercises, jsonlite R exercises"
 mathjax: false
 webr: true
-date: "2026-04-14"
-curriculum_id: "FR-impo-3"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_title: "Data Import (10 problems)"
-auto_link_terms: "R data import exercises|read_csv exercises|readr practice|data import practice problems|read_delim exercises|col_types exercises"
-auto_link_case_sensitive: false
+sidebar_title: "Data Import (17 problems)"
 fr_parent: "Importing-Data-in-R.html"
-difficulty: "Intermediate"
+auto_link_terms: "r data import exercises|read_csv exercises|readr practice problems|fread exercises|col_types exercises|read_delim exercises"
+auto_link_case_sensitive: false
+target_keyword: "R data import exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
+# R Data Import Exercises: 17 read_csv() and fread() Practice Problems
 
-# R Data Import Exercises: 10 read_csv(), read_excel() Practice Problems
-
-<p class="lead">Ten practical exercises drill <code>read_csv()</code>, <code>read_delim()</code>, column types, missing values, and multi-file imports in R, each with a runnable solution and inline output you can verify in your browser.</p>
+<p class="lead">Seventeen practical exercises drill <code>read_csv()</code>, <code>read_delim()</code>, column types, missing values, fixed-width files, JSON, and multi-file imports in R. Each problem ships a runnable solution and the exact expected output so you can verify in your browser.</p>
 
 ## Introduction
 
-Reading the `readr` reference page is one thing. Applying it to a file with stray metadata rows, leading-zero zip codes, and three different spellings of "missing" is another. These ten problems close that gap. Each one targets a specific import skill that trips real analysts on their first messy CSV.
+Reading the readr reference page is one thing. Loading a CSV with stray metadata rows, leading-zero ZIP codes, three different spellings of "missing", and a single bad row buried in the middle is another. These 17 problems close that gap. Each one targets a specific import skill that trips real analysts on their first messy file.
 
-You will start with straight CSV reads, then move to column-type control and NA handling, and finish by combining multiple files with mismatched columns. All solutions run in one shared R session, so use `ans1`, `ans2`, ... in your own attempts to avoid overwriting the setup datasets. One exercise uses `readxl` for Excel files, its code and expected output are shown inline.
+You will start with straight CSV reads, then move to column-type control, NA handling, skipping garbage, non-CSV formats, and finally end-to-end multi-file workflows. All solutions run in one shared R session, so use `ans1`, `ans2`, and so on for your own attempts to avoid overwriting the setup objects.
 
-If `read_csv()` and `col_types` are new to you, skim the parent [Importing Data in R](Importing-Data-in-R.html) tutorial first. Otherwise, run the Setup block and begin.
+If `read_csv()` and `col_types` are new to you, skim the parent [Importing Data in R](Importing-Data-in-R.html) tutorial first. Otherwise, run the setup block once and begin.
 
-## Setup: The CSV Snippets We Will Use
+## Setup: Run this once before any exercise
 
-Instead of scattering raw CSV strings across every exercise, we define them once here. These are tiny on purpose, a few rows each, so you can eyeball the expected output and catch mistakes without scrolling. Run the block below once; every exercise after it reuses these objects.
+This block loads every package used in the hub and defines the small in-memory data strings each exercise reads. Defining the data inline keeps the focus on parsing instead of file paths.
 
-```r title="Setup: load libraries and CSV snippets"
-# Setup: load libraries and define CSV snippets for every exercise
+```r title="Run this once before any exercise"
 library(readr)
 library(dplyr)
+library(jsonlite)
+library(data.table)
 
-# Basic product catalog
-csv_basic <- "product,price,qty,in_stock
+# 1.1 / 4.3 / 5.2 / 6.1: basic product catalog
+csv_products <- "product,price,qty,in_stock
 Laptop,999.99,50,TRUE
 Mouse,24.99,200,TRUE
 Keyboard,74.50,0,FALSE"
 
-# Pipe-delimited employee records
+# 1.2: pipe-delimited HR records
 csv_pipe <- "name|dept|salary
 Alice|Engineering|95000
 Bob|Marketing|82000
 Carol|Sales|68000"
 
-# Customer IDs and zip codes with leading zeros
+# 1.3: tab-separated lab results
+tsv_lab <- "patient_id\tglucose\tcholesterol
+P001\t92\t180
+P002\t110\t210
+P003\t85\t195"
+
+# 2.1: customers with leading-zero ZIP codes and phone numbers
 csv_zip <- "name,zipcode,phone
 Alice,01234,5551234567
 Bob,00501,5559876543
 Carol,07008,5553344556"
 
-# Scores with four different missing-value conventions
-csv_na <- "id,score,grade
+# 2.3: a CSV with one row that fails to parse as a number
+csv_bad_rows <- "id,qty
+1,10
+2,many
+3,30"
+
+# 3.1: scores with four different missing-value conventions
+csv_messy_na <- 'id,score,grade
 1,88,A
 2,N/A,B
-3,,-
+3,,
 4,-999,C
-5,76,"
+5,76,NULL'
 
-# Events with US-format dates
-csv_dates <- "event,date
-Meeting,03/30/2026
-Lunch,03/31/2026
-Review,04/01/2026"
+# 3.2: a numeric vector with -999 sentinel codes
+numbers_with_sentinel <- c(10, 20, -999, 30, -999, 40)
 
-# CSV with three metadata lines before the real header
-csv_meta <- "Report: Quarterly Sales
+# 4.1: CSV with three metadata lines before the real header
+csv_with_meta <- "Report: Quarterly Sales
 Generated: 2026-03-30
 ---
 product,q1,q2
 Laptop,120,150
 Mouse,450,500"
 
-# Two monthly sales files to combine
-csv_jan <- "date,sales
-2026-01-01,100
-2026-01-02,120"
-csv_feb <- "date,sales
-2026-02-01,150
-2026-02-02,130"
+# 4.2: fixed-width records (id in cols 1-3, name in 5-14, score in 16-19)
+fwf_records <- "001 Alice      88
+002 Bob        76
+003 Carol      92"
 
-# A bigger table — 1,000 rows
-set.seed(1)
-csv_big <- paste(c("x,y", paste(1:1000, round(runif(1000), 3), sep = ",")),
-                 collapse = "\n")
+# 5.1: JSON payload from a marketing API
+json_campaigns <- '[
+  {"name": "Campaign A", "clicks": 1200, "conversions": 84},
+  {"name": "Campaign B", "clicks": 980,  "conversions": 62},
+  {"name": "Campaign C", "clicks": 1450, "conversions": 97}
+]'
 
-# Two files with overlapping but non-identical columns
-csv_mixed_a <- "id,name,score
-1,Alice,88
-2,Bob,76"
-csv_mixed_b <- "id,name,grade
-3,Carol,A
-4,David,B"
+# 6.2: three monthly sales files with identical schema
+csv_sales_jan <- "date,region,sales
+2026-01-01,East,120
+2026-01-02,West,110"
+csv_sales_feb <- "date,region,sales
+2026-02-01,East,130
+2026-02-02,West,125"
+csv_sales_mar <- "date,region,sales
+2026-03-01,East,140
+2026-03-02,West,135"
 
-cat("Setup complete. CSV snippets ready.\n")
-#> Setup complete. CSV snippets ready.
+# 6.3: messy combined file (metadata + leading zeros + -999 sentinel)
+csv_dirty <- "Daily Balance Report
+Generated: 2026-05-13
+account_id,name,balance
+0001,Alice,1200
+0002,Bob,-999
+0003,Carol,850
+0004,David,-999"
 ```
 
-Take a quick look at the shape of each snippet. `csv_basic` has 3 rows and 4 columns. `csv_na` contains five rows with missing values expressed as blank, `N/A`, `-`, and `-999`, a deliberate mess. `csv_big` is the only snippet with real volume (1,000 rows), and it only exists so Exercise 8 can demonstrate `n_max`.
+## Section 1. read_csv and friends, the staples (3 problems)
 
-[TIP]
-**Run Setup once per session.** All ten exercises share these objects. If you refresh the browser or reset the R session, re-run the Setup block before trying the next exercise.
+### Exercise 1.1: Read a comma-separated product catalog with read_csv
 
-## Warm-Up: Read CSV Basics (Exercises 1-3)
+**Task:** A bookstore chain just exported a tiny product catalog as a comma-separated string named `csv_products` (defined in setup). Use `read_csv()` from readr to parse it into a tibble and inspect the column types it infers automatically. Save the result to `ex_1_1`.
 
-The first three problems build muscle memory for `read_csv()` and `read_delim()`. If you can finish them without peeking at the reveal, you own the fundamentals. Each expected result is stated up front so you can self-check.
-
-### Exercise 1: Read a CSV and report the inferred column types
-
-Use `read_csv()` to parse `csv_basic` into a data frame, then print the parsed tibble. Save it as `ans1`. Expected: 3 rows, 4 columns, with `price` numeric, `qty` integer, and `in_stock` logical.
-
-```r title="Exercise 1: readcsv basic parse"
-# Exercise 1: parse csv_basic with read_csv()
-# Hint: use show_col_types = FALSE to silence the spec message
-
-# Write your code below:
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-ans1 <- read_csv(csv_basic, show_col_types = FALSE)
-ans1
 #> # A tibble: 3 x 4
 #>   product   price   qty in_stock
 #>   <chr>     <dbl> <dbl> <lgl>
 #> 1 Laptop    1000.    50 TRUE
-#> 2 Mouse      25.0   200 TRUE
-#> 3 Keyboard   74.5     0 FALSE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
 ```
 
-**Explanation:** `read_csv()` reads comma-separated text (here, a string passed directly instead of a file path) and infers each column's type from the first 1,000 rows. `price` becomes `<dbl>` because it has decimals, `qty` also becomes `<dbl>` because `readr` uses double as its default numeric type, and `in_stock` becomes `<lgl>` because its values are all `TRUE`/`FALSE`. `show_col_types = FALSE` hides the auto-spec message, useful in tutorials, but keep it on when debugging real data.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Read a pipe-delimited file
-
-`read_csv()` expects commas. For other delimiters, use `read_delim()`. Parse `csv_pipe` and save the result as `ans2`. Expected: 3 rows, 3 columns.
-
-```r title="Exercise 2: read pipe-delimited file"
-# Exercise 2: parse csv_pipe (delimiter is |)
-# Hint: read_delim(..., delim = "|")
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-ans2 <- read_delim(csv_pipe, delim = "|", show_col_types = FALSE)
-ans2
+```r title="Solution"
+ex_1_1 <- read_csv(csv_products)
+ex_1_1
+#> # A tibble: 3 x 4
+#>   product   price   qty in_stock
+#>   <chr>     <dbl> <dbl> <lgl>
+#> 1 Laptop    1000.    50 TRUE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
+```
+
+**Explanation:** `read_csv()` infers each column type from the first 1000 rows: numbers become `<dbl>`, the literal strings `TRUE` and `FALSE` become `<lgl>`, and mixed text stays `<chr>`. Unlike base `read.csv()`, it never coerces strings to factors, returns a compact tibble, and is roughly 10x faster on large files. Always verify the inferred types before the analysis continues.
+
+</details>
+
+### Exercise 1.2: Parse a pipe-delimited file with read_delim
+
+**Task:** Use `read_delim()` to read the `csv_pipe` string (defined in setup) which uses the `|` character as the field separator instead of a comma. The data has three columns: `name`, `dept`, and `salary`. Save the parsed tibble to `ex_1_2`.
+
+**Expected result:**
+
+```
 #> # A tibble: 3 x 3
 #>   name  dept        salary
 #>   <chr> <chr>        <dbl>
@@ -167,30 +177,80 @@ ans2
 #> 3 Carol Sales        68000
 ```
 
-**Explanation:** `read_delim()` is the general-purpose reader, you tell it the delimiter and it handles everything else the same way `read_csv()` does. Pipes (`|`) are common in database exports because commas appear inside free-text fields, so switching the delimiter avoids the need for quoting. The readr shortcuts `read_csv()`, `read_tsv()`, and `read_csv2()` (semicolon, European convention) are just `read_delim()` with the delimiter pre-set.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 3: Preserve leading zeros in ID columns
-
-`read_csv()` sees `01234` as the number 1234 and drops the leading zero. For zip codes, product SKUs, and phone numbers that is a silent data-loss bug. Parse `csv_zip` so that `zipcode` and `phone` are read as strings. Save as `ans3`.
-
-```r title="Exercise 3: keep ZIP and phone as character"
-# Exercise 3: keep zipcode and phone as character
-# Hint: col_types = cols(zipcode = col_character(), phone = col_character())
-
-# Write your code below:
-
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-ans3 <- read_csv(csv_zip,
-                 col_types = cols(zipcode = col_character(),
-                                  phone   = col_character()))
-ans3
+```r title="Solution"
+ex_1_2 <- read_delim(csv_pipe, delim = "|")
+ex_1_2
+#> # A tibble: 3 x 3
+#>   name  dept        salary
+#>   <chr> <chr>        <dbl>
+#> 1 Alice Engineering  95000
+#> 2 Bob   Marketing    82000
+#> 3 Carol Sales        68000
+```
+
+**Explanation:** `read_delim()` is the general workhorse behind `read_csv()` (which fixes `delim = ","`), `read_tsv()` (fixes `delim = "\t"`), and `read_csv2()` (fixes `delim = ";"` for European locales). Specify `delim = "|"` for pipe-separated values. If your file uses an exotic separator, `read_delim()` handles it. Just make sure no quoted text contains the delimiter unescaped.
+
+</details>
+
+### Exercise 1.3: Read a tab-separated lab results file with read_tsv
+
+**Task:** A lab analyst exports a small batch of lab results as tab-separated text in the `tsv_lab` string (defined in setup). The file has columns `patient_id`, `glucose`, and `cholesterol`. Use `read_tsv()` to parse it and confirm the patient ID stays as a character column. Save the parsed tibble to `ex_1_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 3
+#>   patient_id glucose cholesterol
+#>   <chr>        <dbl>       <dbl>
+#> 1 P001            92         180
+#> 2 P002           110         210
+#> 3 P003            85         195
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_3 <- read_tsv(tsv_lab)
+ex_1_3
+#> # A tibble: 3 x 3
+#>   patient_id glucose cholesterol
+#>   <chr>        <dbl>       <dbl>
+#> 1 P001            92         180
+#> 2 P002           110         210
+#> 3 P003            85         195
+```
+
+**Explanation:** `read_tsv()` is `read_delim(file, delim = "\t")` with a friendlier name. Tab-separated files are common in scientific exports because tabs rarely appear inside the data itself. The `patient_id` column correctly stays `<chr>` because `P001` is not numeric: readr picks the narrowest type that fits every value, and `P` blocks the integer coercion path.
+
+</details>
+
+## Section 2. Column types, the part that bites (3 problems)
+
+### Exercise 2.1: Preserve leading-zero ZIP codes with col_types
+
+**Task:** A retail analytics team is loading customer records that include US ZIP codes starting with leading zeros, for example `01234` and `00501`. With the default settings, `read_csv()` will silently coerce these to integers and strip the zeros. Read `csv_zip` (defined in setup) forcing `zipcode` and `phone` to character. Save the cleaned tibble to `ex_2_1`.
+
+**Expected result:**
+
+```
 #> # A tibble: 3 x 3
 #>   name  zipcode phone
 #>   <chr> <chr>   <chr>
@@ -199,37 +259,110 @@ ans3
 #> 3 Carol 07008   5553344556
 ```
 
-**Explanation:** The `col_types` argument lets you override `read_csv()`'s type guesses on a per-column basis. `col_character()` forces the column to stay as text, so leading zeros survive. You only need to declare the columns you want to override, the rest keep their inferred types. The shorthand `col_types = "ccc"` (three characters: one letter per column) does the same thing when every column is the same type.
+**Difficulty:** Intermediate
 
-</details>
-
-[KEY INSIGHT]
-**Type inference is fast but lossy.** `read_csv()` looks at the top of the file to guess types. That guess is wrong whenever a column looks numeric but is actually an identifier, zip codes, SKUs, phone numbers, product codes with leading zeros. Always declare `col_types` for identifier columns, even when the first few rows look clean.
-
-## Core Challenges: Column Types and Missing Data (Exercises 4-6)
-
-Real CSV files rarely come clean. These three exercises fix the three most common header-to-data quirks: missing values in disguise, dates in regional formats, and report metadata stuffed above the real header row.
-
-### Exercise 4: Handle multiple NA representations in one file
-
-`csv_na` uses four different conventions for missing values, blank, `N/A`, `-`, and `-999`. Read it so that all four become `NA` in R. Save to `ans4` and confirm the total NA count equals 4.
-
-```r title="Exercise 4: normalise missing-value markers"
-# Exercise 4: normalise all missing value conventions
-# Hint: read_csv(csv_na, na = c("", "N/A", "-", "-999"))
-
-# Write your code below:
-
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 4 solution"
-ans4 <- read_csv(csv_na,
-                 na = c("", "N/A", "-", "-999"),
-                 show_col_types = FALSE)
-ans4
+```r title="Solution"
+ex_2_1 <- read_csv(
+  csv_zip,
+  col_types = cols(zipcode = col_character(), phone = col_character())
+)
+ex_2_1
+#> # A tibble: 3 x 3
+#>   name  zipcode phone
+#>   <chr> <chr>   <chr>
+#> 1 Alice 01234   5551234567
+#> 2 Bob   00501   5559876543
+#> 3 Carol 07008   5553344556
+```
+
+**Explanation:** `col_types` is the single most important argument in `read_csv()`. The default type guesser scans the first 1000 rows and picks the narrowest type that fits, which turns `01234` into the integer `1234`. Passing `col_types = cols(zipcode = col_character())` overrides only the columns you name; the rest still auto-detect. Phone numbers get the same treatment because leading zeros and arithmetic make no sense for identifiers.
+
+</details>
+
+### Exercise 2.2: Parse currency strings to numeric with parse_number
+
+**Task:** Use `parse_number()` from readr to convert a small vector of currency strings, `c("$1,299.00", "$24.99", "$74.50")`, into clean numeric values. The function should strip the dollar sign and the thousands separator automatically. Save the resulting numeric vector to `ex_2_2`.
+
+**Expected result:**
+
+```
+#> [1] 1299.00   24.99   74.50
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- parse_number(c("$1,299.00", "$24.99", "$74.50"))
+ex_2_2
+#> [1] 1299.00   24.99   74.50
+```
+
+**Explanation:** `parse_number()` is forgiving by design: it strips any leading or trailing non-numeric characters and the locale grouping mark (the comma in US locale), then parses what remains. It handles values like `$1,299.00`, `45%`, or `~250 USD` without further wrangling. For per-column control inside a `read_csv()` call, use `col_number()` in the `col_types` spec instead; both share the same parser.
+
+</details>
+
+### Exercise 2.3: Diagnose parsing failures with problems()
+
+**Task:** A data engineer suspects a CSV has rows that fail to parse cleanly. Read `csv_bad_rows` (defined in setup) where row 3 contains the string `"many"` instead of a number, then call `problems()` on the result to surface the failed rows. Save the resulting problems tibble to `ex_2_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 1 x 5
+#>     row   col expected actual file
+#>   <int> <int> <chr>    <chr>  <chr>
+#> 1     3     2 a double many   <NA>
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+parsed <- read_csv(csv_bad_rows)
+ex_2_3 <- problems(parsed)
+ex_2_3
+#> # A tibble: 1 x 5
+#>     row   col expected actual file
+#>   <int> <int> <chr>    <chr>  <chr>
+#> 1     3     2 a double many   <NA>
+```
+
+**Explanation:** When `read_csv()` cannot coerce a value to its inferred type, it silently inserts `NA` and records the failure in a `problems` attribute on the result. `problems()` extracts those failures as a tibble: row index, column index, what was expected, what was actually seen, and the source file. Build the habit of calling `problems()` after every production import; parse failures are otherwise invisible.
+
+</details>
+
+## Section 3. Missing values, the messy part (3 problems)
+
+### Exercise 3.1: Map multiple missing-value conventions with the na argument
+
+**Task:** A survey researcher receives a CSV where missing scores appear as one of `N/A`, an empty cell, `-999`, or `NULL`. Use the `na` argument of `read_csv()` on `csv_messy_na` to map all four conventions to actual `NA` so that the `score` column ends up numeric instead of character. Save the cleaned tibble to `ex_3_1`.
+
+**Expected result:**
+
+```
 #> # A tibble: 5 x 3
 #>      id score grade
 #>   <dbl> <dbl> <chr>
@@ -238,67 +371,114 @@ ans4
 #> 3     3    NA NA
 #> 4     4    NA C
 #> 5     5    76 NA
-
-sum(is.na(ans4))
-#> [1] 4
 ```
 
-**Explanation:** `read_csv()` treats `""` and `"NA"` as missing by default. Anything else, `N/A`, `-`, `-999`, or a custom sentinel, has to be declared through the `na` argument. Pass a character vector of every spelling you want converted, and `readr` applies them before type inference runs. That matters: if you forget `"-999"`, the `score` column would be read as numeric with an outlier, and imputing the mean would quietly poison your analysis.
+**Difficulty:** Intermediate
 
-</details>
-
-### Exercise 5: Parse dates in MM/DD/YYYY format
-
-US-style dates (`03/30/2026`) are read as character strings by default. Parse `csv_dates` so the `date` column comes back as a real `Date`. Save to `ans5` and confirm `class(ans5$date)` is `"Date"`.
-
-```r title="Exercise 5: parse MM/DD/YYYY dates"
-# Exercise 5: parse the date column in MM/DD/YYYY format
-# Hint: col_types = cols(date = col_date(format = "%m/%d/%Y"))
-
-# Write your code below:
-
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-ans5 <- read_csv(csv_dates,
-                 col_types = cols(date = col_date(format = "%m/%d/%Y")))
-ans5
-#> # A tibble: 3 x 2
-#>   event   date
-#>   <chr>   <date>
-#> 1 Meeting 2026-03-30
-#> 2 Lunch   2026-03-31
-#> 3 Review  2026-04-01
-
-class(ans5$date)
-#> [1] "Date"
+```r title="Solution"
+ex_3_1 <- read_csv(
+  csv_messy_na,
+  na = c("", "N/A", "-999", "NULL")
+)
+ex_3_1
+#> # A tibble: 5 x 3
+#>      id score grade
+#>   <dbl> <dbl> <chr>
+#> 1     1    88 A
+#> 2     2    NA B
+#> 3     3    NA NA
+#> 4     4    NA C
+#> 5     5    76 NA
 ```
 
-**Explanation:** `col_date()` turns a character column into a true `Date` at read time, using the `strptime` format codes (`%Y` year, `%m` month, `%d` day). Parsing dates up front is worth the extra keystrokes, once the column is a `Date` you get sort, filter, and arithmetic for free. The alternative, parsing later with `lubridate::mdy()`, works but means your column is wrong until you remember to fix it.
+**Explanation:** By default `read_csv()` treats only `""` and `"NA"` as missing; everything else stays literal text, which corrupts the type guess. Passing a vector to `na =` tells readr to treat all of those strings as missing during parsing. The payoff is huge: `score` parses as `<dbl>` instead of being demoted to `<chr>` to accommodate the rogue `-999` and `N/A` tokens.
 
 </details>
 
-### Exercise 6: Skip metadata header rows
+### Exercise 3.2: Replace sentinel codes with na_if after the read
 
-`csv_meta` has three lines of human-readable metadata (`Report:`, `Generated:`, `---`) before the real header. Read it so the tibble has two rows and three columns. Save to `ans6`.
+**Task:** Sometimes you cannot change the import step. Suppose `numbers_with_sentinel` was already loaded as `c(10, 20, -999, 30, -999, 40)` so the `-999` codes look like real values. Use `dplyr::na_if()` to convert every occurrence of `-999` into `NA` and save the cleaned numeric vector to `ex_3_2`.
 
-```r title="Exercise 6: skip metadata lines"
-# Exercise 6: skip the first 3 metadata lines
-# Hint: read_csv(..., skip = 3)
+**Expected result:**
 
-# Write your code below:
+```
+#> [1] 10 20 NA 30 NA 40
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-ans6 <- read_csv(csv_meta, skip = 3, show_col_types = FALSE)
-ans6
+```r title="Solution"
+ex_3_2 <- na_if(numbers_with_sentinel, -999)
+ex_3_2
+#> [1] 10 20 NA 30 NA 40
+```
+
+**Explanation:** `na_if(x, y)` returns `x` with every value equal to `y` replaced by `NA`. It is vectorised, type-stable, and pipes cleanly inside `mutate()`: `mutate(score = na_if(score, -999))`. For multiple sentinel codes, chain calls or use `case_when()`. Never trust a sentinel value in arithmetic; the mean of a column containing `-999` codes is wildly wrong until you replace them.
+
+</details>
+
+### Exercise 3.3: Compute the completeness rate of every column
+
+**Task:** An audit team needs a quick data-quality report showing the share of non-missing values for each column of the tibble `ex_3_1` from the previous exercise. Compute the completeness rate (1 minus the share of `NA`) per column, returning a single-row summary tibble. Save the result to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 1 x 3
+#>      id score grade
+#>   <dbl> <dbl> <dbl>
+#> 1     1   0.4   0.6
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- ex_3_1 |>
+  summarise(across(everything(), ~ mean(!is.na(.x))))
+ex_3_3
+#> # A tibble: 1 x 3
+#>      id score grade
+#>   <dbl> <dbl> <dbl>
+#> 1     1   0.4   0.6
+```
+
+**Explanation:** `mean(!is.na(.x))` is the canonical idiom for completeness: `!is.na()` returns logical `TRUE`/`FALSE`, and `mean()` averages those as 1s and 0s. `across(everything(), ...)` applies the same summary function to every column at once. The result is a one-row tibble with one column per source column, ready to plot or persist as input to a data-quality dashboard.
+
+</details>
+
+## Section 4. Skipping and selecting (3 problems)
+
+### Exercise 4.1: Skip metadata header rows with the skip argument
+
+**Task:** A reporting analyst receives a CSV that starts with three lines of metadata (report title, generation timestamp, separator) before the real header. Use `read_csv()` with the `skip` argument to ignore those three lines of `csv_with_meta` (defined in setup) and parse only the data block. Save the resulting tibble to `ex_4_1`.
+
+**Expected result:**
+
+```
 #> # A tibble: 2 x 3
 #>   product    q1    q2
 #>   <chr>   <dbl> <dbl>
@@ -306,276 +486,343 @@ ans6
 #> 2 Mouse     450   500
 ```
 
-**Explanation:** `skip = N` tells `readr` to ignore the first `N` lines entirely, they never enter the parser, so the next line becomes the header. This works for any fixed-length preamble. For variable-length metadata (for example, "skip until you hit a blank line"), use `comment = "#"` or read the whole file with `read_lines()` and filter before parsing. Pair `skip` with `col_names` when the file has no header at all.
+**Difficulty:** Intermediate
 
-</details>
-
-[WARNING]
-**`skip` counts lines, not rows.** If a metadata block wraps inside quotes or spans multiple logical lines, `skip = 3` may cut through the middle of a record. Always preview raw files with `read_lines(path, n_max = 10)` before guessing how many lines to skip.
-
-## Advanced: Multiple Files and Real-World Edge Cases (Exercises 7-10)
-
-The final four exercises cover the situations where an import job becomes a data pipeline: filtering columns at read time, peeking at giant files, combining several files into one tibble, and reading a genuine Excel workbook.
-
-### Exercise 7: Read only selected columns
-
-Reading every column when you only need three is a waste on wide files. Use `col_select` to parse `csv_big` and keep only the `x` column. Save to `ans7` and confirm it has one column and 1,000 rows.
-
-```r title="Exercise 7: read one column only"
-# Exercise 7: read csv_big but keep only column x
-# Hint: read_csv(..., col_select = x)
-
-# Write your code below:
-
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-ans7 <- read_csv(csv_big, col_select = x, show_col_types = FALSE)
-
-dim(ans7)
-#> [1] 1000    1
-
-head(ans7, 3)
-#> # A tibble: 3 x 1
-#>       x
-#>   <int>
-#> 1     1
-#> 2     2
-#> 3     3
-```
-
-**Explanation:** `col_select` supports the full `tidyselect` vocabulary, the same DSL `dplyr::select()` uses. You can pass bare names (`col_select = x`), helpers (`col_select = starts_with("value_")`), or negation (`col_select = !c(notes, metadata)`). Columns you drop are never parsed, so on wide files the performance gain is real, not just a post-read convenience.
-
-</details>
-
-### Exercise 8: Read only the first few rows
-
-When you want a fast preview of a file, schema, first few values, rough shape, you do not need to read the whole thing. Use `n_max` to read the first 5 rows of `csv_big` and save to `ans8`.
-
-```r title="Exercise 8: read first five rows"
-# Exercise 8: read the first 5 rows of csv_big
-# Hint: n_max = 5
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 8 solution"
-ans8 <- read_csv(csv_big, n_max = 5, show_col_types = FALSE)
-ans8
-#> # A tibble: 5 x 2
-#>       x     y
-#>   <int> <dbl>
-#> 1     1 0.266
-#> 2     2 0.372
-#> 3     3 0.573
-#> 4     4 0.908
-#> 5     5 0.202
-```
-
-**Explanation:** `n_max` caps the number of data rows read, not counting the header. Pair it with `col_types = cols(.default = col_character())` when you just want to look at raw text and do not care about type inference yet. For really large files, `n_max` is much faster than reading everything and then calling `head()`, because `read_csv()` stops parsing the moment it hits the row limit.
-
-</details>
-
-### Exercise 9: Combine two CSVs and tag the source
-
-You have two monthly sales files in `csv_jan` and `csv_feb`. Read both, add a `month` column to each showing which file it came from, and stack them into one tibble. Save to `ans9`. Expected: 4 rows, 3 columns.
-
-```r title="Exercise 9: combine monthly files"
-# Exercise 9: combine csv_jan and csv_feb, add month tag
-# Hint: read each, mutate(month = ...), bind_rows()
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 9 solution"
-df_jan <- read_csv(csv_jan, show_col_types = FALSE) |>
-  mutate(month = "Jan")
-
-df_feb <- read_csv(csv_feb, show_col_types = FALSE) |>
-  mutate(month = "Feb")
-
-ans9 <- bind_rows(df_jan, df_feb)
-ans9
-#> # A tibble: 4 x 3
-#>   date        sales month
-#>   <date>      <dbl> <chr>
-#> 1 2026-01-01    100 Jan
-#> 2 2026-01-02    120 Jan
-#> 3 2026-02-01    150 Feb
-#> 4 2026-02-02    130 Feb
-```
-
-**Explanation:** `bind_rows()` stacks data frames vertically and aligns columns by name, not position, missing columns become `NA`, which saves you from silent misalignment bugs. Tagging each piece with its source (`month = "Jan"`) before binding is the key habit: once rows are mixed, you cannot tell them apart. For many files, wrap this pattern in `purrr::map_dfr(files, ~read_csv(.x) |> mutate(source = .x))` to read and tag in one pass.
-
-</details>
-
-[TIP]
-**Prefer `bind_rows()` over `rbind()` for imported data.** `bind_rows()` handles mismatched columns, type promotion, and factor levels gracefully. Base R's `rbind()` errors on the first column mismatch and silently mangles factor columns when types differ across files.
-
-### Exercise 10: Read an Excel workbook with readxl
-
-Excel files need a different package: `readxl::read_excel()`. You pass a file path and (optionally) a sheet name or index. Write the code to read the first sheet of `"sales_2026.xlsx"` into `ans10`.
-
-[NOTE]
-**readxl does not run in this browser sandbox.** The interactive R engine on this page does not include `readxl`. Run the code below in local RStudio or any desktop R session. The expected output is shown so you can still verify your code against it.
-
-```r title="Exercise 10: read Excel sheet"
-# Exercise 10: read the first sheet of sales_2026.xlsx
-# Hint: library(readxl); read_excel("path", sheet = 1)
-
-# Write your code below (run in local RStudio):
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 10 solution"
-library(readxl)
-ans10 <- read_excel("sales_2026.xlsx", sheet = 1)
-ans10
-#> # A tibble: 3 x 3
-#>   region  q1    q2
+```r title="Solution"
+ex_4_1 <- read_csv(csv_with_meta, skip = 3)
+ex_4_1
+#> # A tibble: 2 x 3
+#>   product    q1    q2
 #>   <chr>   <dbl> <dbl>
-#> 1 North    120   150
-#> 2 South    450   500
-#> 3 East     330   410
+#> 1 Laptop    120   150
+#> 2 Mouse     450   500
 ```
 
-**Explanation:** `read_excel()` auto-detects `.xls` vs `.xlsx` from the file extension, so one function covers both formats. The `sheet` argument accepts either a number (1-based index) or a sheet name as a string. Use `excel_sheets("file.xlsx")` first if you want to inspect sheet names before reading. For multi-sheet reads in one call, `purrr::map(excel_sheets(path), ~read_excel(path, sheet = .x))` returns a named list of tibbles, one per sheet.
+**Explanation:** `skip = 3` tells readr to discard the first three lines before looking for the header. If the metadata is variable-length, read once with `skip = 0`, find the first row that looks like the real header (often by spotting a known column name), then re-read with the correct skip count. For Excel exports with banner rows, this is the single most common cleanup step.
 
 </details>
 
-[KEY INSIGHT]
-**`readr` and `readxl` share one mental model: you describe the file, R parses it.** Whether the source is CSV, TSV, pipe-delimited, or Excel, the workflow is the same, point at the file, declare the column types you care about, and let the parser handle the rest. Learning one package teaches you most of the other.
+### Exercise 4.2: Read a fixed-width file with read_fwf
 
-## Common Mistakes and How to Fix Them
+**Task:** Use `read_fwf()` to parse `fwf_records` (defined in setup), a fixed-width string where columns occupy specific character positions: `id` at columns 1 to 3, `name` at columns 5 to 14, and `score` at columns 16 to 19. Use `fwf_positions()` to declare the layout and save the parsed tibble to `ex_4_2`.
 
-Three import habits that quietly break downstream analysis, with fixes you can copy.
+**Expected result:**
 
-### Mistake 1: Using base `read.csv()` instead of `read_csv()`
-
-Bad:
-```r title="Mistake: stringsAsFactors with base read.csv"
-df <- read.csv(text = csv_basic, stringsAsFactors = TRUE)
-str(df)
-#> 'data.frame':    3 obs. of  4 variables:
-#>  $ product : Factor w/ 3 levels "Keyboard","Laptop","Mouse"
-#>  $ price   : num  1000 25 74.5
-#>  $ qty     : int  50 200 0
-#>  $ in_stock: chr  "TRUE" "TRUE" "FALSE"
+```
+#> # A tibble: 3 x 3
+#>   id    name  score
+#>   <chr> <chr> <dbl>
+#> 1 001   Alice    88
+#> 2 002   Bob      76
+#> 3 003   Carol    92
 ```
 
-Good:
-```r title="Correct: readcsv preserves types"
-df <- read_csv(csv_basic, show_col_types = FALSE)
-str(df)
-#> tibble [3 x 4] (S3: tbl_df/tbl/data.frame)
-#>  $ product : chr  "Laptop" "Mouse" "Keyboard"
-#>  $ price   : num  1000 25 74.5
-#>  $ qty     : num  50 200 0
-#>  $ in_stock: logi  TRUE TRUE FALSE
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
-**Why it matters:** Base `read.csv()` has three historic defaults that bite: it returns a plain data frame (not a tibble), it reads `"TRUE"` as a character string instead of a logical, and pre-R 4.0 it converted every character column to a factor. `read_csv()` returns a tibble, parses logicals correctly, and never creates factors. It is also 2-10x faster on large files because its parser is written in C++.
+<details>
+<summary>Click to reveal solution</summary>
 
-### Mistake 2: Losing leading zeros on identifier columns
-
-Bad:
-```r title="Mistake: ZIP codes read as numeric"
-read_csv(csv_zip, show_col_types = FALSE)$zipcode
-#> [1] 1234  501 7008
+```r title="Solution"
+ex_4_2 <- read_fwf(
+  fwf_records,
+  col_positions = fwf_positions(
+    start     = c(1, 5, 16),
+    end       = c(3, 14, 19),
+    col_names = c("id", "name", "score")
+  )
+)
+ex_4_2
+#> # A tibble: 3 x 3
+#>   id    name  score
+#>   <chr> <chr> <dbl>
+#> 1 001   Alice    88
+#> 2 002   Bob      76
+#> 3 003   Carol    92
 ```
 
-Good:
-```r title="Correct: ZIP codes as character"
-read_csv(csv_zip,
-         col_types = cols(zipcode = col_character()))$zipcode
-#> [1] "01234" "00501" "07008"
+**Explanation:** Fixed-width formats are still common in legacy banking, government, and mainframe exports where each column occupies a defined character range. `fwf_positions()` accepts vectors of starts, ends, and names; the alternative `fwf_widths()` uses column widths instead. `read_fwf()` strips trailing whitespace from each field by default, which keeps short values like `Bob` and `Alice` clean.
+
+</details>
+
+### Exercise 4.3: Read only selected columns with col_select
+
+**Task:** Large CSVs are expensive to load when you only need a handful of columns out of dozens. Read `csv_products` but keep only the `product` and `price` columns by passing the `col_select` argument to `read_csv()`. Save the slimmer tibble to `ex_4_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 2
+#>   product  price
+#>   <chr>    <dbl>
+#> 1 Laptop   1000.
+#> 2 Mouse      25.0
+#> 3 Keyboard   74.5
 ```
 
-**Why it matters:** `readr` sees digits and guesses "number". That is correct for quantities but wrong for identifiers. The fix is a one-line `col_types` override. Make it a rule: any column whose values are codes, IDs, account numbers, or phone numbers starts life as `col_character()`, regardless of what the first few rows look like.
+**Difficulty:** Intermediate
 
-### Mistake 3: Forgetting to declare custom NA strings
-
-Bad:
-```r title="Mistake: -999 treated as numeric"
-# csv_na uses "-999" as a missing sentinel — default reader treats it as numeric
-read_csv(csv_na, show_col_types = FALSE)$score
-#> [1]   88   NA   NA -999   76
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
-Good:
-```r title="Correct: declare all NA spellings"
-read_csv(csv_na,
-         na = c("", "N/A", "-", "-999"),
-         show_col_types = FALSE)$score
-#> [1] 88 NA NA NA 76
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- read_csv(csv_products, col_select = c(product, price))
+ex_4_3
+#> # A tibble: 3 x 2
+#>   product  price
+#>   <chr>    <dbl>
+#> 1 Laptop   1000.
+#> 2 Mouse      25.0
+#> 3 Keyboard   74.5
 ```
 
-**Why it matters:** Analytics code downstream (`mean()`, `sum()`, `filter()`) does not know that `-999` means missing. Leaving sentinel values in place contaminates every summary statistic. Check the data dictionary of every new source and pass every missing-value spelling to the `na` argument before you trust any calculation.
+**Explanation:** `col_select` uses tidyselect syntax just like `dplyr::select()`, so a bare vector, a helper such as `starts_with("price_")`, a predicate like `where(is.numeric)`, or even negation with `-qty` all work. Skipping columns at the read step is faster than loading then dropping them, because readr never parses the discarded text at all. On 1GB CSVs with sparse interest, this can shave minutes.
 
-## Summary
+</details>
 
-Quick reference for each exercise and the skill it tests.
+## Section 5. Non-CSV formats (2 problems)
 
-| Exercise | Skill | Key function / argument |
-|---|---|---|
-| 1 | Parse a standard CSV | `read_csv()` |
-| 2 | Parse a non-comma delimiter | `read_delim(delim = "|")` |
-| 3 | Preserve leading zeros | `col_types = cols(col_character())` |
-| 4 | Handle multiple NA conventions | `na = c(...)` |
-| 5 | Parse dates in MM/DD/YYYY | `col_date(format = "%m/%d/%Y")` |
-| 6 | Skip metadata header lines | `skip = N` |
-| 7 | Read only selected columns | `col_select` |
-| 8 | Preview first N rows of a big file | `n_max = N` |
-| 9 | Combine multiple CSVs | `bind_rows()` + source tag |
-| 10 | Read Excel workbooks | `readxl::read_excel()` |
+### Exercise 5.1: Parse a JSON API response with jsonlite
 
-## FAQ
+**Task:** An API returns the marketing analyst a JSON payload containing three campaign records, each carrying `name`, `clicks`, and `conversions`. Use `jsonlite::fromJSON()` on the `json_campaigns` string (defined in setup) to convert the payload into a data frame and save the result to `ex_5_1`. Confirm the numeric columns parsed as integers.
 
-### When should I use read_csv() instead of base read.csv()?
+**Expected result:**
 
-Always, for new code. `read_csv()` is faster on large files, returns a tibble, parses logicals and dates correctly, and never silently converts strings to factors. Base `read.csv()` is fine for legacy scripts that rely on its quirks, but every new import should default to the `readr` family.
+```
+#>         name clicks conversions
+#> 1 Campaign A   1200          84
+#> 2 Campaign B    980          62
+#> 3 Campaign C   1450          97
+```
 
-### How do I force a column to a specific type during read?
+**Difficulty:** Intermediate
 
-Use the `col_types` argument with `cols()`: `read_csv("file.csv", col_types = cols(id = col_character(), date = col_date("%Y-%m-%d")))`. Any column you do not mention keeps its inferred type. The compact shorthand `col_types = "cDd"` (one letter per column: `c` character, `D` date, `d` double) works when you want to override every column at once.
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
 
-### What NA strings does read_csv() treat as missing by default?
+<details>
+<summary>Click to reveal solution</summary>
 
-Only two: an empty string (`""`) and the literal text `"NA"`. Everything else, `N/A`, `-`, `-999`, `NULL`, `None`, `#N/A`, is read as a normal value. Pass the full set to the `na` argument whenever you import data from a new source.
+```r title="Solution"
+ex_5_1 <- jsonlite::fromJSON(json_campaigns)
+ex_5_1
+#>         name clicks conversions
+#> 1 Campaign A   1200          84
+#> 2 Campaign B    980          62
+#> 3 Campaign C   1450          97
+```
 
-### How do I read a very large CSV efficiently in R?
+**Explanation:** `fromJSON()` auto-flattens a JSON array of identically-shaped objects into a base `data.frame`, inferring column types from the JSON literal types (numbers become numeric, strings character, booleans logical). For nested payloads, pass `flatten = TRUE` or `simplifyDataFrame = FALSE` and walk the resulting list. For very large APIs, use `jsonlite::stream_in()` line-by-line to avoid loading the full payload into memory.
 
-For files over a few hundred megabytes, `data.table::fread()` is usually the fastest option and auto-detects delimiter, header, and column types. If you need a tibble, stay on `readr::read_csv()` but pre-declare `col_types` to skip type inference, and use `col_select` to drop columns you will not use. For files too large for memory, use `vroom::vroom()` (lazy column reads) or `arrow::read_csv_arrow()` (Apache Arrow backend), both of which defer I/O until you actually touch each column.
+</details>
 
-## References
+### Exercise 5.2: Save and reload a tibble with saveRDS, preserving types
 
-1. readr documentation, `read_csv()` reference. [Link](https://readr.tidyverse.org/reference/read_delim.html)
-2. readr documentation, `cols()` and column specification. [Link](https://readr.tidyverse.org/reference/cols.html)
-3. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 7: Data Import. [Link](https://r4ds.hadley.nz/data-import.html)
-4. Tidyverse blog, readr 2.0.0 release notes. [Link](https://www.tidyverse.org/blog/2021/07/readr-2-0-0/)
-5. readxl documentation, `read_excel()` reference. [Link](https://readxl.tidyverse.org/reference/read_excel.html)
-6. R Core Team, *R Data Import/Export* manual. [Link](https://cran.r-project.org/doc/manuals/r-release/R-data.html)
-7. data.table documentation, `fread()` reference. [Link](https://rdatatable.gitlab.io/data.table/reference/fread.html)
-8. vroom package, fast delimited file reading. [Link](https://vroom.r-lib.org/)
+**Task:** Use base R's `saveRDS()` to serialize the `ex_1_1` tibble to a temporary file path, then call `readRDS()` on that path to bring it back. Confirm that the column types are preserved exactly (including `<lgl>` for `in_stock`, which CSV cannot round-trip). Save the round-tripped tibble to `ex_5_2`.
 
-## Continue Learning
+**Expected result:**
 
-Now that you can import CSVs, handle column types, and combine files, build on these foundations:
+```
+#> # A tibble: 3 x 4
+#>   product   price   qty in_stock
+#>   <chr>     <dbl> <dbl> <lgl>
+#> 1 Laptop    1000.    50 TRUE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
+```
 
-- [Importing Data in R](Importing-Data-in-R.html), review the parent tutorial if any exercise stumped you
-- [Tidy Data in R](Tidy-Data-in-R.html), reshape imported data into long or wide form for analysis
-- [dplyr Exercises](dplyr-Exercises.html), practise the filter, select, and summarise verbs you will reach for right after an import
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+tmp <- tempfile(fileext = ".rds")
+saveRDS(ex_1_1, tmp)
+ex_5_2 <- readRDS(tmp)
+ex_5_2
+#> # A tibble: 3 x 4
+#>   product   price   qty in_stock
+#>   <chr>     <dbl> <dbl> <lgl>
+#> 1 Laptop    1000.    50 TRUE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
+```
+
+**Explanation:** RDS is R's native binary format. It preserves every attribute (factor levels, custom S3/S4 classes, tibble-ness) and column types exactly, which CSV cannot. Use it for intermediate caches in long analyses, never for cross-language data exchange. `saveRDS()` writes a single object; the older `save()` / `load()` pair writes named objects and pollutes the calling environment, so RDS is preferable.
+
+</details>
+
+## Section 6. Bigger data and end-to-end workflows (3 problems)
+
+### Exercise 6.1: Read a CSV with data.table::fread for speed
+
+**Task:** When import jobs scale into gigabytes, the readr family becomes a bottleneck. Use `data.table::fread()` to parse `csv_products` (a tiny string here, but the same call scales to GB files) and then convert the result to a tibble for downstream tidyverse work. Save the tibble to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 3 x 4
+#>   product   price   qty in_stock
+#>   <chr>     <dbl> <int> <lgl>
+#> 1 Laptop    1000.    50 TRUE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- data.table::fread(csv_products) |> as_tibble()
+ex_6_1
+#> # A tibble: 3 x 4
+#>   product   price   qty in_stock
+#>   <chr>     <dbl> <int> <lgl>
+#> 1 Laptop    1000.    50 TRUE
+#> 2 Mouse       25.0  200 TRUE
+#> 3 Keyboard    74.5    0 FALSE
+```
+
+**Explanation:** `fread()` is the fastest CSV reader in R: on a 1GB file it is typically 5 to 10x quicker than `read_csv()`. It auto-detects the delimiter, handles quoted fields, and uses multiple threads. It returns a `data.table`, which prints differently from a tibble but is also a `data.frame` underneath, so `as_tibble()` adapts it for dplyr pipelines. For one-off exploration use `read_csv()`; for production ETL, fread.
+
+</details>
+
+### Exercise 6.2: Combine three monthly sales files into one panel
+
+**Task:** Finance receives three monthly sales CSVs (`csv_sales_jan`, `csv_sales_feb`, `csv_sales_mar`, all defined in setup) with identical schemas: `date`, `region`, and `sales`. Read each one, then row-bind them into a single tibble with a leading `month` column derived from the source name. Save the combined panel to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 4
+#>   month date       region sales
+#>   <chr> <date>     <chr>  <dbl>
+#> 1 jan   2026-01-01 East     120
+#> 2 jan   2026-01-02 West     110
+#> 3 feb   2026-02-01 East     130
+#> 4 feb   2026-02-02 West     125
+#> 5 mar   2026-03-01 East     140
+#> 6 mar   2026-03-02 West     135
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+parts <- list(jan = csv_sales_jan, feb = csv_sales_feb, mar = csv_sales_mar)
+ex_6_2 <- bind_rows(
+  lapply(names(parts), function(m) {
+    read_csv(parts[[m]], show_col_types = FALSE) |>
+      mutate(month = m, .before = 1)
+  })
+)
+ex_6_2
+#> # A tibble: 6 x 4
+#>   month date       region sales
+#>   <chr> <date>     <chr>  <dbl>
+#> 1 jan   2026-01-01 East     120
+#> 2 jan   2026-01-02 West     110
+#> 3 feb   2026-02-01 East     130
+#> 4 feb   2026-02-02 West     125
+#> 5 mar   2026-03-01 East     140
+#> 6 mar   2026-03-02 West     135
+```
+
+**Explanation:** This pattern (read each, tag with provenance, bind) is the bread and butter of multi-file imports. `lapply()` over names lets you carry the file label into the data; `bind_rows()` stacks the resulting tibbles. For directories on disk, replace the list with `list.files(..., full.names = TRUE)` and parse the filename to derive the tag. Real ETL pipelines do exactly this hundreds of times a day.
+
+</details>
+
+### Exercise 6.3: Audit and clean a real-world messy CSV end-to-end
+
+**Task:** A data steward receives `csv_dirty` (defined in setup) which combines three problems at once: two metadata lines at the top, leading-zero account numbers, and `-999` as the missing-value sentinel for `balance`. Read the file in a single `read_csv()` call by setting `skip`, `col_types`, and `na` correctly. Save the clean tibble to `ex_6_3`.
+
+**Expected result:**
+
+```
+#> # A tibble: 4 x 3
+#>   account_id name  balance
+#>   <chr>      <chr>   <dbl>
+#> 1 0001       Alice    1200
+#> 2 0002       Bob        NA
+#> 3 0003       Carol     850
+#> 4 0004       David      NA
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_3 <- read_csv(
+  csv_dirty,
+  skip = 2,
+  col_types = cols(account_id = col_character()),
+  na = c("", "NA", "-999")
+)
+ex_6_3
+#> # A tibble: 4 x 3
+#>   account_id name  balance
+#>   <chr>      <chr>   <dbl>
+#> 1 0001       Alice    1200
+#> 2 0002       Bob        NA
+#> 3 0003       Carol     850
+#> 4 0004       David      NA
+```
+
+**Explanation:** This single call combines three independent readr arguments. Real messy CSVs almost always present these problems together. Stage the import logic in this order: `skip` first (gets you to real data), then `col_types` (locks down the schema), then `na` (cleans missingness). Each subsequent argument depends on the previous one having corrected the row alignment first.
+
+</details>
+
+## What to do next
+
+Working through these import drills sets up the next stage of any analysis pipeline. Pick the natural next layer below:
+
+- [Data Cleaning Exercises in R](Data-Cleaning-Exercises-in-R.html) covers the cleanup that almost always follows an import: trimming whitespace, fixing types, deduplication.
+- [Missing Data in R Exercises](Missing-Data-in-R-Exercises.html) goes deeper into imputation strategies and the patterns behind `NA` once the read step is correct.
+- [Data Wrangling Exercises in R](Data-Wrangling-Exercises-in-R.html) drills the dplyr verbs that turn clean imports into analysis-ready tibbles.
+- [API Calls Exercises in R](API-Calls-Exercises-in-R.html) extends the JSON import patterns shown here to live HTTP requests with httr2 and pagination.
