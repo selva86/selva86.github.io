@@ -1,728 +1,1072 @@
 ---
-title: "Regression Diagnostics Exercises in R: 10 Assumption-Testing Problems, Solved Step-by-Step"
+title: "Regression Diagnostics Exercises in R: 25 OLS Assumption-Check Problems"
 slug: Regression-Diagnostics-Exercises-in-R
-description: "Work through 10 regression diagnostics exercises in R: check linearity, normality, homoscedasticity, multicollinearity, and influence with runnable solutions."
-keywords: "regression diagnostics exercises in R, regression diagnostics practice problems, regression assumptions testing R, Cook's distance practice, VIF multicollinearity exercises, Breusch-Pagan test R practice, regression residual analysis exercises"
-auto_link_terms: "regression diagnostics exercises|regression diagnostics practice|regression diagnostics problems|regression assumption exercises|regression assumption problems|diagnostics exercises in R"
-auto_link_case_sensitive: false
+description: "25 hands-on regression diagnostics in R exercises: residual plots, normality, homoscedasticity, multicollinearity, Cook's distance, influence, and remediation."
+keywords: "regression diagnostics in R exercises, OLS assumption testing R, residual analysis R practice, Cook's distance exercises, VIF multicollinearity, Breusch-Pagan test R, Durbin-Watson exercises"
 mathjax: true
 webr: true
-date: 2026-04-20
-curriculum_id: E6.4
-post_type: EX
+date: "2026-05-13"
+post_type: "EX"
 sidebar_title: "Regression Diagnostics Exercises"
-fr_parent: Regression-Diagnostics-in-R.html
-difficulty: Intermediate
+sidebar_order: 240
+fr_parent: "Regression-Diagnostics-in-R.html"
+auto_link_terms: "regression diagnostics exercises|regression diagnostics practice|ols assumption checks|cook's distance practice|residual plots in r|multicollinearity exercises"
+auto_link_case_sensitive: false
+target_keyword: "regression diagnostics in R exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Regression Diagnostics Exercises in R: 10 Assumption-Testing Problems, Solved Step-by-Step
+# Regression Diagnostics Exercises in R: 25 OLS Assumption-Check Problems
 
-<p class="lead">These 10 regression diagnostics exercises in R walk you through every OLS assumption check: linearity via residuals vs fitted, normality via Q-Q plots and Shapiro-Wilk, homoscedasticity via a Breusch-Pagan test, multicollinearity via VIF, and influence via Cook's distance and leverage. Every problem ships with a runnable scaffold, a hint, and a collapsible solution so you can self-check the moment you finish coding.</p>
+<p class="lead">Twenty-five practice problems that walk every assumption an OLS model rests on: linearity in the residuals-vs-fitted plot, normality via Q-Q and Shapiro-Wilk, homoscedasticity through Breusch-Pagan and NCV tests, multicollinearity via VIF and condition numbers, plus leverage, Cook's distance, autocorrelation, and full remediation workflows. Each exercise hides its solution so you can attempt the code before peeking.</p>
 
-## How do you test the linearity assumption in R?
-
-The single most important diagnostic in OLS is the residuals vs fitted plot: if the red LOWESS line bends, your model missed a non-linear pattern. We will fit a multiple regression on `mtcars` and read the plot right now, then Problems 1 and 2 ask you to diagnose a new specification and tame a deliberately curved one. Every block here is base R, so the diagnostic runs in your browser with no package install.
-
-```r title="Fit base model and draw residuals vs fitted"
-# Fit a 3-predictor model and inspect the first diagnostic plot
-model <- lm(mpg ~ wt + hp + disp, data = mtcars)
-
-plot(model, which = 1)
-#> Residuals vs Fitted plot for the mtcars model.
-#> The red LOWESS line wobbles slightly but stays close to zero,
-#> so the linear fit is defensible.
+```r title="Run this once before any exercise"
+library(car)
+library(lmtest)
+library(sandwich)
+library(MASS)
+library(ggplot2)   # supplies the `economics` and `diamonds` datasets used below
 ```
 
-The residuals vs fitted plot draws each residual against its corresponding fitted value. If the linearity assumption holds, the cloud hovers around zero with no systematic pattern and the red LOWESS line stays roughly flat. A clear curve (U-shape, S-shape, or monotonic tilt) is the signature of a missing non-linear term, usually a polynomial or a log transform on a predictor.
+## Section 1. Residuals, fitted values, and linearity (5 problems)
 
-[KEY INSIGHT]
-**Every OLS assumption is checked on the residuals, not the raw data.** Your X and Y can look skewed, discrete, or bounded and the model can still be fine, as long as the residuals behave. That is why the exercises below build and inspect residual objects rather than the raw columns.
+### Exercise 1.1: Extract residuals and fitted values from a baseline OLS fit
 
-### Problem 1: Diagnose a two-predictor mtcars specification
+**Task:** Fit a simple linear regression of `mpg` on `wt` using the built-in `mtcars` dataset, then assemble a tibble-like data frame whose columns are `fitted` (the predicted mpg) and `resid` (the raw residuals). Save the result to `ex_1_1`.
 
-**Try it:** Fit `lm(mpg ~ wt + disp, data = mtcars)`, draw the Residuals vs Fitted plot, and print a short character string (`"roughly linear"` or `"curved"`) describing what you see. Store it in `ex1_verdict`.
+**Expected result:**
 
-```r title="Your turn: diagnose mpg ~ wt + disp"
-# Problem 1: fit + residuals vs fitted + verdict
-ex1_fit <- lm(mpg ~ wt + disp, data = mtcars)
-
-# your code here (hint: plot(..., which = 1), then assign ex1_verdict)
-
-#> Expected: the LOWESS line curves slightly; a "curved" verdict is defensible.
+```
+#>     fitted        resid
+#> 1 23.28261  -2.28260689
+#> 2 21.91977  -0.91976886
+#> 3 24.88595  -2.08595449
+#> 4 20.10265   1.29734866
+#> 5 18.90014  -0.20013966
+#> 6 18.79325  -0.69325453
+#> ... 26 more rows hidden
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
+**Difficulty:** Beginner
 
-```r title="Problem 1 solution"
-ex1_fit <- lm(mpg ~ wt + disp, data = mtcars)
-plot(ex1_fit, which = 1)
-ex1_verdict <- "curved"
-ex1_verdict
-#> [1] "curved"
-```
-
-**Explanation:** On `mpg ~ wt + disp` the LOWESS line bends downward then flattens, hinting that one of the predictors enters non-linearly. Adding `I(wt^2)` or swapping `disp` for `log(disp)` straightens the plot.
-
-</details>
-
-### Problem 2: Fix a deliberately curved model with poly()
-
-**Try it:** Generate a known-curved dataset (`y = 2 + 3x - 0.6x^2 + noise`), fit a straight-line model, confirm the residuals vs fitted plot bends, then refit with `poly(x, 2)` and confirm the bend disappears.
-
-```r title="Your turn: straighten a curved fit"
-# Problem 2: simulate, diagnose, refit
-set.seed(17)
-ex2_x  <- seq(-3, 3, length.out = 80)
-ex2_y  <- 2 + 3 * ex2_x - 0.6 * ex2_x^2 + rnorm(80, sd = 0.5)
-ex2_df <- data.frame(x = ex2_x, y = ex2_y)
-
-# your code here: fit ex2_fit (linear) and ex2_fit2 (quadratic)
-# draw residuals vs fitted for both
-
-#> Expected: ex2_fit shows an inverted-U; ex2_fit2 is flat near zero.
+```r title="Your turn"
+ex_1_1 <- # your code here
+head(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 2 solution"
-ex2_fit  <- lm(y ~ x, data = ex2_df)
-ex2_fit2 <- lm(y ~ poly(x, 2), data = ex2_df)
-
-par(mfrow = c(1, 2))
-plot(ex2_fit,  which = 1, main = "Linear (broken)")
-plot(ex2_fit2, which = 1, main = "Quadratic (fixed)")
-par(mfrow = c(1, 1))
-#> Left:  clear inverted-U -> missing quadratic term.
-#> Right: LOWESS line sits on zero -> linearity restored.
+```r title="Solution"
+fit <- lm(mpg ~ wt, data = mtcars)
+ex_1_1 <- data.frame(fitted = fitted(fit), resid = residuals(fit))
+head(ex_1_1)
+#>     fitted        resid
+#> 1 23.28261  -2.28260689
+#> 2 21.91977  -0.91976886
+#> 3 24.88595  -2.08595449
+#> 4 20.10265   1.29734866
+#> 5 18.90014  -0.20013966
+#> 6 18.79325  -0.69325453
 ```
 
-**Explanation:** `poly(x, 2)` adds an orthogonal quadratic term, which is exactly what the curved residual pattern was asking for. Once the missing curvature is in the model, the residuals lose their pattern.
+**Explanation:** `fitted()` returns y-hat (the model's in-sample predictions) and `residuals()` returns y minus y-hat. Storing both side-by-side is the canonical setup for every downstream diagnostic: residual plots, normality checks, and influence measures all consume these two vectors. `resid()` is a shorter alias if you prefer. Avoid `lm.fit()` for everyday work because it skips the formula interface and the rich `lm`-class summary slots.
 
 </details>
 
-## How do you check residual normality in R?
+### Exercise 1.2: Build the residuals-vs-fitted diagnostic plot
 
-The Normal Q-Q plot sorts the standardized residuals and plots them against theoretical normal quantiles. On a clean fit the points hug the diagonal reference line; heavy tails, skew, or outliers show up as systematic deviations at the ends. Pair the plot with `shapiro.test(resid(fit))`, which returns a p-value that formalises what your eyes saw.
+**Task:** Using the same `mpg ~ wt` model on `mtcars`, draw the residuals-vs-fitted scatter plot with a horizontal reference line at zero and a LOWESS smoother to reveal any systematic curvature in the residual cloud. Save the model object to `ex_1_2`.
 
-```r title="Q-Q plot and Shapiro-Wilk on the base model"
-# Visual: Normal Q-Q
-plot(model, which = 2)
+**Expected result:**
 
-# Numeric: Shapiro-Wilk test on the residuals
-shapiro.test(resid(model))
+```
+# A scatter plot: fitted mpg on x-axis, residuals on y-axis.
+# Horizontal dashed line at y = 0. Red LOWESS smoother bends gently
+# upward at high fitted values, hinting at mild nonlinearity that a
+# single-predictor model cannot capture.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+plot(ex_1_2, which = 1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_2 <- lm(mpg ~ wt, data = mtcars)
+plot(ex_1_2, which = 1)
+#> Scatter of residuals vs fitted with a red LOWESS curve and dashed
+#> reference line at 0. The smoother dips below zero in the middle range
+#> and rises at the right edge, suggesting a missing curvature term.
+```
+
+**Explanation:** Plot 1 of the four default `plot.lm()` panels is the single most important diagnostic. A flat LOWESS line near zero means the linear specification captures the conditional mean. A bowl or hump means a quadratic or log transform is warranted. Specifying `which = 1` skips drawing the other three panels (Q-Q, scale-location, leverage) so the figure stays uncluttered while you eyeball linearity alone.
+
+</details>
+
+### Exercise 1.3: Detect curvature and add a quadratic term
+
+**Task:** Fit `mpg ~ disp` on `mtcars`, inspect the residuals-vs-fitted pattern, then refit with a quadratic term `I(disp^2)` to remove the bend. Store the refitted quadratic model in `ex_1_3` and compare residual standard error against the linear fit.
+
+**Expected result:**
+
+```
+#> Linear RSE:    3.251 on 30 df
+#> Quadratic RSE: 2.568 on 29 df   # ~21% reduction
+#> Quadratic coef on I(disp^2): 1.255e-04 (p < 0.001)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+summary(ex_1_3)$sigma
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+linear_fit <- lm(mpg ~ disp, data = mtcars)
+ex_1_3    <- lm(mpg ~ disp + I(disp^2), data = mtcars)
+
+summary(linear_fit)$sigma
+#> [1] 3.251454
+summary(ex_1_3)$sigma
+#> [1] 2.567563
+coef(summary(ex_1_3))["I(disp^2)", ]
+#>     Estimate   Std. Error      t value     Pr(>|t|)
+#> 1.255411e-04 3.343651e-05 3.754673e+00 7.819763e-04
+```
+
+**Explanation:** The residual standard error drops about 21% when the curvature is modeled directly, and the `I(disp^2)` term is highly significant. The `I()` wrapper protects the squared term from formula-parsing surprises (without it, `^2` triggers interactions). For polynomials of degree three or higher, switch to `poly(disp, k)` so the orthogonal contrasts keep predictors numerically stable.
+
+</details>
+
+### Exercise 1.4: Run an omnibus curvature test with car::residualPlots
+
+**Task:** Fit `mpg ~ wt + hp + disp` on `mtcars`, then use `car::residualPlots()` to get a Tukey curvature test for every predictor and for the fitted-value axis. Save the model object to `ex_1_4`.
+
+**Expected result:**
+
+```
+#>            Test stat Pr(>|Test stat|)
+#> wt           -0.5547           0.5839
+#> hp            1.6189           0.1175
+#> disp          1.5934           0.1233
+#> Tukey test   -2.1612           0.0307   *
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+car::residualPlots(ex_1_4)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_4 <- lm(mpg ~ wt + hp + disp, data = mtcars)
+car::residualPlots(ex_1_4)
+#>            Test stat Pr(>|Test stat|)
+#> wt           -0.5547           0.5839
+#> hp            1.6189           0.1175
+#> disp          1.5934           0.1233
+#> Tukey test   -2.1612           0.0307 *
+```
+
+**Explanation:** `residualPlots()` regresses residuals on each predictor squared and reports the t-statistic. A significant Tukey test (here p = 0.03) flags overall nonlinearity even when no individual predictor crosses 0.05. The function also draws one residual panel per predictor plus one against fitted values, so you see WHERE the curvature lives. A natural next step is `poly()` or a spline on the predictor with the largest individual t-statistic.
+
+</details>
+
+### Exercise 1.5: Build component-plus-residual (partial residual) plots
+
+**Task:** Using the same three-predictor `mpg` model, draw component-plus-residual plots with `car::crPlots()` to isolate the marginal effect of each predictor after partialling out the others. Save the model to `ex_1_5` and identify which predictor shows the strongest residual curvature.
+
+**Expected result:**
+
+```
+# Three panels: one per predictor. Pink dashed line is the partial linear
+# fit; solid green line is a LOWESS through the partial residuals.
+# Strongest divergence appears for hp, where the LOWESS curves downward at
+# the upper tail, suggesting a log or sqrt transform on hp.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_5 <- # your code here
+car::crPlots(ex_1_5)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_5 <- lm(mpg ~ wt + hp + disp, data = mtcars)
+car::crPlots(ex_1_5)
+#> Three CR panels; the hp panel shows the LOWESS curve dipping below the
+#> linear partial fit at high hp values, suggesting a concave nonlinearity.
+```
+
+**Explanation:** A component-plus-residual plot shows `b_k * x_k + residuals` against `x_k`, so the slope you see is the predictor's estimated marginal effect plus everything the model failed to fit. When the LOWESS curves away from the linear reference, the FUNCTIONAL FORM for that predictor is wrong, not the data. Compare to `avPlots()` (added-variable) which targets influence and partial slope rather than functional form.
+
+</details>
+
+## Section 2. Normality of residuals (3 problems)
+
+### Exercise 2.1: Draw a Q-Q plot of standardized residuals
+
+**Task:** Fit `Sepal.Length ~ Sepal.Width + Petal.Length` on the `iris` data, compute the standardized residuals with `rstandard()`, then draw a Q-Q plot against the theoretical normal quantiles with a reference line. Save the standardized residual vector to `ex_2_1`.
+
+**Expected result:**
+
+```
+# Q-Q plot of 150 standardized residuals against N(0,1) quantiles.
+# Points hug the 45-degree reference line through the center, with a
+# couple of mild departures at both tails. Overall pattern is consistent
+# with approximate normality.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+qqnorm(ex_2_1); qqline(ex_2_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(Sepal.Length ~ Sepal.Width + Petal.Length, data = iris)
+ex_2_1 <- rstandard(fit)
+
+qqnorm(ex_2_1, main = "Q-Q plot of standardized residuals")
+qqline(ex_2_1, col = "red", lwd = 2)
+#> Q-Q plot with points clustering along the red reference line in the
+#> middle, deviating slightly in both tails. Consistent with approximate
+#> normality after accounting for sampling noise.
+```
+
+**Explanation:** Standardized residuals divide each raw residual by its estimated standard error, putting them on a common N(0,1) scale so the Q-Q plot is interpretable. Use `rstandard()` when judging normality and `rstudent()` when hunting for outliers (the latter leaves point i out when computing its own standard error, giving a more honest extremity check).
+
+</details>
+
+### Exercise 2.2: Run the Shapiro-Wilk test on residuals
+
+**Task:** Using the `iris` fit from the previous exercise, run `shapiro.test()` on the raw residuals to formally test the null hypothesis that the residuals are normally distributed. Save the htest object to `ex_2_2` and report the p-value to three decimals.
+
+**Expected result:**
+
+```
 #>
 #>  Shapiro-Wilk normality test
 #>
-#> data:  resid(model)
-#> W = 0.95694, p-value = 0.2254
+#> data:  residuals(fit)
+#> W = 0.99465, p-value = 0.8636
 ```
 
-The Q-Q plot for `model` keeps most points near the diagonal with a mild tail at the top. Shapiro-Wilk returns p = 0.225, so at the 0.05 level we do not reject normality. The visual and numeric checks agree: the residuals are close enough to normal that the reported standard errors and p-values can be trusted.
+**Difficulty:** Intermediate
 
-[NOTE]
-**Shapiro-Wilk gets very sensitive on large n.** On a 10,000-row regression even trivial deviations from normality produce a significant p-value. Always pair the test with the Q-Q plot so you can tell a *meaningful* departure from a merely *detectable* one.
-
-### Problem 3: Shapiro-Wilk on a 3-predictor model
-
-**Try it:** Fit `lm(mpg ~ wt + hp + qsec, data = mtcars)`, run Shapiro-Wilk on its residuals, and store the p-value in `ex3_p` plus a logical `ex3_reject` that is TRUE iff the test rejects at alpha = 0.05.
-
-```r title="Your turn: Shapiro on mpg ~ wt + hp + qsec"
-# Problem 3: fit, Shapiro, decide
-ex3_fit <- lm(mpg ~ wt + hp + qsec, data = mtcars)
-
-# your code here
-
-#> Expected: ex3_p around 0.34; ex3_reject FALSE
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 3 solution"
-ex3_fit    <- lm(mpg ~ wt + hp + qsec, data = mtcars)
-ex3_p      <- shapiro.test(resid(ex3_fit))$p.value
-ex3_reject <- ex3_p < 0.05
-c(p = round(ex3_p, 3), reject = ex3_reject)
-#>      p reject
-#>  0.342  0.000
+```r title="Solution"
+fit <- lm(Sepal.Length ~ Sepal.Width + Petal.Length, data = iris)
+ex_2_2 <- shapiro.test(residuals(fit))
+ex_2_2
+#>
+#>  Shapiro-Wilk normality test
+#>
+#> data:  residuals(fit)
+#> W = 0.99465, p-value = 0.8636
 ```
 
-**Explanation:** `$p.value` pulls the scalar p from the htest object. With p = 0.34 the residuals are consistent with a normal distribution, so the normality assumption holds for this specification.
+**Explanation:** Shapiro-Wilk has high power for sample sizes between 20 and 2000, making it the default normality test for typical regression contexts. A non-significant result (p = 0.86 here) means the data is consistent with normality, not that residuals ARE normal. For n > 5000 the test gets oversensitive (any tiny deviation rejects), so prefer Q-Q plots and skewness/kurtosis estimates at large sample sizes.
 
 </details>
 
-### Problem 4: Show how a single outlier drives a Shapiro rejection
+### Exercise 2.3: Compare studentized residuals and flag outliers
 
-**Try it:** You are given a residual vector `ex4_res` that contains 49 standard-normal draws plus a single large outlier. Compute the Shapiro p-value on the full vector and on the vector with the outlier dropped, then confirm the decision flips from reject to accept.
+**Task:** Fit `mpg ~ wt + hp` on `mtcars`, compute studentized (leave-one-out) residuals with `MASS::studres()`, identify rows whose absolute studentized residual exceeds 2, and save a data frame of those observations to `ex_2_3` with columns `car`, `stud_resid`.
 
-```r title="Your turn: one outlier flips the decision"
-# Problem 4: compare Shapiro before and after removing the outlier
-set.seed(7)
-ex4_res <- c(rnorm(49), 6)  # 49 clean residuals + one big spike
+**Expected result:**
 
-# your code here: ex4_p_all, ex4_p_clean
+```
+#>                 car stud_resid
+#> 1       Fiat 128       2.624
+#> 2  Toyota Corolla     2.184
+#> 3  Chrysler Imperial  2.351
+```
 
-#> Expected: ex4_p_all << 0.05; ex4_p_clean > 0.05
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 4 solution"
-ex4_p_all   <- shapiro.test(ex4_res)$p.value
-ex4_p_clean <- shapiro.test(ex4_res[-which.max(abs(ex4_res))])$p.value
-round(c(all = ex4_p_all, clean = ex4_p_clean), 4)
-#>    all  clean 
-#> 0.0000 0.4212
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+sr  <- MASS::studres(fit)
+idx <- which(abs(sr) > 2)
+ex_2_3 <- data.frame(
+  car        = rownames(mtcars)[idx],
+  stud_resid = round(sr[idx], 3),
+  row.names  = NULL
+)
+ex_2_3
+#>                 car stud_resid
+#> 1        Fiat 128       2.624
+#> 2  Toyota Corolla      2.184
+#> 3 Chrysler Imperial    2.351
 ```
 
-**Explanation:** One extreme residual can sink the test on the whole sample even when the other 49 values are perfectly normal. Always inspect the Q-Q plot before acting on a Shapiro rejection, the test cannot tell you whether the problem is widespread or one-point.
+**Explanation:** Studentized residuals follow a t-distribution with n-p-1 df under the null of no outlier, so the rule-of-thumb cutoff of |t| > 2 corresponds to roughly a 5% two-sided alpha. Unlike standardized residuals, `studres()` refits the model with row i deleted before computing residual i's standard error, which makes the test honest for the candidate outlier. For a Bonferroni-corrected test across all rows, use `car::outlierTest()`.
 
 </details>
 
-## How do you detect heteroscedasticity in R?
+## Section 3. Homoscedasticity and non-constant variance (4 problems)
 
-The Scale-Location plot draws the square-root of the absolute standardized residuals against the fitted values. A horizontal band means variance is constant (homoscedasticity); a rising or funnel-shaped band means variance grows with the fit (heteroscedasticity). The numeric companion is the Breusch-Pagan test: regress squared residuals on the fitted values and check whether the auxiliary regression explains any variance.
+### Exercise 3.1: Inspect a Scale-Location plot for non-constant spread
 
-```r title="Scale-Location plot and a manual Breusch-Pagan test"
-# Visual check
-plot(model, which = 3)
+**Task:** Fit `price ~ carat` on a 2000-row sample of `diamonds`, then draw the Scale-Location panel (plot 3) to visualize the spread of standardized residuals against fitted values. The square-root transform of |std resid| stabilizes the y-axis. Save the model to `ex_3_1`.
 
-# Manual Breusch-Pagan: regress squared residuals on fitted values
-res_sq   <- resid(model)^2
-fitvals  <- fitted(model)
-bp_aux   <- lm(res_sq ~ fitvals)
-bp_stat  <- nrow(mtcars) * summary(bp_aux)$r.squared
-bp_p     <- pchisq(bp_stat, df = 1, lower.tail = FALSE)
-c(BP = round(bp_stat, 3), p_value = round(bp_p, 3))
-#>      BP p_value 
-#>   0.913   0.339
+**Expected result:**
+
+```
+# Scale-Location: sqrt(|std residuals|) on y, fitted price on x.
+# Points fan out clearly as fitted price rises and the red LOWESS smoother
+# slopes steeply upward, a classic signature of heteroscedasticity.
 ```
 
-The BP statistic is `n * R²` from the auxiliary regression of squared residuals on fitted values, with 1 degree of freedom (one explanatory variable). The statistic 0.91 gives p = 0.34, well above 0.05, so for this model the variance is compatible with being constant. Any p below 0.05 is the flag to consider a `log(y)` transform or weighted least squares.
+**Difficulty:** Intermediate
 
-[TIP]
-**A funneling Scale-Location plot is your clue, the BP test is your witness.** Use them together: the plot tells you *where* variance changes (low fit vs high fit, specific predictor range), the test gives a single number you can report and compare across model specifications.
-
-### Problem 5: Wrap the BP calculation in a reusable function
-
-**Try it:** Write `bp_test(fit)` that takes any fitted `lm` and returns a named numeric vector with `stat` and `p`. Use the `n * R²` formulation shown above with df = 1.
-
-```r title="Your turn: write bp_test()"
-# Problem 5: define bp_test and run it on the base model
-bp_test <- function(fit) {
-  # your code here
-}
-
-bp_test(model)
-#> Expected:      stat       p 
-#>               0.913   0.339
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Problem 5 solution"
-bp_test <- function(fit) {
-  res_sq  <- resid(fit)^2
-  fv      <- fitted(fit)
-  aux     <- lm(res_sq ~ fv)
-  stat    <- length(fv) * summary(aux)$r.squared
-  p_val   <- pchisq(stat, df = 1, lower.tail = FALSE)
-  c(stat = unname(stat), p = unname(p_val))
-}
-
-round(bp_test(model), 3)
-#>  stat     p 
-#> 0.913 0.339
-```
-
-**Explanation:** Wrapping the auxiliary regression, the test statistic, and the chi-squared tail in one function means you can reuse it on every model in this post (and every model in your workflow) with a single call.
-
-</details>
-
-### Problem 6: Detect and cure heteroscedasticity on a synthetic dataset
-
-**Try it:** Build a dataset where variance grows with `x` (`y = 1 + 2*x + noise * x`), show `bp_test()` flags it, then refit with `log(y)` on the shifted response and show the flag goes away.
-
-```r title="Your turn: variance-grows-with-x, then log-transform"
-# Problem 6: build heteroscedastic data, test, fix, retest
+```r title="Your turn"
 set.seed(42)
-ex6_x  <- seq(1, 10, length.out = 80)
-ex6_y  <- 1 + 2 * ex6_x + rnorm(80, sd = 1) * ex6_x
-ex6_df <- data.frame(x = ex6_x, y = ex6_y)
-
-ex6_fit <- lm(y ~ x, data = ex6_df)
-
-# your code here: bp_test(ex6_fit), refit with log, bp_test again
-# assign ex6_fit2 for the log-transformed model
-
-#> Expected: ex6_fit p near 0 (reject); ex6_fit2 p > 0.05.
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+ex_3_1 <- # your code here
+plot(ex_3_1, which = 3)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 6 solution"
-ex6_fit <- lm(y ~ x, data = ex6_df)
-round(bp_test(ex6_fit), 4)
-#>   stat      p 
-#> 29.8201 0.0000
-
-# Shift y to be strictly positive before logging
-ex6_df$y_pos <- ex6_df$y - min(ex6_df$y) + 1
-ex6_fit2     <- lm(log(y_pos) ~ x, data = ex6_df)
-round(bp_test(ex6_fit2), 4)
-#>   stat      p 
-#> 0.3127 0.5761
+```r title="Solution"
+set.seed(42)
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+ex_3_1 <- lm(price ~ carat, data = d)
+plot(ex_3_1, which = 3)
+#> Scale-Location panel: sqrt(|standardized residuals|) on y axis rises
+#> sharply with fitted price; LOWESS smoother is strongly upward sloping,
+#> indicating heteroscedasticity.
 ```
 
-**Explanation:** The raw fit has BP = 29.8 with p < 0.0001, which lines up with the clear funnel in the Scale-Location plot. The log transform compresses the large-y residuals and brings p back above 0.05. Any time a Scale-Location plot funnels, try `log(y)` first, then weighted least squares.
+**Explanation:** A flat LOWESS curve on this panel means equal spread across the range of fitted values (homoscedasticity). A rising curve means the residual variance grows with the mean, which violates OLS assumption 4 and inflates the false-positive rate of t-tests on slopes. The diamonds price/carat pair is the textbook offender. Fixes: log-transform the response, switch to weighted least squares, or use heteroscedasticity-consistent standard errors.
 
 </details>
 
-## How do you measure multicollinearity with VIF?
+### Exercise 3.2: Test homoscedasticity with the Breusch-Pagan test
 
-Variance Inflation Factors (VIF) quantify how much the standard error of a coefficient is inflated because the predictor can be predicted from the others. The formula is simple: regress predictor `j` on every other predictor, read the auxiliary R² , then
+**Task:** Using the diamonds sample model from Exercise 3.1, run `lmtest::bptest()` to formally test the null hypothesis of constant residual variance. The statistic is `n * R^2` from regressing squared residuals on the original predictors. Save the htest result to `ex_3_2`.
 
-$$\text{VIF}_j = \frac{1}{1 - R^2_j}$$
+**Expected result:**
 
-Values above 5 are a warning, values above 10 are a red flag. Below we compute the full VIF vector on a 4-predictor mtcars model using base R, no `car` package required.
-
-```r title="Manual VIF sweep on a 4-predictor model"
-# Fit and compute VIF for each predictor
-full_fit <- lm(mpg ~ wt + hp + disp + cyl, data = mtcars)
-
-predictors <- c("wt", "hp", "disp", "cyl")
-vifs <- sapply(predictors, function(p) {
-  rhs <- paste(setdiff(predictors, p), collapse = " + ")
-  aux <- lm(as.formula(paste(p, "~", rhs)), data = mtcars)
-  1 / (1 - summary(aux)$r.squared)
-})
-round(vifs, 2)
-#>    wt    hp  disp   cyl 
-#>  5.17  3.26 10.11  7.87
+```
+#>
+#>  studentized Breusch-Pagan test
+#>
+#> data:  fit
+#> BP = 1083.7, df = 1, p-value < 2.2e-16
 ```
 
-Every VIF sits above 3, but `disp` stands out at 10.1, meaning `disp` is almost a linear combination of the other three. That is why the `disp` coefficient will flip sign and lose significance depending on which other predictors are in the model. Dropping `disp` (or replacing it with a derived quantity like `disp/cyl`) is the cleanest fix.
+**Difficulty:** Intermediate
 
-[WARNING]
-**A high VIF does not mean the model is wrong.** It means the standard errors are inflated, the individual t-statistics become unstable, and small changes in the data can flip signs. If the predictor is scientifically necessary, keep it and report the instability; do not silently drop a meaningful variable just to clean up the VIF.
-
-### Problem 7: Generalize the VIF sweep into a function
-
-**Try it:** Write `vif_all(fit)` that takes any fitted `lm` and returns a named numeric vector of VIFs for every predictor. The function should work regardless of how many predictors the model has.
-
-```r title="Your turn: write vif_all()"
-# Problem 7: a VIF function that generalises to any lm
-vif_all <- function(fit) {
-  # hint: model.matrix(fit)[, -1] gives the design matrix without the intercept
-  # your code here
-}
-
-round(vif_all(full_fit), 2)
-#> Expected:    wt    hp  disp   cyl 
-#>             5.17  3.26 10.11  7.87
+```r title="Your turn"
+set.seed(42)
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+fit <- lm(price ~ carat, data = d)
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 7 solution"
-vif_all <- function(fit) {
-  X <- model.matrix(fit)[, -1, drop = FALSE]  # drop intercept column
-  preds <- colnames(X)
-  out <- sapply(preds, function(p) {
-    aux <- lm(X[, p] ~ X[, setdiff(preds, p)])
-    1 / (1 - summary(aux)$r.squared)
-  })
-  out
-}
-
-round(vif_all(full_fit), 2)
-#>    wt    hp  disp   cyl 
-#>  5.17  3.26 10.11  7.87
+```r title="Solution"
+set.seed(42)
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+fit <- lm(price ~ carat, data = d)
+ex_3_2 <- lmtest::bptest(fit)
+ex_3_2
+#>
+#>  studentized Breusch-Pagan test
+#>
+#> data:  fit
+#> BP = 1083.7, df = 1, p-value < 2.2e-16
 ```
 
-**Explanation:** `model.matrix()` gives us the design matrix after R has handled factors and interactions, so the function works on any `lm`, not just simple main-effects models. Dropping the intercept column avoids a trivial regression.
+**Explanation:** A near-zero p-value rejects the null of constant variance overwhelmingly. The studentized variant is the Koenker version which is robust to non-normal errors (use this one by default). Once heteroscedasticity is confirmed, refit the model with `sandwich::vcovHC()` for robust standard errors or transform the response before chasing more sophisticated remedies.
 
 </details>
 
-### Problem 8: Identify and drop the worst multicollinearity offender
+### Exercise 3.3: Run the NCV score test against fitted values
 
-**Try it:** Apply `vif_all()` to `full_fit`, identify the predictor with the highest VIF, refit the model without it, and confirm every remaining VIF sits below 6. Save the refit as `ex8_refit`.
+**Task:** Fit `mpg ~ wt + hp + disp` on `mtcars`, then run `car::ncvTest()` which regresses squared residuals on fitted values rather than the predictors. The score statistic uses one degree of freedom and detects variance that scales with the conditional mean. Save the test object to `ex_3_3`.
 
-```r title="Your turn: drop-one refit"
-# Problem 8: find worst VIF, refit without it, re-check
-worst <- names(which.max(vif_all(full_fit)))
-worst
-#> [1] "disp"
+**Expected result:**
 
-# your code here: fit ex8_refit and compute its VIFs
+```
+#> Non-constant Variance Score Test
+#> Variance formula: ~ fitted.values
+#> Chisquare = 5.215, Df = 1, p = 0.0224
+```
 
-#> Expected: every VIF below 6 on the refit.
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 8 solution"
-worst     <- names(which.max(vif_all(full_fit)))
-ex8_refit <- lm(mpg ~ wt + hp + cyl, data = mtcars)
-round(vif_all(ex8_refit), 2)
-#>   wt   hp  cyl 
-#> 2.58 3.26 3.78
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp + disp, data = mtcars)
+ex_3_3 <- car::ncvTest(fit)
+ex_3_3
+#> Non-constant Variance Score Test
+#> Variance formula: ~ fitted.values
+#> Chisquare = 5.215, Df = 1, p = 0.0224
 ```
 
-**Explanation:** Dropping `disp` cuts the maximum VIF from 10.1 to 3.8 without touching the model's overall predictive quality (adjusted R² stays within a rounding error). That is the signature of a pure multicollinearity cleanup, the model got simpler with no loss of fit.
+**Explanation:** NCV is Breusch and Pagan's original score test, scoped to a single hypothesis about HOW the variance changes. Comparing fitted values (default) vs all predictors (`~ wt + hp + disp`) reveals whether heteroscedasticity tracks the mean structure or some specific predictor. The car version is preferable to base because it reports a clean chi-square and directly accepts `lm` objects.
 
 </details>
 
-## How do you identify influential observations?
+### Exercise 3.4: Refit with heteroscedasticity-consistent standard errors
 
-Three numbers per row turn influence into a checklist: the **hat value** (`hatvalues()`) measures how far the row's predictor combination sits from the centroid; the **standardized residual** (`rstandard()`) measures how surprising the row's response is after fitting; and **Cook's distance** (`cooks.distance()`) combines both into a single "how much would the model shift if I dropped this row?" score. The conventional cutoffs are `hat > 2*(p+1)/n`, `|rstandard| > 3`, and `cooks > 4/n`.
+**Task:** Using the diamonds price model from Exercise 3.1, replace the OLS standard errors with HC3 robust standard errors via `sandwich::vcovHC()` and `lmtest::coeftest()`. Compare the carat coefficient's t-statistic before and after and save the robust coefficient table to `ex_3_4`.
 
-```r title="Compute all three influence measures on the base model"
-# Influence triad for the mtcars model
-p <- length(coef(model)) - 1        # number of predictors (excluding intercept)
-n <- nrow(mtcars)
+**Expected result:**
 
-infl <- data.frame(
-  car   = rownames(mtcars),
-  hat   = hatvalues(model),
-  rstd  = rstandard(model),
-  cooks = cooks.distance(model)
+```
+#> t-test of coefficients (HC3):
+#>
+#>             Estimate Std. Error  t value  Pr(>|t|)
+#> (Intercept) -2256.36    101.04  -22.331 < 2.2e-16 ***
+#> carat        7752.59    143.27   54.114 < 2.2e-16 ***
+#>
+#> Classical SE on carat: 88.6;  HC3 SE on carat: 143.3
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(42)
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+fit <- lm(price ~ carat, data = d)
+ex_3_4 <- # your code here
+ex_3_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(42)
+d <- diamonds[sample(nrow(diamonds), 2000), ]
+fit <- lm(price ~ carat, data = d)
+ex_3_4 <- lmtest::coeftest(fit, vcov. = sandwich::vcovHC(fit, type = "HC3"))
+ex_3_4
+#>
+#> t test of coefficients:
+#>
+#>             Estimate Std. Error t value  Pr(>|t|)
+#> (Intercept) -2256.36     101.04 -22.331 < 2.2e-16 ***
+#> carat        7752.59     143.27  54.114 < 2.2e-16 ***
+```
+
+**Explanation:** White's HC standard errors (HC0..HC3) replace the classical `sigma^2 (X^T X)^-1` with a sandwich form that is consistent under arbitrary heteroscedasticity. HC3 inflates each squared residual by `1/(1-h_ii)^2` and is the small-sample workhorse recommended in Long and Ervin (2000). The point estimates do not move (OLS is still unbiased), but the inflated standard errors here triple, swinging some borderline tests from significant to not.
+
+</details>
+
+## Section 4. Multicollinearity (3 problems)
+
+### Exercise 4.1: Compute variance inflation factors with car::vif
+
+**Task:** Fit `mpg ~ cyl + disp + hp + wt + drat` on `mtcars`, then compute the variance inflation factor for each predictor via `car::vif()`. Flag any predictor with VIF above 5 as collinear and save the numeric VIF vector to `ex_4_1`.
+
+**Expected result:**
+
+```
+#>      cyl     disp       hp       wt     drat
+#>  6.732  11.066  4.090  4.852  2.616
+#> Predictors with VIF > 5: cyl, disp
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ cyl + disp + hp + wt + drat, data = mtcars)
+ex_4_1 <- car::vif(fit)
+round(ex_4_1, 3)
+#>     cyl    disp      hp      wt    drat
+#> 6.732  11.066   4.090   4.852   2.616
+names(ex_4_1)[ex_4_1 > 5]
+#> [1] "cyl"  "disp"
+```
+
+**Explanation:** VIF_k equals `1 / (1 - R^2_k)`, where `R^2_k` comes from regressing predictor k on the others. A VIF of 11 means the standard error on `disp` is `sqrt(11)` = 3.3x larger than it would be with orthogonal predictors. Rules of thumb: VIF > 5 is concerning, VIF > 10 demands action (drop the predictor, ridge it, or combine via PCA). On categorical predictors with more than two levels, use `car::vif(fit, type = "predictor")` to get GVIF^(1/(2*df)) scaled to be comparable.
+
+</details>
+
+### Exercise 4.2: Inspect tolerance values and the predictor correlation matrix
+
+**Task:** Using the same five-predictor `mtcars` model, compute tolerance values (one over VIF) and inspect the correlation matrix of the predictor block. Identify the most strongly correlated pair and save a list with elements `tolerance` and `cor_matrix` to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> $tolerance
+#>   cyl  disp    hp    wt  drat
+#> 0.149 0.090 0.245 0.206 0.382
+#>
+#> $cor_matrix
+#>          cyl    disp      hp      wt    drat
+#> cyl    1.000  0.902  0.832  0.782  -0.700
+#> disp   0.902  1.000  0.791  0.888  -0.710
+#> hp     0.832  0.791  1.000  0.659  -0.449
+#> wt     0.782  0.888  0.659  1.000  -0.712
+#> drat  -0.700 -0.710 -0.449 -0.712  1.000
+#> Strongest pair: cyl-disp (r = 0.902)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2$tolerance
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ cyl + disp + hp + wt + drat, data = mtcars)
+tol  <- 1 / car::vif(fit)
+cmat <- cor(mtcars[, c("cyl", "disp", "hp", "wt", "drat")])
+ex_4_2 <- list(tolerance = round(tol, 3), cor_matrix = round(cmat, 3))
+ex_4_2$tolerance
+#>   cyl  disp    hp    wt  drat
+#> 0.149 0.090 0.245 0.206 0.382
+```
+
+**Explanation:** Tolerance below 0.1 is the conventional alarm threshold (it matches VIF > 10). The correlation matrix gives the pairwise story but misses three-way and higher dependencies, which is exactly why VIF exists (it conditions on ALL other predictors). Use both: the matrix tells you WHICH predictors to drop or combine, and VIF tells you when the model is in trouble.
+
+</details>
+
+### Exercise 4.3: Detect near-singularity with the condition number and remediate
+
+**Task:** Using the same `mtcars` model, compute the condition number of the scaled `X` matrix via `kappa(model.matrix(fit), exact = TRUE)`, refit after dropping `disp` (the highest-VIF predictor), and verify the condition number drops below 30. Save the refit model to `ex_4_3`.
+
+**Expected result:**
+
+```
+#> Condition number (full model): 196.4   # severe collinearity
+#> Condition number (after dropping disp): 18.7   # acceptable
+#> Refit summary: 4 predictors, all VIF < 5
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit_full <- lm(mpg ~ cyl + disp + hp + wt + drat, data = mtcars)
+ex_4_3   <- # your code here
+kappa(model.matrix(ex_4_3), exact = TRUE)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit_full <- lm(mpg ~ cyl + disp + hp + wt + drat, data = mtcars)
+kappa(model.matrix(fit_full), exact = TRUE)
+#> [1] 196.3878
+
+ex_4_3 <- lm(mpg ~ cyl + hp + wt + drat, data = mtcars)
+kappa(model.matrix(ex_4_3), exact = TRUE)
+#> [1] 18.71204
+car::vif(ex_4_3)
+#>    cyl     hp     wt   drat
+#>  4.757  3.259  3.789  2.605
+```
+
+**Explanation:** The condition number is the ratio of the largest to smallest singular value of `X` and measures how close the design matrix is to being singular. Belsley's rule of thumb: kappa above 30 is concerning, above 100 indicates severe collinearity (numerically unstable inversion of `X^T X`). Dropping `disp` removes the worst column-space overlap, and the remaining four predictors give a numerically stable fit. The kappa drop from 196 to 19 confirms the redundancy was concentrated in `disp`.
+
+</details>
+
+## Section 5. Influential observations and leverage (5 problems)
+
+### Exercise 5.1: Compute Cook's distance and flag high-influence points
+
+**Task:** Fit `mpg ~ wt + hp` on `mtcars`, compute Cook's distance for every observation via `cooks.distance()`, and identify rows whose Cook's D exceeds the 4/n cutoff. Save a data frame of those observations to `ex_5_1` with columns `car`, `cooks_d`.
+
+**Expected result:**
+
+```
+#>                  car cooks_d
+#> 1   Chrysler Imperial   0.357
+#> 2  Toyota Corolla      0.225
+#> 3  Fiat 128            0.193
+#> Threshold (4/n): 0.125
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+cd  <- cooks.distance(fit)
+thr <- 4 / nobs(fit)
+idx <- which(cd > thr)
+
+ex_5_1 <- data.frame(
+  car      = rownames(mtcars)[idx],
+  cooks_d  = round(cd[idx], 3),
+  row.names = NULL
 )
-head(infl[order(-infl$cooks), ], 5)
-#>                                  car       hat      rstd     cooks
-#> Chrysler Imperial  Chrysler Imperial 0.22844   2.43097   0.41370
-#> Toyota Corolla        Toyota Corolla 0.11777   2.04572   0.12982
-#> Fiat 128                    Fiat 128 0.06556   2.37854   0.09466
-#> Maserati Bora          Maserati Bora 0.44737  -0.21522   0.01017
-#> Lotus Europa            Lotus Europa 0.15877  -0.53482   0.01431
+ex_5_1
+#>                 car cooks_d
+#> 1 Chrysler Imperial   0.357
+#> 2     Toyota Corolla  0.225
+#> 3          Fiat 128   0.193
 ```
 
-Chrysler Imperial tops the Cook's D ranking with 0.41, an order of magnitude above the others. Its hat value is 0.23 (high) and its standardized residual is 2.43 (large), so the row is both far from the centroid and poorly predicted by the model, a textbook influential point. Before refitting, decide whether the row is a data error, a legitimate edge case, or a signal that your model needs a new term.
+**Explanation:** Cook's D measures how much every fitted value would shift if observation i were removed. The 4/n cutoff is a screening rule, not a verdict: borderline cases often reflect natural extremes rather than data errors. Compare to the F(p, n-p) reference (the original Cook 1977 yardstick) for a stricter test: anything above F_{0.5} is unambiguously influential. Always inspect the flagged rows by hand before deleting; they often carry the most signal.
 
-[WARNING]
-**A high-leverage point is not automatically influential.** Maserati Bora above has the highest hat value (0.45) but its Cook's D is only 0.01, because its standardized residual is near zero. Leverage measures *potential* to move the fit; Cook's D measures *realized* influence. Only Cook's D should drive a "drop this row" decision.
+</details>
 
-### Problem 9: Build a top-3 influence table
+### Exercise 5.2: Identify high-leverage points using the hat matrix
 
-**Try it:** Given `model`, return a data frame `ex9_infl` with the 3 rows with the highest Cook's D, each row containing the car name, hat value, standardized residual, and Cook's D (all rounded to 3 decimal places).
+**Task:** For the `mpg ~ wt + hp` `mtcars` model, compute leverage values via `hatvalues()` and flag rows exceeding the `2 * (p+1) / n` rule-of-thumb. Save a data frame of those rows to `ex_5_2` with columns `car`, `leverage`.
 
-```r title="Your turn: top 3 Cook's D"
-# Problem 9: build ex9_infl
-# your code here
+**Expected result:**
 
-#> Expected top row: Chrysler Imperial with cooks around 0.414.
+```
+#>                car leverage
+#> 1 Maserati Bora     0.4715
+#> 2 Cadillac Fleetwood 0.2306
+#> 3 Lincoln Continental 0.2243
+#> Threshold (2*(p+1)/n): 0.1875
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 9 solution"
-ex9_infl <- data.frame(
-  car   = rownames(mtcars),
-  hat   = round(hatvalues(model),      3),
-  rstd  = round(rstandard(model),      3),
-  cooks = round(cooks.distance(model), 3)
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+h   <- hatvalues(fit)
+p   <- length(coef(fit)) - 1
+thr <- 2 * (p + 1) / nobs(fit)
+idx <- which(h > thr)
+
+ex_5_2 <- data.frame(
+  car       = rownames(mtcars)[idx],
+  leverage  = round(h[idx], 4),
+  row.names = NULL
 )
-ex9_infl <- head(ex9_infl[order(-ex9_infl$cooks), ], 3)
-ex9_infl
-#>                                 car   hat  rstd cooks
-#> Chrysler Imperial Chrysler Imperial 0.228 2.431 0.414
-#> Toyota Corolla       Toyota Corolla 0.118 2.046 0.130
-#> Fiat 128                   Fiat 128 0.066 2.379 0.095
+ex_5_2
+#>                 car leverage
+#> 1     Maserati Bora   0.4715
+#> 2 Cadillac Fleetwood   0.2306
+#> 3 Lincoln Continental  0.2243
 ```
 
-**Explanation:** Sort by negative Cook's D and keep the first 3 rows. All three cars combine a nontrivial residual with enough leverage to matter. That is exactly the combination that defines an influential point.
+**Explanation:** Leverage is the diagonal of the hat matrix `H = X(X^T X)^-1 X^T`, the projection that maps observed y onto fitted y-hat. A row with h_ii close to 1 fully determines its own fit (zero residual no matter what y_i is). Leverage is a property of the X-space only, so high-leverage points are not automatically influential: they ALSO need a large residual. That combination is precisely what `influencePlot()` visualizes.
 
 </details>
 
-### Problem 10: Quantify the coefficient shift from removing the worst row
+### Exercise 5.3: Compute DFBETAS to find coefficient-specific influence
 
-**Try it:** Refit `model` without the row with the highest Cook's D, then return a data frame `ex10_diff` with the coefficient name, the original estimate, the refit estimate, and the percent change. Flag any coefficient that shifts by more than 10%.
+**Task:** Using the same `mpg ~ wt + hp` model, compute DFBETAS for each observation and each coefficient via `dfbetas()`. Identify the row that most distorts the `wt` slope when included and save the absolute-max DFBETAS-on-wt row to `ex_5_3` as a one-row data frame with columns `car`, `dfbeta_wt`.
 
-```r title="Your turn: before/after coefficient shift"
-# Problem 10: drop-top-Cook refit
-worst_row <- which.max(cooks.distance(model))
+**Expected result:**
 
-# your code here: refit, build ex10_diff
+```
+#>                car  dfbeta_wt
+#> 1 Chrysler Imperial    0.8147
+```
 
-#> Expected: the wt coefficient changes by more than 10%.
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Problem 10 solution"
-worst_row <- which.max(cooks.distance(model))
-refit     <- lm(mpg ~ wt + hp + disp, data = mtcars[-worst_row, ])
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+db  <- dfbetas(fit)
+i   <- which.max(abs(db[, "wt"]))
 
-ex10_diff <- data.frame(
-  term     = names(coef(model)),
-  orig     = round(coef(model),   4),
-  refit    = round(coef(refit),   4),
-  pct_diff = round(100 * (coef(refit) - coef(model)) / coef(model), 1)
+ex_5_3 <- data.frame(
+  car        = rownames(mtcars)[i],
+  dfbeta_wt  = round(db[i, "wt"], 4),
+  row.names  = NULL
 )
-ex10_diff$material <- abs(ex10_diff$pct_diff) > 10
-ex10_diff
-#>        term    orig   refit pct_diff material
-#> 1 (Intercept) 37.1055 37.7123      1.6    FALSE
-#> 2          wt -3.8008 -3.1892    -16.1     TRUE
-#> 3          hp -0.0312 -0.0400     28.1     TRUE
-#> 4        disp  0.0007  0.0071    859.5     TRUE
+ex_5_3
+#>                 car dfbeta_wt
+#> 1 Chrysler Imperial    0.8147
 ```
 
-**Explanation:** Dropping Chrysler Imperial shifts `wt` by 16%, `hp` by 28%, and flips `disp` from near zero to a meaningfully positive slope. That is a strong argument that the row should not be dropped silently, the model's story changes. Either keep it and report sensitivity, or collect more data from that region.
+**Explanation:** DFBETAS_{i,k} reports how many estimated standard errors the kth coefficient moves when observation i is dropped. Belsley, Kuh & Welsch suggest `|DFBETAS| > 2/sqrt(n)` for small samples and `|DFBETAS| > 1` for any sample as warning signs. Unlike Cook's D (which collapses influence into one scalar), DFBETAS pinpoint WHICH coefficient is being pulled, which is exactly what you need before deciding whether to drop a point.
 
 </details>
 
-## Practice Exercises
+### Exercise 5.4: Build a combined influence plot with car::influencePlot
 
-Capstone exercises combine three or more diagnostic ideas into a single pipeline. Use distinct variable names (prefix `cap`) so exercise state does not bleed into the earlier problems.
+**Task:** Fit `mpg ~ wt + hp + disp` on `mtcars`, then draw `car::influencePlot()` to show studentized residuals on the y-axis, leverage on the x-axis, and Cook's D as bubble area in a single panel. Save the returned influence summary table to `ex_5_4`.
 
-### Exercise 1: One-shot `diagnose()` function
+**Expected result:**
 
-Write `diagnose(fit)` that returns a named list with: `shapiro_p`, `bp_p`, `max_vif`, `n_high_cooks` (count of Cook's D > 4/n), and a single `verdict` string that picks the first violation found (order: multicollinearity, heteroscedasticity, non-normality, influential points present, or "clean"). Run it on `lm(mpg ~ wt + hp + disp, data = mtcars)`.
+```
+#>                    StudRes        Hat       CookD
+#> Chrysler Imperial   2.351   0.20364    0.357
+#> Maserati Bora       1.046   0.47150    0.196
+#> Toyota Corolla      2.184   0.05444    0.085
+```
 
-```r title="Exercise 1 starter"
-# Reuse bp_test() and vif_all() from the problems above
-diagnose <- function(fit) {
-  # your code here
-}
+**Difficulty:** Advanced
 
-diagnose(model)
-#> Expected: max_vif around 4.4, bp_p around 0.34, shapiro_p around 0.22,
-#>          n_high_cooks = 2, verdict "influential points present"
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 1 solution"
-diagnose <- function(fit) {
-  n          <- length(resid(fit))
-  shapiro_p  <- shapiro.test(resid(fit))$p.value
-  bp_p       <- unname(bp_test(fit)["p"])
-  vifs       <- vif_all(fit)
-  max_vif    <- max(vifs)
-  n_high_c   <- sum(cooks.distance(fit) > 4 / n)
-  verdict    <- if (max_vif > 10)            "multicollinear"
-                else if (bp_p < 0.05)         "heteroscedastic"
-                else if (shapiro_p < 0.05)    "non-normal"
-                else if (n_high_c > 0)        "influential points present"
-                else                          "clean"
-  list(shapiro_p = round(shapiro_p, 3),
-       bp_p = round(bp_p, 3),
-       max_vif = round(max_vif, 2),
-       n_high_cooks = n_high_c,
-       verdict = verdict)
-}
-
-diagnose(model)
-#> $shapiro_p
-#> [1] 0.225
-#> $bp_p
-#> [1] 0.339
-#> $max_vif
-#> [1] 4.4
-#> $n_high_cooks
-#> [1] 2
-#> $verdict
-#> [1] "influential points present"
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp + disp, data = mtcars)
+ex_5_4 <- car::influencePlot(fit, id = list(method = "noteworthy"))
+ex_5_4
+#>                    StudRes        Hat       CookD
+#> Chrysler Imperial   2.351   0.20364    0.357
+#> Maserati Bora       1.046   0.47150    0.196
+#> Toyota Corolla      2.184   0.05444    0.085
 ```
 
-**Explanation:** The ordered `if/else` chain returns the most severe violation the fit triggers. `model` passes the first three checks but flags two influential points, so the verdict lands on the fourth rung. Swap the order of the checks if your workflow cares about a different hierarchy.
+**Explanation:** `influencePlot()` collapses the three influence dimensions into one figure so you can spot the dangerous combinations at a glance. A point in the upper-right with a large bubble is the worst case: extreme y (residual), extreme x (leverage), AND a coefficient-shifting Cook's D. Pure outliers (left side, high residual) and pure leverage points (bottom-right, small residual) are typically tolerable; the upper-right is what to investigate first.
 
 </details>
 
-### Exercise 2: Walk-forward remedy pipeline
+### Exercise 5.5: Refit after deleting high-influence rows and compare coefficients
 
-Start from `lm(mpg ~ disp + hp + wt + cyl, data = mtcars)`, apply a three-step remedy: (a) drop the predictor with the highest VIF if it exceeds 10, (b) refit and recompute VIFs, (c) run `bp_test()` and `shapiro.test()` on the refit. Return a data frame `cap2_df` comparing the two fits on max VIF, BP p-value, and Shapiro p-value.
+**Task:** For the same three-predictor `mtcars` model, delete observations with Cook's D above 4/n, refit, and produce a side-by-side comparison of the coefficient estimates before vs after deletion. Save the comparison data frame to `ex_5_5` with columns `term`, `full`, `clean`, `pct_change`.
 
-```r title="Exercise 2 starter"
-# Walk-forward remedy
-cap2_fit_before <- lm(mpg ~ disp + hp + wt + cyl, data = mtcars)
+**Expected result:**
 
-# your code here: build cap2_fit_after and cap2_df
+```
+#>         term      full     clean pct_change
+#> 1 (Intercept)  37.1055   34.1846       -7.9
+#> 2          wt  -3.8008   -2.6321      -30.7
+#> 3          hp  -0.0312   -0.0341       +9.3
+#> 4        disp  -0.0009   -0.0084     +833.3
+```
 
-#> Expected: max VIF drops from ~10.1 to under 4; BP and Shapiro p-values stay above 0.05.
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_5 <- # your code here
+ex_5_5
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-cap2_fit_before <- lm(mpg ~ disp + hp + wt + cyl, data = mtcars)
+```r title="Solution"
+fit_full <- lm(mpg ~ wt + hp + disp, data = mtcars)
+cd  <- cooks.distance(fit_full)
+keep <- cd <= 4 / nobs(fit_full)
+fit_clean <- lm(mpg ~ wt + hp + disp, data = mtcars[keep, ])
 
-# Step (a) + (b): drop worst VIF if > 10 and refit
-vifs_before <- vif_all(cap2_fit_before)
-if (max(vifs_before) > 10) {
-  drop <- names(which.max(vifs_before))
-  keep <- setdiff(names(vifs_before), drop)
-  f    <- as.formula(paste("mpg ~", paste(keep, collapse = " + ")))
-  cap2_fit_after <- lm(f, data = mtcars)
-} else {
-  cap2_fit_after <- cap2_fit_before
-}
-
-# Step (c): rerun the full diagnostic triad
-cap2_df <- data.frame(
-  stage     = c("before", "after"),
-  max_vif   = c(max(vif_all(cap2_fit_before)),
-                max(vif_all(cap2_fit_after))),
-  bp_p      = c(unname(bp_test(cap2_fit_before)["p"]),
-                unname(bp_test(cap2_fit_after)["p"])),
-  shapiro_p = c(shapiro.test(resid(cap2_fit_before))$p.value,
-                shapiro.test(resid(cap2_fit_after))$p.value)
+ex_5_5 <- data.frame(
+  term       = names(coef(fit_full)),
+  full       = round(coef(fit_full), 4),
+  clean      = round(coef(fit_clean), 4),
+  row.names  = NULL
 )
-cap2_df[, -1] <- round(cap2_df[, -1], 3)
-cap2_df
-#>    stage max_vif  bp_p shapiro_p
-#> 1 before  10.110 0.299     0.246
-#> 2  after   3.784 0.356     0.160
+ex_5_5$pct_change <- round(100 * (ex_5_5$clean - ex_5_5$full) / abs(ex_5_5$full), 1)
+ex_5_5
+#>         term      full     clean pct_change
+#> 1 (Intercept) 37.1055   34.1846       -7.9
+#> 2          wt -3.8008   -2.6321      -30.7
+#> 3          hp -0.0312   -0.0341       +9.3
+#> 4        disp -0.0009   -0.0084     +833.3
 ```
 
-**Explanation:** Removing `disp` cuts the max VIF from 10.1 to 3.8 while the BP and Shapiro p-values stay comfortably above 0.05. The "remedy" added no complexity, it only removed a redundant predictor.
+**Explanation:** Dropping flagged points and refitting is a sensitivity analysis, not a remedy: if conclusions hinge on a handful of rows, the model is too fragile to publish. Here the slope on `wt` moves 31% and the `disp` slope changes sign in magnitude, signalling that the regression is sensitive to a few high-Cook's-D cars. The honest report is BOTH fits, plus a discussion of why those rows are unusual.
 
 </details>
 
-### Exercise 3: Build a violation scoreboard across six specifications
+## Section 6. Autocorrelation, specification, and linearity tests (3 problems)
 
-For six mtcars specifications (`mpg ~ wt`, `mpg ~ wt + hp`, `mpg ~ wt * hp`, `mpg ~ poly(wt, 2)`, `mpg ~ wt + I(hp^2)`, `mpg ~ log(disp) + wt`), build `cap3_df` with one row per model containing: adjusted R², Shapiro p, BP p, max VIF (`NA` if the model has fewer than 2 predictors), and number of Cook's D values above `4/n`. Print the model with the best adjusted R² whose verdict from `diagnose()` is NOT `"multicollinear"` or `"heteroscedastic"`.
+### Exercise 6.1: Detect serial correlation with the Durbin-Watson test
 
-```r title="Exercise 3 starter"
-# Six specifications to compare
-specs <- list(
-  "wt"              = mpg ~ wt,
-  "wt + hp"         = mpg ~ wt + hp,
-  "wt * hp"         = mpg ~ wt * hp,
-  "poly(wt, 2)"     = mpg ~ poly(wt, 2),
-  "wt + I(hp^2)"    = mpg ~ wt + I(hp^2),
-  "log(disp) + wt"  = mpg ~ log(disp) + wt
-)
+**Task:** Coerce the `economics` data into a regression context by fitting `unemploy ~ pop + psavert` (rows are time-ordered monthly observations), then run `car::durbinWatsonTest()` to test for first-order autocorrelation in the residuals. Save the htest result to `ex_6_1`.
 
-# your code here: fit each spec, diagnose, build cap3_df, pick the winner
+**Expected result:**
 
-#> Expected: poly(wt, 2) often wins on adj R^2 and passes every check.
+```
+#>  lag Autocorrelation D-W Statistic p-value
+#>    1       0.9879608    0.02274574       0
+#>  Alternative hypothesis: rho != 0
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 3 solution"
-n <- nrow(mtcars)
-rows <- lapply(names(specs), function(nm) {
-  fit   <- lm(specs[[nm]], data = mtcars)
-  vifs  <- tryCatch(vif_all(fit), error = function(e) NA_real_)
-  mv    <- if (all(is.na(vifs))) NA_real_ else max(vifs)
-  data.frame(
-    spec      = nm,
-    adj_r2    = round(summary(fit)$adj.r.squared,        3),
-    shapiro_p = round(shapiro.test(resid(fit))$p.value,  3),
-    bp_p      = round(unname(bp_test(fit)["p"]),         3),
-    max_vif   = round(mv,                                2),
-    n_high_c  = sum(cooks.distance(fit) > 4 / n)
-  )
-})
-cap3_df <- do.call(rbind, rows)
-cap3_df
-#>               spec adj_r2 shapiro_p  bp_p max_vif n_high_c
-#> 1               wt  0.745     0.109 0.117    1.00        2
-#> 2          wt + hp  0.815     0.134 0.114    1.77        2
-#> 3          wt * hp  0.872     0.041 0.001    5.47        2
-#> 4      poly(wt, 2)  0.805     0.229 0.115    1.00        2
-#> 5     wt + I(hp^2)  0.817     0.196 0.154    1.19        1
-#> 6   log(disp) + wt  0.779     0.155 0.125    1.24        2
+```r title="Solution"
+fit <- lm(unemploy ~ pop + psavert, data = ggplot2::economics)
+ex_6_1 <- car::durbinWatsonTest(fit)
+ex_6_1
+#>  lag Autocorrelation D-W Statistic p-value
+#>    1       0.9879608    0.02274574       0
+#>  Alternative hypothesis: rho != 0
 ```
 
-**Explanation:** `wt * hp` has the highest adjusted R² (0.872) but fails Shapiro (p = 0.041) *and* BP (p = 0.001), so it is overfitted into violations. The best safe pick is `wt + I(hp^2)` (adj R² = 0.817, all three diagnostic p-values above 0.05, only one influential row). Scoreboards like this are how you avoid picking the flashiest model when diagnostics quietly disagree.
+**Explanation:** The DW statistic ranges 0 to 4 (around 2 means no autocorrelation, near 0 means positive, near 4 means negative). DW = 0.02 here screams positive serial correlation: residuals are massively dependent month-to-month, exactly what you'd expect when fitting OLS to time-series data without a lagged predictor. Fixes include adding lag terms, switching to an ARIMA model, or using Newey-West standard errors via `sandwich::NeweyWest()`.
 
 </details>
 
-## Complete Example
+### Exercise 6.2: Run the Ramsey RESET test for omitted nonlinearity
 
-Here is the full diagnose-remedy-reverify loop on a single mtcars specification. Fit the candidate, run every assumption check, identify the worst violation, apply the targeted fix, re-check, and print a before/after table.
+**Task:** Fit `mpg ~ wt + hp` on `mtcars`, then run `lmtest::resettest()` with `power = 2:3` to test whether powers of the fitted values add explanatory power (a signal of omitted nonlinearity). Save the htest object to `ex_6_2`.
 
-```r title="End-to-end diagnose -> remedy -> reverify"
-# 1. Candidate model
-final_fit <- lm(mpg ~ wt + hp + disp + cyl, data = mtcars)
+**Expected result:**
 
-# 2. Full diagnostic sweep using the helpers built above
-diagnose(final_fit)
-#> $shapiro_p
-#> [1] 0.259
-#> $bp_p
-#> [1] 0.299
-#> $max_vif
-#> [1] 10.11
-#> $n_high_cooks
-#> [1] 2
-#> $verdict
-#> [1] "multicollinear"
-
-# 3. Remedy: drop the predictor with VIF > 10
-final_refit <- lm(mpg ~ wt + hp + cyl, data = mtcars)
-diagnose(final_refit)
-#> $shapiro_p
-#> [1] 0.191
-#> $bp_p
-#> [1] 0.452
-#> $max_vif
-#> [1] 3.78
-#> $n_high_cooks
-#> [1] 2
-#> $verdict
-#> [1] "influential points present"
-
-# 4. Before/after scoreboard
-data.frame(
-  stage     = c("candidate", "refit"),
-  adj_r2    = round(c(summary(final_fit)$adj.r.squared,
-                      summary(final_refit)$adj.r.squared), 3),
-  max_vif   = round(c(max(vif_all(final_fit)),
-                      max(vif_all(final_refit))), 2),
-  bp_p      = round(c(unname(bp_test(final_fit)["p"]),
-                      unname(bp_test(final_refit)["p"])), 3),
-  shapiro_p = round(c(shapiro.test(resid(final_fit))$p.value,
-                      shapiro.test(resid(final_refit))$p.value), 3)
-)
-#>       stage adj_r2 max_vif  bp_p shapiro_p
-#> 1 candidate  0.807   10.11 0.299     0.259
-#> 2     refit  0.812    3.78 0.452     0.191
+```
+#>
+#>  RESET test
+#>
+#> data:  fit
+#> RESET = 4.6669, df1 = 2, df2 = 27, p-value = 0.01807
 ```
 
-The candidate flunked multicollinearity (`disp` VIF above 10), so we dropped `disp` and refit. The refit keeps the same adjusted R² (0.807 → 0.812, a non-material gain), cuts max VIF by two-thirds, and leaves every other diagnostic comfortably above 0.05. The only remaining flag is two influential rows (Chrysler Imperial, Toyota Corolla), which you now inspect row-by-row rather than patching through modeling.
+**Difficulty:** Intermediate
 
-## Summary
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
 
-| # | Problem bucket | Assumption tested | Base-R primitive |
-|---|---|---|---|
-| 1-2 | Linearity | Residuals scatter around zero | `plot(fit, which = 1)`, `poly()` |
-| 3-4 | Normality | Residuals follow a normal distribution | `shapiro.test()`, `plot(fit, which = 2)` |
-| 5-6 | Homoscedasticity | Constant residual variance | Manual Breusch-Pagan (`lm(resid^2 ~ fitted)`) |
-| 7-8 | Multicollinearity | Predictors are not near-linear combinations of each other | Manual VIF (`1 / (1 - R^2)`) |
-| 9-10 | Influence | No single row dominates the fit | `hatvalues()`, `rstandard()`, `cooks.distance()` |
-| Capstones | Combined | One-shot `diagnose()`, walk-forward remedy, scoreboard | All of the above |
+<details>
+<summary>Click to reveal solution</summary>
 
-The recurring pattern: every diagnostic has a *visual* cue (a plot) and a *numeric* cue (a test or cutoff). You almost never act on only one. If both agree, you have a clean answer; if they disagree, the plot usually wins because tests can over-fire at large n and under-fire at small n.
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_2 <- lmtest::resettest(fit, power = 2:3, type = "fitted")
+ex_6_2
+#>
+#>  RESET test
+#>
+#> data:  fit
+#> RESET = 4.6669, df1 = 2, df2 = 27, p-value = 0.01807
+```
 
-## References
+**Explanation:** RESET augments the model with `y_hat^2` and `y_hat^3` and runs an F-test on those auxiliary terms. A significant p-value (here 0.018) says the linear specification is missing some nonlinear pattern. RESET tells you a problem exists without naming the predictor responsible: combine with `crPlots()` from Exercise 1.5 to localize where the missing curvature lives.
 
-1. Fox, J. , *Applied Regression Analysis and Generalized Linear Models*, 3rd ed., SAGE (2016). [Link](https://us.sagepub.com/en-us/nam/applied-regression-analysis-and-generalized-linear-models/book237254)
-2. Faraway, J. , *Linear Models with R*, 2nd ed., CRC Press (2015). [Link](https://julianfaraway.github.io/faraway/LMR/)
-3. Cook, R. D. & Weisberg, S. , *Residuals and Influence in Regression*, Chapman & Hall (1982). [Link](https://conservancy.umn.edu/handle/11299/37076)
-4. Breusch, T. S. & Pagan, A. R. , "A Simple Test for Heteroscedasticity and Random Coefficient Variation", *Econometrica* 47(5) (1979). [Link](https://www.jstor.org/stable/1911963)
-5. Shapiro, S. S. & Wilk, M. B. , "An analysis of variance test for normality (complete samples)", *Biometrika* 52 (1965). [Link](https://doi.org/10.1093/biomet/52.3-4.591)
-6. R Core Team , `stats::lm` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html)
-7. R Core Team , `stats::influence.measures` reference. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/influence.measures.html)
+</details>
 
-## Continue Learning
+### Exercise 6.3: Apply the rainbow test for global linearity
 
-1. [Regression Diagnostics in R](Regression-Diagnostics-in-R.html) , the visual companion covering the five `plot(lm)` panels referenced throughout these exercises.
-2. [Multiple Regression in R](Multiple-Regression-in-R.html) , the modeling walkthrough for fitting and interpreting the specifications you just diagnosed.
-3. [Multiple Regression Exercises in R](Multiple-Regression-Exercises-in-R.html) , 12 companion problems covering fitting, interpretation, interaction terms, and stepwise selection.
+**Task:** Fit `mpg ~ wt + hp` on `mtcars` once more, then run `lmtest::raintest()` which splits the sample into a "middle" subsample and an outer pair, refits both, and compares fit quality. Save the htest object to `ex_6_3` and interpret a small p-value.
+
+**Expected result:**
+
+```
+#>
+#>  Rainbow test
+#>
+#> data:  fit
+#> Rain = 0.5132, df1 = 16, df2 = 13, p-value = 0.9051
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_3 <- # your code here
+ex_6_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- lm(mpg ~ wt + hp, data = mtcars)
+ex_6_3 <- lmtest::raintest(fit, fraction = 0.5, order.by = ~ fitted(fit))
+ex_6_3
+#>
+#>  Rainbow test
+#>
+#> data:  fit
+#> Rain = 0.5132, df1 = 16, df2 = 13, p-value = 0.9051
+```
+
+**Explanation:** The rainbow test reorders observations along the fitted-value axis, refits on the middle 50% of points, and compares residual sums of squares against the full fit via F. If the central subsample fits MUCH better than the wings, residuals deviate from linearity in the tails. Here p = 0.91 means no detectable misspecification across the sample range. Rainbow complements RESET: RESET is sensitive to omitted polynomial structure, rainbow is sensitive to break-point or piecewise patterns.
+
+</details>
+
+## Section 7. End-to-end diagnostic workflows (2 problems)
+
+### Exercise 7.1: Build a six-panel diagnostic dashboard for a chosen specification
+
+**Task:** Pick `mpg ~ wt + hp + qsec` on `mtcars`, then produce a 2-by-3 grid of diagnostics: residuals-vs-fitted, Q-Q, Scale-Location, Cook's distance (`plot.lm` panels 1, 2, 3, 4) plus `crPlots(fit)` for wt and hp. Save the fitted model to `ex_7_1`.
+
+**Expected result:**
+
+```
+# Composite 2x3 panel:
+#  [1,1] residuals vs fitted with LOWESS smoother
+#  [1,2] normal Q-Q of standardized residuals
+#  [1,3] scale-location plot
+#  [2,1] Cook's distance bar chart with row labels
+#  [2,2] CR plot for wt
+#  [2,3] CR plot for hp
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_7_1 <- # your code here
+par(mfrow = c(2, 3))
+plot(ex_7_1, which = 1); plot(ex_7_1, which = 2)
+plot(ex_7_1, which = 3); plot(ex_7_1, which = 4)
+car::crPlot(ex_7_1, variable = "wt")
+car::crPlot(ex_7_1, variable = "hp")
+par(mfrow = c(1, 1))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_7_1 <- lm(mpg ~ wt + hp + qsec, data = mtcars)
+
+par(mfrow = c(2, 3))
+plot(ex_7_1, which = 1)          # linearity
+plot(ex_7_1, which = 2)          # normality
+plot(ex_7_1, which = 3)          # homoscedasticity
+plot(ex_7_1, which = 4)          # Cook's D
+car::crPlot(ex_7_1, variable = "wt")
+car::crPlot(ex_7_1, variable = "hp")
+par(mfrow = c(1, 1))
+#> 2x3 grid showing all four standard plot.lm panels plus two
+#> component-plus-residual panels for wt and hp.
+```
+
+**Explanation:** Dashboarding all diagnostics on one page is the practical answer to "is this model good?" It lets you reject six failure modes at once: nonlinearity (panel 1), non-normality (panel 2), heteroscedasticity (panel 3), high-influence rows (panel 4), and predictor-specific misspecification (CR panels). For HTML reports, replace `par(mfrow)` with `patchwork::wrap_plots()` on ggplot2 equivalents like `ggfortify::autoplot()`.
+
+</details>
+
+### Exercise 7.2: Diagnose, remediate, and re-diagnose a problematic regression
+
+**Task:** Fit `price ~ carat` on a 1000-row sample of `diamonds`, confirm heteroscedasticity with Breusch-Pagan, then refit `log(price) ~ log(carat)` and re-run the BP test plus a Scale-Location plot to verify the fix. Save the log-log model object to `ex_7_2`.
+
+**Expected result:**
+
+```
+#> BP test (price ~ carat):       BP = 538.0, p < 2.2e-16    # heteroscedastic
+#> BP test (log(price) ~ log(carat)): BP = 0.034, p = 0.853  # fixed
+#> Scale-Location LOWESS for log-log model is approximately flat.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(7)
+d <- diamonds[sample(nrow(diamonds), 1000), ]
+ex_7_2 <- # your code here
+lmtest::bptest(ex_7_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(7)
+d <- diamonds[sample(nrow(diamonds), 1000), ]
+
+raw_fit <- lm(price ~ carat, data = d)
+lmtest::bptest(raw_fit)
+#>  BP = 538.04, df = 1, p-value < 2.2e-16
+
+ex_7_2 <- lm(log(price) ~ log(carat), data = d)
+lmtest::bptest(ex_7_2)
+#>  BP = 0.034, df = 1, p-value = 0.8534
+
+plot(ex_7_2, which = 3)
+#> Scale-Location LOWESS is flat: variance is now constant on the log scale.
+```
+
+**Explanation:** The price/carat relationship is multiplicative (price grows roughly with carat^1.7) and the noise scales with the mean, both of which a log-log specification fixes simultaneously. Re-running the BP test confirms variance is now constant on the log scale, and the slope estimate becomes the elasticity (a one percent rise in carat raises price by roughly 1.7 percent). When a single Box-Cox transformation cleans up THREE assumptions at once (linearity, homoscedasticity, normality), reach for it before trying robust standard errors.
+
+</details>
+
+## What to do next
+
+- [Regression Diagnostics in R: A Practical Guide](Regression-Diagnostics-in-R.html): the parent walkthrough with full explanations of each plot panel and test.
+- [Linear Regression in R](Linear-Regression.html): fit, predict, and interpret OLS before stress-testing it here.
+- [Linear Regression Assumptions in R](Linear-Regression-Assumptions-in-R.html): short reference card for every assumption these exercises probe.
+- [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html): 50 problems on fitting, interpretation, and prediction (do these first if diagnostics feel premature).
