@@ -178,7 +178,12 @@ def check_git_clean() -> bool:
         if not line.strip():
             continue
         path = line[3:].strip()
-        if path in ("pseo-status.json", "Scripts/batch_pseo.log"):
+        if path in (
+            "pseo-status.json",
+            "Scripts/batch_pseo.log",
+            "Scripts/batch_pseo.run.log",
+            "Scripts/batch_pseo.lock",
+        ):
             continue
         if path.startswith("posts/_failed/"):
             continue
