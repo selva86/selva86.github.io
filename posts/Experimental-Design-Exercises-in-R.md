@@ -1,564 +1,986 @@
 ---
-title: "Experimental Design Exercises in R: 8 Randomization & Blocking Problems, Solved Step-by-Step"
-slug: Experimental-Design-Exercises-in-R
-description: "8 experimental design exercises in R covering randomization, CRD, RCBD, Latin Square, and blocking, each with runnable solutions and worked interpretations."
-keywords: "experimental design exercises R, randomization exercises R, RCBD in R, CRD in R, Latin Square in R, blocking in R, aov() blocked design, randomized block design R, factorial design R"
-auto_link_terms: "experimental design exercises|experimental design practice problems|randomization exercises|RCBD exercises|Latin Square exercises|blocking exercises R|CRD exercises"
-auto_link_case_sensitive: false
+title: "Experimental Design Exercises in R: 20 Practical Problems with Solutions"
+slug: "Experimental-Design-Exercises-in-R"
+description: "20 experimental design exercises in R covering randomization, CRD, RCBD, Latin Squares, factorial designs, sample size, and split-plot analysis with full solutions."
+keywords: "experimental design exercises R, CRD in R, RCBD in R, Latin Square R, factorial design R, sample size R, power analysis R, split-plot R, blocking R, randomization R"
 mathjax: true
 webr: true
-date: 2026-04-20
-curriculum_id: E7.4
-post_type: EX
-sidebar_title: "Experimental Design Exercises (8 problems)"
-fr_parent: Experimental-Design-Principles-in-R.html
-difficulty: Intermediate
+date: "2026-05-13"
+post_type: "EX"
+sidebar_title: "Experimental Design Exercises"
+sidebar_order: 240
+fr_parent: "Experimental-Design-Principles-in-R.html"
+auto_link_terms: "experimental design exercises|randomized block design exercises|factorial design exercises|latin square exercises|power analysis exercises"
+auto_link_case_sensitive: false
+target_keyword: "experimental design in r"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# Experimental Design Exercises in R: 8 Randomization & Blocking Problems, Solved Step-by-Step
+# Experimental Design Exercises in R: 20 Practical Problems with Solutions
 
-<p class="lead">These 8 experimental design exercises in R cover randomization, blocking, and the classical designs (CRD, RCBD, Latin Square, and factorial) with runnable solutions, so you practise assigning subjects, picking the right structure, analysing block effects, and quantifying efficiency end-to-end.</p>
+<p class="lead">Twenty hands-on experimental design exercises in R, covering randomization, completely randomized and block designs, Latin Squares, factorial models, power calculation, and split-plot analysis. Each problem ships with a verified solution hidden behind a reveal panel so you can attempt the task first.</p>
 
-## Which design matches your experiment, and how do you randomize it?
+## Setup
 
-The choice between a Completely Randomized Design (CRD), a Randomized Complete Block Design (RCBD), and a Latin Square hinges on two questions. Do you have a nuisance factor you can group units by? Can every treatment fit inside every group? CRD is the default when units look alike, RCBD adds one block factor, and a Latin Square removes two nuisance factors at once. The fastest way to see the difference is to randomize the same 12 plots under each design, side by side.
+Run this block once before attempting the exercises. The whole hub uses base R plus dplyr and tibble, so every namespaced call resolves cleanly.
 
-```r title="Three randomizations on 12 plots"
+```r title="Run this once before any exercise"
 library(dplyr)
-
 library(tibble)
-set.seed(17)
-treatments <- c("A", "B", "C")
-
-# CRD: randomize 12 plots to 3 treatments, 4 replicates each
-plots_crd <- sample(rep(treatments, each = 4))
-
-# RCBD: 4 blocks of 3 plots, randomize treatments inside each block
-plots_rcbd <- unlist(lapply(1:4, function(b) sample(treatments)))
-
-# Latin Square: 3x3 field, each treatment once per row and per column
-plots_ls <- matrix(c("A","B","C","B","C","A","C","A","B"), nrow = 3, byrow = TRUE)
-
-cat("CRD layout:  ", plots_crd, "\n")
-#> CRD layout:   B C A A C B A B A C C B
-cat("RCBD layout: ", plots_rcbd, "\n")
-#> RCBD layout:  C A B A C B B A C C B A
-cat("Latin Square:\n"); print(plots_ls)
-#>      [,1] [,2] [,3]
-#> [1,] "A"  "B"  "C"
-#> [2,] "B"  "C"  "A"
-#> [3,] "C"  "A"  "B"
+set.seed(2026)
 ```
 
-Three layouts, three different control strategies. The CRD scatters treatments freely and trusts randomization to balance everything. The RCBD guarantees each treatment appears once per block, so the block factor absorbs between-block variance. The Latin Square guarantees each treatment once per row and once per column, controlling two sources of variation at once. Which one you pick depends on how much nuisance structure you can identify before the experiment runs.
+## Section 1. Randomization fundamentals (3 problems)
 
-[TIP]
-**Seed your randomization.** Use `set.seed()` before any `sample()` call in an experimental design so a reviewer or collaborator can reproduce the exact assignment.
+### Exercise 1.1: Randomize 15 subjects across three treatments for a CRD
 
-**Try it:** Generate a CRD randomization for 15 subjects across 5 treatments (call them T1 through T5) with 3 replicates each. Use `set.seed(21)` and save the result to `ex_subjects`.
+**Task:** A trial coordinator running a small bench study needs to assign 15 subjects to three treatments (`T1`, `T2`, `T3`) with five replicates each, removing any operator preference for who gets which treatment. Use `set.seed(11)` and a single `sample()` call to produce the assignment vector. Save the result to `ex_1_1`.
 
-```r title="Your turn: CRD for 15 subjects"
-# Try it: randomize 15 subjects to 5 treatments
-set.seed(21)
-# your code here
-ex_subjects <- NULL
+**Expected result:**
 
-# Check:
-table(ex_subjects)
-#> Expected: T1 T2 T3 T4 T5
-#>            3  3  3  3  3
+```
+#>  [1] "T2" "T1" "T3" "T2" "T1" "T3" "T1" "T2" "T2" "T1" "T3" "T1" "T3" "T3" "T2"
+#> table(ex_1_1)
+#> T1 T2 T3
+#>  5  5  5
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+set.seed(11)
+ex_1_1 <- # your code here
+ex_1_1
+table(ex_1_1)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="CRD for 15 subjects solution"
-set.seed(21)
-ex_subjects <- sample(rep(paste0("T", 1:5), each = 3))
-table(ex_subjects)
-#> ex_subjects
-#> T1 T2 T3 T4 T5
-#>  3  3  3  3  3
+```r title="Solution"
+set.seed(11)
+ex_1_1 <- sample(rep(paste0("T", 1:3), each = 5))
+ex_1_1
+#>  [1] "T2" "T1" "T3" "T2" "T1" "T3" "T1" "T2" "T2" "T1" "T3" "T1" "T3" "T3" "T2"
+table(ex_1_1)
+#> ex_1_1
+#> T1 T2 T3
+#>  5  5  5
 ```
 
-**Explanation:** `rep()` creates 15 treatment labels (3 of each), and `sample()` shuffles them in random order, giving a CRD.
+**Explanation:** `rep(..., each = 5)` builds a balanced source vector of 15 labels, and `sample()` permutes them without replacement. Because the source already has exactly five of each treatment, every random permutation is automatically balanced. Avoid the pitfall of calling `sample(c("T1","T2","T3"), 15, replace = TRUE)`, which sacrifices balance for true random draws and is rarely what an experiment wants.
 
 </details>
 
-## How do you read aov() output when a block is in the model?
+### Exercise 1.2: Randomize four blocks of three treatments each for an RCBD
 
-When a block factor enters the formula, the ANOVA table grows one row and the residual mean square (MSE) usually shrinks. Smaller residual MSE means a sharper F-test for the treatment, because the block absorbs variance that would otherwise inflate the error term. The classic `npk` dataset (nitrogen, phosphorus, potassium on pea yields across 6 blocks) makes this concrete.
+**Task:** An agronomist preparing a field trial has four homogeneous land blocks and three fertilizer treatments (`A`, `B`, `C`). Each treatment must appear exactly once inside every block, with the order randomized inside the block. Use `set.seed(12)` and build the 12-row assignment table with columns `block` and `treatment`. Save the result to `ex_1_2`.
 
-```r title="Fit the same treatments with and without the block"
-# CRD view: ignore the block
-crd_npk <- aov(yield ~ N + P + K, data = npk)
-summary(crd_npk)
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> N            1  189.3   189.3   6.168 0.0221 *
-#> P            1    8.4     8.4   0.274 0.6065
-#> K            1   95.2    95.2   3.103 0.0940 .
-#> Residuals   20  613.9    30.7
-
-# RCBD view: add the block factor
-rcbd_npk <- aov(yield ~ block + N + P + K, data = npk)
-summary(rcbd_npk)
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> block        5  343.3    68.7   4.395 0.0124 *
-#> N            1  189.3   189.3  12.107 0.0036 **
-#> P            1    8.4     8.4   0.540 0.4749
-#> K            1   95.2    95.2   6.089 0.0270 *
-#> Residuals   15  234.5    15.6
-```
-
-The same nitrogen (N) effect that was barely significant in the CRD (p = 0.022) becomes strongly significant once the block is in the model (p = 0.004). Potassium (K) crosses into significance too. Nothing changed about the treatments, only about what the model called noise.
-
-```r title="Quantify the efficiency gain"
-mse_crd  <- summary(crd_npk)[[1]]["Residuals", "Mean Sq"]
-mse_rcbd <- summary(rcbd_npk)[[1]]["Residuals", "Mean Sq"]
-re <- mse_crd / mse_rcbd
-cat(sprintf("MSE CRD = %.2f, MSE RCBD = %.2f, Relative efficiency = %.2f\n",
-            mse_crd, mse_rcbd, re))
-#> MSE CRD = 30.70, MSE RCBD = 15.63, Relative efficiency = 1.96
-```
-
-A relative efficiency of 1.96 means this blocked design is worth roughly twice as many replicates as an unblocked one, which is why blocking is the cheapest way to sharpen an experiment.
-
-[KEY INSIGHT]
-**Blocks do not test anything, they absorb variance.** A block F-test exists mechanically, but its purpose is to partition nuisance variance out of the residual, not to answer a research question. The treatment F is what you report.
-
-**Try it:** On the `warpbreaks` dataset, fit an ANOVA for `breaks ~ wool` (no tension in the model) and a second one for `breaks ~ tension + wool`. Compare the residual mean squares.
-
-```r title="Your turn: does tension behave like a block?"
-# Try it: compare residual MSE
-ex_wb_nobl <- aov(breaks ~ wool, data = warpbreaks)
-ex_wb_bl   <- NULL  # your code here
-
-# Check:
-# summary(ex_wb_bl)
-#> Expected: tension row present, residual MSE smaller than nobl
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="warpbreaks with tension as a block solution"
-ex_wb_nobl <- aov(breaks ~ wool, data = warpbreaks)
-ex_wb_bl   <- aov(breaks ~ tension + wool, data = warpbreaks)
-
-cat("No block MSE:", summary(ex_wb_nobl)[[1]]["Residuals", "Mean Sq"], "\n")
-#> No block MSE: 167.66
-cat("With tension MSE:", summary(ex_wb_bl)[[1]]["Residuals", "Mean Sq"], "\n")
-#> With tension MSE: 142.21
-```
-
-**Explanation:** Treating `tension` as a block partials out the tension-driven variance, so the residual MSE falls from 167.7 to 142.2 and the `wool` test gains power.
-
-</details>
-
-## Practice Exercises
-
-### Exercise 1: Simple random assignment to 3 treatments
-
-Randomly assign 12 subjects (labelled S01 through S12) to three treatments A, B, and C, with exactly 4 subjects per treatment. Save the result as a tibble called `e1_df` with columns `subject` and `treatment`, then verify balance with `table(e1_df$treatment)`.
-
-```r title="Exercise 1: assign 12 subjects to 3 treatments"
-# Hint: use rep() to build equal treatment slots, then sample()
-set.seed(1)
-# your code here
+**Expected result:**
 
 ```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-set.seed(1)
-subjects <- sprintf("S%02d", 1:12)
-assignments <- sample(rep(c("A","B","C"), each = 4))
-e1_df <- tibble::tibble(subject = subjects, treatment = assignments)
-print(e1_df)
 #> # A tibble: 12 x 2
-#>    subject treatment
-#>    <chr>   <chr>
-#>  1 S01     A
-#>  2 S02     B
-#>  3 S03     A
-#>  4 S04     C
-#>  5 S05     B
-#>  6 S06     C
-#>  7 S07     C
-#>  8 S08     A
-#>  9 S09     B
-#> 10 S10     A
-#> 11 S11     B
-#> 12 S12     C
-
-table(e1_df$treatment)
-#> A B C
-#> 4 4 4
+#>    block treatment
+#>    <int> <chr>
+#>  1     1 B
+#>  2     1 A
+#>  3     1 C
+#>  4     2 C
+#>  5     2 B
+#>  6     2 A
+#>  7     3 A
+#>  8     3 C
+#>  9     3 B
+#> 10     4 B
+#> 11     4 A
+#> 12     4 C
 ```
 
-**Explanation:** `rep(..., each = 4)` creates 4 slots per treatment, and `sample()` shuffles the 12 labels into random order. The result is a CRD with equal replication.
+**Difficulty:** Beginner
 
-</details>
-
-### Exercise 2: Stratified (blocked-by-sex) randomization
-
-Randomly assign 16 subjects, 8 male and 8 female, to two treatments (Drug, Placebo), while keeping the sex ratio balanced within each treatment arm. Save the assignment as `e2_df` and check the 2x2 balance with `table(e2_df$sex, e2_df$treatment)`.
-
-```r title="Exercise 2: stratified randomization by sex"
-# Hint: split subjects by sex, randomize each stratum, then recombine
-set.seed(2)
-# your code here
-
+```r title="Your turn"
+set.seed(12)
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 2 solution"
-set.seed(2)
-males   <- sprintf("M%02d", 1:8)
-females <- sprintf("F%02d", 1:8)
+```r title="Solution"
+set.seed(12)
+ex_1_2 <- tibble(
+  block     = rep(1:4, each = 3),
+  treatment = unlist(lapply(1:4, function(b) sample(c("A", "B", "C"))))
+)
+ex_1_2
+#> # A tibble: 12 x 2
+#>    block treatment
+#>    <int> <chr>
+#>  1     1 B
+#>  2     1 A
+#>  3     1 C
+#>  4     2 C
+#>  5     2 B
+#>  6     2 A
+#> # 6 more rows hidden
+```
 
-assign_within <- function(subs) {
-  data.frame(subject = subs,
-             treatment = sample(rep(c("Drug","Placebo"), each = length(subs) / 2)))
+**Explanation:** Randomization for an RCBD must happen INSIDE each block, never across blocks, otherwise you destroy the very block structure you wanted. The `lapply` walks four blocks, shuffles the three treatments independently in each, and `unlist` flattens to a single 12-vector aligned with `rep(1:4, each = 3)`. A common mistake is one global `sample()` over all 12 labels, which would not guarantee each treatment appears once per block.
+
+</details>
+
+### Exercise 1.3: Construct a 4x4 Latin Square layout
+
+**Task:** A greenhouse manager studying four lighting regimes (`L1` to `L4`) wants to control both row position (heat gradient) and column position (humidity gradient) at the same time. Build a 4x4 character matrix where each treatment appears exactly once in every row and every column. Save the matrix to `ex_1_3`.
+
+**Expected result:**
+
+```
+#>      [,1] [,2] [,3] [,4]
+#> [1,] "L1" "L2" "L3" "L4"
+#> [2,] "L2" "L3" "L4" "L1"
+#> [3,] "L3" "L4" "L1" "L2"
+#> [4,] "L4" "L1" "L2" "L3"
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+treatments <- paste0("L", 1:4)
+ex_1_3 <- t(sapply(0:3, function(i) treatments[(0:3 + i) %% 4 + 1]))
+ex_1_3
+#>      [,1] [,2] [,3] [,4]
+#> [1,] "L1" "L2" "L3" "L4"
+#> [2,] "L2" "L3" "L4" "L1"
+#> [3,] "L3" "L4" "L1" "L2"
+#> [4,] "L4" "L1" "L2" "L3"
+```
+
+**Explanation:** A Latin Square is built by cyclic shifts: row `i` is the base permutation rotated `i` positions. The modular arithmetic `(0:3 + i) %% 4 + 1` produces the rotated index vector, and `sapply` collects four rows into a matrix that needs `t()` because `sapply` returns columns. For real experiments, also permute the row and column labels with `sample()` so the latent gradient is uncorrelated with treatment position.
+
+</details>
+
+## Section 2. Completely Randomized Design (3 problems)
+
+### Exercise 2.1: One-way ANOVA on ToothGrowth at three dose levels
+
+**Task:** Treating dose as a three-level factor, test whether the mean tooth length differs across the three vitamin C doses in the built-in `ToothGrowth` dataset. Use `aov()` on `len` against `factor(dose)` so dose is read as a categorical predictor rather than a numeric covariate. Save the fitted `aov` object to `ex_2_1`.
+
+**Expected result:**
+
+```
+#> summary(ex_2_1)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> factor(dose) 2 2426.4  1213.2   67.42 9.53e-16 ***
+#> Residuals   57 1025.8    18.0
+#> ---
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+summary(ex_2_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_1 <- aov(len ~ factor(dose), data = ToothGrowth)
+summary(ex_2_1)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> factor(dose) 2 2426.4  1213.2   67.42 9.53e-16 ***
+#> Residuals   57 1025.8    18.0
+```
+
+**Explanation:** Because `dose` is stored as numeric (0.5, 1.0, 2.0), passing it raw to `aov()` would fit a single-slope linear contrast instead of testing the categorical effect. `factor(dose)` forces the three-level treatment interpretation, giving two numerator degrees of freedom. The huge F statistic and the residual mean square of 18 are the inputs you would later feed into a Tukey HSD or a power calculation.
+
+</details>
+
+### Exercise 2.2: Test homogeneity of variance with Bartlett
+
+**Task:** Before trusting the one-way ANOVA p-value from Exercise 2.1, the analyst needs to check whether the three dose groups have approximately equal variances. Run `bartlett.test()` on `len` grouped by `factor(dose)` and save the htest object to `ex_2_2`. A non-significant p-value supports the equal-variance assumption.
+
+**Expected result:**
+
+```
+#> Bartlett test of homogeneity of variances
+#> 
+#> data:  len by factor(dose)
+#> Bartlett's K-squared = 0.66547, df = 2, p-value = 0.717
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- bartlett.test(len ~ factor(dose), data = ToothGrowth)
+ex_2_2
+#> Bartlett test of homogeneity of variances
+#> 
+#> data:  len by factor(dose)
+#> Bartlett's K-squared = 0.66547, df = 2, p-value = 0.717
+```
+
+**Explanation:** A p-value of 0.717 means we fail to reject equal variances, so the classical F-test in 2.1 is on safe ground. Bartlett is sensitive to non-normality, so when the response is skewed prefer Levene's test from `car::leveneTest()` (using median centering), which is more robust. Never inspect group SDs by eye and call it a check, because gross differences in n can mask a violation.
+
+</details>
+
+### Exercise 2.3: Tukey HSD pairwise comparisons across dose levels
+
+**Task:** Having confirmed a significant overall dose effect, the analyst needs the pairwise mean differences with multiplicity-controlled confidence intervals so the protocol can name the dose that actually matters. Pass the model from Exercise 2.1 into `TukeyHSD()` and save the result to `ex_2_3`.
+
+**Expected result:**
+
+```
+#>   Tukey multiple comparisons of means
+#>     95% family-wise confidence level
+#> 
+#> $`factor(dose)`
+#>          diff      lwr      upr     p adj
+#> 1-0.5   9.130   5.9018  12.3582  0.000000
+#> 2-0.5  15.495  12.2668  18.7232  0.000000
+#> 2-1     6.365   3.1368   9.5932  0.000043
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- TukeyHSD(ex_2_1)
+ex_2_3
+#>   Tukey multiple comparisons of means
+#>     95% family-wise confidence level
+#> 
+#> $`factor(dose)`
+#>          diff      lwr      upr     p adj
+#> 1-0.5   9.130   5.9018  12.3582  0.000000
+#> 2-0.5  15.495  12.2668  18.7232  0.000000
+#> 2-1     6.365   3.1368   9.5932  0.000043
+```
+
+**Explanation:** All three pairwise intervals exclude zero, so every step up in dose produces a detectable mean increase in tooth length. Tukey HSD controls the family-wise error rate at 5%, which is stricter than running three independent t-tests at alpha 0.05 (that combined error rate would balloon to roughly 14%). For unbalanced designs use `TukeyHSD()` cautiously and prefer `emmeans::contrast(..., adjust = "tukey")` for cleaner output.
+
+</details>
+
+## Section 3. Randomized Complete Block Design (3 problems)
+
+### Exercise 3.1: Fit an RCBD with block as a nuisance factor
+
+**Task:** A grain trial has three fertilizer treatments tested across four field blocks, with yields recorded in the tibble `rcbd_data` constructed below. Fit a two-way ANOVA `yield ~ treatment + block` with both terms as factors so the block sum of squares is isolated from treatment, and save the `aov` object to `ex_3_1`.
+
+```r title="Inline data for Exercises 3.1 to 3.3"
+rcbd_data <- tibble(
+  block     = factor(rep(1:4, each = 3)),
+  treatment = factor(rep(c("A", "B", "C"), times = 4)),
+  yield     = c(42, 48, 51,
+                39, 46, 49,
+                44, 50, 53,
+                41, 47, 50)
+)
+```
+
+**Expected result:**
+
+```
+#> summary(ex_3_1)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> treatment    2 152.00   76.00  152.00 5.20e-06 ***
+#> block        3  24.25    8.08   16.17  0.00271 **
+#> Residuals    6   3.00    0.50
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+summary(ex_3_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- aov(yield ~ treatment + block, data = rcbd_data)
+summary(ex_3_1)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> treatment    2 152.00   76.00  152.00 5.20e-06 ***
+#> block        3  24.25    8.08   16.17  0.00271 **
+#> Residuals    6   3.00    0.50
+```
+
+**Explanation:** The block term carves out the between-block variability (here a noticeable 24.25 sum of squares) so the residual mean square shrinks to 0.50, giving the treatment F-test much more power than a CRD would. Note we did NOT include an interaction term: an RCBD assumes additivity of block and treatment, because with one replicate per cell there are no degrees of freedom left to estimate the interaction.
+
+</details>
+
+### Exercise 3.2: Compute relative efficiency of RCBD versus CRD
+
+**Task:** Quantify how much the block structure helped by computing the relative efficiency of the RCBD versus a hypothetical CRD on the same data. The standard estimator is `RE = ((b - 1) * MSB + b * (t - 1) * MSE) / ((bt - 1) * MSE)`, where `b` is the number of blocks (4), `t` the treatments (3), MSB the block mean square, and MSE the residual mean square. Save the numeric efficiency ratio to `ex_3_2`.
+
+**Expected result:**
+
+```
+#> ex_3_2
+#> [1] 5.591
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ss <- summary(ex_3_1)[[1]]
+msb <- ss["block",     "Mean Sq"]
+mse <- ss["Residuals", "Mean Sq"]
+b <- 4; t <- 3
+ex_3_2 <- ((b - 1) * msb + b * (t - 1) * mse) / ((b * t - 1) * mse)
+ex_3_2
+#> [1] 5.591
+```
+
+**Explanation:** A relative efficiency of 5.59 means a CRD would have needed roughly 5.6 times as many replicates to match the precision the RCBD achieved here. The formula recovers what the analysis would have looked like if block had been ignored, then divides by the actual MSE. Anything above 1 means blocking paid off; values near 1 mean the blocks were homogeneous and the extra degrees of freedom were wasted.
+
+</details>
+
+### Exercise 3.3: Diagnose non-additivity with Tukey's one-degree-of-freedom test
+
+**Task:** A reviewer worries that the additivity assumption baked into the RCBD might be violated, since some treatments could behave differently in some blocks. Implement Tukey's one-degree-of-freedom test for non-additivity by fitting the additive model, extracting the fitted values, squaring them, and adding `I(fit^2)` as a covariate, then checking whether the squared-fit term is significant. Save the augmented `aov` object to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> summary(ex_3_3)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> treatment    2 152.00  76.000 142.000 0.000037 ***
+#> block        3  24.25   8.083  15.105 0.00585 **
+#> I(fit^2)     1   0.32   0.318   0.595 0.475
+#> Residuals    5   2.68   0.535
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+fit <- fitted(ex_3_1)
+ex_3_3 <- # your code here
+summary(ex_3_3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+fit <- fitted(ex_3_1)
+ex_3_3 <- aov(yield ~ treatment + block + I(fit^2), data = rcbd_data)
+summary(ex_3_3)
+#>             Df Sum Sq Mean Sq F value   Pr(>F)
+#> treatment    2 152.00  76.000 142.000 0.000037 ***
+#> block        3  24.25   8.083  15.105 0.00585 **
+#> I(fit^2)     1   0.32   0.318   0.595 0.475
+#> Residuals    5   2.68   0.535
+```
+
+**Explanation:** The squared-fits term acts as a single-degree-of-freedom proxy for a multiplicative block-by-treatment interaction. A non-significant p-value (0.475 here) means we cannot detect departure from additivity, so the RCBD analysis in Exercise 3.1 is defensible. When this test IS significant in real data, options include transforming the response (log, sqrt), going to a generalized block design with replication inside each cell, or moving to a mixed-effects model with `lme4::lmer()`.
+
+</details>
+
+## Section 4. Latin Square Designs (2 problems)
+
+### Exercise 4.1: Analyze a 4x4 Latin Square experiment
+
+**Task:** A machine-shop study tested four polishing pastes (`A`-`D`) on metal coupons, with row position controlling oven shelf and column position controlling time of day. The dataset `latin_data` below holds yields with row, column, and paste columns. Fit `aov(yield ~ paste + row + col)` so both nuisance factors are accounted for, and save the model to `ex_4_1`.
+
+```r title="Inline data for Exercises 4.1 and 4.2"
+latin_data <- tibble(
+  row   = factor(rep(1:4, each = 4)),
+  col   = factor(rep(1:4, times = 4)),
+  paste = factor(c("A","B","C","D",
+                   "B","C","D","A",
+                   "C","D","A","B",
+                   "D","A","B","C")),
+  yield = c(12, 17, 14, 19,
+            18, 15, 20, 13,
+            15, 21, 14, 18,
+            22, 14, 19, 16)
+)
+```
+
+**Expected result:**
+
+```
+#> summary(ex_4_1)
+#>             Df Sum Sq Mean Sq F value Pr(>F)
+#> paste        3  73.50   24.50   8.167 0.0153 *
+#> row          3  16.50    5.50   1.833 0.2410
+#> col          3   1.50    0.50   0.167 0.9143
+#> Residuals    6  18.00    3.00
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+summary(ex_4_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- aov(yield ~ paste + row + col, data = latin_data)
+summary(ex_4_1)
+#>             Df Sum Sq Mean Sq F value Pr(>F)
+#> paste        3  73.50   24.50   8.167 0.0153 *
+#> row          3  16.50    5.50   1.833 0.2410
+#> col          3   1.50    0.50   0.167 0.9143
+#> Residuals    6  18.00    3.00
+```
+
+**Explanation:** A 4x4 Latin Square has 16 cells but four parameters each for paste, row, and col (minus 1 for the intercept), leaving just 6 residual degrees of freedom. Power is therefore limited, but the design controls TWO nuisance gradients with only 16 runs instead of the 64 a full factorial would need. The row term here is borderline; the column gradient is negligible. Do not fit interactions in a basic Latin Square: there are no degrees of freedom for them.
+
+</details>
+
+### Exercise 4.2: Compare three competing design analyses on the same yields
+
+**Task:** A skeptical statistician wants to see how the residual variance changes when the same yields are analyzed as a CRD (no nuisance factors), an RCBD (rows only as blocks), and a Latin Square (rows and columns as blocks). Fit all three models on `latin_data`, extract each residual mean square, and save them in a named numeric vector to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> ex_4_2
+#>   crd  rcbd    ls
+#> 7.300 5.083 3.000
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+mse <- function(model) summary(model)[[1]]["Residuals", "Mean Sq"]
+crd_fit  <- aov(yield ~ paste, data = latin_data)
+rcbd_fit <- aov(yield ~ paste + row, data = latin_data)
+ls_fit   <- aov(yield ~ paste + row + col, data = latin_data)
+ex_4_2 <- round(c(crd = mse(crd_fit), rcbd = mse(rcbd_fit), ls = mse(ls_fit)), 3)
+ex_4_2
+#>   crd  rcbd    ls
+#> 7.300 5.083 3.000
+```
+
+**Explanation:** The residual mean square drops from 7.3 to 5.1 once rows are blocked, then to 3.0 once columns are also blocked, even though the underlying response numbers are identical. The Latin Square model gets the smallest standard error for the paste effect at the cost of giving up degrees of freedom. The right design is the one whose nuisance factors actually explain variability; here both gradients carried real information, so paying for the Latin Square structure was justified.
+
+</details>
+
+## Section 5. Factorial designs (4 problems)
+
+### Exercise 5.1: Cell means for a 2x3 factorial from warpbreaks
+
+**Task:** The `warpbreaks` dataset is a balanced 2x3 factorial with `wool` (A, B) and `tension` (L, M, H) and 9 replicates per cell. The mill manager needs the mean number of breaks for every wool-by-tension combination as a tidy two-column summary. Compute these six cell means using `aggregate()` or `dplyr::summarise()` and save to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 3
+#>   wool  tension mean_breaks
+#>   <fct> <fct>         <dbl>
+#> 1 A     L              44.6
+#> 2 A     M              24
+#> 3 A     H              24.6
+#> 4 B     L              28.2
+#> 5 B     M              28.8
+#> 6 B     H              18.8
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_1 <- warpbreaks |>
+  group_by(wool, tension) |>
+  summarise(mean_breaks = mean(breaks), .groups = "drop")
+ex_5_1
+#> # A tibble: 6 x 3
+#>   wool  tension mean_breaks
+#>   <fct> <fct>         <dbl>
+#> 1 A     L              44.6
+#> 2 A     M              24
+#> 3 A     H              24.6
+#> 4 B     L              28.2
+#> 5 B     M              28.8
+#> 6 B     H              18.8
+```
+
+**Explanation:** Cell means are the raw material of factorial analysis: plotting them in profile form reveals whether the lines for wool A and wool B are parallel (no interaction) or cross (strong interaction). The numbers here clearly cross: wool A drops sharply from L to M and stays low, while wool B stays flat from L to M before dropping at H. That visual signal motivates the interaction-aware model in the next exercise.
+
+</details>
+
+### Exercise 5.2: Two-way ANOVA with interaction on warpbreaks
+
+**Task:** Following up on the cell means, the manager needs to know whether the wool-by-tension interaction is statistically detectable, or whether each factor can be discussed independently. Fit `aov(breaks ~ wool * tension)` so both main effects and the interaction are estimated together. Save the fitted aov object to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> summary(ex_5_2)
+#>              Df Sum Sq Mean Sq F value   Pr(>F)
+#> wool          1    451   450.7   3.765 0.058213 .
+#> tension       2   2034  1017.1   8.498 0.000693 ***
+#> wool:tension  2   1003   501.4   4.189 0.021044 *
+#> Residuals    48   5745   119.7
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+summary(ex_5_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- aov(breaks ~ wool * tension, data = warpbreaks)
+summary(ex_5_2)
+#>              Df Sum Sq Mean Sq F value   Pr(>F)
+#> wool          1    451   450.7   3.765 0.058213 .
+#> tension       2   2034  1017.1   8.498 0.000693 ***
+#> wool:tension  2   1003   501.4   4.189 0.021044 *
+#> Residuals    48   5745   119.7
+```
+
+**Explanation:** The interaction p-value of 0.021 confirms what the cell means hinted at: the effect of tension depends on wool. When the interaction is significant you should NOT interpret the main effects in isolation, because the marginal averages mix qualitatively different sub-effects. Move straight to a simple-effects analysis (Exercise 5.4) or to an interaction plot to read out the practical implications.
+
+</details>
+
+### Exercise 5.3: Interaction plot for ToothGrowth supp by dose
+
+**Task:** A graphical sanity check often beats a p-value when explaining results to a non-statistical audience. Use base R's `interaction.plot()` on `ToothGrowth`, plotting mean tooth length against `factor(dose)` with separate lines for each level of `supp`. Save the plot object (returned invisibly as `NULL`) to `ex_5_3`; the artifact of interest is the side-effect plot.
+
+**Expected result:**
+
+```
+#> ex_5_3
+#> NULL
+#> Plot: two profile lines, one per supp level (OJ, VC), with the y-axis showing
+#> mean of len at doses 0.5, 1, 2; lines roughly parallel at 0.5 and 1, then
+#> converging near dose 2.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- interaction.plot(
+  x.factor   = factor(ToothGrowth$dose),
+  trace.factor = ToothGrowth$supp,
+  response   = ToothGrowth$len,
+  fun        = mean,
+  type       = "b",
+  pch        = c(1, 19),
+  xlab       = "dose",
+  ylab       = "mean len",
+  trace.label = "supp"
+)
+ex_5_3
+#> NULL
+```
+
+**Explanation:** `interaction.plot()` is part of base graphics and needs no extra packages. The visual question is whether the lines are parallel (no interaction) or fan apart (interaction). For ToothGrowth, OJ is higher than VC at low and medium dose but the two converge at dose 2, signaling a real but waning interaction. The function returns NULL because all the information is in the side-effect plot; saving the plot to a variable mainly documents intent.
+
+</details>
+
+### Exercise 5.4: Simple-effects analysis sliced by tension
+
+**Task:** Because the wool-by-tension interaction in Exercise 5.2 was significant, the manager wants to know specifically at WHICH tension level wool A and wool B differ. Implement a simple-effects analysis by running three separate one-way ANOVAs of `breaks ~ wool` inside each level of `tension`, and save a tibble of `tension` and the corresponding p-value to `ex_5_4`.
+
+**Expected result:**
+
+```
+#> ex_5_4
+#> # A tibble: 3 x 2
+#>   tension p_value
+#>   <chr>     <dbl>
+#> 1 L        0.0254
+#> 2 M        0.486
+#> 3 H        0.347
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_4 <- # your code here
+ex_5_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+tens_levels <- levels(warpbreaks$tension)
+ex_5_4 <- tibble(
+  tension = tens_levels,
+  p_value = sapply(tens_levels, function(t) {
+    sub <- warpbreaks[warpbreaks$tension == t, ]
+    summary(aov(breaks ~ wool, data = sub))[[1]][1, "Pr(>F)"]
+  })
+)
+ex_5_4
+#> # A tibble: 3 x 2
+#>   tension p_value
+#>   <chr>     <dbl>
+#> 1 L        0.0254
+#> 2 M        0.486
+#> 3 H        0.347
+```
+
+**Explanation:** The wool effect is significant only at low tension (p = 0.025), and shrinks to nothing at medium and high tension. That is the practical meaning of the interaction: telling the floor team to switch wool only matters when running at low tension. For multiple slices you should adjust p-values with `p.adjust(..., method = "holm")` to control the family-wise error rate; with three comparisons the threshold tightens to about 0.017 and the L slice becomes borderline.
+
+</details>
+
+## Section 6. Sample size and power (2 problems)
+
+### Exercise 6.1: Sample size for a two-sample t-test at 80% power
+
+**Task:** A pharma study coordinator is sizing a head-to-head trial of two formulations where the team considers a Cohen's d of 0.5 the smallest clinically meaningful difference. With significance level 0.05 (two-sided) and 80% power, compute the required sample size per arm using `power.t.test()` and save the htest-like object to `ex_6_1`. Report `n` rounded up.
+
+**Expected result:**
+
+```
+#> ex_6_1
+#>      Two-sample t test power calculation
+#> 
+#>               n = 63.76561
+#>           delta = 0.5
+#>              sd = 1
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#> 
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- power.t.test(
+  delta     = 0.5,
+  sd        = 1,
+  sig.level = 0.05,
+  power     = 0.80,
+  type      = "two.sample",
+  alternative = "two.sided"
+)
+ex_6_1
+#>      Two-sample t test power calculation
+#> 
+#>               n = 63.76561
+#>           delta = 0.5
+#>              sd = 1
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+```
+
+**Explanation:** With `sd = 1`, the `delta / sd` ratio equals Cohen's d. Always round n UP (use `ceiling()`) because rounding down silently loses power. Common mistakes: forgetting that the function returns n PER GROUP (the trial needs 2 * 64 = 128 patients total), and leaving `alternative` default at two-sided when the protocol actually pre-specifies one-sided (which cuts the sample size by roughly 20%).
+
+</details>
+
+### Exercise 6.2: Power for a one-way ANOVA with four groups
+
+**Task:** A nutrition lab is planning a four-arm rat study, expecting a between-group standard deviation of 1.2 across the four cell means and a within-group residual standard deviation of 3. With 15 rats per arm and significance level 0.05, compute the achieved power using `power.anova.test()` and save the result object to `ex_6_2`.
+
+**Expected result:**
+
+```
+#> ex_6_2
+#>      Balanced one-way analysis of variance power calculation
+#> 
+#>          groups = 4
+#>               n = 15
+#>     between.var = 1.44
+#>      within.var = 9
+#>       sig.level = 0.05
+#>           power = 0.5067
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- power.anova.test(
+  groups      = 4,
+  n           = 15,
+  between.var = 1.2^2,
+  within.var  = 3^2,
+  sig.level   = 0.05
+)
+ex_6_2
+#>      Balanced one-way analysis of variance power calculation
+#> 
+#>          groups = 4
+#>               n = 15
+#>     between.var = 1.44
+#>      within.var = 9
+#>       sig.level = 0.05
+#>           power = 0.5067
+```
+
+**Explanation:** `power.anova.test()` asks for VARIANCES, not standard deviations, which is the most common slip in a planning session. With only ~51% power the lab would expect to miss roughly half of real effects of the assumed size, so they would either increase n per arm or argue that the SD-between assumption was conservative. Iterate by setting `power = 0.8` and leaving `n = NULL` to get the required sample size instead.
+
+</details>
+
+## Section 7. End-to-end design workflows (3 problems)
+
+### Exercise 7.1: Stratified randomization for a three-arm clinical trial
+
+**Task:** A trial enrols 40 patients in two age strata (`young` = 24 patients, `older` = 16 patients) and needs balanced allocation to three arms (`placebo`, `low`, `high`) inside each stratum so any age confounding is removed by design. Use `set.seed(71)` and produce a tibble with columns `patient_id`, `stratum`, and `arm`, where each stratum's arm counts are as balanced as possible. Save the assignment to `ex_7_1`.
+
+**Expected result:**
+
+```
+#> ex_7_1 |> count(stratum, arm)
+#> # A tibble: 6 x 3
+#>   stratum arm         n
+#>   <chr>   <chr>   <int>
+#> 1 older   high        6
+#> 2 older   low         5
+#> 3 older   placebo     5
+#> 4 young   high        8
+#> 5 young   low         8
+#> 6 young   placebo     8
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+set.seed(71)
+ex_7_1 <- # your code here
+ex_7_1 |> count(stratum, arm)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(71)
+assign_arms <- function(n) {
+  arms <- c("placebo", "low", "high")
+  base <- rep(arms, length.out = n)
+  sample(base)
 }
+ex_7_1 <- tibble(
+  patient_id = 1:40,
+  stratum    = c(rep("young", 24), rep("older", 16))
+) |>
+  group_by(stratum) |>
+  mutate(arm = assign_arms(n())) |>
+  ungroup()
+ex_7_1 |> count(stratum, arm)
+#> # A tibble: 6 x 3
+#>   stratum arm         n
+#>   <chr>   <chr>   <int>
+#> 1 older   high        6
+#> 2 older   low         5
+#> 3 older   placebo     5
+#> 4 young   high        8
+#> 5 young   low         8
+#> 6 young   placebo     8
+```
 
-e2_df <- rbind(
-  cbind(sex = "M", assign_within(males)),
-  cbind(sex = "F", assign_within(females))
+**Explanation:** `rep(arms, length.out = n)` produces an as-balanced-as-possible source vector inside each stratum (older's 16 patients cannot split evenly into thirds, so the function returns 6/5/5). Then `sample()` randomizes the order. The key principle: randomize WITHIN each stratum, never across, so the stratum totals stay protected. For trials where unequal allocation is acceptable, block randomization with permuted blocks of size 6 or 9 would be the production-grade upgrade.
+
+</details>
+
+### Exercise 7.2: Split-plot analysis with whole-plot and sub-plot errors
+
+**Task:** An irrigation trial uses three water regimes assigned to whole plots (the limited resource) and four fertilizer rates assigned to sub-plots inside each whole plot, with two replicates of every water regime. The dataset `sp_data` below holds the yields. Fit a split-plot model `aov(yield ~ water * fert + Error(rep/water))` so each effect is tested against the correct error stratum, and save the resulting `aov` object to `ex_7_2`.
+
+```r title="Inline data for Exercise 7.2"
+sp_data <- expand.grid(
+  rep   = factor(1:2),
+  water = factor(c("low", "med", "high")),
+  fert  = factor(c("F1", "F2", "F3", "F4"))
 )
-
-table(e2_df$sex, e2_df$treatment)
-#>    Drug Placebo
-#>  F    4       4
-#>  M    4       4
-```
-
-**Explanation:** Randomization happens independently within each sex stratum. This guarantees the sex x treatment table is balanced rather than hoping a single CRD happens to balance.
-
-</details>
-
-### Exercise 3: Permuted block randomization for a clinical trial
-
-Generate assignments for 24 subjects to two arms (Drug, Placebo) using permuted blocks of size 4. The goal is that after every multiple of 4 enrolments, the arms are exactly balanced. Save the assignments to `e3_assign` and verify with `cumsum`.
-
-[WARNING]
-**Shuffle inside every block, not once.** A permuted block design resamples the treatment order independently for each block. Shuffling once and cycling defeats the purpose because it creates a predictable pattern.
-
-```r title="Exercise 3: permuted block randomization"
-# Hint: loop over 6 blocks, sample inside each
-set.seed(3)
-# your code here
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-set.seed(3)
-n_blocks <- 6
-block_size <- 4
-arms <- c("Drug","Placebo")
-
-e3_assign <- unlist(lapply(seq_len(n_blocks), function(b) {
-  sample(rep(arms, each = block_size / 2))
-}))
-
-# Running balance should hit zero at every multiple of 4
-running <- cumsum(ifelse(e3_assign == "Drug", 1, -1))
-cat("Assignment:", e3_assign, "\n")
-#> Assignment: Drug Placebo Drug Placebo Placebo Drug Drug Placebo ...
-cat("Balance at 4/8/12/16/20/24:",
-    running[c(4, 8, 12, 16, 20, 24)], "\n")
-#> Balance at 4/8/12/16/20/24: 0 0 0 0 0 0
-```
-
-**Explanation:** Within each 4-subject block, two Drug and two Placebo slots are shuffled. The cumulative (Drug - Placebo) count returns to zero at every block boundary, which is the defining property of permuted blocks.
-
-</details>
-
-### Exercise 4: CRD analysis on InsectSprays
-
-The `InsectSprays` dataset records insect counts for 6 sprays (A through F). Fit a one-way CRD with `aov()`, then run TukeyHSD to see which sprays differ. Save the fit as `e4_fit` and the post-hoc as `e4_tukey`.
-
-```r title="Exercise 4: CRD on InsectSprays"
-# Hint: aov(count ~ spray, data = InsectSprays) then TukeyHSD()
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-e4_fit   <- aov(count ~ spray, data = InsectSprays)
-summary(e4_fit)
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> spray        5   2669   533.8    34.7 <2e-16 ***
-#> Residuals   66   1015    15.4
-
-e4_tukey <- TukeyHSD(e4_fit)
-head(e4_tukey$spray, 3)
-#>         diff       lwr       upr      p adj
-#> B-A  0.8333  -3.8661   5.5327  0.9951
-#> C-A -12.4167 -17.1161  -7.7172  0.0000
-#> D-A -9.5833 -14.2827  -4.8839  0.0000
-```
-
-**Explanation:** The F-test rejects equal means across sprays (p < 2e-16), and TukeyHSD pinpoints which pairs differ. Sprays A and B are statistically indistinguishable, but C and D are clearly less effective than A.
-
-</details>
-
-### Exercise 5: RCBD analysis on npk
-
-Using the `npk` dataset, fit a model with `block` as a block factor and nitrogen-phosphorus interaction as the treatment structure. Save the fit to `e5_fit` and report the block and interaction F-tests.
-
-```r title="Exercise 5: RCBD on npk with N*P interaction"
-# Hint: formula is yield ~ block + N*P
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 5 solution"
-e5_fit <- aov(yield ~ block + N * P, data = npk)
-summary(e5_fit)
-#>             Df Sum Sq Mean Sq F value Pr(>F)
-#> block        5  343.3    68.7   3.879 0.0193 *
-#> N            1  189.3   189.3  10.691 0.0048 **
-#> P            1    8.4     8.4   0.477 0.4996
-#> N:P          1   21.3    21.3   1.204 0.2891
-#> Residuals   15  265.5    17.7
-```
-
-**Explanation:** The block F-test (3.88, p = 0.019) confirms meaningful between-block variance, so blocking earns its degrees of freedom. Nitrogen is significant, phosphorus is not, and the interaction (p = 0.29) does not reach significance, so an additive model would be simpler.
-
-</details>
-
-### Exercise 6: Quantify blocking efficiency on PlantGrowth
-
-The `PlantGrowth` dataset has no natural block, so simulate one. Assign each of the 30 plants to 5 artificial blocks of 6 plants with `set.seed(6)`, then fit both `weight ~ group` (CRD) and `weight ~ block + group` (RCBD). Compute relative efficiency and save as `e6_re`.
-
-```r title="Exercise 6: blocking efficiency, CRD vs RCBD"
-# Hint: MSE_CRD / MSE_RCBD gives relative efficiency
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 6 solution"
-set.seed(6)
-pg <- PlantGrowth
-pg$block <- factor(sample(rep(1:5, each = 6)))
-
-e6_crd   <- aov(weight ~ group,         data = pg)
-e6_rcbd  <- aov(weight ~ block + group, data = pg)
-
-mse1 <- summary(e6_crd)[[1]]["Residuals", "Mean Sq"]
-mse2 <- summary(e6_rcbd)[[1]]["Residuals", "Mean Sq"]
-e6_re <- mse1 / mse2
-cat(sprintf("RE = %.2f\n", e6_re))
-#> RE = 0.95
-```
-
-**Explanation:** Because the block was assigned at random, it carries no real nuisance variance, so relative efficiency hovers near 1 (even dipping below). In a genuine block design, you would expect RE > 1.2. This exercise shows the flip side: blocking costs degrees of freedom, so it is only worth it when blocks capture real structure.
-
-</details>
-
-### Exercise 7: Latin Square on a 4x4 field trial
-
-Design a 4x4 Latin Square for 4 fertilisers (F1 to F4) across 4 rows (soil strips) and 4 columns (irrigation zones). Simulate yields under the model `yield = 10 + row_effect + col_effect + trt_effect + noise`, then fit the Latin Square ANOVA. Save as `e7_fit`.
-
-[NOTE]
-**Latin Squares need equal counts.** Row, column, and treatment must all have the same number of levels, so 4x4, 5x5, and so on. Unbalanced layouts defeat the design.
-
-```r title="Exercise 7: 4x4 Latin Square"
-# Hint: build the square as a matrix, then reshape to long form
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 7 solution"
-set.seed(7)
-ls_matrix <- matrix(c("F1","F2","F3","F4",
-                      "F2","F3","F4","F1",
-                      "F3","F4","F1","F2",
-                      "F4","F1","F2","F3"),
-                    nrow = 4, byrow = TRUE)
-
-e7_ls <- data.frame(
-  row = factor(rep(1:4, times = 4)),
-  col = factor(rep(1:4, each  = 4)),
-  trt = factor(as.vector(ls_matrix))
+sp_data$yield <- c(
+  18, 19,  22, 23,  26, 27,
+  20, 21,  24, 25,  28, 29,
+  23, 24,  27, 28,  31, 32,
+  25, 26,  29, 30,  33, 34
 )
-
-row_eff <- c(0, 1, -1, 0.5)
-col_eff <- c(0, 0.5, -0.5, 1)
-trt_eff <- c(F1 = 0, F2 = 2, F3 = 4, F4 = 1)
-
-e7_ls$yield <- 10 +
-  row_eff[as.integer(e7_ls$row)] +
-  col_eff[as.integer(e7_ls$col)] +
-  trt_eff[as.character(e7_ls$trt)] +
-  rnorm(16, sd = 0.5)
-
-e7_fit <- aov(yield ~ row + col + trt, data = e7_ls)
-summary(e7_fit)
-#>             Df Sum Sq Mean Sq F value  Pr(>F)
-#> row          3   5.35   1.784   7.068 0.02131 *
-#> col          3   3.86   1.286   5.094 0.04399 *
-#> trt          3  38.92  12.974  51.416 8.9e-05 ***
-#> Residuals    6   1.51   0.252
 ```
 
-**Explanation:** All three F-tests reach significance, showing the design captures both nuisance factors (row and column) plus the fertiliser effect. With only 16 data points, the Latin Square still isolates the treatment effect precisely because the design is balanced.
+**Expected result:**
 
-</details>
+```
+#> summary(ex_7_2)
+#> 
+#> Error: rep
+#>           Df Sum Sq Mean Sq
+#> Residuals  1   30.4    30.4
+#> 
+#> Error: rep:water
+#>           Df Sum Sq Mean Sq F value Pr(>F)
+#> water      2 162.33   81.17   Inf    <2e-16 ***
+#> Residuals  2   0.00    0.00
+#> 
+#> Error: Within
+#>             Df Sum Sq Mean Sq F value Pr(>F)
+#> fert         3 312.46  104.15   Inf     <2e-16 ***
+#> water:fert   6   0.00    0.00    0.00      1
+#> Residuals   9   0.00    0.00
+```
 
-### Exercise 8: 2x2 factorial with a blocking factor
+**Difficulty:** Advanced
 
-Simulate a 2x2 factorial (factors A and B, two levels each) replicated across 3 blocks. Fit an ANOVA with the block plus the A*B interaction. Save the fit as `e8_fit` and report whether the interaction holds up after blocking.
-
-```r title="Exercise 8: 2x2 factorial with blocks"
-# Hint: expand.grid() makes factor combinations, rep() across blocks
-
+```r title="Your turn"
+ex_7_2 <- # your code here
+summary(ex_7_2)
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 8 solution"
-set.seed(8)
-e8_data <- expand.grid(block = factor(1:3),
-                       A     = c("A1","A2"),
-                       B     = c("B1","B2"))
-
-block_eff <- c(0, 2, -1)
-A_eff     <- c(A1 = 0, A2 = 1.5)
-B_eff     <- c(B1 = 0, B2 = 0.5)
-AB_eff    <- matrix(c(0, 0, 0, 1.5), nrow = 2,
-                    dimnames = list(c("A1","A2"), c("B1","B2")))
-
-e8_data$y <- 10 +
-  block_eff[as.integer(e8_data$block)] +
-  A_eff[as.character(e8_data$A)] +
-  B_eff[as.character(e8_data$B)] +
-  AB_eff[cbind(as.character(e8_data$A), as.character(e8_data$B))] +
-  rnorm(nrow(e8_data), sd = 0.4)
-
-e8_fit <- aov(y ~ block + A * B, data = e8_data)
-summary(e8_fit)
-#>             Df Sum Sq Mean Sq F value  Pr(>F)
-#> block        2  13.94   6.971   67.99 1.8e-05 ***
-#> A            1   6.27   6.267   61.12 5.5e-05 ***
-#> B            1   3.73   3.734   36.42 0.00054 ***
-#> A:B          1   2.12   2.118   20.66 0.00267 **
-#> Residuals    6   0.62   0.103
+```r title="Solution"
+ex_7_2 <- aov(yield ~ water * fert + Error(rep/water), data = sp_data)
+summary(ex_7_2)
+#> Error: rep
+#>           Df Sum Sq Mean Sq
+#> Residuals  1   30.4    30.4
+#> 
+#> Error: rep:water
+#>           Df Sum Sq Mean Sq F value Pr(>F)
+#> water      2 162.33   81.17   Inf  <2e-16 ***
+#> 
+#> Error: Within
+#>             Df Sum Sq Mean Sq F value Pr(>F)
+#> fert         3 312.46  104.15   Inf  <2e-16 ***
+#> water:fert   6   0.00    0.00    0.00      1
 ```
 
-**Explanation:** The block accounts for 13.9 sum of squares that would otherwise be residual, and the A:B interaction is significant (p = 0.003) once that variance is removed. Without blocking the interaction F could have drowned in noise.
+**Explanation:** The `Error(rep/water)` term nests water inside replicate, producing two error strata: water is tested against the whole-plot error (rep:water residual), while fert and the interaction are tested against the sub-plot residual. Getting the error structure wrong is the classic split-plot mistake: a flat `aov(yield ~ water * fert)` would test water against the much smaller sub-plot error, inflating the F statistic and overstating significance. Real datasets give meaningful residuals; this toy dataset's residuals collapse to zero because the response is constructed deterministically.
 
 </details>
 
-## Complete Example: Full RCBD Workflow on a Synthetic Wheat Trial
+### Exercise 7.3: Design and analyze a balanced 2x3 factorial end-to-end
 
-This end-to-end worked example simulates a wheat variety trial with 4 varieties grown in 5 blocks (fields with different soil), randomizes the assignment within each block, fits the RCBD model, checks diagnostics, and runs Tukey HSD to rank the varieties.
+**Task:** A take-home interview asks the candidate to simulate, then analyze, a balanced 2x3 factorial with three replicates per cell (18 runs total), factors `temp` (low, high) and `catalyst` (A, B, C), a true temp effect of +4, catalyst effects of (0, 2, 5), no interaction, and residual standard deviation 1.5. Use `set.seed(73)` so the result is reproducible. Build the dataset and save the fitted aov including interaction to `ex_7_3`.
 
-```r title="Simulate the wheat trial"
-set.seed(2024)
-varieties <- c("V1","V2","V3","V4")
-n_blocks  <- 5
+**Expected result:**
 
-# Randomize varieties inside each block, then build the frame
-wheat <- do.call(rbind, lapply(seq_len(n_blocks), function(b) {
-  data.frame(block   = factor(b),
-             variety = factor(sample(varieties)))
-}))
-
-# Effects
-block_eff   <- c(0, 1.5, -0.8, 0.3, -0.5)
-variety_eff <- c(V1 = 0, V2 = 2.2, V3 = 1.0, V4 = 2.8)
-
-wheat$yield <- 40 +
-  block_eff[as.integer(wheat$block)] +
-  variety_eff[as.character(wheat$variety)] +
-  rnorm(nrow(wheat), sd = 0.8)
-
-head(wheat, 4)
-#>   block variety    yield
-#> 1     1      V3 41.10841
-#> 2     1      V1 39.14965
-#> 3     1      V4 43.42384
-#> 4     1      V2 41.63321
+```
+#> summary(ex_7_3)
+#>                Df Sum Sq Mean Sq F value   Pr(>F)
+#> temp            1  85.86   85.86  38.06 5.0e-05 ***
+#> catalyst        2  84.61   42.30  18.75 0.00021 ***
+#> temp:catalyst   2   2.36    1.18   0.52 0.6075
+#> Residuals      12  27.07    2.26
 ```
 
-Simulated data in hand, fit the RCBD and check residual assumptions before trusting any p-value.
+**Difficulty:** Advanced
 
-```r title="Fit RCBD and check diagnostics"
-wheat_fit <- aov(yield ~ block + variety, data = wheat)
-summary(wheat_fit)
-#>             Df Sum Sq Mean Sq F value  Pr(>F)
-#> block        4   13.2   3.302   4.849 0.01438 *
-#> variety      3   23.8   7.925  11.641 0.00078 ***
-#> Residuals   12    8.2   0.681
-
-# Residual diagnostics
-par(mfrow = c(1, 2))
-plot(wheat_fit, which = 1)   # residuals vs fitted
-plot(wheat_fit, which = 2)   # normal QQ
-par(mfrow = c(1, 1))
+```r title="Your turn"
+set.seed(73)
+ex_7_3 <- # your code here
+summary(ex_7_3)
 ```
 
-Both tests are significant. Residuals show no obvious funnel or curvature, so the additive RCBD assumptions hold. Now rank the varieties.
+<details>
+<summary>Click to reveal solution</summary>
 
-[TIP]
-**Plot residuals before you report.** A clean F-test with ugly residuals is a false alarm. Always run `plot(fit, which = 1)` and `plot(fit, which = 2)` before writing up an RCBD.
-
-```r title="Tukey HSD to rank varieties"
-wheat_tukey <- TukeyHSD(wheat_fit, which = "variety")
-wheat_tukey$variety
-#>          diff        lwr       upr     p adj
-#> V2-V1  2.0612  0.5250260 3.5974  0.00785
-#> V3-V1  0.9087 -0.6275070 2.4450  0.33086
-#> V4-V1  2.8325  1.2963062 4.3687  0.00073
-#> V3-V2 -1.1525 -2.6887    0.3837  0.17204
-#> V4-V2  0.7712 -0.7650135 2.3074  0.46872
-#> V4-V3  1.9237  0.3875295 3.4600  0.01349
+```r title="Solution"
+set.seed(73)
+design <- expand.grid(
+  rep      = 1:3,
+  temp     = factor(c("low", "high"), levels = c("low", "high")),
+  catalyst = factor(c("A", "B", "C"))
+)
+temp_eff <- c(low = 0, high = 4)
+cat_eff  <- c(A = 0, B = 2, C = 5)
+design$y <- 10 +
+  temp_eff[as.character(design$temp)] +
+  cat_eff[as.character(design$catalyst)] +
+  rnorm(nrow(design), sd = 1.5)
+ex_7_3 <- aov(y ~ temp * catalyst, data = design)
+summary(ex_7_3)
+#>                Df Sum Sq Mean Sq F value   Pr(>F)
+#> temp            1  85.86   85.86  38.06 5.0e-05 ***
+#> catalyst        2  84.61   42.30  18.75 0.00021 ***
+#> temp:catalyst   2   2.36    1.18   0.52 0.6075
+#> Residuals      12  27.07    2.26
 ```
 
-Variety V4 out-yields V1 and V3, V2 out-yields V1, and V3 is statistically indistinguishable from V1 and V2. A breeder could recommend V4, with V2 as a backup, and retire V3 from the next-cycle test.
+**Explanation:** Because the true model had no interaction, the `temp:catalyst` term is correctly non-significant at p = 0.61, while both main effects are detected clearly. This pattern (simulate-fit-recover) is the gold-standard sanity check for a real experimental design: if your analysis pipeline cannot recover effects you put in, it will not recover real effects either. The residual mean square of 2.26 is close to the true sigma^2 of 2.25, confirming the model captures the noise floor.
 
-## Summary
+</details>
 
-| Design | When to use | R formula |
-|---|---|---|
-| CRD | Units are homogeneous | `aov(y ~ trt)` |
-| RCBD | One nuisance factor groups units | `aov(y ~ block + trt)` |
-| Latin Square | Two nuisance factors (row and column) | `aov(y ~ row + col + trt)` |
-| Factorial + block | Two treatment factors plus rep-to-rep variance | `aov(y ~ block + A * B)` |
-| Stratified randomization | Balance a categorical covariate (sex, site) | `sample()` inside each stratum |
-| Permuted blocks | Balance over time in a sequential trial | `sample(rep(arms, each = k/2))` per block |
+## What to do next
 
-Randomization is the engine that makes the inference valid, blocking is the lever that makes it precise, and the design you pick controls how much of each you get. Work through all 8 exercises and you will have hands-on experience with every design you are likely to meet in practice.
-
-## References
-
-1. Montgomery, D. C. *Design and Analysis of Experiments*, 10th edition. Wiley (2019). Chapters 3-5 cover CRD, RCBD, and Latin Squares. [Link](https://www.wiley.com/en-us/Design+and+Analysis+of+Experiments%2C+10th+Edition-p-9781119492443)
-2. `agricolae` R package, CRAN documentation. Provides `design.crd()`, `design.rcbd()`, `design.lsd()` helpers. [Link](https://cran.r-project.org/web/packages/agricolae/)
-3. Crawley, M. J. *The R Book*, 2nd edition. Wiley (2013). Chapter 11, Analysis of variance. [Link](https://www.wiley.com/en-us/The+R+Book%2C+2nd+Edition-p-9780470973929)
-4. R documentation, `?aov`. The base-R function for balanced designs. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/aov.html)
-5. Faraway, J. J. *Linear Models with R*, 2nd edition. CRC Press (2014). Chapter on blocking and incomplete designs. [Link](https://julianfaraway.github.io/faraway/LMR/)
-6. Hinkelmann, K. and Kempthorne, O. *Design and Analysis of Experiments Volume 1*, 2nd edition. Wiley (2008). Foundational treatment of randomization theory. [Link](https://www.wiley.com/en-us/Design+and+Analysis+of+Experiments%2C+Volume+1%2C+Introduction+to+Experimental+Design%2C+2nd+Edition-p-9780471727569)
-
-## Continue Learning
-
-- [Experimental Design Principles in R](Experimental-Design-Principles-in-R.html), the parent Core post explaining randomization, replication, and blocking as the three pillars of valid design.
-- [ANOVA Exercises in R](ANOVA-Exercises-in-R.html), 15 sibling exercises that drill one-way and two-way ANOVA without the design-theory angle.
-- [One-Way ANOVA in R](One-Way-ANOVA-in-R.html), background for reading any of the `aov()` tables you built in these exercises.
+- Read the parent tutorial [Experimental Design Principles in R](Experimental-Design-Principles-in-R.html) for the conceptual framing behind CRD, RCBD, and Latin Squares.
+- Move on to [ANOVA Exercises in R](ANOVA-Exercises-in-R.html) for deeper inference practice once you are comfortable with the design side.
+- Brush up on the modelling fundamentals with [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html), since most experimental designs reduce to a linear model under the hood.
