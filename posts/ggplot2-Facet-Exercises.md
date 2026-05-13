@@ -1,699 +1,678 @@
 ---
-title: "ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems, Solved Step-by-Step"
+title: "ggplot2 Facet Exercises in R: 15 Real-World Practice Problems"
 slug: "ggplot2-Facet-Exercises"
-description: "Practice ggplot2 faceting, 8 facet_wrap() and facet_grid() exercises with worked solutions. Covers layout control, free scales, custom labels, background data, and margins."
+description: "Practice ggplot2 faceting with 15 facet_wrap() and facet_grid() exercises covering layout control, free scales, custom labels, margins, and background data."
 keywords: "ggplot2 facet exercises, facet_wrap exercises, facet_grid exercises, ggplot2 practice problems, facet_wrap practice R, facet_grid practice R, ggplot2 multi-panel exercises, ggplot2 faceting practice"
-auto_link_terms: "ggplot2 facet exercises|facet_wrap exercises|facet_grid exercises|ggplot2 faceting practice|facet exercises R"
-auto_link_case_sensitive: false
 mathjax: false
 webr: true
-date: "2026-04-15"
-curriculum_id: "E3.5"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_title: "ggplot2 Facets (8 problems)"
+sidebar_title: "ggplot2 Facets (15 problems)"
+sidebar_order: 145
 fr_parent: "ggplot2-Facets.html"
-difficulty: "Intermediate"
+auto_link_terms: "ggplot2 facet exercises|facet_wrap exercises|facet_grid exercises|ggplot2 faceting practice|facet exercises in R"
+auto_link_case_sensitive: false
+target_keyword: "ggplot2 facet exercises"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# ggplot2 Facet Exercises: 8 facet_wrap() & facet_grid() Practice Problems, Solved Step-by-Step
+# ggplot2 Facet Exercises in R: 15 Real-World Practice Problems
 
-<p class="lead">Faceting splits one busy chart into a panel grid that makes group comparisons effortless. These 8 exercises drill every facet skill, from basic <code>facet_wrap()</code> through <code>facet_grid()</code> margins, with runnable starter code, expected output, and step-by-step solutions.</p>
+<p class="lead">Fifteen hands-on exercises that drill every facet skill in ggplot2: <code>facet_wrap()</code> layout control, <code>facet_grid()</code> for two-variable matrices, free vs fixed scales, custom strip labels, margins, and the background-data overlay trick. Each problem ships with a Task, an expected output, and a hidden step-by-step solution.</p>
 
-## What Do Facets Do and When Do You Use Them?
+Run the setup block once, then attempt each exercise in the Your-turn box before revealing the solution. Sections build from basic `facet_wrap()` through advanced strip-label customization and the background-overlay pattern used in published dashboards.
 
-Facets split a single plot into multiple panels, one per group, so patterns that hide behind overlapping colours become obvious. `facet_wrap()` handles one grouping variable and wraps panels into a flexible grid. `facet_grid()` maps two variables into a strict row-by-column matrix. Let's see both in action before you start the exercises.
-
-```r title="facetwrap and facetgrid basics"
+```r title="Run this once before any exercise"
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(scales)
+```
 
-# facet_wrap: one variable, flexible layout
-ggplot(mpg, aes(x = displ, y = hwy)) +
+## Section 1. facet_wrap() basics (3 problems)
+
+### Exercise 1.1: Split mpg by vehicle class with facet_wrap
+
+**Task:** A car-review editor wants one mini scatterplot of highway MPG versus engine displacement for every vehicle class in the `mpg` dataset, so readers can compare classes side by side. Use `facet_wrap()` to split the plot by the `class` column and save the ggplot object to `ex_1_1`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_1_1.
+#> 7 panels (one per vehicle class: 2seater, compact, midsize, minivan, pickup, subcompact, suv).
+#> Default wrap layout puts panels in 3 columns by 3 rows (last row partial).
+#> Within each panel: hwy on y, displ on x, blue points.
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "steelblue", alpha = 0.7) +
-  facet_wrap(~class) +
-  labs(title = "Highway MPG vs Engine Size by Vehicle Class",
-       x = "Engine Displacement (L)", y = "Highway MPG") +
+  facet_wrap(~ class) +
+  labs(x = "Engine displacement (L)", y = "Highway MPG") +
   theme_minimal()
-#> 7 panels — one per vehicle class.
-#> Compact/subcompact: small engines, high mpg.
-#> SUVs/pickups: large engines, low mpg.
-#> 2seater: large engine but decent highway efficiency.
+
+ex_1_1
+#> 7 panels. Compact and subcompact cluster top-left (small engine, high mpg).
+#> Pickups and SUVs sit bottom-right (large engine, low mpg).
 ```
 
-Each class gets its own visual space. Without faceting, these seven groups would overlap into an unreadable cloud. Here's a quick reference for the functions you'll practice.
-
-| Function | Purpose | Key Arguments |
-|---|---|---|
-| `facet_wrap(~var)` | One variable, flexible grid | `ncol`, `nrow`, `scales`, `dir`, `labeller` |
-| `facet_grid(row ~ col)` | Two variables, strict matrix | `scales`, `space`, `margins`, `labeller` |
-| `scales = "free"` | Independent axis range per panel | `"free_x"`, `"free_y"`, or `"free"` |
-| `as_labeller(c(...))` | Custom strip labels | Named vector: data value → display text |
-| `label_both` | Show variable name + value | Strips read `"cyl: 4"` instead of `"4"` |
-| `margins = TRUE` | Add summary panels | Like "Total" rows in a pivot table |
-
-[KEY INSIGHT]
-**Faceting reveals patterns that colour-coding hides.** When groups overlap, colours blur. Panels give each group visual separation, making slopes, clusters, and outliers jump out instantly.
-
-**Try it:** Create a boxplot of `hwy` grouped by `drv` (drive type), then facet it by `drv` as well. Which drive type has the highest median highway MPG?
-
-```r title="Exercise: Boxplot per drive type"
-# Try it: faceted boxplot by drive type
-ggplot(mpg, aes(x = drv, y = hwy)) +
-  geom_boxplot() +
-  # your code here: add facet_wrap(~drv)
-  theme_minimal()
-#> Expected: 3 panels, one boxplot each — front-wheel has highest median
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Drive boxplot solution"
-ggplot(mpg, aes(x = drv, y = hwy, fill = drv)) +
-  geom_boxplot(show.legend = FALSE) +
-  facet_wrap(~drv) +
-  labs(title = "Highway MPG by Drive Type", x = "Drive Type", y = "Highway MPG") +
-  theme_minimal()
-#> Front-wheel (f) has the highest median at ~28 mpg.
-#> Rear-wheel (r) sits around 25, four-wheel (4) around 19.
-```
-
-**Explanation:** Faceting by the same variable you're grouping by separates each boxplot into its own panel. This is helpful when you want to add per-panel annotations or trend lines later.
+**Explanation:** `facet_wrap(~ class)` takes one categorical variable and lays out one panel per level. Because the formula has nothing on the left, ggplot picks a near-square grid (`ncol` defaults to a value close to `sqrt(n_levels)`). The same x and y scale is reused across panels, which makes cross-panel comparison fair. If groups vary wildly in range you would use `scales = "free_y"` instead.
 
 </details>
 
-## How Do You Create Basic Panels with facet_wrap()? (Exercises 1–2)
+### Exercise 1.2: Force a single-row layout with ncol
 
-These first two exercises build your muscle memory for the most common faceting pattern: `facet_wrap()` with a single grouping variable. You'll split scatter plots and bar charts into readable multi-panel displays.
+**Task:** The editorial team wants the seven `mpg` class panels arranged in a single horizontal strip across the page for a newspaper print column. Rebuild the plot from Exercise 1.1 and force `facet_wrap()` to lay all panels in one row using the `ncol` argument. Save the result to `ex_1_2`.
 
-### Exercise 1: Scatter Plot Faceted by Cylinder Count
+**Expected result:**
 
-**Dataset:** `mpg`
+```
+#> ggplot output saved as ex_1_2.
+#> 7 panels in a single row (1 row by 7 columns).
+#> Panel strips read: 2seater | compact | midsize | minivan | pickup | subcompact | suv.
+#> Each panel is narrow; x-axis tick labels may overlap at smaller widths.
+```
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `cyl` (number of cylinders). Add the title "Highway MPG vs Engine Size by Cylinders" and label axes "Engine Displacement (L)" and "Highway MPG". Colour all points `"coral"`.
+**Difficulty:** Beginner
 
-```r title="Exercise: Scatter by cylinder count"
-# Exercise 1: scatter faceted by cylinder count
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here
-  theme_minimal()
-#> Expected: 4 panels (4, 5, 6, 8 cylinders)
-#> 4-cyl cars cluster at small engines + high mpg
-#> 8-cyl cars spread across large engines + low mpg
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Cylinder scatter solution"
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "coral", alpha = 0.7) +
-  facet_wrap(~cyl) +
-  labs(
-    title = "Highway MPG vs Engine Size by Cylinders",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
+```r title="Solution"
+ex_1_2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "steelblue", alpha = 0.7) +
+  facet_wrap(~ class, ncol = 7) +
+  labs(x = "Engine displacement (L)", y = "Highway MPG") +
   theme_minimal()
-#> 4 panels: 4-cyl (top-left) has small engines, high mpg.
-#> 5-cyl has just a handful of cars.
-#> 6-cyl shows moderate engines, moderate efficiency.
-#> 8-cyl covers the largest engines with the lowest mpg.
+
+ex_1_2
+#> One row, 7 narrow panels.
 ```
 
-**Explanation:** `facet_wrap(~cyl)` creates one panel per unique value in the `cyl` column. ggplot2 picks a sensible grid layout automatically (2 rows x 2 columns for 4 panels).
+**Explanation:** Passing `ncol = 7` overrides the auto-layout and forces a single row. The mirror argument is `nrow`. Use whichever fits the rendering width: `ncol` for wide-aspect outputs (print, dashboards), `nrow` for tall columns (mobile, reports). When both are supplied, `nrow` wins because `facet_wrap` fills column-first. Tick density gets crowded at this width, so consider rotating labels with `theme(axis.text.x = element_text(angle = 45, hjust = 1))`.
 
 </details>
 
-### Exercise 2: Faceted Bar Chart by Drive Type
+### Exercise 1.3: Facet diamonds price by cut quality
 
-**Dataset:** `mpg`
+**Task:** A jeweller analyzing inventory wants one histogram of `price` per cut quality from the `diamonds` dataset, arranged in a 2-by-3 grid. Build a `geom_histogram()` plot and facet by `cut`, forcing exactly 3 columns. Save the ggplot to `ex_1_3`.
 
-**Task:** Count the number of vehicles per `class`, then create a faceted bar chart split by `drv` (drive type). Use `coord_flip()` for horizontal bars and `scales = "free_y"` so each panel shows only its manufacturers.
+**Expected result:**
 
-```r title="Exercise: Class bars by drive"
-# Exercise 2: bar chart faceted by drive type
-# Hint: count(class, drv), then ggplot + geom_col + facet_wrap + coord_flip
-my_counts <- mpg |>
-  count(class, drv)
+```
+#> ggplot output saved as ex_1_3.
+#> 6 panels in a 2-row by 3-col grid (5 cut levels: Fair, Good, Very Good, Premium, Ideal; one cell blank).
+#> Each panel: price histogram, right-skewed, bulk under $5000.
+#> "Fair" panel shows the widest spread; "Ideal" the most peaked at low price.
+```
 
-ggplot(my_counts, aes(x = reorder(class, n), y = n)) +
-  # your code here
-  theme_minimal()
-#> Expected: 3 panels (4, f, r), horizontal bars sorted by count
-#> Front-wheel (f) has the most classes represented
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Class bar solution"
-my_counts <- mpg |>
-  count(class, drv)
-
-ggplot(my_counts, aes(x = reorder(class, n), y = n)) +
-  geom_col(fill = "steelblue", alpha = 0.8) +
-  facet_wrap(~drv, scales = "free_y") +
-  coord_flip() +
-  labs(
-    title = "Vehicle Count by Class and Drive Type",
-    x = "",
-    y = "Number of Vehicles"
-  ) +
+```r title="Solution"
+ex_1_3 <- ggplot(diamonds, aes(x = price)) +
+  geom_histogram(bins = 40, fill = "tomato", color = "white") +
+  facet_wrap(~ cut, ncol = 3) +
+  scale_x_continuous(labels = label_dollar()) +
+  labs(x = "Price", y = "Count") +
   theme_minimal()
-#> Three panels: f (front-wheel) has most variety — compact, midsize lead.
-#> 4 (four-wheel) is dominated by SUVs.
-#> r (rear-wheel) has 2seaters and subcompacts.
+
+ex_1_3
+#> 5 panels filled, last cell empty (cut has 5 levels, grid has 6 slots).
 ```
 
-**Explanation:** `scales = "free_y"` lets each panel show only the classes that exist in that drive type (since `coord_flip()` swaps axes, `"free_y"` controls the class-name axis). `reorder(class, n)` sorts bars by count within each panel.
+**Explanation:** `facet_wrap` accepts ordinal factors (`cut` is ordered) and preserves the factor order in panel arrangement. Because 5 panels do not fit a 3-column grid evenly, the bottom-right cell stays blank. To fill that gap you would either set `ncol = 5` (single row) or use `as.character(cut)` and trim a level. `label_dollar()` from the `scales` package formats the x-axis without manually typing `$` prefixes.
 
 </details>
 
-[TIP]
-**Use coord_flip() for bar charts with long labels.** Horizontal bars avoid the angled or overlapping text that plagues vertical bar charts with many categories.
+## Section 2. facet_grid() for two-variable matrices (3 problems)
 
-**Try it:** Facet the `diamonds` dataset by `cut`, showing a scatter of `carat` (x) vs `price` (y) with `alpha = 0.1`. Which cut has the widest carat range?
+### Exercise 2.1: Cross drive type and cylinder count in a grid
 
-```r title="Exercise: Diamonds faceted by cut"
-# Try it: diamonds faceted by cut
-set.seed(42)
-ex_dia <- diamonds |> sample_n(3000)
-ggplot(ex_dia, aes(x = carat, y = price)) +
-  geom_point(alpha = 0.1) +
-  # your code here
-  theme_minimal()
-#> Expected: 5 panels (Fair, Good, Very Good, Premium, Ideal)
+**Task:** A reliability analyst wants a strict matrix of MPG distributions, where rows correspond to drive type (`drv`) and columns to cylinder count (`cyl`) in the `mpg` dataset. Build a `geom_point()` plot of `hwy` versus `displ` and use `facet_grid(drv ~ cyl)`. Save to `ex_2_1`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_2_1.
+#> 3 rows (drv: 4, f, r) by 4 cols (cyl: 4, 5, 6, 8) = 12 panels.
+#> Some panels empty (e.g. 4wd + 5cyl, rwd + 4cyl don't exist in the data).
+#> Each populated panel: hwy vs displ scatter.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Diamonds cut solution"
-set.seed(42)
-ex_dia <- diamonds |> sample_n(3000)
-ggplot(ex_dia, aes(x = carat, y = price)) +
-  geom_point(alpha = 0.1, color = "steelblue") +
-  facet_wrap(~cut) +
-  labs(title = "Price vs Carat by Cut Quality", x = "Carat", y = "Price ($)") +
-  theme_minimal()
-#> Fair cut shows the widest carat range (up to ~5 carats).
-#> Ideal cut clusters at smaller carats with steep price growth.
-```
-
-**Explanation:** `alpha = 0.1` prevents overplotting in dense datasets. Fair diamonds tend to be larger (higher carat) but cheaper per carat, while Ideal diamonds are smaller but command higher prices.
-
-</details>
-
-## How Do You Control Layout and Orientation? (Exercises 3–4)
-
-Layout arguments, `ncol`, `nrow`, and `dir`, give you precise control over how panels arrange. `facet_grid()` goes further, mapping two variables into a fixed row-by-column matrix.
-
-### Exercise 3: Force a Custom Layout with ncol and dir
-
-**Dataset:** `mpg`
-
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `class` (7 levels). Force a 2-column layout with vertical wrapping (`dir = "v"`). Add the title "7 Classes in 2 Columns (vertical fill)".
-
-```r title="Exercise: Two columns vertical fill"
-# Exercise 3: custom layout
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "darkgreen", alpha = 0.7) +
-  # your code here: facet_wrap with ncol=2, dir="v"
-  theme_minimal()
-#> Expected: 2 columns, 4 rows, panels fill top-to-bottom
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Vertical fill solution"
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "darkgreen", alpha = 0.7) +
-  facet_wrap(~class, ncol = 2, dir = "v") +
-  labs(
-    title = "7 Classes in 2 Columns (vertical fill)",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
-  theme_minimal()
-#> Column 1 (top-to-bottom): 2seater, compact, midsize, minivan.
-#> Column 2: pickup, subcompact, suv.
-#> Vertical fill puts alphabetically adjacent classes in the same column.
-```
-
-**Explanation:** `dir = "v"` fills panels top-to-bottom within each column, then moves to the next column, like reading a newspaper. The default `dir = "h"` fills left-to-right across rows. Use `"v"` when column proximity matters more than row proximity.
-
-</details>
-
-### Exercise 4: Two-Variable Matrix with facet_grid()
-
-**Dataset:** `mpg`
-
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y). Use `facet_grid(drv ~ cyl)` to create a drive-type-by-cylinder matrix. Add a linear trend line (`geom_smooth(method = "lm", se = FALSE)`) coloured `"tomato"` to each panel.
-
-```r title="Exercise: Drive by cylinder grid"
-# Exercise 4: facet_grid matrix with trend lines
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.5) +
-  # your code here: geom_smooth + facet_grid(drv ~ cyl)
-  theme_minimal()
-#> Expected: 3 rows (4, f, r) x 4 columns (4, 5, 6, 8)
-#> Some cells empty (no rear-wheel 4-cylinder cars)
-#> Trend lines show per-cell relationships
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Drive cylinder grid solution"
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "tomato", linewidth = 0.8) +
+```r title="Solution"
+ex_2_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "darkblue", alpha = 0.7) +
   facet_grid(drv ~ cyl) +
-  labs(
-    title = "Highway MPG: Drive Type × Cylinders",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
+  labs(x = "Displacement (L)", y = "Highway MPG") +
   theme_minimal()
-#> 12-cell matrix. Empty cells: no 5-cyl four-wheel or rear-wheel cars.
-#> Row "f" (front-wheel): 4-cyl and 6-cyl show clear negative slopes.
-#> Row "4" (four-wheel): 6-cyl and 8-cyl panels have enough data for trends.
-#> Trend lines only appear in cells with 2+ data points.
+
+ex_2_1
+#> 12 cells. Empty cells stay drawn but blank: rear-wheel + 4cyl is absent, etc.
 ```
 
-**Explanation:** `facet_grid(drv ~ cyl)` places drive types on rows and cylinder counts on columns. Every combination gets a cell, even empty ones. This fixed matrix structure lets you read across a row (compare cylinders within a drive type) or down a column (compare drive types within a cylinder count).
+**Explanation:** `facet_grid(row_var ~ col_var)` lays variables in a rigid matrix, which is the right choice when both dimensions are interesting and you want a quick crosstab. Unlike `facet_wrap`, empty combinations are still rendered as blank cells, which actually communicates that the combination is rare or impossible. To suppress empty cells use `facet_grid(... , drop = TRUE)`; to free the row or column extents use `scales = "free_x"` or `"free_y"`.
 
 </details>
 
-[WARNING]
-**Empty cells in facet_grid() are expected, not errors.** They tell you that combination doesn't exist in the data. Don't filter them out, the gap itself is informative (e.g., no rear-wheel 4-cylinder vehicles in this dataset).
+### Exercise 2.2: Facet rows only with the dot placeholder
 
-**Try it:** Create a single-row horizontal strip with `facet_wrap(~drv, nrow = 1)` showing `displ` vs `hwy`. When does a filmstrip layout work well?
+**Task:** A reviewer wants a stack of three panels (one per drive type) showing the highway MPG distribution as boxplots, all sharing the same x-axis. Use `facet_grid()` with the dot placeholder so `drv` becomes the row variable and there is no column variable. Save the plot to `ex_2_2`.
 
-```r title="Exercise: Single-row filmstrip layout"
-# Try it: single-row strip
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.7) +
-  # your code here
-  theme_minimal()
-#> Expected: 3 narrow panels in one horizontal row
+**Expected result:**
+
+```
+#> ggplot output saved as ex_2_2.
+#> 3 rows, 1 column (drv: 4, f, r from top to bottom).
+#> Each row: horizontal boxplot of hwy.
+#> Strip labels on the right edge: 4, f, r.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Filmstrip solution"
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "purple", alpha = 0.7) +
-  facet_wrap(~drv, nrow = 1) +
-  labs(title = "Drive Types in a Filmstrip Layout") +
+```r title="Solution"
+ex_2_2 <- ggplot(mpg, aes(x = hwy, y = "")) +
+  geom_boxplot(fill = "skyblue") +
+  facet_grid(drv ~ .) +
+  labs(x = "Highway MPG", y = NULL) +
   theme_minimal()
-#> 3 panels side by side. Works well with few groups (2-4)
-#> when you want to compare vertical patterns (y-axis) at a glance.
+
+ex_2_2
+#> 3 stacked boxplots. Front-wheel (f) shifts highest, rear (r) middle, four-wheel (4) lowest.
 ```
 
-**Explanation:** `nrow = 1` forces all panels into one row. This filmstrip layout works best with 2-4 panels. With more, individual panels get too narrow to read.
+**Explanation:** The `.` placeholder tells `facet_grid` that there is no faceting variable for that axis. `drv ~ .` means rows by `drv`, no column splits. The mirror is `. ~ drv` for columns only. This is cleaner than `facet_wrap(~ drv, ncol = 1)` when you want strip labels on the right edge rather than at the top of each panel, which is the `facet_grid` default.
 
 </details>
 
-## When Should You Free the Scales? (Exercise 5)
+### Exercise 2.3: Cut by color crosstab on diamonds
 
-Fixed scales (the default) make cross-panel comparison easy, the same position means the same value everywhere. But when groups have wildly different ranges, some panels get squashed. The `scales` argument controls this trade-off.
+**Task:** A jeweller wants a price-versus-carat scatter for every cell of a `cut` (5 levels) by `color` (7 levels) grid on the `diamonds` dataset, with rows as cut and columns as color. Use `facet_grid()` and reduce point size to handle the large rendering. Save the plot to `ex_2_3`.
 
-### Exercise 5: Free Scales for Economic Indicators
+**Expected result:**
 
-**Dataset:** `economics_long`
+```
+#> ggplot output saved as ex_2_3.
+#> 5 rows (cut: Fair, Good, Very Good, Premium, Ideal) by 7 cols (color: D...J) = 35 panels.
+#> Each cell: price vs carat scatter with tiny points.
+#> Pattern: tighter linear cloud in "Ideal + D"; loose spread in "Fair + J".
+```
 
-**Task:** Create a line chart of `date` (x) vs `value` (y), faceted by `variable`. Stack the panels vertically (`ncol = 1`) with `scales = "free_y"`. Add custom strip labels: "pce" → "Personal Consumption", "pop" → "Population", "psavert" → "Savings Rate (%)", "uempmed" → "Median Unemployment (wks)", "unemploy" → "Total Unemployed".
+**Difficulty:** Intermediate
 
-```r title="Exercise: Free-scale economic panels"
-# Exercise 5: free scales + custom labels for economic data
-# Hint: as_labeller for strip labels, facet_wrap with ncol=1 and scales="free_y"
-
-my_econ_labels <- as_labeller(c(
-  # your label mapping here
-))
-
-ggplot(economics_long, aes(x = date, y = value)) +
-  geom_line(color = "steelblue") +
-  # your code here
-  theme_minimal()
-#> Expected: 5 stacked panels, each with its own y-range
-#> Savings Rate would be invisible without free_y
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Economic panels solution"
-my_econ_labels <- as_labeller(c(
-  "pce" = "Personal Consumption",
-  "pop" = "Population",
-  "psavert" = "Savings Rate (%)",
-  "uempmed" = "Median Unemployment (wks)",
-  "unemploy" = "Total Unemployed"
-))
+```r title="Solution"
+ex_2_3 <- ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point(size = 0.2, alpha = 0.3, color = "purple") +
+  facet_grid(cut ~ color) +
+  scale_y_continuous(labels = label_dollar()) +
+  labs(x = "Carat", y = "Price") +
+  theme_minimal(base_size = 9)
 
-ggplot(economics_long, aes(x = date, y = value)) +
-  geom_line(color = "steelblue", linewidth = 0.5) +
-  facet_wrap(~variable, ncol = 1, scales = "free_y",
-             labeller = my_econ_labels) +
-  labs(
-    title = "US Economic Indicators (1967–2015)",
-    x = "", y = ""
-  ) +
-  theme_minimal()
-#> 5 stacked panels with descriptive labels.
-#> Personal Consumption rises steadily to ~12,000.
-#> Savings Rate (0-17%) is now fully visible — impossible with fixed scales.
-#> Unemployment spikes during the 2008 recession.
+ex_2_3
+#> 35 panels. Visible price-carat curve in every cell.
 ```
 
-**Explanation:** `scales = "free_y"` gives each panel its own y-axis range. Without it, Savings Rate (0–17%) would be an invisible flat line next to Personal Consumption (0–12,000). `ncol = 1` stacks panels vertically, the natural layout for time series where you want aligned x-axes.
+**Explanation:** When the grid is large (here 35 panels), small visual choices matter: tiny `size`, low `alpha`, smaller `base_size` so strip labels do not collide. `facet_grid` keeps all panels on the same x and y scale by default, which is exactly right for a crosstab where the comparison is "how does this relationship shift as I move across the grid?". If panels share little in common (say, different metrics on y), reach for `scales = "free_y"`.
 
 </details>
 
-[NOTE]
-**Free scales prevent cross-panel value comparison.** A bar at the same height means different values in different panels. Use free scales when ranges genuinely differ (like dollars vs percentages). Keep fixed scales when same-position comparison is the point.
+## Section 3. Free vs fixed scales (3 problems)
 
-**Try it:** Plot histograms of `hwy` from `mpg`, faceted by `drv`, with `scales = "free"`. Then re-run with `scales = "fixed"`. Which makes it easier to compare distributions?
+### Exercise 3.1: Let each MPG class have its own y-axis range
 
-```r title="Exercise: Free versus fixed histograms"
-# Try it: free vs fixed histogram comparison
-ggplot(mpg, aes(x = hwy)) +
-  geom_histogram(bins = 15, fill = "tomato", alpha = 0.7) +
-  facet_wrap(~drv, scales = "free") +
-  labs(title = "Free scales") +
-  theme_minimal()
-#> Expected: each panel zooms to fit its own data
-#> Rear-wheel shape visible but counts not comparable
+**Task:** A reviewer noticed that 2-seater highway MPG sits in a tight band while pickup MPG covers a wide low range, so the shared y-axis from Exercise 1.1 wastes vertical space in most panels. Rebuild the `mpg` facet plot and free the y-axis per panel with `scales = "free_y"`. Save to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_3_1.
+#> 7 panels, each with an independent y-axis range.
+#> 2seater panel y-range narrow (around 20-30 mpg).
+#> Pickup panel y-range wider (around 15-25 mpg).
+#> X-axis (displacement) still shared across all panels.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Free scales solution"
-# Free scales
-ggplot(mpg, aes(x = hwy)) +
-  geom_histogram(bins = 15, fill = "tomato", alpha = 0.7) +
-  facet_wrap(~drv, scales = "free") +
-  labs(title = "Free Scales — shape visible, counts not comparable") +
+```r title="Solution"
+ex_3_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "darkgreen", alpha = 0.7) +
+  facet_wrap(~ class, scales = "free_y") +
+  labs(x = "Displacement (L)", y = "Highway MPG") +
   theme_minimal()
-#> Each panel fills its space. Rear-wheel shape is clear.
 
-# Fixed scales (default)
-ggplot(mpg, aes(x = hwy)) +
-  geom_histogram(bins = 15, fill = "steelblue", alpha = 0.7) +
-  facet_wrap(~drv, scales = "fixed") +
-  labs(title = "Fixed Scales — counts comparable, rear-wheel squashed") +
-  theme_minimal()
-#> Front-wheel dominates (tallest bars). Rear-wheel bars are tiny.
+ex_3_1
+#> Each class now stretches to fill its panel vertically.
 ```
 
-**Explanation:** Fixed scales make counts directly comparable (same bar height = same count). Free scales reveal within-group distribution shapes. Choose based on your story: are you comparing group sizes or group patterns?
+**Explanation:** `scales = "free_y"` releases the y-axis per panel while keeping x shared. The four options are `"fixed"` (default), `"free_x"`, `"free_y"`, and `"free"` (both). Free scales make within-panel patterns easier to read but they kill cross-panel comparison: a slope of 5 in one panel may look identical to a slope of 50 elsewhere. Use free scales when each panel tells its own story; use fixed when readers should compare magnitudes across panels.
 
 </details>
 
-## How Do You Customize Strip Labels? (Exercise 6)
+### Exercise 3.2: Free both axes on a multi-metric panel built from inline data
 
-Strip labels are the grey text bars above each panel. By default, they show raw data values, often cryptic abbreviations that force your audience to guess. Custom labellers and theme styling make panels publication-ready.
+**Task:** A monitoring dashboard tracks three unrelated server metrics (CPU percent, memory GB, request count) over the same 24 hours, but the metric ranges differ by orders of magnitude. Build the inline tibble below, pivot to long form, then facet by metric with `scales = "free"` so each metric reads on its own axes. Save the plot to `ex_3_2`.
 
-### Exercise 6: Custom Labels + Styled Strips
+```r title="Inline data for Exercise 3.2"
+metrics <- tibble(
+  hour    = 0:23,
+  cpu_pct = c(12, 14, 11, 9, 8, 10, 15, 22, 38, 45, 52, 60, 58, 55, 48, 40, 36, 30, 24, 20, 18, 16, 14, 12),
+  mem_gb  = c(8.1, 8.2, 8.1, 8.0, 7.9, 8.0, 8.3, 9.1, 10.2, 11.5, 12.4, 13.1, 13.0, 12.6, 11.9, 11.0, 10.4, 9.8, 9.2, 8.8, 8.6, 8.4, 8.3, 8.2),
+  req_cnt = c(120, 100, 80, 60, 50, 65, 140, 320, 720, 980, 1180, 1420, 1380, 1300, 1100, 880, 740, 560, 420, 320, 260, 220, 180, 150)
+)
+```
 
-**Dataset:** `mpg`
+**Expected result:**
 
-**Task:** Create a scatter plot of `displ` (x) vs `hwy` (y), faceted by `cyl`. Use `as_labeller()` to rename strips: "4" → "4 Cylinders", "5" → "5 Cylinders", "6" → "6 Cylinders", "8" → "8 Cylinders". Style strip text as bold white (`size = 11`) on a `"#2c3e50"` (dark blue) background. Add `panel.spacing = unit(1, "lines")` for breathing room.
+```
+#> ggplot output saved as ex_3_2.
+#> 3 panels (one per metric), each with its own y-axis scale.
+#> cpu_pct panel: y-axis roughly 0-60.
+#> mem_gb panel: y-axis roughly 7.5-13.5.
+#> req_cnt panel: y-axis roughly 0-1500.
+#> All panels share the x-axis (hour 0-23).
+```
 
-```r title="Exercise: Custom cylinder strip labels"
-# Exercise 6: custom labels + styled strips
-my_cyl_labels <- as_labeller(c(
-  # your code here
-))
+**Difficulty:** Advanced
 
-ggplot(mpg, aes(x = displ, y = hwy)) +
+```r title="Your turn"
+ex_3_2 <- # your code here
+ex_3_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_2 <- metrics |>
+  pivot_longer(-hour, names_to = "metric", values_to = "value") |>
+  ggplot(aes(x = hour, y = value)) +
+  geom_line(color = "midnightblue", linewidth = 0.8) +
+  facet_wrap(~ metric, scales = "free", ncol = 1) +
+  labs(x = "Hour of day", y = NULL) +
+  theme_minimal()
+
+ex_3_2
+#> 3 stacked panels with independent y-scales; same x-axis hour 0-23.
+```
+
+**Explanation:** `scales = "free"` frees both axes per panel, which is the standard pattern for stacked time-series dashboards where metrics share the time axis but live in incompatible units. Pivoting to long form is the canonical setup: ggplot wants one row per (panel, observation). The alternative is `patchwork::wrap_plots()` of three separate ggplot objects, which gives finer control over individual panel themes but loses the shared time axis that `facet_wrap` provides for free.
+
+</details>
+
+### Exercise 3.3: Proportional column widths with space="free_x"
+
+**Task:** A product manager wants a bar chart of average `price` per `clarity` level on `diamonds`, faceted by `cut` in columns, where each column's width is proportional to how many clarity levels appear in that cut. Use `facet_grid` with both `scales = "free_x"` and `space = "free_x"`. Save the plot to `ex_3_3`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_3_3.
+#> 1 row, 5 columns (one per cut: Fair...Ideal).
+#> Each column shows bar chart of mean price by clarity (8 clarity levels possible).
+#> Column widths vary: panels with fewer distinct clarity levels are narrower.
+#> X-axis (clarity) labels appear only inside each panel, no shared scale.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- diamonds |>
+  group_by(cut, clarity) |>
+  summarise(mean_price = mean(price), .groups = "drop") |>
+  ggplot(aes(x = clarity, y = mean_price, fill = clarity)) +
+  geom_col(show.legend = FALSE) +
+  facet_grid(~ cut, scales = "free_x", space = "free_x") +
+  scale_y_continuous(labels = label_dollar()) +
+  labs(x = "Clarity", y = "Mean price") +
+  theme_minimal()
+
+ex_3_3
+#> 5 panels in one row, each width proportional to its clarity count.
+```
+
+**Explanation:** `scales = "free_x"` alone would make each panel the same width but with different tick sets, leaving awkward whitespace. Adding `space = "free_x"` rescales the panels themselves so each bar gets equal horizontal space across the whole plot. This is the trick for nested-bar layouts (e.g. tasks grouped by sprint, where some sprints have more tasks): readers see honest visual proportion rather than padded panels.
+
+</details>
+
+## Section 4. Custom strip labels (3 problems)
+
+### Exercise 4.1: Replace cryptic class codes with full names via as_labeller
+
+**Task:** The `mpg` class strip labels read "2seater", "compact", "midsize", "minivan", "pickup", "subcompact", "suv", which are too terse for a public report. Build a named vector that maps each code to a polished label ("Two-Seater", "Compact Car", etc.), then pass it to `as_labeller()` inside `facet_wrap()`. Save the plot to `ex_4_1`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_4_1.
+#> 7 panels with cleaner strip labels.
+#> Strips read: "Two Seater", "Compact Car", "Midsize Sedan", "Minivan", "Pickup Truck", "Subcompact", "SUV".
+#> Plot content unchanged from Exercise 1.1.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+nice_labels <- c(
+  "2seater"    = "Two Seater",
+  "compact"    = "Compact Car",
+  "midsize"    = "Midsize Sedan",
+  "minivan"    = "Minivan",
+  "pickup"     = "Pickup Truck",
+  "subcompact" = "Subcompact",
+  "suv"        = "SUV"
+)
+
+ex_4_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
   geom_point(color = "steelblue", alpha = 0.7) +
-  facet_wrap(~cyl, labeller = my_cyl_labels) +
-  theme_minimal() +
-  theme(
-    # your strip styling here
-  ) +
-  labs(title = "Highway MPG by Cylinder Count", x = "Engine Displacement (L)", y = "Highway MPG")
-#> Expected: 4 panels with dark blue strip bars and white bold text
+  facet_wrap(~ class, labeller = as_labeller(nice_labels)) +
+  labs(x = "Displacement (L)", y = "Highway MPG") +
+  theme_minimal()
+
+ex_4_1
+#> Strip labels: Two Seater | Compact Car | Midsize Sedan | Minivan | Pickup Truck | Subcompact | SUV.
+```
+
+**Explanation:** `as_labeller()` accepts a named character vector where names match the data values and values are the desired labels. Anything missing from the vector falls back to the raw value, which is forgiving when categories are added later. For programmatic transforms (e.g. uppercase, title case) pass a function instead: `labeller = as_labeller(toupper)`. For complex two-line strip text with variable name plus value use `labeller = label_both` (see Exercise 4.2).
+
+</details>
+
+### Exercise 4.2: Show variable name and value with label_both
+
+**Task:** A teaching slide needs strip labels in `facet_grid(drv ~ cyl)` to read "drv: 4" and "cyl: 6" rather than just "4" or "6", so students can tell which strip belongs to which variable. Rebuild the grid from Exercise 2.1 and pass `labeller = label_both`. Save to `ex_4_2`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_4_2.
+#> 12-cell grid as in Exercise 2.1.
+#> Row strips read: "drv: 4", "drv: f", "drv: r".
+#> Column strips read: "cyl: 4", "cyl: 5", "cyl: 6", "cyl: 8".
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Strip labels solution"
-my_cyl_labels <- as_labeller(c(
-  "4" = "4 Cylinders",
-  "5" = "5 Cylinders",
-  "6" = "6 Cylinders",
-  "8" = "8 Cylinders"
-))
-
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "steelblue", alpha = 0.7) +
-  facet_wrap(~cyl, labeller = my_cyl_labels) +
-  labs(
-    title = "Highway MPG by Cylinder Count",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
-  theme_minimal() +
-  theme(
-    strip.text = element_text(face = "bold", size = 11, color = "white"),
-    strip.background = element_rect(fill = "#2c3e50", color = NA),
-    panel.spacing = unit(1, "lines")
-  )
-#> 4 panels with bold white labels on dark blue strip backgrounds.
-#> "4 Cylinders", "5 Cylinders", etc. — much clearer than bare numbers.
-#> Panel spacing gives visual separation between panels.
-```
-
-**Explanation:** `as_labeller()` takes a named character vector: names are the raw data values, values are the display labels. `strip.text` controls the font, and `strip.background` controls the rectangle behind it. Always put `theme()` customizations after the base theme to override defaults.
-
-</details>
-
-[TIP]
-**Always relabel strips for publication.** Raw values like "f", "4", or "suv" force readers to decode abbreviations. Spending 30 seconds on `as_labeller()` saves every future reader that mental overhead.
-
-**Try it:** Use `label_both` as the labeller on a `facet_grid(drv ~ cyl)` plot. How does the output differ from default labels?
-
-```r title="Exercise: labelboth on facetgrid"
-# Try it: label_both in facet_grid
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.6) +
+```r title="Solution"
+ex_4_2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "darkblue", alpha = 0.7) +
   facet_grid(drv ~ cyl, labeller = label_both) +
-  # your code here
+  labs(x = "Displacement (L)", y = "Highway MPG") +
   theme_minimal()
-#> Expected: strips read "drv: 4", "cyl: 6" etc.
+
+ex_4_2
+#> Strips include the variable name prefix on every panel.
 ```
 
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="labelboth solution"
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.6) +
-  facet_grid(drv ~ cyl, labeller = label_both) +
-  labs(title = "facet_grid with label_both") +
-  theme_minimal()
-#> Row strips: "drv: 4", "drv: f", "drv: r"
-#> Column strips: "cyl: 4", "cyl: 5", "cyl: 6", "cyl: 8"
-#> Both variable name and value shown — no ambiguity.
-```
-
-**Explanation:** `label_both` adds the variable name before each value. It's a quick way to make facet_grid panels self-documenting without writing a custom labeller.
+**Explanation:** `label_both` is a ready-made labeller function that prefixes each strip with its variable name. It is the cheapest way to make a multi-variable grid self-documenting, especially for audiences who will not see the axis legend. Cousins are `label_value` (default, value only), `label_parsed` (parses strings as math expressions, see Exercise 4.3), and `label_bquote` (substitutes values into a math expression template).
 
 </details>
 
-## How Do You Layer Background Data and References? (Exercises 7–8)
+### Exercise 4.3: Render Greek letters in strip labels with label_parsed
 
-The most powerful faceting techniques combine panels with layered geoms. Background data gives each panel context, reference lines provide benchmarks, and `facet_grid()` margins add summary panels.
+**Task:** A statistics handout needs facet strips to render as Greek symbols ("alpha = 0.05", "alpha = 0.10") with `alpha` displayed as the Greek letter. Build the inline tibble below, then facet by `alpha_level` using `labeller = label_parsed` so plotmath syntax is rendered. Save to `ex_4_3`.
 
-### Exercise 7: Background Data Technique
+```r title="Inline data for Exercise 4.3"
+power_grid <- tibble(
+  n           = rep(seq(10, 100, by = 10), 2),
+  power       = c(0.20, 0.35, 0.48, 0.60, 0.70, 0.78, 0.85, 0.90, 0.93, 0.96,
+                  0.10, 0.18, 0.27, 0.36, 0.45, 0.54, 0.62, 0.70, 0.76, 0.81),
+  alpha_level = rep(c("alpha == 0.05", "alpha == 0.10"), each = 10)
+)
+```
 
-**Dataset:** `mpg`
+**Expected result:**
 
-**Task:** Create a faceted scatter plot by `class`. Show all vehicles as a grey background layer (`color = "grey85"`, `alpha = 0.3`), the current class's vehicles in `"steelblue"`, and add a `geom_smooth(method = "lm")` trend line per panel. Remove the legend.
+```
+#> ggplot output saved as ex_4_3.
+#> 2 panels side by side, each plotting power vs n.
+#> Strip labels render with the Greek letter alpha, e.g. "alpha = 0.05" appears as the symbol.
+#> Power curves both monotonic increasing, the 0.10 panel sits below the 0.05 panel.
+```
 
-```r title="Exercise: Background data per class"
-# Exercise 7: background data technique
-# Hint: create a background df without the faceting variable (select(-class))
-# Layer: grey background points → coloured foreground points → trend line
+**Difficulty:** Advanced
 
-my_mpg_bg <- mpg |> select(-class)
-
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here: 3 layers + facet_wrap(~class)
-  theme_minimal()
-#> Expected: grey dots = all vehicles, blue dots = current class
-#> Compact cars cluster top-left; SUVs sit bottom-right
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Background data solution"
-my_mpg_bg <- mpg |> select(-class)
+```r title="Solution"
+ex_4_3 <- ggplot(power_grid, aes(x = n, y = power)) +
+  geom_line(color = "firebrick", linewidth = 1) +
+  geom_point() +
+  facet_wrap(~ alpha_level, labeller = label_parsed) +
+  labs(x = "Sample size n", y = "Power") +
+  theme_minimal()
 
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(data = my_mpg_bg, color = "grey85", alpha = 0.3, size = 1.5) +
-  geom_point(color = "steelblue", alpha = 0.8, size = 2) +
-  geom_smooth(method = "lm", se = FALSE, color = "black", linewidth = 0.8) +
-  facet_wrap(~class) +
-  labs(
-    title = "Each Class Highlighted Against All Vehicles",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
+ex_4_3
+#> 2 panels with Greek-letter strip labels rendered via plotmath.
+```
+
+**Explanation:** `label_parsed` runs each strip label through R's plotmath parser, so strings like `"alpha == 0.05"` render as the Greek alpha followed by an equals sign and the value. The double `==` is plotmath syntax for an equals sign symbol (single `=` is reserved for assignment in expressions). When labels are dynamic, build them with `sprintf` or `paste`: `paste0("alpha == ", round(a, 2))`.
+
+</details>
+
+## Section 5. Advanced and combination workflows (3 problems)
+
+### Exercise 5.1: Add a "Total" margin panel with margins = TRUE
+
+**Task:** A pivot-table-style report needs a `facet_grid()` plot of `mpg` MPG by `drv` (rows) and `cyl` (columns) that also includes summary panels showing the aggregate across all rows and all columns (like a spreadsheet "Total" row and column). Set `margins = TRUE` on `facet_grid`. Save the plot to `ex_5_1`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_5_1.
+#> Original 12-cell grid plus extra row and column for "(all)" totals.
+#> Bottom row strip reads "(all)" and aggregates all cylinder values.
+#> Rightmost column strip reads "(all)" and aggregates all drive types.
+#> Bottom-right corner cell shows the full data combined.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_1 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(color = "darkorange", alpha = 0.6) +
+  facet_grid(drv ~ cyl, margins = TRUE) +
+  labs(x = "Displacement (L)", y = "Highway MPG") +
+  theme_minimal()
+
+ex_5_1
+#> Original grid plus an extra "(all)" row, "(all)" column, and grand-total cell.
+```
+
+**Explanation:** `margins = TRUE` duplicates the data into extra synthetic categories named `(all)` for each faceting variable, giving you the "Total" panels seen in pivot tables. To add margins only for one variable, pass the variable name as a string: `margins = "drv"`. The trade-off is that data is duplicated, which inflates rendering time on large datasets and can mislead naive readers into thinking the totals are independent samples.
+
+</details>
+
+### Exercise 5.2: Overlay all-data context behind each facet panel
+
+**Task:** A reviewer wants every `mpg` class panel to show its own points in steel-blue plus the *full* `mpg` dataset in grey as background context, so readers see where the class sits within the whole cloud. Build a plot that calls `geom_point()` twice: once with the full `mpg` minus the facet column, once with the regular data. Save to `ex_5_2`.
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_5_2.
+#> 7 panels (one per class).
+#> Each panel: light-grey backdrop of all 234 mpg points + colored foreground for that class.
+#> The colored cluster sits within the grey cloud, making the class's region obvious.
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(data = transform(mpg, class = NULL),
+             color = "grey80", size = 1) +
+  geom_point(color = "steelblue", size = 1.6) +
+  facet_wrap(~ class) +
+  labs(x = "Displacement (L)", y = "Highway MPG") +
+  theme_minimal()
+
+ex_5_2
+#> Each panel: grey backdrop + blue class points.
+```
+
+**Explanation:** Setting `class = NULL` on the background data strips the facet variable so the first `geom_point` is drawn identically in every panel, producing the grey context cloud. The second `geom_point` keeps `class` and is therefore subset by `facet_wrap` to only that panel's points. This trick is one of the highest-impact reads in dashboard design: instead of asking readers to mentally overlay panels, you show the global cloud once and highlight the focal subset.
+
+</details>
+
+### Exercise 5.3: Use facet_wrap with strip.position to mimic a small-multiple bar chart
+
+**Task:** A finance analyst wants a quarterly revenue bar chart split into one mini-panel per region, with the region label shown along the *bottom* of each panel (not the default top), to match a published report style. Build the inline tibble below and facet by region with `strip.position = "bottom"`. Save the plot to `ex_5_3`.
+
+```r title="Inline data for Exercise 5.3"
+revenue <- tibble(
+  region  = rep(c("APAC", "EMEA", "LATAM", "NA"), each = 4),
+  quarter = rep(c("Q1", "Q2", "Q3", "Q4"), times = 4),
+  rev_m   = c(12, 14, 16, 18,
+              22, 24, 21, 26,
+               5,  6,  7,  9,
+              30, 32, 35, 38)
+)
+```
+
+**Expected result:**
+
+```
+#> ggplot output saved as ex_5_3.
+#> 4 panels in a single row (one per region).
+#> Each panel: bar chart of rev_m by quarter (Q1...Q4).
+#> Strip labels (region names) appear under each panel, not above.
+#> Bars colored by quarter for visual variety.
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- ggplot(revenue, aes(x = quarter, y = rev_m, fill = quarter)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ region, nrow = 1, strip.position = "bottom") +
+  scale_y_continuous(labels = label_dollar(suffix = "M")) +
+  labs(x = NULL, y = "Revenue") +
   theme_minimal() +
-  theme(legend.position = "none")
-#> Grey background shows all 234 vehicles in every panel.
-#> Blue foreground highlights just the current class.
-#> Compact cars sit in the top-left (small engine, high mpg).
-#> SUVs cluster bottom-right. 2seaters stand out: large engines, decent mpg.
-#> Trend lines show the slope differs by class.
+  theme(strip.placement = "outside",
+        strip.background = element_rect(fill = "grey95", color = NA))
+
+ex_5_3
+#> 4 panels in one row, region labels under each panel.
 ```
 
-**Explanation:** Removing the faceting variable (`class`) from the background data frame makes those grey points appear in every panel, ggplot2 doesn't know which panel they belong to, so it draws them in all panels. The coloured points and trend line use the original data, which still has `class`, so they only appear in their matching panel.
+**Explanation:** `strip.position = "bottom"` flips the default top strip to the bottom, which matches how many published bar-chart series are typeset (region name beneath the bars, like a caption). Pair it with `theme(strip.placement = "outside")` so the strip sits below the axis text rather than between the axis and the bars. The four valid positions are `"top"` (default), `"bottom"`, `"left"`, and `"right"`. Use `"left"` or `"right"` for stacked rows of horizontal bar charts.
 
 </details>
 
-[KEY INSIGHT]
-**Background data is the most powerful faceting technique for storytelling.** Each panel shows both the group's pattern and how it sits within the overall distribution. Readers instantly see whether a group is typical or an outlier.
+## What to do next
 
-### Exercise 8: facet_grid() Margins + Publication-Quality Output
-
-**Dataset:** `mpg`
-
-**Task:** Build a publication-quality faceted plot: `facet_grid(drv ~ cyl, margins = TRUE)`. Include:
-- Scatter points (`alpha = 0.5`)
-- Linear trend lines (`"tomato"`, no confidence band)
-- Custom labels: drive types → "Front-Wheel", "Rear-Wheel", "4WD"; cylinders → "4 Cyl", "5 Cyl", "6 Cyl", "8 Cyl"
-- Styled strips: bold text, `"grey95"` background
-- Legend at bottom, title "Drive Type × Cylinders with Margins"
-
-```r title="Exercise: facetgrid with margins"
-# Exercise 8: facet_grid margins + polished output
-# Hint: custom labeller for both row and column variables
-#   Use labeller = labeller(drv = drv_map, cyl = cyl_map)
-
-my_drv_map <- c("4" = "4WD", "f" = "Front-Wheel", "r" = "Rear-Wheel", "(all)" = "All Drives")
-my_cyl_map <- c("4" = "4 Cyl", "5" = "5 Cyl", "6" = "6 Cyl", "8" = "8 Cyl", "(all)" = "All Cyl")
-
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  # your code here
-  theme_minimal()
-#> Expected: 3x4 grid + margin row and column labelled "(all)"
-#> Trend lines in every cell including margins
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Margins labeller solution"
-my_drv_map <- c("4" = "4WD", "f" = "Front-Wheel", "r" = "Rear-Wheel", "(all)" = "All Drives")
-my_cyl_map <- c("4" = "4 Cyl", "5" = "5 Cyl", "6" = "6 Cyl", "8" = "8 Cyl", "(all)" = "All Cyl")
-
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "tomato", linewidth = 0.8) +
-  facet_grid(drv ~ cyl, margins = TRUE,
-             labeller = labeller(drv = my_drv_map, cyl = my_cyl_map)) +
-  labs(
-    title = "Drive Type x Cylinders with Margins",
-    x = "Engine Displacement (L)",
-    y = "Highway MPG"
-  ) +
-  theme_minimal() +
-  theme(
-    strip.text = element_text(face = "bold", size = 10),
-    strip.background = element_rect(fill = "grey95", color = NA),
-    panel.spacing = unit(0.5, "lines")
-  )
-#> 5 rows x 5 columns (3 drive types + All Drives) x (4 cyl counts + All Cyl).
-#> "All Drives" row: trend for each cylinder count across all drive types.
-#> "All Cyl" column: trend for each drive type across all cylinders.
-#> Bottom-right cell: overall dataset trend.
-#> Margins act like "Total" rows/columns in a pivot table.
-```
-
-**Explanation:** `margins = TRUE` adds an "(all)" row and column that aggregate across each dimension. The `labeller()` function maps both row and column variables, note you must include `"(all)"` in both maps since the margin panels use that level. This creates a dashboard-style view where each group panel sits next to its summary.
-
-</details>
-
-**Try it:** Add a horizontal dashed reference line at `mean(mpg$hwy)` to a `facet_wrap(~class)` scatter plot. Does the line appear in every panel?
-
-```r title="Exercise: Reference line across panels"
-# Try it: reference line across panels
-my_mean_hwy <- mean(mpg$hwy)
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(alpha = 0.7) +
-  # your code here: geom_hline + facet_wrap
-  theme_minimal()
-#> Expected: dashed line at ~23.4 in every panel
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Reference line solution"
-my_mean_hwy <- mean(mpg$hwy)
-ggplot(mpg, aes(x = displ, y = hwy)) +
-  geom_point(color = "steelblue", alpha = 0.7) +
-  geom_hline(yintercept = my_mean_hwy, linetype = "dashed",
-             color = "tomato", linewidth = 0.6) +
-  facet_wrap(~class) +
-  labs(title = "Each Class vs Overall Mean Highway MPG") +
-  theme_minimal()
-#> The dashed red line at ~23.4 appears in every panel.
-#> Compact and subcompact sit above the line.
-#> Pickups and SUVs sit below.
-```
-
-**Explanation:** `geom_hline()` doesn't depend on the faceting variable, so it draws the same line in every panel. It's a simple way to add a constant benchmark for visual comparison across groups.
-
-</details>
-
-## Summary
-
-Here's what each exercise tested and the key functions you practiced.
-
-| Exercise | Concept | Key Functions |
-|---|---|---|
-| 1 | Basic facet_wrap | `facet_wrap(~var)` |
-| 2 | Faceted bar chart + free scales | `facet_wrap(scales = "free_y")`, `coord_flip()` |
-| 3 | Layout control | `ncol`, `dir = "v"` |
-| 4 | Two-variable matrix | `facet_grid(row ~ col)`, `geom_smooth()` |
-| 5 | Free scales + custom labels | `scales = "free_y"`, `as_labeller()` |
-| 6 | Styled strips | `as_labeller()`, `theme(strip.text, strip.background)` |
-| 7 | Background data technique | `select(-var)` for background, layered `geom_point()` |
-| 8 | Margins + publication quality | `facet_grid(margins = TRUE)`, `labeller()` |
-
-Key takeaways:
-
-1. **Start with facet_wrap()** for single-variable faceting, it handles 80% of use cases
-2. **Use facet_grid()** when the row-by-column matrix structure adds analytical value
-3. **Free scales** reveal within-panel patterns; fixed scales enable cross-panel comparison
-4. **Always relabel strips**, raw data values are cryptic to your audience
-5. **Background data** is the most powerful storytelling technique for faceted plots
-6. **Margins** in facet_grid() add "Total" panels like a pivot table
-
-## References
-
-1. Wickham, H., *ggplot2: Elegant Graphics for Data Analysis*, 3rd Edition. Chapter 16: Faceting. [Link](https://ggplot2-book.org/facet.html)
-2. ggplot2 reference, facet_wrap() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_wrap.html)
-3. ggplot2 reference, facet_grid() documentation. [Link](https://ggplot2.tidyverse.org/reference/facet_grid.html)
-4. Wickham, H. & Grolemund, G., *R for Data Science*, 2nd Edition. Chapter 2: Data Visualization. [Link](https://r4ds.hadley.nz/data-visualize)
-5. Wilke, C., *Fundamentals of Data Visualization*. Chapter 21: Multi-panel Figures. [Link](https://clauswilke.com/dataviz/multi-panel-figures.html)
-6. R-Charts, Facets in ggplot2. [Link](https://r-charts.com/ggplot2/facets/)
-
-## Continue Learning
-
-- [ggplot2 Facets](ggplot2-Facets.html), Full tutorial on facet_wrap() and facet_grid() with theory, examples, and visual guides
-- [ggplot2 Customization Exercises](ggplot2-Customization-Exercises.html), 10 theme and scale practice problems to polish your faceted plots
-- [ggplot2 Geom Exercises](ggplot2-Geom-Exercises.html), 12 geom practice problems covering scatter, bar, line, and more
+- Review the parent guide: [ggplot2 Facets](ggplot2-Facets.html) covers theory and the function reference.
+- Practice color and theme work: [ggplot2 Theme Exercises](ggplot2-Theme-Exercises.html).
+- Build the underlying charts: [ggplot2 Bar Chart Exercises](ggplot2-Bar-Chart-Exercises.html) and [ggplot2 Scatter Plot Exercises](ggplot2-Scatter-Plot-Exercises.html).
+- Apply faceting to real EDA: [Exploratory Data Analysis Exercises in R](Exploratory-Data-Analysis-Exercises-in-R.html).
