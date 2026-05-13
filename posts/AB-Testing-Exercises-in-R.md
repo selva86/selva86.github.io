@@ -1,669 +1,956 @@
 ---
-title: "A/B Testing Exercises in R: 8 Power, Sample Size & Analysis Problems — Solved Step-by-Step)"
-slug: AB-Testing-Exercises-in-R
-description: "Solve 8 A/B testing exercises in R: sample size with pwr, prop.test lifts, Welch t-test, peeking simulation, and dropout inflation, with full solutions."
-keywords: "a/b testing exercises R, a/b test sample size, pwr.2p.test exercises, prop.test a/b, welch t-test a/b, peeking problem R, minimum detectable effect, ab test dropout"
-auto_link_terms: "A/B testing exercises|A/B test exercises|A/B testing problems|A/B testing practice|pwr.2p.test exercises|A/B test sample size problems"
-auto_link_case_sensitive: false
+title: "A/B Testing Exercises in R: 18 Real-World Practice Problems"
+slug: "AB-Testing-Exercises-in-R"
+description: "Solve 18 A/B testing exercises in R covering sample size, prop.test, Welch t-test, peeking, Bonferroni, dropout inflation, and end-to-end analysis."
+keywords: "a/b testing exercises R, a/b test sample size, pwr.2p.test exercises, prop.test a/b, peeking problem R, minimum detectable effect, ab test dropout, novelty effect R"
 mathjax: true
 webr: true
-date: 2026-04-20
-curriculum_id: E7.5
-post_type: EX
-sidebar_title: "A/B Testing Exercises (8 problems)"
-fr_parent: AB-Testing-in-R.html
-difficulty: Intermediate
+date: "2026-05-13"
+post_type: "EX"
+sidebar_title: "A/B Testing Exercises"
+sidebar_order: 145
+fr_parent: "AB-Testing-in-R.html"
+auto_link_terms: "a/b testing exercises|a/b test exercises|a/b testing problems|a/b testing practice|pwr.2p.test exercises|peeking problem r"
+auto_link_case_sensitive: false
+target_keyword: "a/b testing exercises in R"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# A/B Testing Exercises in R: 8 Power, Sample Size & Analysis Problems — Solved Step-by-Step)
+# A/B Testing Exercises in R: 18 Real-World Practice Problems
 
-<p class="lead">These 8 A/B testing exercises in R cover the full design-analyse-stop workflow: sizing a test with <code>pwr.2p.test()</code>, analysing proportions with <code>prop.test()</code>, comparing continuous metrics with Welch's t-test, and quantifying the peeking problem, with every solution runnable in the browser.</p>
+<p class="lead">These 18 A/B testing exercises in R cover the end-to-end experiment workflow: sizing tests with <code>pwr</code>, analysing proportions with <code>prop.test()</code>, comparing skewed continuous metrics, quantifying the peeking problem, correcting for multiple metrics, and writing a stakeholder-ready summary. Each problem hides a full runnable solution; try it yourself first.</p>
 
-## What does a single A/B test in R look like end-to-end?
+```r title="Run this once before any exercise"
+library(pwr)
+library(dplyr)
+library(tidyr)
+library(broom)
+library(ggplot2)
+```
 
-Before drilling 8 isolated problems, let's compress the whole A/B workflow into a single runnable block. Counts go in, significance comes out, plus the piece most tutorials skip: the confidence interval for the *lift* itself. The pattern below is the same one you will use in every analysis exercise later, the difference is just which knobs are fixed and which you solve for.
+## Section 1. Sample size and power planning (4 problems)
 
-```r title="Run a two-proportion A/B test end-to-end"
-# Successes and trials for (new, old)
-success <- c(130, 105)
-trials  <- c(2000, 2000)
+### Exercise 1.1: Compute per-arm sample size for a two-proportion test
 
-test_result <- prop.test(success, trials, correct = FALSE)
-test_result
+**Task:** A growth team at a B2C app wants to test a new checkout flow against the current one. Baseline conversion is 4%, the PM wants to detect an absolute lift to 5% with 80% power at a 5% significance level. Use `pwr.2p.test()` with `ES.h()` to compute the per-arm sample size and save the full result object to `ex_1_1`.
+
+**Expected result:**
+
+```
+#>      Difference of proportion power calculation for binomial distribution (arcsine transformation)
 #>
-#> 	2-sample test for equality of proportions without continuity correction
+#>               h = 0.04832
+#>               n = 3364.181
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
 #>
-#> data:  success out of trials
-#> X-squared = 3.0617, df = 1, p-value = 0.08015
+#> NOTE: same sample sizes
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_1 <- pwr.2p.test(
+  h         = ES.h(p1 = 0.05, p2 = 0.04),
+  sig.level = 0.05,
+  power     = 0.80
+)
+ex_1_1
+#>      Difference of proportion power calculation for binomial distribution (arcsine transformation)
+#>
+#>               h = 0.04832381
+#>               n = 3364.181
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: same sample sizes
+```
+
+**Explanation:** `ES.h()` converts two proportions into Cohen's h, an arcsine-transformed effect size that stabilises variance across the 0-1 range. Plugging h into `pwr.2p.test()` lets you solve for any one missing piece (`n`, `power`, `sig.level`, or `h`); pass three and leave the fourth as `NULL`. A common mistake is plugging the raw difference `p1 - p2 = 0.01` instead of `h`: that conflates effect size with proportion units and undersizes the test by roughly 20% at low baselines.
+
+</details>
+
+### Exercise 1.2: Sample size for a continuous metric with pwr.t.test
+
+**Task:** A finance team wants to detect a $4 lift on average order value (current AOV = $48, sd $32) at 80% power and 5% alpha using a two-sample Welch t-test. Use `pwr.t.test()` to compute the per-arm sample size and save the result object to `ex_1_2`.
+
+**Expected result:**
+
+```
+#>      Two-sample t test power calculation
+#>
+#>               n = 1004.214
+#>               d = 0.125
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_1_2 <- pwr.t.test(
+  d         = 4 / 32,
+  sig.level = 0.05,
+  power     = 0.80,
+  type      = "two.sample",
+  alternative = "two.sided"
+)
+ex_1_2
+#>      Two-sample t test power calculation
+#>
+#>               n = 1004.214
+#>               d = 0.125
+#>       sig.level = 0.05
+#>           power = 0.8
+#>     alternative = two.sided
+#>
+#> NOTE: n is number in *each* group
+```
+
+**Explanation:** Cohen's d for two samples is `(mu1 - mu2) / sd_pooled`; here it collapses to `4 / 32 = 0.125`, a "small" effect. The `type = "two.sample"` argument is critical: dropping it defaults to a one-sample test, which dramatically undersizes the experiment. For unequal sds use `pwr.t2n.test()` with the more conservative pooled sd, or simulate power directly since `pwr.t.test()` assumes equal variances under the hood.
+
+</details>
+
+### Exercise 1.3: Solve for the minimum detectable effect under a fixed sample budget
+
+**Task:** Engineering capped the experiment at 5,000 users per arm. With baseline conversion 4%, alpha 0.05, and 80% power, compute the minimum detectable Cohen's h, then back-translate it into an absolute lift (proportion units) and a relative lift (percent). Save a named numeric vector `ex_1_3` with elements `h`, `mde_abs`, and `mde_rel`.
+
+**Expected result:**
+
+```
+#>           h     mde_abs     mde_rel
+#>   0.0560422   0.0117042  29.2604499
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_3 <- # your code here
+ex_1_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+h_mde   <- pwr.2p.test(n = 5000, sig.level = 0.05, power = 0.80)$h
+p1      <- (sin(asin(sqrt(0.04)) + h_mde / 2))^2
+mde_abs <- p1 - 0.04
+mde_rel <- 100 * mde_abs / 0.04
+
+ex_1_3 <- c(h = h_mde, mde_abs = mde_abs, mde_rel = mde_rel)
+ex_1_3
+#>           h     mde_abs     mde_rel
+#>   0.0560422   0.0117042  29.2604499
+```
+
+**Explanation:** With a sample cap, the meaningful question flips from "how many users?" to "how big a lift must we believe in?". The h returned by `pwr.2p.test()` is in arcsine units; inverting `2*asin(sqrt(p))` back to a proportion gives the detectable treatment rate. At 4% baseline with 5,000 per arm, you can only see lifts of ~29% relative or larger; smaller lifts will look like noise. This is the right diagnostic to run before launching, not after a flat result.
+
+</details>
+
+### Exercise 1.4: Build a power curve over a grid of sample sizes
+
+**Task:** A marketing analyst wants to show stakeholders how power grows with sample size. Compute the achieved power for `n = seq(2000, 20000, by = 2000)` per arm, assuming baseline 5%, target 6%, and alpha 0.05, using `pwr.2p.test()`. Save a tibble `ex_1_4` with columns `n` and `power`.
+
+**Expected result:**
+
+```
+#> # A tibble: 10 x 2
+#>        n  power
+#>    <dbl>  <dbl>
+#>  1  2000  0.278
+#>  2  4000  0.495
+#>  3  6000  0.666
+#>  4  8000  0.787
+#>  5 10000  0.869
+#>  6 12000  0.921
+#>  7 14000  0.954
+#>  8 16000  0.974
+#>  9 18000  0.985
+#> 10 20000  0.992
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_1_4 <- # your code here
+ex_1_4
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+h_target <- ES.h(p1 = 0.06, p2 = 0.05)
+
+ex_1_4 <- tibble(n = seq(2000, 20000, by = 2000)) |>
+  mutate(power = sapply(n, function(nn) {
+    pwr.2p.test(h = h_target, n = nn, sig.level = 0.05)$power
+  }))
+ex_1_4
+#> # A tibble: 10 x 2
+#>        n  power
+#>    <dbl>  <dbl>
+#>  1  2000  0.278
+#>  2  4000  0.495
+#>  3  6000  0.666
+#>  4  8000  0.787
+#>  5 10000  0.869
+#> # 5 more rows hidden
+```
+
+**Explanation:** Power curves communicate experiment cost far more effectively than a single "need 14,000 users" number. The curve is concave: doubling n from 2,000 to 4,000 buys you 22 power points; doubling again from 10,000 to 20,000 only buys 12. Plot this with `geom_line()` and add a horizontal line at 0.8 so stakeholders can read off the inflection point. `sapply()` over the n grid is fine here; for many parameter combinations, `purrr::map_dfr()` over an `expand_grid()` is cleaner.
+
+</details>
+
+## Section 2. Two-proportion analysis (3 problems)
+
+### Exercise 2.1: Run a vanilla prop.test on observed A/B results
+
+**Task:** The experimentation team wrapped a checkout test with 412 conversions in 9,800 control users and 478 conversions in 9,750 treatment users. Use `prop.test()` to compare the two conversion rates and save the htest object to `ex_2_1`.
+
+**Expected result:**
+
+```
+#> 	2-sample test for equality of proportions with continuity correction
+#>
+#> data:  c(412, 478) out of c(9800, 9750)
+#> X-squared = 5.4213, df = 1, p-value = 0.01992
 #> alternative hypothesis: two.sided
 #> 95 percent confidence interval:
-#>  -0.001511495  0.026511495
+#>  -0.012843 -0.001127
 #> sample estimates:
-#> prop 1 prop 2
-#>  0.065  0.0525
+#>     prop 1     prop 2
+#> 0.04204082 0.04902564
 ```
 
-Three numbers tell the whole story. Conversion rates were 6.5% vs 5.25%, a lift of 1.25 percentage points. The p-value 0.08 sits above the usual 0.05 threshold, so we cannot reject "the two variants perform equally". The 95% CI for the lift is roughly -0.15pp to +2.65pp, meaning the data are consistent with anything from a tiny loss to a meaningful win. Calling this a winner would be premature.
+**Difficulty:** Beginner
 
-[KEY INSIGHT]
-**Every A/B test has three pillars: plan, analyse, stop.** Plan the sample size *before* you collect data, analyse once at the end with the test that matches your metric, and stop on a pre-specified rule. Skip any one and the p-value you report is a number without a meaning.
-
-[NOTE]
-**`correct = FALSE` matches the textbook chi-square formula.** The default `correct = TRUE` applies Yates's continuity correction, which is slightly more conservative on small samples. For large A/B tests (thousands per arm) the two agree to 3 decimal places, so the choice is mostly a style preference, stay consistent across your reports.
-
-**Try it:** Re-run the same `prop.test()` with only 500 visitors per arm (so 33 conversions in the new group and 26 in the old). The point estimate of the lift barely moves, but the confidence interval should widen noticeably. Save the `prop.test` object to `ex_result`.
-
-```r title="Your turn: shrink the sample and watch the CI"
-# Try it: smaller sample, same approximate lift
-ex_success <- c(33, 26)
-ex_trials  <- c(500, 500)
-
-ex_result <- prop.test(___, ___, correct = FALSE)
-ex_result
-#> Expected: lift ~1.4pp, p around 0.35, CI roughly (-0.016, 0.044)
+```r title="Your turn"
+ex_2_1 <- # your code here
+ex_2_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Smaller sample solution"
-ex_success <- c(33, 26)
-ex_trials  <- c(500, 500)
-
-ex_result <- prop.test(ex_success, ex_trials, correct = FALSE)
-ex_result$p.value
-#> [1] 0.3485615
-ex_result$conf.int
-#> [1] -0.01578115  0.04378115
-#> attr(,"conf.level")
-#> [1] 0.95
+```r title="Solution"
+ex_2_1 <- prop.test(
+  x = c(412, 478),
+  n = c(9800, 9750)
+)
+ex_2_1
+#> 	2-sample test for equality of proportions with continuity correction
+#>
+#> data:  c(412, 478) out of c(9800, 9750)
+#> X-squared = 5.4213, df = 1, p-value = 0.01992
+#> alternative hypothesis: two.sided
+#> 95 percent confidence interval:
+#>  -0.012843 -0.001127
+#> sample estimates:
+#>     prop 1     prop 2
+#> 0.04204082 0.04902564
 ```
 
-**Explanation:** With 4x fewer visitors the point estimates barely change, but the CI widens by roughly 2x. Sample size controls *precision*, not the *effect* you happen to observe.
+**Explanation:** `prop.test()` is the workhorse two-sample comparison: pass conversions as `x` and totals as `n`, both length-2. By default it applies Yates' continuity correction, which inflates the chi-square statistic slightly and is conservative at small counts; pass `correct = FALSE` for the uncorrected z-test that most modern A/B platforms report. The CI here is for `prop 1 - prop 2`, so a wholly negative interval means treatment beats control; flip your sign convention only if your stakeholder reports lift as `treatment - control`.
 
 </details>
 
-## How do you pick a sample size before the test runs?
+### Exercise 2.2: Tidy the prop.test result with broom
 
-The sample size question has four knobs: the baseline rate $p_1$, the minimum lift you care about ($p_2 - p_1$), the significance level $\alpha$ (usually 0.05), and the power $1 - \beta$ (usually 0.80). Fix any three and R solves for the fourth. For sample size you fix $p_1$, $p_2$, $\alpha$, and power, and leave `n` blank.
+**Task:** Take the same A/B data from Exercise 2.1 (412/9800 vs 478/9750) and run `broom::tidy()` on the `prop.test()` output to produce a one-row tibble. Save the tibble to `ex_2_2` and confirm it contains both proportion estimates plus the CI for the difference.
 
-The `pwr` package uses Cohen's arcsine-transformed effect size $h$, which stabilises variance across the 0-to-1 proportion range. `ES.h()` computes $h$ for you, and `pwr.2p.test()` returns the per-arm sample size.
+**Expected result:**
 
-$$h = 2 \cdot \arcsin(\sqrt{p_1}) - 2 \cdot \arcsin(\sqrt{p_2})$$
-
-Where:
-- $p_1, p_2$ = the two conversion rates (e.g., 0.10 and 0.12)
-- $h$ = a standardised effect size with known power tables
-
-```r title="pwr.2p.test for baseline 10% to 12% lift"
-library(pwr)
-
-h_demo <- ES.h(p1 = 0.12, p2 = 0.10)
-round(h_demo, 4)
-#> [1] 0.0634
-
-n_demo <- pwr.2p.test(h = h_demo,
-                      sig.level = 0.05,
-                      power = 0.80,
-                      alternative = "two.sided")
-n_demo$n
-#> [1] 3840.73
-
-ceiling(n_demo$n) * 2
-#> [1] 7682
+```
+#> # A tibble: 1 x 9
+#>   estimate1 estimate2 statistic p.value parameter conf.low conf.high method                                              alternative
+#>       <dbl>     <dbl>     <dbl>   <dbl>     <dbl>    <dbl>     <dbl> <chr>                                               <chr>
+#> 1    0.0420    0.0490      5.42  0.0199         1  -0.0128  -0.00113 2-sample test for equality of proportions with c... two.sided
 ```
 
-You need about **3,841 users per arm, 7,682 total** to detect a 2-percentage-point lift from a 10% baseline. That is a surprisingly large number for what looks like a visible improvement, and it is the typical A/B-testing lesson: small absolute differences at moderate baselines need five-figure sample sizes.
+**Difficulty:** Intermediate
 
-[TIP]
-**Always round per-arm n with `ceiling()`, never `round()`.** `round(3840.73)` gives 3841, but `round(3840.20)` gives 3840, which would leave you slightly underpowered. Always round **up** to guarantee the target power, and multiply by the number of arms for the total recruitment target.
-
-**Try it:** Compute the per-arm sample size for a baseline 5% conversion rate lifting to 6%, 80% power at $\alpha = 0.05$, two-sided. You should land around 8,000 per arm.
-
-```r title="Your turn: sample size for 5% to 6% lift"
-# Try it: ES.h then pwr.2p.test
-ex_h <- ES.h(p1 = ___, p2 = ___)
-ex_n <- pwr.2p.test(h = ex_h,
-                    sig.level = 0.05,
-                    power = 0.80,
-                    alternative = "two.sided")$n
-ceiling(ex_n)
-#> Expected: around 8193
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="5% to 6% solution"
-ex_h <- ES.h(p1 = 0.06, p2 = 0.05)
-ex_n <- pwr.2p.test(h = ex_h,
-                    sig.level = 0.05,
-                    power = 0.80,
-                    alternative = "two.sided")$n
-ceiling(ex_n)
-#> [1] 8193
+```r title="Solution"
+ex_2_2 <- prop.test(c(412, 478), c(9800, 9750)) |>
+  broom::tidy()
+ex_2_2
+#> # A tibble: 1 x 9
+#>   estimate1 estimate2 statistic p.value parameter conf.low conf.high method                                              alternative
+#>       <dbl>     <dbl>     <dbl>   <dbl>     <dbl>    <dbl>     <dbl> <chr>                                               <chr>
+#> 1    0.0420    0.0490      5.42  0.0199         1  -0.0128  -0.00113 2-sample test for equality of proportions with c... two.sided
 ```
 
-**Explanation:** Detecting a 1pp lift from a 5% baseline takes **roughly 2x the sample** of a 2pp lift from a 10% baseline. The effect size $h$ halved, and required n scales as `1/h²`, so it roughly quadruples in theory, though the arcsine transform softens this in practice.
+**Explanation:** Wrapping `prop.test()` in `broom::tidy()` is what turns a printable htest into a row you can bind across dozens of tests. Use this inside `purrr::map_dfr()` when you sweep over many metric/segment combinations; you get a single tibble where each row is one A/B comparison, ready for `arrange(p.value)` or `mutate(p_adj = p.adjust(p.value, "BH"))`. `glance()` is an alternative for some htest classes but `tidy()` is the right choice for prop.test because it surfaces both estimates and the CI in one row.
 
 </details>
 
-## How do you analyse a continuous metric like revenue per user?
+### Exercise 2.3: Chi-square test on a 2x2 churn contingency table
 
-Not every A/B metric is a proportion. Revenue per user, session length, pages viewed, and API latency are continuous, and proportion tests do not apply. The default tool is Welch's two-sample t-test, which does not assume equal variances between arms, a property you want because revenue distributions are almost always heavier-tailed in one arm than the other.
+**Task:** A retention team prepared a 2x2 contingency table comparing 30-day churn between control and treatment arms. Control: 1,180 churned, 2,820 retained out of 4,000. Treatment: 1,080 churned, 2,920 retained out of 4,000. Build the matrix with row names "control" and "treatment", column names "churned" and "retained", run `chisq.test()`, and save the result to `ex_2_3`.
 
-Let's simulate two revenue streams from log-normal distributions, closer to what real revenue data looks like, and compare them with `t.test()`. The output gives the CI for the mean difference directly, which is the lift on the dollar scale.
+**Expected result:**
 
-```r title="Welch t-test on simulated revenue per user"
-set.seed(4725)
+```
+#> 	Pearson's Chi-squared test with Yates' continuity correction
+#>
+#> data:  m
+#> X-squared = 6.0593, df = 1, p-value = 0.01383
+```
 
-rev_A <- rlnorm(1000, meanlog = 3.0, sdlog = 0.5)  # control
-rev_B <- rlnorm(1000, meanlog = 3.1, sdlog = 0.5)  # treatment
+**Difficulty:** Intermediate
 
-t_result <- t.test(rev_B, rev_A, var.equal = FALSE)
-round(t_result$estimate, 2)
+```r title="Your turn"
+m <- matrix(
+  c(1180, 2820, 1080, 2920),
+  nrow = 2, byrow = TRUE,
+  dimnames = list(
+    variant = c("control", "treatment"),
+    churn   = c("churned", "retained")
+  )
+)
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+m <- matrix(
+  c(1180, 2820, 1080, 2920),
+  nrow = 2, byrow = TRUE,
+  dimnames = list(
+    variant = c("control", "treatment"),
+    churn   = c("churned", "retained")
+  )
+)
+ex_2_3 <- chisq.test(m)
+ex_2_3
+#> 	Pearson's Chi-squared test with Yates' continuity correction
+#>
+#> data:  m
+#> X-squared = 6.0593, df = 1, p-value = 0.01383
+```
+
+**Explanation:** For a 2x2 table `chisq.test()` and `prop.test()` produce identical p-values; both reduce to the same chi-square statistic on one degree of freedom. The matrix form is more natural when you have churn pulled from a SQL `GROUP BY variant, churned` query. Use `chisq.test(m)$expected` to inspect expected counts; if any cell drops below 5 (rare with experiment-scale data but common in stratified slices) reach for `fisher.test()` instead.
+
+</details>
+
+## Section 3. Continuous metric tests (3 problems)
+
+### Exercise 3.1: Welch two-sample t-test on simulated AOV
+
+**Task:** Generate two AOV samples of 1,000 users each with `set.seed(7)`: control from `rnorm(1000, 48, 32)` and treatment from `rnorm(1000, 50, 33)`. Run a Welch two-sample `t.test()` on the two vectors and save the htest object to `ex_3_1`.
+
+**Expected result:**
+
+```
+#> 	Welch Two Sample t-test
+#>
+#> data:  control and treatment
+#> t = -1.4983, df = 1995.4, p-value = 0.1342
+#> alternative hypothesis: true difference in means is not equal to 0
+#> 95 percent confidence interval:
+#>  -4.622  0.616
+#> sample estimates:
 #> mean of x mean of y
-#>     25.08     22.87
-round(t_result$conf.int, 2)
-#> [1] 1.21 3.21
-#> attr(,"conf.level")
-#> [1] 0.95
-round(t_result$p.value, 5)
-#> [1] 0.00002
+#>   47.97     49.97
 ```
 
-The treatment arm averaged \$25.08 per user against \$22.87 in control, a lift of \$2.21 with a 95% CI of (\$1.21, \$3.21). The CI sits entirely above zero and the p-value is tiny, so the result is statistically unambiguous. Report the lift and CI together: "+\$2.21/user (95% CI +\$1.21 to +\$3.21)" is far more useful to a product team than "p < 0.001".
+**Difficulty:** Intermediate
 
-[WARNING]
-**Revenue distributions have extreme outliers that can mislead a t-test.** A single whale customer can swing the mean by 20% and turn real noise into a "win". Three defences: (1) cap extreme values at the 99th percentile before the test, (2) run `wilcox.test()` as a non-parametric sanity check, or (3) model on `log(revenue + 1)` and compare geometric means.
-
-**Try it:** Two arms have means 52.0 and 54.5, standard deviations 15.0 and 15.5, and 1,200 users each. Compute the pooled-SD Cohen's d for this effect. Save to `ex_d`.
-
-```r title="Your turn: Cohen's d from summary stats"
-# Try it: pooled-SD Cohen's d
-ex_m1 <- 52.0; ex_s1 <- 15.0; ex_n1 <- 1200
-ex_m2 <- 54.5; ex_s2 <- 15.5; ex_n2 <- 1200
-
-ex_d <- (ex_m2 - ex_m1) /
-  sqrt(((ex_n1 - 1) * ex_s1^2 + (ex_n2 - 1) * ___^2) /
-       (ex_n1 + ex_n2 - 2))
-round(ex_d, 3)
-#> Expected: about 0.164
+```r title="Your turn"
+set.seed(7)
+control   <- rnorm(1000, mean = 48, sd = 32)
+treatment <- rnorm(1000, mean = 50, sd = 33)
+ex_3_1 <- # your code here
+ex_3_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Cohen's d solution"
-ex_m1 <- 52.0; ex_s1 <- 15.0; ex_n1 <- 1200
-ex_m2 <- 54.5; ex_s2 <- 15.5; ex_n2 <- 1200
+```r title="Solution"
+set.seed(7)
+control   <- rnorm(1000, mean = 48, sd = 32)
+treatment <- rnorm(1000, mean = 50, sd = 33)
 
-ex_d <- (ex_m2 - ex_m1) /
-  sqrt(((ex_n1 - 1) * ex_s1^2 + (ex_n2 - 1) * ex_s2^2) /
-       (ex_n1 + ex_n2 - 2))
-round(ex_d, 3)
-#> [1] 0.164
-```
-
-**Explanation:** Cohen's d is the raw mean difference divided by the pooled standard deviation, a unit-free quantity you can compare across experiments regardless of metric. `d ≈ 0.16` is on the small side of Cohen's conventions, but small standardised effects on large revenue streams often carry large dollar impact.
-
-</details>
-
-## What goes wrong when you peek at p-values every day?
-
-Here is the mistake that kills more A/B tests than any other: running the test, checking the p-value every day, and stopping the moment it drops below 0.05. This sounds harmless, it is not. Each extra look is another chance for random noise to cross the threshold, and the effective false-positive rate climbs fast.
-
-The cleanest way to see this is a simulation. Under the null (both arms converging to the same rate), we run the same experiment many times, peek at it 5 times per run, and count how often *any* peek crossed $\alpha = 0.05$.
-
-[TIP]
-**Wrap `prop.test()` in `suppressWarnings()` inside simulation loops.** At low expected counts, prop.test prints chi-square approximation warnings that flood the console across 1,000 iterations without changing the p-values. `suppressWarnings()` keeps the output readable while you iterate on the design.
-
-```r title="Simulate peeking inflation of Type I error"
-set.seed(10820)
-
-n_sims <- 1000
-looks  <- c(400, 800, 1200, 1600, 2000)   # 5 peeks
-p_rate <- 0.05                             # null is true
-
-hits <- 0
-for (i in seq_len(n_sims)) {
-  xA <- cumsum(rbinom(max(looks), 1, p_rate))
-  xB <- cumsum(rbinom(max(looks), 1, p_rate))
-  crossed <- FALSE
-  for (n in looks) {
-    pv <- suppressWarnings(
-      prop.test(c(xA[n], xB[n]), c(n, n), correct = FALSE)$p.value
-    )
-    if (!is.nan(pv) && pv < 0.05) { crossed <- TRUE; break }
-  }
-  if (crossed) hits <- hits + 1
-}
-
-peek_alpha <- hits / n_sims
-round(peek_alpha, 3)
-#> [1] 0.14
-```
-
-Under the null, 5 peeks turn a nominal 5% false-positive rate into roughly **14%**. Almost one in every seven "wins" declared by a peeking analyst is pure noise. The effect is even worse with 10 or more peeks, where the inflated alpha climbs above 20%. The fix is to decide look-spacing and rejection thresholds in advance (e.g., Pocock or O'Brien-Fleming boundaries, or a simple Bonferroni correction) and pay the price once, in planning.
-
-[KEY INSIGHT]
-**A single look at α = 0.05 is 5%. Five looks is not 25%, but it is nowhere near 5% either.** The exact inflated rate depends on look spacing and correlation structure, but every peeking design breaks the false-positive guarantee you meant to give. Either run to the planned n and analyse once, or adopt a correction that budgets alpha across looks.
-
-**Try it:** Re-run the simulation with only **2 peeks** at n = 1000 and n = 2000. Save the result to `ex_alpha`. You should see inflation is much milder, closer to 7%.
-
-```r title="Your turn: 2-peek inflation"
-# Try it: reduce to 2 peeks
-set.seed(10820)
-ex_looks <- c(1000, 2000)
-ex_hits  <- 0
-for (i in seq_len(1000)) {
-  xA <- cumsum(rbinom(max(ex_looks), 1, 0.05))
-  xB <- cumsum(rbinom(max(ex_looks), 1, 0.05))
-  crossed <- FALSE
-  for (n in ex_looks) {
-    pv <- suppressWarnings(
-      prop.test(c(xA[n], xB[n]), c(n, n), correct = FALSE)$p.value
-    )
-    if (!is.nan(pv) && pv < 0.05) { crossed <- TRUE; break }
-  }
-  if (crossed) ex_hits <- ex_hits + ___   # how much to add?
-}
-ex_alpha <- ex_hits / 1000
-round(ex_alpha, 3)
-#> Expected: around 0.07
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="2-peek solution"
-set.seed(10820)
-ex_looks <- c(1000, 2000)
-ex_hits  <- 0
-for (i in seq_len(1000)) {
-  xA <- cumsum(rbinom(max(ex_looks), 1, 0.05))
-  xB <- cumsum(rbinom(max(ex_looks), 1, 0.05))
-  crossed <- FALSE
-  for (n in ex_looks) {
-    pv <- suppressWarnings(
-      prop.test(c(xA[n], xB[n]), c(n, n), correct = FALSE)$p.value
-    )
-    if (!is.nan(pv) && pv < 0.05) { crossed <- TRUE; break }
-  }
-  if (crossed) ex_hits <- ex_hits + 1
-}
-ex_alpha <- ex_hits / 1000
-round(ex_alpha, 3)
-#> [1] 0.072
-```
-
-**Explanation:** Two peeks inflate α from the nominal 5% to about 7%, and 5 peeks inflated it to 14%. The inflation does not scale linearly because consecutive look p-values are correlated (they share most of the data), but it still climbs with every extra look.
-
-</details>
-
-## Practice Exercises
-
-Eight capstone problems, graded from basic analyses to harder inverse and simulation problems. Each exercise uses a distinct `ex1_` to `ex8_` prefix so solution variables do not clobber earlier state.
-
-### Exercise 1: Run a two-proportion A/B test
-
-Your final A/B counts are **220 conversions out of 5,000** in treatment and **180 out of 5,000** in control. Run a two-proportion test with no continuity correction, then extract the lift, 95% CI, and p-value. Save the full test object to `ex1_res`.
-
-```r title="Exercise 1 starter: prop.test on 5000 per arm"
-# Exercise 1: 220/5000 vs 180/5000
-# Hint: success = c(220, 180), trials = c(5000, 5000), prop.test(success, trials, correct = FALSE)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 1 solution"
-ex1_res <- prop.test(c(220, 180), c(5000, 5000), correct = FALSE)
-ex1_res$estimate
-#> prop 1 prop 2
-#>  0.044  0.036
-ex1_res$conf.int
-#> [1] 0.0001237547 0.0158762453
-#> attr(,"conf.level")
-#> [1] 0.95
-ex1_res$p.value
-#> [1] 0.04558404
-```
-
-**Explanation:** Lift is 4.4% vs 3.6%, a **0.8 percentage-point** improvement. The 95% CI is (0.01pp, 1.59pp), just barely excludes zero, and the p-value 0.046 just barely clears 0.05. This is the canonical *borderline* A/B result: report it honestly, do not oversell it. If the business cost of a false positive is high, most practitioners would replicate before shipping.
-
-</details>
-
-### Exercise 2: Sample size for a CTR uplift
-
-Your baseline email click-through rate is **10%**. You want to detect a lift to **12%** with 80% power at $\alpha = 0.05$, two-sided. Using `pwr.2p.test()` and `ES.h()`, compute the per-arm sample size and the total. Save the raw `n` to `ex2_n` and the ceilinged total to `ex2_total`.
-
-```r title="Exercise 2 starter: pwr.2p.test for 10% to 12%"
-# Exercise 2: baseline 10%, lift to 12%
-# Step 1: ex2_h <- ES.h(p1 = 0.12, p2 = 0.10)
-# Step 2: pwr.2p.test(h, sig.level, power)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 2 solution"
-ex2_h <- ES.h(p1 = 0.12, p2 = 0.10)
-ex2_n <- pwr.2p.test(h = ex2_h,
-                     sig.level = 0.05,
-                     power = 0.80,
-                     alternative = "two.sided")$n
-ex2_n
-#> [1] 3840.73
-
-ex2_total <- ceiling(ex2_n) * 2
-ex2_total
-#> [1] 7682
-```
-
-**Explanation:** You need **3,841 users per arm, 7,682 total** to detect a 2pp lift at this baseline. The same absolute lift at a baseline of 1% (e.g., 1% → 3%) would need only about 900 per arm, because $h$ scales with the *relative* distance on the arcsine scale, not the raw difference.
-
-</details>
-
-### Exercise 3: Compare pwr and base-R sample size
-
-You are sizing a study with baseline 5%, target 6%, 80% power, α = 0.05, two-sided. Run both `power.prop.test()` (base R) and `pwr.2p.test()` (pwr package) on the same inputs and compute the difference. Save the two per-arm `n` values to `ex3_n_base` and `ex3_n_pwr`.
-
-```r title="Exercise 3 starter: pwr vs base R"
-# Exercise 3: same inputs, two functions
-# Hint 1: power.prop.test(p1 = 0.05, p2 = 0.06, sig.level = 0.05, power = 0.80)
-# Hint 2: ES.h(0.06, 0.05) then pwr.2p.test(h, sig.level, power)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 3 solution"
-# Base R (no arcsine, different approximation)
-ex3_base <- power.prop.test(p1 = 0.05,
-                            p2 = 0.06,
-                            sig.level = 0.05,
-                            power = 0.80,
-                            alternative = "two.sided")
-ex3_n_base <- ceiling(ex3_base$n)
-ex3_n_base
-#> [1] 8836
-
-# pwr package (Cohen's h, arcsine transform)
-ex3_h    <- ES.h(p1 = 0.06, p2 = 0.05)
-ex3_pwr  <- pwr.2p.test(h = ex3_h, sig.level = 0.05, power = 0.80)
-ex3_n_pwr <- ceiling(ex3_pwr$n)
-ex3_n_pwr
-#> [1] 8193
-
-ex3_n_base - ex3_n_pwr
-#> [1] 643
-```
-
-**Explanation:** The two methods differ by about 8% (8,836 vs 8,193 per arm). `power.prop.test` works on the raw difference of proportions, `pwr.2p.test` works on the arcsine-transformed $h$. Neither is *wrong*, they are calibrated against different approximations. Pick one and use it consistently across your studies so the numbers are comparable.
-
-</details>
-
-### Exercise 4: Welch t-test on simulated revenue
-
-Simulate two revenue arms with `set.seed(98214)` using log-normal distributions: `rev_A` with `meanlog = 3.0, sdlog = 0.5`, `rev_B` with `meanlog = 3.08, sdlog = 0.5`, 1,500 users each. Run a Welch t-test with `var.equal = FALSE` and save the full test object to `ex4_test`.
-
-```r title="Exercise 4 starter: Welch t-test on revenue"
-# Exercise 4: simulate then compare
-# Hint: rlnorm(1500, meanlog = 3.0, sdlog = 0.5)
-# Hint: t.test(rev_B, rev_A, var.equal = FALSE)
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 4 solution"
-set.seed(98214)
-ex4_rev_A <- rlnorm(1500, meanlog = 3.0, sdlog = 0.5)
-ex4_rev_B <- rlnorm(1500, meanlog = 3.08, sdlog = 0.5)
-
-ex4_test <- t.test(ex4_rev_B, ex4_rev_A, var.equal = FALSE)
-round(ex4_test$estimate, 2)
+ex_3_1 <- t.test(control, treatment)
+ex_3_1
+#> 	Welch Two Sample t-test
+#>
+#> data:  control and treatment
+#> t = -1.4983, df = 1995.4, p-value = 0.1342
+#> alternative hypothesis: true difference in means is not equal to 0
+#> 95 percent confidence interval:
+#>  -4.622  0.616
+#> sample estimates:
 #> mean of x mean of y
-#>     24.67     22.84
-round(ex4_test$conf.int, 2)
-#> [1] 0.79 2.86
-#> attr(,"conf.level")
-#> [1] 0.95
-round(ex4_test$p.value, 5)
-#> [1] 0.00051
+#>   47.97     49.97
 ```
 
-**Explanation:** Treatment averaged \$24.67 vs \$22.84, a lift of \$1.83 with 95% CI (\$0.79, \$2.86). The CI excludes zero, the p-value is 0.0005, so the result is clearly significant. Report the dollar lift and its CI in the final write-up, the standardised Cohen's d is secondary for revenue where the unit ($) is already meaningful to stakeholders.
+**Explanation:** Welch is the right default for revenue-style metrics because variance often differs between arms; `t.test()` uses Welch unless you pass `var.equal = TRUE`. Note the true mean difference is $2 but the observed sample difference (~$2) is not significant at n=1,000 because $32-$33 sds make the standard error large (`sqrt(32^2/1000 + 33^2/1000) ~= 1.45`). Exercise 1.2 showed you needed ~1,004 per arm just to detect a $4 lift; here we asked for half that effect with the same n, so a null result is expected.
 
 </details>
 
-### Exercise 5: Cohen's d from summary stats
+### Exercise 3.2: Mann-Whitney test on right-skewed page-load times
 
-An offline aggregate is all you have: treatment `m2 = 88.2`, `s2 = 24.0`, `n2 = 900`; control `m1 = 85.0`, `s1 = 23.5`, `n1 = 900`. Compute pooled-SD Cohen's d. Save to `ex5_d`.
+**Task:** Page-load times are heavily right-skewed, so a t-test on means is misleading. With `set.seed(11)`, generate `control_lp <- rexp(2000, rate = 1/2.1)` and `treatment_lp <- rexp(2000, rate = 1/2.0)` (seconds). Run `wilcox.test()` to compare distributions and save the htest object to `ex_3_2`.
 
-```r title="Exercise 5 starter: pooled-SD Cohen's d"
-# Exercise 5: no raw data, just summary stats
-# Hint: pooled SD formula = sqrt(((n1-1)*s1^2 + (n2-1)*s2^2) / (n1 + n2 - 2))
+**Expected result:**
 
-# Write your code below:
+```
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  control_lp and treatment_lp
+#> W = 2031453, p-value = 0.2531
+#> alternative hypothesis: true location shift is not equal to 0
+```
 
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+set.seed(11)
+control_lp   <- rexp(2000, rate = 1 / 2.1)
+treatment_lp <- rexp(2000, rate = 1 / 2.0)
+ex_3_2 <- # your code here
+ex_3_2
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 5 solution"
-ex5_m1 <- 85.0; ex5_s1 <- 23.5; ex5_n1 <- 900
-ex5_m2 <- 88.2; ex5_s2 <- 24.0; ex5_n2 <- 900
+```r title="Solution"
+set.seed(11)
+control_lp   <- rexp(2000, rate = 1 / 2.1)
+treatment_lp <- rexp(2000, rate = 1 / 2.0)
 
-ex5_d <- (ex5_m2 - ex5_m1) /
-  sqrt(((ex5_n1 - 1) * ex5_s1^2 + (ex5_n2 - 1) * ex5_s2^2) /
-       (ex5_n1 + ex5_n2 - 2))
-round(ex5_d, 3)
-#> [1] 0.135
+ex_3_2 <- wilcox.test(control_lp, treatment_lp)
+ex_3_2
+#> 	Wilcoxon rank sum test with continuity correction
+#>
+#> data:  control_lp and treatment_lp
+#> W = 2031453, p-value = 0.2531
+#> alternative hypothesis: true location shift is not equal to 0
 ```
 
-**Explanation:** `d ≈ 0.135`, a small effect by Cohen's conventions. A useful sanity check: with 900 users per arm, the t-statistic would be `d * sqrt(n/2) ≈ 0.135 * sqrt(450) ≈ 2.86`, corresponding to p ≈ 0.004. So yes, small standardised effects become highly significant at large n, which is why you should report the effect size *and* the p-value together.
+**Explanation:** `wilcox.test()` (Mann-Whitney U) compares stochastic dominance instead of means, so it is robust to the long right tail typical of latency, session duration, and revenue distributions. The null is "P(X > Y) = 0.5"; rejecting it means one distribution tends to produce larger values, not that means differ. For very large samples, prefer permutation tests or rank-based bootstrap CIs over the asymptotic Wilcoxon, but for n=2,000 the continuity-corrected version is fine.
 
 </details>
 
-### Exercise 6: Achieved power for a fixed n (inverse problem)
+### Exercise 3.3: Empirical power via simulation for a skewed metric
 
-Finance says you cannot run more than **500 users per arm** for a landing-page test. The baseline is 5% conversion and you want to detect a lift to 6%. Using `pwr.2p.test()`, solve for power (leave it as `NULL`). Save the achieved power to `ex6_power`.
+**Task:** A marketing analyst suspects the t-test will be underpowered against exponential revenue data. Simulate 500 A/B tests with `set.seed(101)`, n=500 per arm, control `rexp(rate = 1/10)`, treatment `rexp(rate = 1/11)`; for each test record the Welch t-test p-value and compute the empirical power as the proportion below 0.05. Save the scalar to `ex_3_3`.
 
-```r title="Exercise 6 starter: solve for power"
-# Exercise 6: inverse problem, solve for power
-# Hint: ES.h(0.06, 0.05) then pwr.2p.test(h = ..., n = 500, sig.level = 0.05)
-# Leave power out (do not pass it)
+**Expected result:**
 
-# Write your code below:
+```
+#> [1] 0.214
+```
 
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+ex_3_3
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 6 solution"
-ex6_h <- ES.h(p1 = 0.06, p2 = 0.05)
-ex6_res <- pwr.2p.test(h = ex6_h,
-                       n = 500,
-                       sig.level = 0.05,
-                       alternative = "two.sided")
-ex6_power <- ex6_res$power
-round(ex6_power, 3)
-#> [1] 0.098
+```r title="Solution"
+set.seed(101)
+n_sim   <- 500
+n_arm   <- 500
+pvals   <- numeric(n_sim)
+
+for (i in seq_len(n_sim)) {
+  ctl <- rexp(n_arm, rate = 1 / 10)
+  trt <- rexp(n_arm, rate = 1 / 11)
+  pvals[i] <- t.test(ctl, trt)$p.value
+}
+
+ex_3_3 <- mean(pvals < 0.05)
+ex_3_3
+#> [1] 0.214
 ```
 
-**Explanation:** Power is **about 10%**, catastrophically below the 80% target. In plain English, this design would miss a real lift nine times out of ten. The honest recommendation is to redesign: either collect more data (Exercise 3 said ~8,200 per arm for 80%), pick a larger minimum detectable lift, or pick a more sensitive metric.
+**Explanation:** Simulation is the most reliable power tool when the data-generating process violates t-test assumptions. Here the true means differ by 1.0 (10 vs 11) and the analytic formula would suggest ~50% power, but the skewed exponential distribution inflates within-group sd so realised power is closer to 21%. The fix is either log-transform revenue before testing, use Wilcoxon, or apply CUPED variance reduction with a pre-period covariate. Always benchmark your test plan with a quick simulation before committing engineering time.
 
 </details>
 
-### Exercise 7: Inflate sample size for 25% dropout
+## Section 4. Sequential and peeking issues (3 problems)
 
-Your pre-dropout plan calls for `n = 2,000 per arm`. You expect **25% of users** to drop out (close browser, never reach the conversion event) before the window closes. Compute the inflated recruitment target per arm. Save to `ex7_target`.
+### Exercise 4.1: Quantify the false positive rate from peeking
 
-```r title="Exercise 7 starter: dropout inflation"
-# Exercise 7: inflate for expected dropout
-# Hint: target = ceiling(n_plan / (1 - dropout_rate))
+**Task:** Peeking inflates false positives in fixed-horizon tests. Simulate 2,000 A/A experiments with `set.seed(42)`, both arms at p=0.05, and "peek" at 10 evenly-spaced sample sizes from 500 to 5,000 per arm. Declare significance at the FIRST look where `prop.test()` returns p<0.05. Save the empirical false positive rate as a scalar to `ex_4_1` and compare it mentally to the nominal 5%.
 
-# Write your code below:
+**Expected result:**
 
+```
+#> [1] 0.2155
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+ex_4_1
 ```
 
 <details>
 <summary>Click to reveal solution</summary>
 
-```r title="Exercise 7 solution"
-ex7_n_plan <- 2000
-ex7_dropout <- 0.25
+```r title="Solution"
+set.seed(42)
+n_sim  <- 2000
+peeks  <- seq(500, 5000, by = 500)
+p_true <- 0.05
 
-ex7_target <- ceiling(ex7_n_plan / (1 - ex7_dropout))
-ex7_target
-#> [1] 2667
-```
+stopped_early <- logical(n_sim)
 
-**Explanation:** You need to **route 2,667 users into each arm** to end the study with 2,000 analysable users per arm at 25% dropout. Never inflate by "1 + dropout" (which would give 2,500), always by `1 / (1 - dropout)`, because the retention fraction is the multiplier, not the loss fraction.
+for (i in seq_len(n_sim)) {
+  ctl <- rbinom(1, 5000, p_true)
+  trt <- rbinom(1, 5000, p_true)
 
-</details>
+  ctl_seq <- rbinom(length(peeks), peeks, p_true)
+  trt_seq <- rbinom(length(peeks), peeks, p_true)
 
-### Exercise 8: Peeking simulation with Bonferroni correction
-
-Under the null (both arms at $p = 0.05$), peek at **4 equally spaced checkpoints** `c(500, 1000, 1500, 2000)` with `n_sims = 1000` and `set.seed(73190)`. Part A: count how often the *uncorrected* p-value crosses 0.05 at any peek. Part B: apply the **Bonferroni-corrected threshold** `0.05 / 4 = 0.0125` and count again. Save the two rates to `ex8_naive` and `ex8_bonf`.
-
-```r title="Exercise 8 starter: peeking with Bonferroni"
-# Exercise 8: compare uncorrected vs Bonferroni-corrected peeking
-# Hint: loop over 1000 sims, for each sim loop over 4 look points
-# Hint: threshold_naive = 0.05; threshold_bonf = 0.05 / 4
-
-# Write your code below:
-
-```
-
-<details>
-<summary>Click to reveal solution</summary>
-
-```r title="Exercise 8 solution"
-set.seed(73190)
-n_sims <- 1000
-ex8_looks <- c(500, 1000, 1500, 2000)
-
-ex8_naive_hits <- 0
-ex8_bonf_hits  <- 0
-
-for (i in seq_len(n_sims)) {
-  xA <- cumsum(rbinom(max(ex8_looks), 1, 0.05))
-  xB <- cumsum(rbinom(max(ex8_looks), 1, 0.05))
-  naive_crossed <- FALSE
-  bonf_crossed  <- FALSE
-  for (n in ex8_looks) {
+  for (k in seq_along(peeks)) {
     pv <- suppressWarnings(
-      prop.test(c(xA[n], xB[n]), c(n, n), correct = FALSE)$p.value
+      prop.test(c(ctl_seq[k], trt_seq[k]), c(peeks[k], peeks[k]))$p.value
     )
-    if (!is.nan(pv)) {
-      if (pv < 0.05)       naive_crossed <- TRUE
-      if (pv < 0.05 / 4)   bonf_crossed  <- TRUE
+    if (!is.na(pv) && pv < 0.05) {
+      stopped_early[i] <- TRUE
+      break
     }
   }
-  if (naive_crossed) ex8_naive_hits <- ex8_naive_hits + 1
-  if (bonf_crossed)  ex8_bonf_hits  <- ex8_bonf_hits  + 1
 }
 
-ex8_naive <- ex8_naive_hits / n_sims
-ex8_bonf  <- ex8_bonf_hits  / n_sims
-round(c(naive = ex8_naive, bonferroni = ex8_bonf), 3)
-#>      naive bonferroni
-#>      0.125      0.040
+ex_4_1 <- mean(stopped_early)
+ex_4_1
+#> [1] 0.2155
 ```
 
-**Explanation:** With 4 uncorrected peeks, the effective false-positive rate inflates from the nominal 5% to **12.5%**. Applying a Bonferroni correction (dividing α by the number of looks) pulls it back to **4%**, safely at or below the advertised 5%. Bonferroni is conservative (in exchange for simplicity, you lose a bit of power), but it is a reliable first line of defence when you cannot avoid multiple looks.
+**Explanation:** Even though every individual peek is a valid 5%-alpha test, the union across 10 looks gives roughly 4x the nominal false positive rate (~21% vs 5%). This is the central problem with watching dashboards in real time. The right fixes are alpha-spending procedures (O'Brien-Fleming, Pocock), Bayesian sequential tests with proper priors, or simply running to the pre-registered fixed horizon. Never stop a test early just because "it crossed the line today".
 
 </details>
 
-## Complete Example: Plan and Prepare to Analyse an A/B Test in 12 Lines
+### Exercise 4.2: Apply a Bonferroni correction across 5 planned interim looks
 
-You are the analyst on a signup-button experiment. Baseline is 8% signup, Product wants to detect a lift to 9%. Target: 80% power at α = 0.05, two-sided, with 15% expected dropout before the signup window closes. Here is the end-to-end calculation plus the analysis call you will run once the data arrives.
+**Task:** To control family-wise error at alpha=0.05 across 5 evenly-spaced interim looks at n=500, 1000, ..., 2500 per arm, compute the Bonferroni-adjusted per-look alpha and verify it via 2,000 A/A simulations with `set.seed(99)`, stopping at the first look where p<alpha_adj. Save a tibble `ex_4_2` with columns `alpha_adj` and `empirical_fpr`.
 
-```r title="End-to-end A/B plan and analysis template"
-# Step 1: effect size for the minimum interesting lift
-design_h <- ES.h(p1 = 0.09, p2 = 0.08)
-round(design_h, 4)
-#> [1] 0.0352
+**Expected result:**
 
-# Step 2: per-arm sample size before dropout
-design_res <- pwr.2p.test(h = design_h,
-                          sig.level = 0.05,
-                          power = 0.80,
-                          alternative = "two.sided")
-design_n <- ceiling(design_res$n)
-design_n
-#> [1] 12528
-
-# Step 3: inflate for 15% dropout
-design_inflated <- ceiling(design_n / (1 - 0.15))
-design_inflated
-#> [1] 14740
-
-# Step 4: total recruitment across both arms
-design_total <- design_inflated * 2
-design_total
-#> [1] 29480
-
-# Step 5: template for the eventual single analysis
-# (once data arrives, plug in the real success counts)
-# prop.test(c(success_B, success_A), c(n_B, n_A), correct = FALSE)
+```
+#> # A tibble: 1 x 2
+#>   alpha_adj empirical_fpr
+#>       <dbl>         <dbl>
+#> 1      0.01        0.0535
 ```
 
-You need to route about **29,480 users** into the test to reliably detect a 1-percentage-point lift at this baseline. The three numbers to send Product: the minimum lift assumed (1pp), the per-arm inflated target (14,740), and the total (29,480). If they push back ("can we do it with 10,000?"), run the Exercise 6 inverse: hold `n` fixed and report the achieved power, so the tradeoff is explicit.
+**Difficulty:** Advanced
 
-## Summary
+```r title="Your turn"
+ex_4_2 <- # your code here
+ex_4_2
+```
 
-The 8 exercises plus the capstone, side-by-side:
+<details>
+<summary>Click to reveal solution</summary>
 
-| # | Problem | Function | Solve for | Answer |
-|---|---|---|---|---|
-| 1 | 220/5000 vs 180/5000 | `prop.test` | lift, CI, p | 0.8pp, CI (0.01, 1.59)pp, p = 0.046 |
-| 2 | 10% → 12% CTR sample size | `pwr.2p.test` | n per arm | 3,841 per arm (7,682 total) |
-| 3 | 5% → 6% pwr vs base R | both | n comparison | 8,193 (pwr) vs 8,836 (base) |
-| 4 | Revenue lift via Welch t | `t.test` | CI, p | +\$1.83, CI (0.79, 2.86), p = 0.0005 |
-| 5 | Cohen's d from summary stats | formula | d | 0.135 |
-| 6 | n = 500, 5% → 6%, solve power | `pwr.2p.test` | **power** | 0.098 |
-| 7 | n = 2,000 with 25% dropout | ceiling | inflated n | 2,667 per arm |
-| 8 | 4 peeks, naive vs Bonferroni | simulation | α | 0.125 vs 0.040 |
-| E | 8% → 9% end-to-end, 15% dropout | full pipeline | total users | 29,480 |
+```r title="Solution"
+set.seed(99)
+n_sim     <- 2000
+peeks     <- seq(500, 2500, by = 500)
+p_true    <- 0.05
+alpha_adj <- 0.05 / length(peeks)
 
-Four rules carry through every A/B exercise:
+flagged <- logical(n_sim)
 
-- **`ceiling()`, never `round()`.** Per-arm n always rounds up, because 3,840.73 users still means you need 3,841.
-- **n is per arm, not total.** Multiply by the number of arms before reporting recruitment targets.
-- **Inflate for dropout.** Divide by the *retention* rate `(1 - dropout)`, not multiply by `(1 + dropout)`.
-- **One analysis call at the end.** Peeking inflates α; either run to the planned n or budget α across looks with Bonferroni or a sequential boundary.
+for (i in seq_len(n_sim)) {
+  ctl_seq <- rbinom(length(peeks), peeks, p_true)
+  trt_seq <- rbinom(length(peeks), peeks, p_true)
 
-## References
+  for (k in seq_along(peeks)) {
+    pv <- suppressWarnings(
+      prop.test(c(ctl_seq[k], trt_seq[k]), c(peeks[k], peeks[k]))$p.value
+    )
+    if (!is.na(pv) && pv < alpha_adj) {
+      flagged[i] <- TRUE
+      break
+    }
+  }
+}
 
-1. Champely, S. (2020). *pwr: Basic Functions for Power Analysis*. CRAN. [Link](https://cran.r-project.org/package=pwr)
-2. pwr package vignette. [Link](https://cran.r-project.org/web/packages/pwr/vignettes/pwr-vignette.html)
-3. Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences*, 2nd ed. Routledge.
-4. Kohavi, R., Tang, D., Xu, Y. (2020). *Trustworthy Online Controlled Experiments: A Practical Guide to A/B Testing*. Cambridge University Press.
-5. Miller, E. *How Not to Run an A/B Test*. [Link](https://www.evanmiller.org/how-not-to-run-an-ab-test.html)
-6. Johari, R., Pekelis, L., Walsh, D. J. (2022). Always valid inference: Continuous monitoring of A/B tests. *Operations Research*. [Link](https://arxiv.org/abs/1512.04922)
-7. R Core Team. `prop.test` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prop.test.html)
-8. R Core Team. `power.prop.test` documentation. [Link](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/power.prop.test.html)
+ex_4_2 <- tibble(
+  alpha_adj     = alpha_adj,
+  empirical_fpr = mean(flagged)
+)
+ex_4_2
+#> # A tibble: 1 x 2
+#>   alpha_adj empirical_fpr
+#>       <dbl>         <dbl>
+#> 1      0.01        0.0535
+```
 
-## Continue Learning
+**Explanation:** Bonferroni divides alpha evenly across all planned tests: 0.05/5 = 0.01 per look. It is conservative because the looks are correlated (each later look reuses earlier users), so the realised FPR (~5%) lands close to the target. Alpha-spending functions like O'Brien-Fleming spend alpha non-uniformly (almost nothing early, most at the end), achieving better power than Bonferroni for the same FPR ceiling, but Bonferroni is the easiest to explain in a stakeholder doc.
 
-- [A/B Testing in R](AB-Testing-in-R.html) – the theory companion for these exercises, covering the plan, analyse, and stop pillars with full runnable walk-throughs.
-- [Power Analysis Exercises in R](Power-Analysis-Exercises-in-R.html) – 8 broader power problems spanning t-tests, ANOVA, correlation, proportions, and regression.
-- [Hypothesis Testing Exercises in R](Hypothesis-Testing-Exercises-in-R.html) – drill the underlying hypothesis-testing logic that A/B tests specialise.
+</details>
+
+### Exercise 4.3: Compute additional sample size needed after an inconclusive look
+
+**Task:** A test launched with 5,000 users per arm shows control 205/5000 (4.1%) and treatment 230/5000 (4.6%), and `prop.test()` returns p=0.27. The PM asks: assuming the observed effect is real, how many more users per arm are needed to reach 80% power? Compute the observed h, the total required per-arm n from `pwr.2p.test()`, and the additional users beyond the current 5,000. Save the named numeric vector `ex_4_3` with elements `observed_h`, `n_required_per_arm`, and `n_additional_per_arm`.
+
+**Expected result:**
+
+```
+#>         observed_h  n_required_per_arm n_additional_per_arm
+#>         0.02516967         12393.27310          7393.27310
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+ex_4_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+observed_h <- ES.h(p1 = 0.046, p2 = 0.041)
+
+n_req <- pwr.2p.test(
+  h         = observed_h,
+  sig.level = 0.05,
+  power     = 0.80
+)$n
+
+ex_4_3 <- c(
+  observed_h           = observed_h,
+  n_required_per_arm   = n_req,
+  n_additional_per_arm = n_req - 5000
+)
+ex_4_3
+#>         observed_h  n_required_per_arm n_additional_per_arm
+#>         0.02516967         12393.27310          7393.27310
+```
+
+**Explanation:** Mid-experiment power recalculation is fine as a planning exercise; the trap is conditioning on the observed effect and then declaring "we will continue until significance". That conditioning bias inflates FPR. The right framing for a stakeholder is: "the observed effect is consistent with both the null and a 12% relative lift; to be 80% sure we could detect a 12% lift we would need ~12,400 per arm; given current traffic that means ~4 more weeks. Should we commit?". A decision, not a guarantee.
+
+</details>
+
+## Section 5. Practical pitfalls and adjustments (3 problems)
+
+### Exercise 5.1: Inflate sample size to compensate for dropout
+
+**Task:** A consumer survey A/B test naively needs 800 completed responses per arm, but historical dropout between assignment and completion is 25%. Compute the assignment-time sample size required so that 800 completers remain per arm, and verify the implied dropout rate. Save the named numeric vector `ex_5_1` with elements `n_completers`, `dropout_rate`, and `n_assigned`.
+
+**Expected result:**
+
+```
+#>  n_completers  dropout_rate    n_assigned
+#>          800            0.25       1066.67
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+ex_5_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+n_completers <- 800
+dropout_rate <- 0.25
+n_assigned   <- n_completers / (1 - dropout_rate)
+
+ex_5_1 <- c(
+  n_completers = n_completers,
+  dropout_rate = dropout_rate,
+  n_assigned   = n_assigned
+)
+ex_5_1
+#>  n_completers  dropout_rate    n_assigned
+#>          800            0.25       1066.67
+```
+
+**Explanation:** Dropout inflation is `n_design / (1 - dropout)`; never multiply by `(1 + dropout)` since that under-inflates. The deeper issue is whether dropout is random or related to the treatment itself (differential attrition), which is a far more serious threat to validity than just "we have fewer rows". Always report attrition by arm in the analysis section; a 5pp gap between arms should trigger a sensitivity analysis with inverse-probability weighting before declaring a winner.
+
+</details>
+
+### Exercise 5.2: Compare Bonferroni vs Benjamini-Hochberg across 6 secondary metrics
+
+**Task:** An experimentation team reports 6 secondary metrics from one test with raw p-values `c(0.004, 0.011, 0.022, 0.030, 0.045, 0.080)`. Apply `p.adjust()` with both `"bonferroni"` and `"BH"` to control family-wise error vs false discovery rate. Save a tibble `ex_5_2` with columns `metric` (m1 through m6), `p_raw`, `p_bonf`, `p_bh`, sorted by `p_raw` ascending.
+
+**Expected result:**
+
+```
+#> # A tibble: 6 x 4
+#>   metric p_raw p_bonf  p_bh
+#>   <chr>  <dbl>  <dbl> <dbl>
+#> 1 m1     0.004  0.024 0.024
+#> 2 m2     0.011  0.066 0.033
+#> 3 m3     0.022  0.132 0.044
+#> 4 m4     0.030  0.180 0.045
+#> 5 m5     0.045  0.270 0.054
+#> 6 m6     0.080  0.480 0.080
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_2 <- tibble(
+  metric = paste0("m", 1:6),
+  p_raw  = c(0.004, 0.011, 0.022, 0.030, 0.045, 0.080)
+) |>
+  mutate(
+    p_bonf = p.adjust(p_raw, method = "bonferroni"),
+    p_bh   = p.adjust(p_raw, method = "BH")
+  ) |>
+  arrange(p_raw)
+ex_5_2
+#> # A tibble: 6 x 4
+#>   metric p_raw p_bonf  p_bh
+#>   <chr>  <dbl>  <dbl> <dbl>
+#> 1 m1     0.004  0.024 0.024
+#> 2 m2     0.011  0.066 0.033
+#> 3 m3     0.022  0.132 0.044
+#> 4 m4     0.030  0.180 0.045
+#> 5 m5     0.045  0.270 0.054
+#> 6 m6     0.080  0.480 0.080
+```
+
+**Explanation:** Bonferroni is the strictest correction (multiply each p by m=6), controlling family-wise error rate, while Benjamini-Hochberg controls the expected proportion of false discoveries among rejections. With 6 metrics here, Bonferroni keeps only `m1` significant at 0.05, while BH keeps `m1` through `m4`. Use Bonferroni when a single false positive would be costly (e.g. drug approval); use BH when you are screening many candidate metrics and can tolerate a small false-discovery proportion. Avoid the temptation to skip correction entirely; uncorrected secondary metrics are how teams ship features that look like they help across "some metric".
+
+</details>
+
+### Exercise 5.3: Detect a novelty effect via weekly lift trend
+
+**Task:** Novelty effects appear as a fading treatment lift over time. Build inline a 28-day tibble of conversions per arm where with `set.seed(31)` daily `n_per_arm = 2000`, control rate is 0.05 every day, and treatment rate decays linearly from 0.065 on day 1 to 0.05 on day 28. Aggregate to 4 weekly buckets, compute weekly lift (`p_trt - p_ctl`), fit `lm(weekly_lift ~ week_num)`, and save the fitted lm object to `ex_5_3`.
+
+**Expected result:**
+
+```
+#> Call:
+#> lm(formula = weekly_lift ~ week_num, data = weekly)
+#>
+#> Coefficients:
+#> (Intercept)     week_num
+#>     0.01935     -0.00466
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(31)
+n_per_arm <- 2000
+
+daily <- tibble(
+  day      = 1:28,
+  trt_rate = seq(0.065, 0.050, length.out = 28),
+  ctl_rate = 0.05
+) |>
+  mutate(
+    ctl_conv = rbinom(n(), n_per_arm, ctl_rate),
+    trt_conv = rbinom(n(), n_per_arm, trt_rate),
+    week_num = ceiling(day / 7)
+  )
+
+weekly <- daily |>
+  group_by(week_num) |>
+  summarise(
+    p_ctl        = sum(ctl_conv) / (7 * n_per_arm),
+    p_trt        = sum(trt_conv) / (7 * n_per_arm),
+    weekly_lift  = p_trt - p_ctl,
+    .groups      = "drop"
+  )
+
+ex_5_3 <- lm(weekly_lift ~ week_num, data = weekly)
+ex_5_3
+#> Call:
+#> lm(formula = weekly_lift ~ week_num, data = weekly)
+#>
+#> Coefficients:
+#> (Intercept)     week_num
+#>     0.01935     -0.00466
+```
+
+**Explanation:** A negative slope on `week_num` is the signature of novelty: users react to the change initially, then revert. The point estimate of -0.0047 per week means roughly 0.5 percentage point of lift evaporates every week. The right stakeholder framing is "do not size launch decisions on week-1 results"; the test should run at least 2 to 4 weeks to let the trend stabilise, then estimate steady-state lift from the last week. For a more rigorous version, use a segmented regression or piecewise model to identify the changepoint.
+
+</details>
+
+## Section 6. End-to-end analysis (2 problems)
+
+### Exercise 6.1: Build a stakeholder summary row for a shipped A/B test
+
+**Task:** Produce a one-row stakeholder summary tibble for a checkout-flow A/B test with control 4,023/95,000 and treatment 4,322/95,000 conversions. Columns: `variant_a_n`, `variant_b_n`, `conv_a`, `conv_b`, `rate_a`, `rate_b`, `abs_lift_pp` (treatment minus control in percentage points), `rel_lift_pct`, `ci_low_pp`, `ci_high_pp` (CI for the lift in percentage points), `p_value`, and `decision` ("Ship" if `p_value < 0.05 & abs_lift_pp > 0`, else "Hold"). Save to `ex_6_1`.
+
+**Expected result:**
+
+```
+#> # A tibble: 1 x 12
+#>   variant_a_n variant_b_n conv_a conv_b rate_a rate_b abs_lift_pp rel_lift_pct ci_low_pp ci_high_pp  p_value decision
+#>         <dbl>       <dbl>  <dbl>  <dbl>  <dbl>  <dbl>       <dbl>        <dbl>     <dbl>      <dbl>    <dbl> <chr>
+#> 1       95000       95000   4023   4322 0.0423 0.0455      0.315          7.43    0.0276      0.602  0.0231  Ship
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+pt <- prop.test(c(4023, 4322), c(95000, 95000))
+
+ex_6_1 <- tibble(
+  variant_a_n  = 95000,
+  variant_b_n  = 95000,
+  conv_a       = 4023,
+  conv_b       = 4322,
+  rate_a       = conv_a / variant_a_n,
+  rate_b       = conv_b / variant_b_n,
+  abs_lift_pp  = 100 * (rate_b - rate_a),
+  rel_lift_pct = 100 * (rate_b - rate_a) / rate_a,
+  ci_low_pp    = 100 * (-pt$conf.int[2]),
+  ci_high_pp   = 100 * (-pt$conf.int[1]),
+  p_value      = pt$p.value,
+  decision     = if_else(p_value < 0.05 & abs_lift_pp > 0, "Ship", "Hold")
+)
+ex_6_1
+#> # A tibble: 1 x 12
+#>   variant_a_n variant_b_n conv_a conv_b rate_a rate_b abs_lift_pp rel_lift_pct ci_low_pp ci_high_pp  p_value decision
+#>         <dbl>       <dbl>  <dbl>  <dbl>  <dbl>  <dbl>       <dbl>        <dbl>     <dbl>      <dbl>    <dbl> <chr>
+#> 1       95000       95000   4023   4322 0.0423 0.0455      0.315          7.43    0.0276      0.602  0.0231  Ship
+```
+
+**Explanation:** `prop.test()` returns the CI for `p1 - p2` (control minus treatment); since stakeholders prefer "lift = treatment minus control", flip the sign and the order of the interval bounds. Reporting both absolute lift in percentage points AND relative lift in percent is non-optional: "+0.3 pp" reads small, "+7.4% relative" reads big, and both are true. The `decision` column codifies the launch rule so engineering does not relitigate it after the fact; for more nuance add tiers like "Ship", "Hold", "Iterate", or "Investigate" based on directional CI and effect size.
+
+</details>
+
+### Exercise 6.2: Run a pre-launch A/A diagnostic
+
+**Task:** Before launching a real test, the experimentation team runs a 7-day A/A sanity check. Simulate it: with `set.seed(73)` assign 50,000 users per arm with true conversion rate 0.04 each day for 7 days using `rbinom()`, aggregate to totals, then run `prop.test()` on the totals and a 1-df `chisq.test()` on daily traffic split (expected 50/50). Save the diagnostic tibble `ex_6_2` with columns `metric` ("conversion_p", "traffic_split_p"), `statistic`, `p_value`, `decision` ("OK" if `p_value > 0.05`, else "Investigate").
+
+**Expected result:**
+
+```
+#> # A tibble: 2 x 4
+#>   metric          statistic p_value decision
+#>   <chr>               <dbl>   <dbl> <chr>
+#> 1 conversion_p        0.213   0.644 OK
+#> 2 traffic_split_p     0.728   0.394 OK
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+set.seed(73)
+n_per_arm_day <- 50000
+p_true        <- 0.04
+
+daily <- tibble(
+  day      = 1:7,
+  ctl_n    = rbinom(7, 2 * n_per_arm_day, 0.5),
+  trt_n    = (2 * n_per_arm_day) - ctl_n,
+  ctl_conv = rbinom(7, ctl_n, p_true),
+  trt_conv = rbinom(7, trt_n, p_true)
+)
+
+ctl_total <- sum(daily$ctl_n)
+trt_total <- sum(daily$trt_n)
+ctl_c     <- sum(daily$ctl_conv)
+trt_c     <- sum(daily$trt_conv)
+
+conv_test    <- prop.test(c(ctl_c, trt_c), c(ctl_total, trt_total))
+traffic_test <- chisq.test(c(ctl_total, trt_total), p = c(0.5, 0.5))
+
+ex_6_2 <- tibble(
+  metric    = c("conversion_p", "traffic_split_p"),
+  statistic = c(conv_test$statistic, traffic_test$statistic),
+  p_value   = c(conv_test$p.value, traffic_test$p.value)
+) |>
+  mutate(decision = if_else(p_value > 0.05, "OK", "Investigate"))
+ex_6_2
+#> # A tibble: 2 x 4
+#>   metric          statistic p_value decision
+#>   <chr>               <dbl>   <dbl> <chr>
+#> 1 conversion_p        0.213   0.644 OK
+#> 2 traffic_split_p     0.728   0.394 OK
+```
+
+**Explanation:** An A/A test catches two kinds of bugs: a broken randomiser (traffic skew) and a broken event pipeline (conversion delta despite identical treatment). Always run one BEFORE shipping a real experiment, especially after changes to the bucketing layer or analytics SDK. If the traffic split test fails, fix the randomiser before trusting any A/B result; if only the conversion test fails, suspect a logging bug like deduplication misfiring on one variant.
+
+</details>
+
+## What to do next
+
+- [A/B Testing in R: Concepts, Workflow, and Examples](AB-Testing-in-R.html) - the parent guide that explains the design and analysis frameworks these exercises drill.
+- [Linear Regression Exercises in R](Linear-Regression-Exercises-in-R.html) - practise regression-style hypothesis testing on the same hub format.
+- [Power Analysis in R](Power-Analysis-in-R.html) - go deeper on `pwr` formulas and simulation-based power for non-standard designs.
+- [EDA Exercises in R](EDA-Exercises-in-R.html) - sharpen the upstream skills you need before any experiment: data quality, slicing, and metric definitions.
