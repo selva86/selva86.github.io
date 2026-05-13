@@ -1,434 +1,810 @@
 ---
-title: "R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced, Solved Step-by-Step)"
+title: "Data Frame Exercises in R: 17 Real-World Practice Problems"
 slug: "R-Data-Frames-Exercises"
-description: "15 interactive R data frame exercises with worked solutions, create, subset, filter, add columns, group, merge and reshape. Runnable right in the page."
-keywords: "R data frames exercises, R data frame practice, R subset exercises, R data frame filtering, R data frame practice problems"
+description: "17 R data frame exercises with hidden solutions: create, subset, add columns, sort, dedupe, and merge using base R on mtcars, iris, airquality."
+keywords: "r data frame exercises, data frame in r practice, base r data frame, subset data frame in r, merge data frames in r, sort data frame in r, factor column conversion"
 mathjax: false
 webr: true
-date: "2026-04-11"
-curriculum_id: "E1.3"
+date: "2026-05-13"
 post_type: "EX"
-sidebar_section: "Practice Exercises"
-sidebar_title: "R Data Frames (15 problems)"
-auto_link_terms: "R data frames exercises|R data frame practice|R subset exercises"
-auto_link_case_sensitive: false
+sidebar_title: "Data Frames"
+sidebar_order: 145
 fr_parent: "R-Data-Frames.html"
-difficulty: "Intermediate"
+auto_link_terms: "data frame exercises|data frame practice|r data frame exercises|exercises on data frames|practice data frames in r"
+auto_link_case_sensitive: false
+target_keyword: "data frame exercises in r"
+sibling_block_enabled: false
+difficulty: "Mixed"
 ---
 
-# R Data Frames Exercises: 15 Practice Questions (Beginner to Advanced, Solved Step-by-Step)
+# Data Frame Exercises in R: 17 Real-World Practice Problems
 
-<p class="lead">Fifteen focused exercises that take you from creating a data frame from scratch to filtering, grouping, merging and reshaping. Every problem runs in the browser with an expandable worked solution. No downloads, no setup, just code and check.</p>
+<p class="lead">This page collects 17 carefully designed practice problems on R data frames, covering creation, inspection, subsetting, column manipulation, ordering, deduping, and merging. Every exercise lists the task, the exact expected output, and a hidden solution with an explanation of why it works. Work through them top to bottom or jump to the section that matches what you need to drill today.</p>
 
-Data frames are the workhorse of R. Almost every analysis you will ever write consumes or produces one. These exercises use only base R so they work in any R session, including the one embedded in this page. Once you are fluent here, the `dplyr` version of the same operations will feel obvious.
-
-## Setup
-
-Every exercise uses the built-in `mtcars` and `iris` datasets, plus one small data frame we construct in the first exercise. The code blocks share state, so what you create in Exercise 1 is available in Exercise 15.
-
-```r title="Load mtcars and iris"
-data("mtcars")
-data("iris")
-
-dim(mtcars)   # 32 11
-dim(iris)     # 150 5
-head(mtcars, 3)
+```r title="Run this once before any exercise"
+# Every exercise here runs on base R. The datasets package below is
+# loaded by default; the explicit call is a sanity check before you start.
+library(datasets)
+options(stringsAsFactors = FALSE)
 ```
 
-## Section 1, Creating and inspecting data frames
+## Section 1. Creating data frames (3 problems)
 
-### Exercise 1. Build a data frame from vectors
+### Exercise 1.1: Build a small employees data frame from vectors
 
-Create a data frame `students` with three columns, `name` (character), `age` (integer), `score` (double), and five rows of your own made-up data. Confirm the types with `str()`.
+**Task:** A new HR onboarding team is putting together a master list of four employees. Create a data frame with columns `id` (101 to 104), `name`, `salary`, and `dept`, then save the result to `ex_1_1`. The columns should keep their natural types: integer, character, numeric, character.
 
-```r title="Exercise: Build students data frame"
-# Your attempt here
+**Expected result:**
 
+```
+   id  name salary  dept
+1 101  Asha  58000    HR
+2 102   Ben  64500   Eng
+3 103 Carol  72000   Eng
+4 104 Diego  51000 Sales
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_1 <- # your code here
+ex_1_1
 ```
 
 <details>
-<summary>Solution</summary>
+<summary>Click to reveal solution</summary>
 
-```r title="Students data frame solution"
-students <- data.frame(
-  name  = c("Ava", "Ben", "Cho", "Dee", "Eli"),
-  age   = c(21L, 24L, 19L, 22L, 25L),
-  score = c(87.5, 72.0, 91.2, 68.4, 79.9),
-  stringsAsFactors = FALSE
+```r title="Solution"
+ex_1_1 <- data.frame(
+  id     = 101:104,
+  name   = c("Asha", "Ben", "Carol", "Diego"),
+  salary = c(58000, 64500, 72000, 51000),
+  dept   = c("HR", "Eng", "Eng", "Sales")
 )
-
-str(students)
-# 'data.frame': 5 obs. of  3 variables:
-#  $ name : chr  "Ava" "Ben" "Cho" "Dee" "Eli"
-#  $ age  : int  21 24 19 22 25
-#  $ score: num  87.5 72 91.2 68.4 79.9
+ex_1_1
+#>    id  name salary  dept
+#> 1 101  Asha  58000    HR
+#> 2 102   Ben  64500   Eng
+#> 3 103 Carol  72000   Eng
+#> 4 104 Diego  51000 Sales
 ```
 
-In R 4.0 and later, `stringsAsFactors = FALSE` is the default, the argument is only needed for compatibility with older code.
+**Explanation:** `data.frame()` takes equal-length vectors as named arguments and stacks them column-wise. Since R 4.0 character vectors stay as character by default; before that, `stringsAsFactors = TRUE` was the silent default and a long-standing source of subtle bugs. The integer sequence `101:104` keeps integer storage rather than being coerced to double, which matters if you later join on it.
 
 </details>
 
-### Exercise 2. Inspect a data frame
+### Exercise 1.2: Inspect column types of mtcars with sapply
 
-Using `mtcars`, report: its dimensions, the column names, the class of every column, and a compact summary with `summary()`.
+**Task:** When you receive a data frame from an unfamiliar source the first sanity check is what every column actually stores. Run `sapply(mtcars, class)` to produce a named character vector listing the class of every column in `mtcars`, and save the result to `ex_1_2`. This is the kind of one-line audit you should run on every new frame.
 
-```r title="Exercise: Inspect mtcars structure"
-# Your attempt here
+**Expected result:**
 
+```
+      mpg       cyl      disp        hp      drat        wt      qsec
+"numeric" "numeric" "numeric" "numeric" "numeric" "numeric" "numeric"
+       vs        am      gear      carb
+"numeric" "numeric" "numeric" "numeric"
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_1_2 <- # your code here
+ex_1_2
 ```
 
 <details>
-<summary>Solution</summary>
+<summary>Click to reveal solution</summary>
 
-```r title="Inspect mtcars structure solution"
-dim(mtcars)           # 32 11
-names(mtcars)         # "mpg" "cyl" ... "carb"
-sapply(mtcars, class) # all numeric
-summary(mtcars)
+```r title="Solution"
+ex_1_2 <- sapply(mtcars, class)
+ex_1_2
+#>       mpg       cyl      disp        hp      drat        wt      qsec
+#> "numeric" "numeric" "numeric" "numeric" "numeric" "numeric" "numeric"
+#>        vs        am      gear      carb
+#> "numeric" "numeric" "numeric" "numeric"
 ```
 
-`sapply(df, class)` is the cleanest way to see the type of every column at once. For big data frames where that is too noisy, use `str(df)` instead.
+**Explanation:** A data frame is internally a list of equal-length columns, so `sapply()` walks each column and applies `class()`. The named character vector tells you immediately which columns are numeric, factor, character, or Date. For columns with multiple classes (such as POSIXct, POSIXt) prefer `vapply(mtcars, function(x) class(x)[1], character(1))` so the result stays a flat character vector instead of collapsing into a matrix.
 
 </details>
 
-### Exercise 3. Access one column, four ways
+### Exercise 1.3: Convert selected character columns to factor
 
-From `students`, extract the `score` column using: `$`, `[[`, `[, "score"]`, and `[, 3]`. Confirm all four return the same numeric vector.
+**Task:** An analyst hands you a small product catalog with three character columns: `sku`, `category`, and `country`. Categories and countries repeat heavily, but each sku is a unique identifier. Convert ONLY `category` and `country` to factors using `lapply`, leave `sku` as character, and save the modified data frame to `ex_1_3`. Verify with `lapply(ex_1_3, class)`.
 
-```r title="Exercise: Extract score four ways"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Extract score four ways solution"
-students$score
-students[["score"]]
-students[, "score"]
-students[, 3]
-
-identical(students$score, students[["score"]])   # TRUE
-identical(students$score, students[, "score"])   # TRUE
-identical(students$score, students[, 3])         # TRUE
-```
-
-All four return an *atomic vector*. Note that `students["score"]` (without the comma) returns a *one-column data frame*, not a vector, a surprising but consistent rule.
-
-</details>
-
-## Section 2, Subsetting rows and columns
-
-### Exercise 4. Select specific columns
-
-From `mtcars`, return a new data frame with only `mpg`, `cyl` and `hp`.
-
-```r title="Exercise: Keep selected columns"
-# Your attempt here
+**Expected result:**
 
 ```
+$sku
+[1] "character"
 
-<details>
-<summary>Solution</summary>
+$category
+[1] "factor"
 
-```r title="Keep selected columns solution"
-mtcars[, c("mpg", "cyl", "hp")] |> head()
-
-# Or equivalently:
-mtcars[c("mpg", "cyl", "hp")] |> head()
+$country
+[1] "factor"
 ```
 
-When you use character names instead of integer positions, the code keeps working even if columns are reordered or renamed.
-
-</details>
-
-### Exercise 5. Drop specific columns
-
-From `mtcars`, return a data frame with everything *except* `qsec` and `vs`.
-
-```r title="Exercise: Drop two columns"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Drop two columns solution"
-mtcars[, !(names(mtcars) %in% c("qsec", "vs"))] |> head()
-
-# Or, set those columns to NULL on a copy:
-m2 <- mtcars
-m2$qsec <- NULL
-m2$vs   <- NULL
-head(m2)
-```
-
-Both idioms are common. The first is safer inside a pipeline; the second is clearer for ad-hoc exploration.
-
-</details>
-
-### Exercise 6. Filter rows with one condition
-
-Return the rows of `mtcars` where `mpg > 25`.
-
-```r title="Exercise: Filter rows by mpg"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Filter rows by mpg solution"
-mtcars[mtcars$mpg > 25, ]
-```
-
-Note the trailing comma, `mtcars[mtcars$mpg > 25]` (no comma) tries to index columns, not rows, and will give you something unexpected.
-
-</details>
-
-### Exercise 7. Filter with multiple conditions
-
-Return the rows of `mtcars` where `mpg > 20` AND `cyl == 4`, keeping only the columns `mpg`, `cyl`, `hp`.
-
-```r title="Exercise: Filter with two conditions"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Two-condition filter solution"
-mtcars[mtcars$mpg > 20 & mtcars$cyl == 4, c("mpg", "cyl", "hp")]
-```
-
-Combine the row filter with column selection in a single `[ , ]` call. Use `&` for element-wise AND, never `&&`.
-
-</details>
-
-## Section 3, Adding and transforming columns
-
-### Exercise 8. Add a computed column
-
-Add a column `kpl` to a copy of `mtcars` that converts `mpg` (US miles per US gallon) to kilometres per litre. The conversion is `kpl = mpg * 0.425`.
-
-```r title="Exercise: Add kpl conversion column"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Add kpl column solution"
-mt <- mtcars
-mt$kpl <- mt$mpg * 0.425
-head(mt[, c("mpg", "kpl")])
-```
-
-Assigning to `mt$kpl` creates the column if it does not exist, otherwise overwrites it.
-
-</details>
-
-### Exercise 9. Conditional column with ifelse
-
-Add a column `efficiency` to `mt` with value `"high"` when `mpg > 25`, `"medium"` when `mpg` is between 15 and 25 inclusive, and `"low"` otherwise.
-
-```r title="Exercise: Add efficiency bucket column"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Efficiency bucket solution"
-mt$efficiency <- ifelse(mt$mpg > 25, "high",
-                 ifelse(mt$mpg >= 15, "medium", "low"))
-
-table(mt$efficiency)
-#  high   low medium
-#     6     3    23
-```
-
-`ifelse()` is vectorised, it walks the condition element by element. Nest calls to build more than two branches, or switch to `dplyr::case_when()` for many branches.
-
-</details>
-
-### Exercise 10. Rename a column
-
-Rename the column `wt` to `weight_1000lbs` in `mt`.
-
-```r title="Exercise: Rename wt column"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Rename wt column solution"
-names(mt)[names(mt) == "wt"] <- "weight_1000lbs"
-head(mt)
-```
-
-You assign into `names(mt)` at the position where the current name matches. This leaves every other column name untouched.
-
-</details>
-
-## Section 4, Aggregation, merging and reshaping
-
-### Exercise 11. Group and summarise with aggregate
-
-Use `aggregate()` on `mtcars` to compute the mean `mpg` for each number of cylinders.
-
-```r title="Exercise: Aggregate mean mpg by cyl"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Aggregate mean mpg solution"
-aggregate(mpg ~ cyl, data = mtcars, FUN = mean)
-#   cyl      mpg
-# 1   4 26.66364
-# 2   6 19.74286
-# 3   8 15.10000
-```
-
-The formula syntax `mpg ~ cyl` reads as "mpg by cyl". You can group by multiple variables with `mpg ~ cyl + gear`.
-
-</details>
-
-### Exercise 12. Count rows per group
-
-Count how many cars in `mtcars` have each combination of `cyl` and `gear`.
-
-```r title="Exercise: Count cyl gear combinations"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Cyl gear combination solution"
-table(mtcars$cyl, mtcars$gear)
-#      3  4  5
-#   4  1  8  2
-#   6  2  4  1
-#   8 12  0  2
-
-# Or as a data frame:
-as.data.frame(table(cyl = mtcars$cyl, gear = mtcars$gear))
-```
-
-`table()` returns a contingency table. Wrapping in `as.data.frame()` gives you a tidy long-format version with one row per combination.
-
-</details>
-
-### Exercise 13. Merge two data frames
-
-Create a small data frame `cyl_info` with columns `cyl` (4, 6, 8) and `fuel_type` ("economy", "mid", "performance"). Merge it onto `mtcars` so every car gets a `fuel_type` label.
-
-```r title="Exercise: Merge cyl info table"
-# Your attempt here
-
-```
-
-<details>
-<summary>Solution</summary>
-
-```r title="Merge cyl info solution"
-cyl_info <- data.frame(
-  cyl       = c(4, 6, 8),
-  fuel_type = c("economy", "mid", "performance")
+**Difficulty:** Intermediate
+
+```r
+catalog <- data.frame(
+  sku      = c("A-1001", "A-1002", "B-2001", "B-2002", "C-3001"),
+  category = c("Shoes", "Shoes", "Bags", "Bags", "Shoes"),
+  country  = c("IN", "US", "IN", "DE", "US")
 )
-
-m3 <- merge(mtcars, cyl_info, by = "cyl")
-head(m3[, c("mpg", "cyl", "fuel_type")])
 ```
 
-`merge()` is base R's SQL-like join. By default it does an inner join on the common column(s). Use `all.x = TRUE` for a left join, `all.y = TRUE` for right, and `all = TRUE` for a full outer join.
-
-</details>
-
-### Exercise 14. Wide to long with stack
-
-Create a small wide data frame of quarterly sales and reshape it to long format with one row per (quarter, sales) combination.
-
-```r title="Build wide quarterly data frame"
-wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
-```
-
-```r title="Exercise: Reshape wide to long"
-# Your attempt here
-
+```r title="Your turn"
+ex_1_3 <- # your code here
+lapply(ex_1_3, class)
 ```
 
 <details>
-<summary>Solution</summary>
+<summary>Click to reveal solution</summary>
 
-```r title="Reshape wide to long solution"
-wide <- data.frame(q1 = 100, q2 = 150, q3 = 200, q4 = 175)
+```r title="Solution"
+ex_1_3 <- catalog
+to_factor <- c("category", "country")
+ex_1_3[to_factor] <- lapply(ex_1_3[to_factor], factor)
 
-long <- stack(wide)
-names(long) <- c("sales", "quarter")
-long <- long[, c("quarter", "sales")]
-long
-#   quarter sales
-# 1      q1   100
-# 2      q2   150
-# 3      q3   200
-# 4      q4   175
+lapply(ex_1_3, class)
+#> $sku
+#> [1] "character"
+#>
+#> $category
+#> [1] "factor"
+#>
+#> $country
+#> [1] "factor"
 ```
 
-`stack()` is base R's minimal reshape tool. For anything bigger than this, reach for `tidyr::pivot_longer()`, but `stack()` is fine for toy examples and quick work.
+**Explanation:** Wrapping a column subset in `lapply()` and reassigning back is the canonical base-R idiom for coercing several columns at once. Constructing the frame with `data.frame(..., stringsAsFactors = TRUE)` would also have converted `sku` and wasted memory on a factor with one level per row. For larger frames you can stay base-R with `Filter(is.character, df)` to discover candidate columns and then loop on the survivors.
 
 </details>
 
-### Exercise 15. Sort by multiple columns
+## Section 2. Inspecting and accessing data (3 problems)
 
-Sort `mtcars` by `cyl` ascending and then by `mpg` descending within each cylinder group. Return the first 10 rows.
+### Exercise 2.1: Extract the Sepal.Length column three ways
 
-```r title="Exercise: Sort by cyl then mpg"
-# Your attempt here
+**Task:** Pulling a single column from a data frame is something you do constantly, and R offers three equivalent ways: dollar syntax, double brackets, and matrix-style indexing. Extract the `Sepal.Length` column from `iris` using all three methods, verify with `identical()` that they return the same numeric vector, and save the dollar-syntax result to `ex_2_1`.
 
+**Expected result:**
+
+```
+[1] 5.1 4.9 4.7 4.6 5.0 5.4 4.6 5.0 4.4 4.9 5.4 4.8 4.8 4.3 5.8 5.7 5.4 5.1 5.7 5.1
+[21] 5.4 5.1 4.6 5.1 4.8 5.0 5.0 5.2 5.2 4.7
+... (120 more values)
+[1] TRUE TRUE
+```
+
+**Difficulty:** Beginner
+
+```r title="Your turn"
+ex_2_1 <- # your code here
+c(identical(ex_2_1, iris[["Sepal.Length"]]),
+  identical(ex_2_1, iris[, "Sepal.Length"]))
 ```
 
 <details>
-<summary>Solution</summary>
+<summary>Click to reveal solution</summary>
 
-```r title="Sort and slice solution"
-mtcars[order(mtcars$cyl, -mtcars$mpg), ][1:10, ]
+```r title="Solution"
+ex_2_1 <- iris$Sepal.Length
+
+a <- iris$Sepal.Length
+b <- iris[["Sepal.Length"]]
+d <- iris[, "Sepal.Length"]
+c(identical(a, b), identical(a, d))
+#> [1] TRUE TRUE
 ```
 
-`order()` accepts multiple keys and returns the row indices. A minus sign in front of a numeric column reverses the sort direction for that column only.
+**Explanation:** All three forms return the same atomic numeric vector for a single column. Dollar syntax `$` is shortest but performs partial matching on column names, which is a footgun inside scripts; `[[]]` and `[, ]` accept a column name as a string and pair cleanly with column names stored in variables. Use `[[]]` when the column name lives in a variable; pass `drop = FALSE` if you must keep the result as a one-column data frame instead of a vector.
 
 </details>
 
-## Summary
+### Exercise 2.2: Glue head and tail of iris into one 6-row frame
 
-- Build data frames with `data.frame()` and inspect with `dim()`, `str()`, `summary()`, `head()`.
-- Subset with `df[row_condition, column_selector]`. Always include the comma.
-- Add columns by assigning into `df$new_col`, vectorised arithmetic applies automatically.
-- Conditional columns: `ifelse()` for binary, nested `ifelse()` or `dplyr::case_when()` for more branches.
-- Aggregation: `aggregate(y ~ g, data, FUN)`. Counts: `table()`. Joins: `merge()`.
-- Sorting: `df[order(...), ]`, a minus sign reverses a numeric column.
+**Task:** A new data frame typically deserves a quick look at both ends before you decide how to handle it. Combine the first three and last three rows of `iris` into a single 6-row data frame using `rbind(head(iris, 3), tail(iris, 3))`, save the result to `ex_2_2`, and confirm the Species column shows both setosa and virginica appearing.
 
-## References
+**Expected result:**
 
-- [R Language Definition, data frames](https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Data-frames)
-- [Advanced R, Data frames and tibbles](https://adv-r.hadley.nz/vectors-chap.html#tibble)
-- [R for Data Science (2e)](https://r4ds.hadley.nz/)
+```
+    Sepal.Length Sepal.Width Petal.Length Petal.Width    Species
+1            5.1         3.5          1.4         0.2     setosa
+2            4.9         3.0          1.4         0.2     setosa
+3            4.7         3.2          1.3         0.2     setosa
+148          6.5         3.0          5.2         2.0  virginica
+149          6.2         3.4          5.4         2.3  virginica
+150          5.9         3.0          5.1         1.8  virginica
+```
 
-## Continue Learning
+**Difficulty:** Beginner
 
-- [R Data Frames: The Data Structure You'll Use in Every Analysis](R-Data-Frames.html)
-- [R Vectors Exercises: 12 Hands-On Problems](R-Vectors-Exercises.html)
-- [R Lists Exercises: 10 Practice Problems with Full Solutions](R-Lists-Exercises.html)
+```r title="Your turn"
+ex_2_2 <- # your code here
+ex_2_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_2 <- rbind(head(iris, 3), tail(iris, 3))
+ex_2_2
+#>     Sepal.Length Sepal.Width Petal.Length Petal.Width    Species
+#> 1            5.1         3.5          1.4         0.2     setosa
+#> 2            4.9         3.0          1.4         0.2     setosa
+#> 3            4.7         3.2          1.3         0.2     setosa
+#> 148          6.5         3.0          5.2         2.0  virginica
+#> 149          6.2         3.4          5.4         2.3  virginica
+#> 150          5.9         3.0          5.1         1.8  virginica
+```
+
+**Explanation:** `head()` and `tail()` both preserve original row names, so the resulting `rbind` carries 1, 2, 3 and 148, 149, 150 in the row name slot. The Species column reveal makes it clear the rows are sorted by Species, a thing many EDA pipelines miss when they only call `head()` and assume the bottom of the frame looks the same. Treat this one-liner as a default sanity audit for any new data frame.
+
+</details>
+
+### Exercise 2.3: Count rows per Species with table
+
+**Task:** For a quick group-size audit, `table()` on a single factor column gives you the per-level counts and respects the factor level ordering. Compute the row count per `Species` value in `iris` using `table(iris$Species)` and save the resulting `table` object to `ex_2_3` for later use in proportion calculations or a printed summary.
+
+**Expected result:**
+
+```
+    setosa versicolor  virginica
+        50         50         50
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_2_3 <- # your code here
+ex_2_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_2_3 <- table(iris$Species)
+ex_2_3
+#>
+#>     setosa versicolor  virginica
+#>         50         50         50
+```
+
+**Explanation:** `table()` returns a `table` object (a thin wrapper over a named integer matrix) which prints as a named row of counts. Because Species is a factor with three levels, the counts respect the factor level order rather than alphabetical order or first-appearance order. To turn the result into a tidy data frame for plotting, wrap in `as.data.frame(table(...))`; to convert counts into proportions, wrap in `prop.table()`.
+
+</details>
+
+## Section 3. Subsetting rows and columns (3 problems)
+
+### Exercise 3.1: Filter mtcars to fuel-efficient four-cylinder cars
+
+**Task:** A fleet manager is hunting for compact economy cars in the `mtcars` catalog. Filter `mtcars` to rows where `mpg` is strictly greater than 25 AND `cyl` equals 4 using base-R logical indexing on the row dimension, and save the resulting subset to `ex_3_1`. Keep every column. Six rows should remain.
+
+**Expected result:**
+
+```
+                mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
+Toyota Corolla 33.9   4  71.1  65 4.22 1.835 19.90  1  1    4    1
+Fiat X1-9      27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_1 <- # your code here
+ex_3_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_1 <- mtcars[mtcars$mpg > 25 & mtcars$cyl == 4, ]
+ex_3_1
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+#> Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
+#> Toyota Corolla 33.9   4  71.1  65 4.22 1.835 19.90  1  1    4    1
+#> Fiat X1-9      27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+#> Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+#> Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
+```
+
+**Explanation:** The bare-bracket `[rows, cols]` form takes a logical vector along the row axis. `mtcars$mpg > 25` evaluates to TRUE or FALSE per row, the `&` operator combines element-wise with the cylinder check, and the empty column slot keeps every column. Forgetting the trailing comma drops you to list-of-columns mode and silently returns a different shape, a classic R beginner trap to watch for.
+
+</details>
+
+### Exercise 3.2: Drop two specific columns from mtcars by name
+
+**Task:** A risk model only consumes performance and engine metrics, so the analyst wants the `vs` and `am` columns thrown out. Drop `vs` and `am` from `mtcars` using `setdiff(names(mtcars), c("vs", "am"))` to pick the survivors, save the resulting nine-column data frame to `ex_3_2`, and confirm the column count with `ncol()`.
+
+**Expected result:**
+
+```
+                mpg cyl disp  hp drat    wt  qsec gear carb
+Mazda RX4      21.0   6  160 110 3.90 2.620 16.46    4    4
+Mazda RX4 Wag  21.0   6  160 110 3.90 2.875 17.02    4    4
+Datsun 710     22.8   4  108  93 3.85 2.320 18.61    4    1
+... (29 more rows)
+[1] 9
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_2 <- # your code here
+ncol(ex_3_2)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+keep <- setdiff(names(mtcars), c("vs", "am"))
+ex_3_2 <- mtcars[, keep]
+head(ex_3_2, 3)
+#>                mpg cyl disp  hp drat    wt  qsec gear carb
+#> Mazda RX4     21.0   6  160 110 3.90 2.620 16.46    4    4
+#> Mazda RX4 Wag 21.0   6  160 110 3.90 2.875 17.02    4    4
+#> Datsun 710    22.8   4  108  93 3.85 2.320 18.61    4    1
+ncol(ex_3_2)
+#> [1] 9
+```
+
+**Explanation:** Negative indexing by column name does not exist in base R directly. You could write `mtcars[, -which(names(mtcars) %in% c("vs","am"))]` but it is noisy and breaks if a target name is missing. Using `setdiff()` on names is clearer and survives both reordering and missing keys gracefully. For a single drop, `mtcars$vs <- NULL` works too, but it mutates in place which is usually not what you want in an analysis pipeline.
+
+</details>
+
+### Exercise 3.3: subset() with select and a row condition
+
+**Task:** The ozone team at an air-quality monitoring station needs to inspect only Ozone and Wind for May readings. Use `subset(airquality, Month == 5, select = c(Ozone, Wind))` to pull those two columns for May only, and save the result to `ex_3_3`. Note that `subset()` accepts unquoted column names through non-standard evaluation.
+
+**Expected result:**
+
+```
+  Ozone Wind
+1    41  7.4
+2    36  8.0
+3    12 12.6
+4    18 11.5
+5    NA 14.3
+6    28 14.9
+... (25 more rows)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_3_3 <- # your code here
+head(ex_3_3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_3_3 <- subset(airquality, Month == 5, select = c(Ozone, Wind))
+head(ex_3_3)
+#>   Ozone Wind
+#> 1    41  7.4
+#> 2    36  8.0
+#> 3    12 12.6
+#> 4    18 11.5
+#> 5    NA 14.3
+#> 6    28 14.9
+```
+
+**Explanation:** `subset()` uses non-standard evaluation so you can reference column names without quoting, which is great for interactive use and a trap inside functions (R CMD check complains about no visible binding). For programmatic filtering prefer `airquality[airquality$Month == 5, c("Ozone","Wind")]`. The behaviour around NA in the condition is identical to bracket subsetting: rows where the condition is NA are dropped, not silently kept.
+
+</details>
+
+## Section 4. Adding and modifying columns (3 problems)
+
+### Exercise 4.1: Add a km-per-litre column to mtcars
+
+**Task:** A marketing team preparing copy for an Indian audience needs fuel economy reported in km per litre rather than US mpg. Add a column `kpl` to `mtcars` equal to `mpg` times 0.425144 (the US mpg to km/L conversion factor), round to two decimal places, and save the augmented data frame to `ex_4_1`.
+
+**Expected result:**
+
+```
+                   mpg cyl disp  hp drat    wt  qsec vs am gear carb  kpl
+Mazda RX4         21.0   6  160 110 3.90 2.620 16.46  0  1    4    4 8.93
+Mazda RX4 Wag     21.0   6  160 110 3.90 2.875 17.02  0  1    4    4 8.93
+Datsun 710        22.8   4  108  93 3.85 2.320 18.61  1  1    4    1 9.69
+... (29 more rows)
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_4_1 <- # your code here
+head(ex_4_1, 3)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_1 <- mtcars
+ex_4_1$kpl <- round(ex_4_1$mpg * 0.425144, 2)
+head(ex_4_1, 3)
+#>                   mpg cyl disp  hp drat    wt  qsec vs am gear carb  kpl
+#> Mazda RX4        21.0   6  160 110 3.90 2.620 16.46  0  1    4    4 8.93
+#> Mazda RX4 Wag    21.0   6  160 110 3.90 2.875 17.02  0  1    4    4 8.93
+#> Datsun 710       22.8   4  108  93 3.85 2.320 18.61  1  1    4    1 9.69
+```
+
+**Explanation:** Assigning a vector to a new dollar-name slot is the simplest column-add path: R recycles the vector length and validates it matches `nrow()`. Doing this on a copy (`ex_4_1 <- mtcars`) keeps the original frame untouched, which matters in long notebooks where downstream cells may still rely on the base column set. As a functional alternative, `transform(mtcars, kpl = round(mpg * 0.425144, 2))` produces the same shape in one expression.
+
+</details>
+
+### Exercise 4.2: Bin weight into Light, Medium, Heavy with cut
+
+**Task:** A fleet operations dashboard wants cars binned by curb weight: Light below 2.5, Medium between 2.5 and 3.5, Heavy above 3.5 (units: 1000 lbs). Add a factor column `weight_class` to `mtcars` using `cut()` with breaks `c(-Inf, 2.5, 3.5, Inf)` and labels `c("Light","Medium","Heavy")`, and save the updated frame to `ex_4_2`.
+
+**Expected result:**
+
+```
+                   wt weight_class
+Mazda RX4         2.620       Medium
+Mazda RX4 Wag     2.875       Medium
+Datsun 710        2.320        Light
+Hornet 4 Drive    3.215       Medium
+Hornet Sportabout 3.440       Medium
+Duster 360        3.570        Heavy
+... (26 more rows)
+
+# table(ex_4_2$weight_class)
+ Light Medium  Heavy
+     8     12     12
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_2 <- # your code here
+table(ex_4_2$weight_class)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_2 <- mtcars
+ex_4_2$weight_class <- cut(
+  ex_4_2$wt,
+  breaks = c(-Inf, 2.5, 3.5, Inf),
+  labels = c("Light", "Medium", "Heavy")
+)
+head(ex_4_2[, c("wt", "weight_class")], 6)
+#>                       wt weight_class
+#> Mazda RX4         2.620       Medium
+#> Mazda RX4 Wag     2.875       Medium
+#> Datsun 710        2.320        Light
+#> Hornet 4 Drive    3.215       Medium
+#> Hornet Sportabout 3.440       Medium
+#> Duster 360        3.570        Heavy
+table(ex_4_2$weight_class)
+#>
+#>  Light Medium  Heavy
+#>      8     12     12
+```
+
+**Explanation:** `cut()` accepts breakpoints as a numeric vector and returns an ordered factor with one level per interval. Using `-Inf` and `Inf` as the outer bounds is cleaner than `min(wt) - 1` and `max(wt) + 1` and immune to new data falling outside the historical range. The default is right-closed intervals; pass `right = FALSE` if your domain prefers left-closed bins (financial price buckets and tax brackets typically want this).
+
+</details>
+
+### Exercise 4.3: Median-impute NA values in airquality$Ozone
+
+**Task:** The atmospheric team cannot tolerate NAs in their daily Ozone series and asks for median imputation as a quick hold-the-line fill before a more careful model runs overnight. Replace every NA in `airquality$Ozone` with the median of the non-NA Ozone values and save the updated frame to `ex_4_3`. Confirm `sum(is.na(ex_4_3$Ozone))` is zero.
+
+**Expected result:**
+
+```
+  Ozone Solar.R Wind Temp Month Day
+1    41     190  7.4   67     5   1
+2    36     118  8.0   72     5   2
+3    12     149 12.6   74     5   3
+4    18     313 11.5   62     5   4
+5    32      NA 14.3   56     5   5
+6    28      NA 14.9   66     5   6
+# sum(is.na(ex_4_3$Ozone))
+[1] 0
+```
+
+**Difficulty:** Advanced
+
+```r title="Your turn"
+ex_4_3 <- # your code here
+sum(is.na(ex_4_3$Ozone))
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_4_3 <- airquality
+ozone_median <- median(ex_4_3$Ozone, na.rm = TRUE)
+ex_4_3$Ozone[is.na(ex_4_3$Ozone)] <- ozone_median
+
+head(ex_4_3)
+#>   Ozone Solar.R Wind Temp Month Day
+#> 1    41     190  7.4   67     5   1
+#> 2    36     118  8.0   72     5   2
+#> 3    12     149 12.6   74     5   3
+#> 4    18     313 11.5   62     5   4
+#> 5    32      NA 14.3   56     5   5
+#> 6    28      NA 14.9   66     5   6
+sum(is.na(ex_4_3$Ozone))
+#> [1] 0
+```
+
+**Explanation:** The trick is the targeted left-hand side: `ex_4_3$Ozone[is.na(...)] <- value` writes only into the NA positions and leaves the observed values untouched. Always pass `na.rm = TRUE` to `median()` or you compute NA and silently overwrite every reading with NA. Median imputation is a defensible quick fix; for a real air-quality pipeline you would want temporal interpolation or a model-based imputation that respects seasonality and weather covariates.
+
+</details>
+
+## Section 5. Sorting, ordering, and deduping (3 problems)
+
+### Exercise 5.1: Sort mtcars by mpg descending then hp ascending
+
+**Task:** An auction site wants to present its cars by best fuel economy first, breaking ties by lowest horsepower. Reorder `mtcars` rows by `mpg` descending, then by `hp` ascending using `order(-mpg, hp)` inside row brackets, and save the sorted data frame to `ex_5_1`. Inspect the first six rows to verify the sort.
+
+**Expected result:**
+
+```
+                mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+Toyota Corolla 33.9   4  71.1  65 4.22 1.835 19.90  1  1    4    1
+Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
+Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
+Fiat X1-9      27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_1 <- # your code here
+head(ex_5_1)
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_1 <- mtcars[order(-mtcars$mpg, mtcars$hp), ]
+head(ex_5_1)
+#>                 mpg cyl  disp  hp drat    wt  qsec vs am gear carb
+#> Toyota Corolla 33.9   4  71.1  65 4.22 1.835 19.90  1  1    4    1
+#> Fiat 128       32.4   4  78.7  66 4.08 2.200 19.47  1  1    4    1
+#> Honda Civic    30.4   4  75.7  52 4.93 1.615 18.52  1  1    4    2
+#> Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
+#> Fiat X1-9      27.3   4  79.0  66 4.08 1.935 18.90  1  1    4    1
+#> Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
+```
+
+**Explanation:** `order()` returns the row indices that would sort the inputs; passing them as the row argument to `[ , ]` reorders the data frame. The leading minus negates numeric vectors to give descending order. For character or factor columns where minus does not work, use `order(x, decreasing = TRUE)` instead, but note that flag applies to ALL keys, so for mixed-direction sorts on non-numeric keys, convert with `-as.integer(factor)` or use `dplyr::arrange()` with `desc()`.
+
+</details>
+
+### Exercise 5.2: Find unique gear and cylinder combinations
+
+**Task:** A motor-show planner is grouping cars into display lanes based on the gear-cylinder combination they share. Use `unique()` on the two-column subset `mtcars[, c("gear","cyl")]` to extract every distinct gear-cylinder pair present in the data, sort the result by gear then cyl for readability, and save it to `ex_5_2`.
+
+**Expected result:**
+
+```
+                   gear cyl
+Toyota Corona         3   4
+Hornet 4 Drive        3   6
+Hornet Sportabout     3   8
+Datsun 710            4   4
+Mazda RX4             4   6
+Porsche 914-2         5   4
+Ferrari Dino          5   6
+Ford Pantera L        5   8
+```
+
+**Difficulty:** Intermediate
+
+```r title="Your turn"
+ex_5_2 <- # your code here
+ex_5_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+combos <- unique(mtcars[, c("gear", "cyl")])
+ex_5_2 <- combos[order(combos$gear, combos$cyl), ]
+ex_5_2
+#>                    gear cyl
+#> Toyota Corona         3   4
+#> Hornet 4 Drive        3   6
+#> Hornet Sportabout     3   8
+#> Datsun 710            4   4
+#> Mazda RX4             4   6
+#> Porsche 914-2         5   4
+#> Ferrari Dino          5   6
+#> Ford Pantera L        5   8
+```
+
+**Explanation:** `unique()` on a data frame returns first occurrences as full rows, keeping the original row names so you can trace each pair back to the car that introduced it. Eight pairs out of a possible 12 (gear in 3-5, cyl in 4-8) tells you something structural: every gear count appears with every cylinder count except 3-gear-and-4-cyl is missing. For deduping by a key in much larger frames, `df[!duplicated(df[, keys]), ]` is more memory-efficient than `unique()` on a wide frame.
+
+</details>
+
+### Exercise 5.3: Flag duplicate audit-log rows without dropping them
+
+**Task:** Audit logs sometimes contain accidental duplicates from client retries. Given the inline frame `audit` below, identify which rows duplicate an earlier row using `duplicated()`, add a logical column `is_dup` that captures the flag, and save the augmented frame to `ex_5_3`. Do not drop the duplicates: the auditor wants to see them in place.
+
+**Expected result:**
+
+```
+     ts user action is_dup
+1 09:01  ava  login  FALSE
+2 09:02  ben   view  FALSE
+3 09:01  ava  login   TRUE
+4 09:03  ava   edit  FALSE
+5 09:02  ben   view   TRUE
+6 09:04 carl delete  FALSE
+```
+
+**Difficulty:** Advanced
+
+```r
+audit <- data.frame(
+  ts     = c("09:01", "09:02", "09:01", "09:03", "09:02", "09:04"),
+  user   = c("ava", "ben", "ava", "ava", "ben", "carl"),
+  action = c("login", "view", "login", "edit", "view", "delete")
+)
+```
+
+```r title="Your turn"
+ex_5_3 <- # your code here
+ex_5_3
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_5_3 <- audit
+ex_5_3$is_dup <- duplicated(audit)
+ex_5_3
+#>      ts user action is_dup
+#> 1 09:01  ava  login  FALSE
+#> 2 09:02  ben   view  FALSE
+#> 3 09:01  ava  login   TRUE
+#> 4 09:03  ava   edit  FALSE
+#> 5 09:02  ben   view   TRUE
+#> 6 09:04 carl delete  FALSE
+```
+
+**Explanation:** `duplicated()` returns FALSE for the first occurrence of each unique row and TRUE for every later copy, so it preserves the original row count. If you want both copies flagged (so the original also reads TRUE), call `duplicated(audit) | duplicated(audit, fromLast = TRUE)`. To drop duplicates outright use `audit[!duplicated(audit), ]`. Use `duplicated(audit[, c("user","action")])` to ignore noisy columns like millisecond timestamps when judging logical equivalence between rows.
+
+</details>
+
+## Section 6. Combining and merging frames (2 problems)
+
+### Exercise 6.1: rbind two frames with reordered columns
+
+**Task:** Two regional managers email you their Q1 numbers in different column orders by accident. Construct `q1_west` and `q1_east` with the same three columns in different orders (`region`, `product`, `revenue` versus `product`, `revenue`, `region`), combine them with `rbind()` which aligns by name, and save the stacked six-row result to `ex_6_1`.
+
+**Expected result:**
+
+```
+  region product revenue
+1   West       A    1200
+2   West       B     850
+3   West       C    2100
+4   East       A     900
+5   East       B    1750
+6   East       C    1100
+```
+
+**Difficulty:** Intermediate
+
+```r
+q1_west <- data.frame(
+  region  = c("West", "West", "West"),
+  product = c("A", "B", "C"),
+  revenue = c(1200, 850, 2100)
+)
+q1_east <- data.frame(
+  product = c("A", "B", "C"),
+  revenue = c(900, 1750, 1100),
+  region  = c("East", "East", "East")
+)
+```
+
+```r title="Your turn"
+ex_6_1 <- # your code here
+ex_6_1
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_1 <- rbind(q1_west, q1_east)
+ex_6_1
+#>   region product revenue
+#> 1   West       A    1200
+#> 2   West       B     850
+#> 3   West       C    2100
+#> 4   East       A     900
+#> 5   East       B    1750
+#> 6   East       C    1100
+```
+
+**Explanation:** `rbind.data.frame` matches columns by name rather than position, so the East frame's flipped column order is harmless as long as the names and types match. If a column exists in one frame but not the other, `rbind()` errors loudly rather than silently filling NAs. For unioning frames with mismatched columns (where you want NA fill for missing columns), use `dplyr::bind_rows()` or `data.table::rbindlist(fill = TRUE)` instead of base `rbind`.
+
+</details>
+
+### Exercise 6.2: Inner-join orders to customers with merge
+
+**Task:** A retail analytics team needs a flat orders-with-customer table built from two normalized tables. Given inline frames `orders` and `customers` below (with `customer_id` as the key in both), produce an inner join using `merge(orders, customers, by = "customer_id")` and save the joined four-row result to `ex_6_2`. Order 1005 should disappear because customer 4 is unknown.
+
+**Expected result:**
+
+```
+  customer_id order_id amount  name   tier
+1           1     1001    120  Asha   Gold
+2           1     1003    200  Asha   Gold
+3           2     1002     75   Ben Silver
+4           3     1004     50 Carol   Gold
+```
+
+**Difficulty:** Advanced
+
+```r
+orders <- data.frame(
+  order_id    = 1001:1005,
+  customer_id = c(1, 2, 1, 3, 4),
+  amount      = c(120, 75, 200, 50, 320)
+)
+customers <- data.frame(
+  customer_id = c(1, 2, 3),
+  name        = c("Asha", "Ben", "Carol"),
+  tier        = c("Gold", "Silver", "Gold")
+)
+```
+
+```r title="Your turn"
+ex_6_2 <- # your code here
+ex_6_2
+```
+
+<details>
+<summary>Click to reveal solution</summary>
+
+```r title="Solution"
+ex_6_2 <- merge(orders, customers, by = "customer_id")
+ex_6_2
+#>   customer_id order_id amount  name   tier
+#> 1           1     1001    120  Asha   Gold
+#> 2           1     1003    200  Asha   Gold
+#> 3           2     1002     75   Ben Silver
+#> 4           3     1004     50 Carol   Gold
+```
+
+**Explanation:** `merge()` defaults to an inner join, returning only rows where the key matches in both inputs. Order 1005 for customer 4 disappears because that customer is missing from the `customers` table. Switch to `all.x = TRUE` for a left join (NA columns from the right side appear for unmatched orders), or `all = TRUE` for a full outer join. For million-row frames, `data.table` or `dplyr::inner_join()` are substantially faster than base `merge`, but the join semantics are identical.
+
+</details>
+
+## What to do next
+
+- Practice manipulating data frames with [dplyr Exercises in R](dplyr-Exercises-in-R.html) once you are comfortable with the base-R idioms above.
+- Reshape wide and long data with [tidyr Exercises in R](tidyr-Exercises-in-R.html) for pivoting and separating columns.
+- Drill the import and export side with [Read CSV in R Exercises](Read-CSV-in-R-Exercises.html).
+- Return to the parent lesson at [R Data Frames](R-Data-Frames.html) for the full reference on creation, indexing, and column operations.
