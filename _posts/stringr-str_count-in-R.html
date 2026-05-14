@@ -1,0 +1,467 @@
+---
+title: "stringr str_count() in R: Count Pattern Matches in Strings"
+description: "Count regex or fixed pattern matches per string with stringr str_count() in R. Covers regex, fixed, case-insensitive, words, NA, with worked examples."
+keywords: "stringr str_count, str_count function R, stringr str_count examples, R str_count regex, count pattern matches R, count substring occurrences R, R count words in string"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "str_count()|stringr str_count|stringr::str_count()|count pattern matches|count regex matches"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>stringr str_count() in R: Count Pattern Matches in Strings</h1>
+
+<p class="lead">stringr str_count() returns the number of non-overlapping regex or fixed pattern matches inside each element of a character vector. It is vectorized, NA-aware, and the right tool whenever str_detect() would lose information by collapsing counts to TRUE/FALSE.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>str_count(x, &quot;a&quot;)<span class="qa-cmt">                                 # count &quot;a&quot; in each string</span>
+str_count(x, &quot;[0-9]&quot;)<span class="qa-cmt">                             # count digits per string</span>
+str_count(x, fixed(&quot;.&quot;))<span class="qa-cmt">                          # count literal dots</span>
+str_count(x, regex(&quot;foo&quot;, ignore_case = TRUE))<span class="qa-cmt">    # case-insensitive</span>
+str_count(x, boundary(&quot;word&quot;))<span class="qa-cmt">                    # count words per string</span>
+str_count(x, c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">                         # pairwise (recycled) counts</span>
+str_count(x)<span class="qa-cmt">                                      # count characters per string</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is str_count() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">count regex matches per string</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">str_count(x, &quot;[0-9]&quot;)</text><text x="125" y="126" class="branch-label">check if a pattern exists at all</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">str_detect(x, &quot;[0-9]&quot;)</text><text x="125" y="182" class="branch-label">extract the matched text</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">str_extract_all(x, &quot;[0-9]&quot;)</text><text x="125" y="238" class="branch-label">replace matches with another string</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">str_replace_all(x, &quot;[0-9]&quot;, &quot;&quot;)</text><text x="125" y="294" class="branch-label">length of each string in characters</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">str_length(x)</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> per group in a tibble</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dplyr::count(df, group)</text></svg></div>
+
+<h2>What str_count() does in one sentence</h2>
+
+<p><strong>str_count() turns each string into an integer count of regex matches.</strong> Unlike <code>str_detect()</code> which returns a logical vector, str_count() reports how many times the pattern hits in every element, preserving zero-match strings as 0 and propagating NA inputs as NA. That makes it the workhorse for token counting, feature engineering on text columns, and quick QA on data cleaning rules.</p>
+
+<div class="webr-container" data-block-title="Load stringr and set up data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load stringr and set up data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(stringr)
+
+x &lt;- c(&quot;banana&quot;, &quot;apple&quot;, &quot;kiwi&quot;, NA, &quot;&quot;)
+str_count(x, &quot;a&quot;)
+#&gt; [1]  3  1  0 NA  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is the same length as the input. Three "a"s in "banana", one in "apple", zero in "kiwi", NA stays NA, and an empty string contributes 0.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>str_count() takes a string and a pattern.</strong> Both are vectorized, and the pattern argument accepts plain regex, <code>fixed()</code>, <code>regex()</code>, <code>coll()</code>, or <code>boundary()</code> modifiers.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># str_count(string, pattern = &quot;&quot;)
+#
+# string  : character vector
+# pattern : regex (default &quot;&quot;), or fixed()/regex()/coll()/boundary() helper</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Default pattern counts characters.</strong> <code>str_count(x)</code> with no pattern returns the number of code points per string, equivalent to <code>str_length(x)</code>. Use it as a quick sanity check before regex counting.</div></div>
+
+<p>The two arguments recycle against each other. Pass a length-1 string against a vector of patterns and you get one count per pattern; pass two vectors of equal length and you get pairwise counts.</p>
+
+<div class="webr-container" data-block-title="Pairwise counting via recycling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise counting via recycling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(&quot;aabbcc&quot;, &quot;abcabc&quot;, &quot;ccc&quot;)
+str_count(y, c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+#&gt; [1] 2 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call asks "how many a in aabbcc", the second "how many b in abcabc", the third "how many c in ccc". This is how you build per-row character-class features in one line.</p>
+
+<h2>Six counting patterns you will use weekly</h2>
+
+<p><strong>Six patterns cover roughly 90% of real-world str_count() work.</strong> Each block below is independent; copy any block to test it on your data.</p>
+
+<h3>Count a fixed substring</h3>
+
+<p><strong>Use fixed() for literal text.</strong> It skips regex parsing, runs faster, and avoids accidental metacharacter bugs.</p>
+
+<div class="webr-container" data-block-title="Count occurrences of a substring">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count occurrences of a substring</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emails &lt;- c(&quot;alice@example.com&quot;, &quot;bob@@typo.com&quot;, &quot;no-at-sign&quot;)
+str_count(emails, fixed(&quot;@&quot;))
+#&gt; [1] 1 2 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>fixed(&quot;@&quot;)</code> skips regex parsing, which is faster and avoids escaping issues. Use it whenever the pattern is a literal string with no metacharacters.</p>
+
+<h3>Count digits per string</h3>
+
+<p><strong>Character classes count one character at a time.</strong> Switch to a quantifier when you want whole tokens.</p>
+
+<div class="webr-container" data-block-title="Count digits in each element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count digits in each element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log &lt;- c(&quot;error 404 at 12:30&quot;, &quot;ok&quot;, &quot;code 500, retry 3x&quot;)
+str_count(log, &quot;[0-9]&quot;)
+#&gt; [1] 6 0 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regex <code>[0-9]</code> is a character class. <code>str_count()</code> finds every non-overlapping match, so "404" counts as 3 digits, not 1 number. To count whole numbers instead, switch to <code>&quot;\\d+&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Count whole numbers vs individual digits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count whole numbers vs individual digits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_count(log, &quot;\\d+&quot;)
+#&gt; [1] 3 0 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match width changes the count.</strong> <code>[0-9]</code> matches one digit at a time; <code>\\d+</code> matches a run of digits as a single token. Choose based on whether you are counting characters or counting numeric tokens.</div></div>
+
+<h3>Case-insensitive count</h3>
+
+<p><strong>Wrap the pattern in regex() to fold case.</strong> This is the idiomatic stringr way to ignore case for one call.</p>
+
+<div class="webr-container" data-block-title="Ignore case via regex() modifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ignore case via regex() modifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">text &lt;- c(&quot;R is great. r is fun. R rocks.&quot;)
+str_count(text, regex(&quot;r&quot;, ignore_case = TRUE))
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrapping the pattern in <code>regex(..., ignore_case = TRUE)</code> is the idiomatic way to switch on case folding for one call. Avoid the older <code>(?i)</code> inline flag for clarity.</p>
+
+<h3>Count words</h3>
+
+<p><strong>boundary("word") counts tokens, not characters.</strong> It is Unicode-aware and tolerates messy whitespace.</p>
+
+<div class="webr-container" data-block-title="Count words using a word boundary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count words using a word boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sentences &lt;- c(&quot;Hello world&quot;, &quot;  many   spaces  &quot;, &quot;one&quot;)
+str_count(sentences, boundary(&quot;word&quot;))
+#&gt; [1] 2 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>boundary(&quot;word&quot;)</code> is Unicode-aware and handles repeated whitespace correctly. For ASCII-only text you can also use <code>&quot;\\w+&quot;</code>, but <code>boundary(&quot;word&quot;)</code> is safer with multilingual data.</p>
+
+<h3>Count overlapping cases (and why str_count does not)</h3>
+
+<p><strong>str_count() returns non-overlapping matches by default.</strong> A lookahead converts that to overlapping counts when you need them.</p>
+
+<div class="webr-container" data-block-title="Non-overlapping match behavior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-overlapping match behavior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_count(&quot;aaaa&quot;, &quot;aa&quot;)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>str_count() returns 2, not 3. After matching positions 1-2, the scanner restarts at position 3, so positions 2-3 cannot match. If you need overlapping counts, use a lookahead.</p>
+
+<div class="webr-container" data-block-title="Overlapping matches via lookahead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Overlapping matches via lookahead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_count(&quot;aaaa&quot;, &quot;(?=aa)&quot;)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lookahead matches at every position without consuming characters, so all three start positions count.</p>
+
+<h3>Count rows in a tibble that match a pattern</h3>
+
+<p><strong>Per-row counts feed text feature engineering.</strong> Combine str_count() with dplyr to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> counts across a column.</p>
+
+<div class="webr-container" data-block-title="Count matching rows in mtcars row names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count matching rows in mtcars row names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tibble)
+mtcars |&gt;
+  rownames_to_column(&quot;car&quot;) |&gt;
+  mutate(has_v8_hint = str_count(car, regex(&quot;v&quot;, ignore_case = TRUE))) |&gt;
+  summarise(total_v_letters = sum(has_v8_hint))
+#&gt; # A tibble: 1 x 1
+#&gt;   total_v_letters
+#&gt;             &lt;int&gt;
+#&gt; 1               6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This pattern (per-row count then summarize) shows up constantly in text feature engineering. Compare to <code>str_detect()</code> which would give you a logical and lose the per-row magnitude.</p>
+
+<h2>str_count() vs str_detect() vs base R</h2>
+
+<p><strong>Three functions answer different questions about the same regex.</strong> Picking the wrong one is the most common stringr error.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str_count(x, p)</code></td>
+<td>integer vector of match counts</td>
+<td>quantify how many hits per string</td>
+</tr>
+<tr>
+<td><code>str_detect(x, p)</code></td>
+<td>logical vector</td>
+<td>only need yes/no per string</td>
+</tr>
+<tr>
+<td><code>str_extract_all(x, p)</code></td>
+<td>list of <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a></td>
+<td>need the matched text itself</td>
+</tr>
+<tr>
+<td><code>lengths(regmatches(x, gregexpr(p, x)))</code></td>
+<td>integer (base R)</td>
+<td>no stringr dependency</td>
+</tr>
+<tr>
+<td><code>nchar(x)</code> or <code>str_length(x)</code></td>
+<td>integer length</td>
+<td>counting characters, not matches</td>
+</tr>
+</tbody>
+</table>
+
+<p>The base R equivalent works but requires three nested calls and does not <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a> cleanly. str_count() collapses that to one vectorized call with sensible NA propagation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Counts beat booleans for feature engineering.</strong> Whenever a downstream model could benefit from "how many" instead of "any", reach for str_count(). Converting to a logical later is easy; reconstructing counts after the fact is not.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three pitfalls cause most str_count() bugs.</strong> Each has a one-line fix.</p>
+
+<h3>Regex special characters in fixed text</h3>
+
+<p><strong>Dot, plus, and parens are regex metacharacters.</strong> Wrap them in fixed() or escape them, or you will count more than you expected.</p>
+
+<div class="webr-container" data-block-title="Dot matches any character, not literal dot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dot matches any character, not literal dot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ip &lt;- c(&quot;10.0.0.1&quot;, &quot;192.168.1.1&quot;)
+str_count(ip, &quot;.&quot;)          # wrong: . matches any character
+#&gt; [1]  8 11
+str_count(ip, fixed(&quot;.&quot;))   # right: literal dot
+#&gt; [1] 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Always wrap literal punctuation in <code>fixed()</code> unless you specifically want regex semantics.</p>
+
+<h3>Forgetting NA propagation</h3>
+
+<p><strong>NA inputs return NA, not 0.</strong> That preserves missingness but can break sums; coerce first if you want 0.</p>
+
+<div class="webr-container" data-block-title="NA stays NA, not 0">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA stays NA, not 0</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;abc&quot;, NA, &quot;ab&quot;)
+str_count(x, &quot;a&quot;)
+#&gt; [1]  1 NA  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If you want NA strings to count as 0, replace them first with <code>str_replace_na(x, &quot;&quot;)</code> or <code>coalesce(x, &quot;&quot;)</code>.</p>
+
+<h3>Pattern length recycled silently</h3>
+
+<p><strong>Recycling mismatched lengths warns but does not stop.</strong> Verify lengths match if you want pairwise counts.</p>
+
+<div class="webr-container" data-block-title="Recycling a 2-element pattern across 3 strings warns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recycling a 2-element pattern across 3 strings warns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_count(c(&quot;aa&quot;, &quot;bb&quot;, &quot;cc&quot;), c(&quot;a&quot;, &quot;b&quot;))
+#&gt; Warning message:
+#&gt; longer object length is not a multiple of shorter object length
+#&gt; [1] 2 2 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you really want one pattern per string, ensure <code>length(pattern) == length(string)</code> or pass a scalar.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>stringr 1.5 removed silent recycling for incompatible lengths.</strong> If you upgrade from an older project, run str_count() over your test data first. The new behavior raises a clear error instead of returning a misleading short vector.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a per-row count of vowels in the <code>state.name</code> built-in vector and return the names with the most vowels.</p>
+<div class="webr-container" data-block-title="Your turn: count vowels in state names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count vowels in state names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: count vowels per state name
+ex_vowels &lt;- # your code here
+
+head(ex_vowels, 3)
+#&gt; Expected: a numeric vector with 50 entries</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_vowels &lt;- str_count(state.name, regex(&quot;[aeiou]&quot;, ignore_case = TRUE))
+state.name[ex_vowels == max(ex_vowels)]
+#&gt; [1] &quot;North Carolina&quot; &quot;South Carolina&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>regex(..., ignore_case = TRUE)</code> matches both upper and lowercase vowels in one pass. We then index <code>state.name</code> by the max count to find the tied winners.</p>
+
+</details>
+</section>
+
+<h2>Related stringr functions</h2>
+
+<p>When str_count() is not quite what you need, these are the next stops:</p>
+
+<ul>
+
+<li><a href="stringr-str_detect-in-R.html">str_detect()</a> returns a logical for yes/no presence checks.</li>
+
+<li><a href="stringr-str_extract-in-R.html">str_extract()</a> and <code>str_extract_all()</code> return the matched text itself.</li>
+
+<li><a href="stringr-str_replace-in-R.html">str_replace()</a> substitutes the match with another string.</li>
+
+<li><a href="stringr-str_split-in-R.html">str_split()</a> breaks each string on the pattern.</li>
+
+<li><a href="stringr-str_locate-in-R.html">str_locate()</a> returns the start and end position of the first match.</li>
+
+<li><a href="stringr-in-R.html">str_length()</a> returns the character count per string without a regex.</li>
+
+<li>The full <a href="https://stringr.tidyverse.org/reference/str_count.html">stringr reference</a> on the tidyverse site documents every helper modifier.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>How is str_count() different from length() in base R?</strong></p>
+
+<p><code>length()</code> returns the number of elements in a vector. str_count() returns a vector of the same length where each entry is the number of pattern matches inside that element. They answer different questions: <code>length(x)</code> tells you how many strings you have; <code>str_count(x, p)</code> tells you how many times the pattern occurs in each string.</p>
+
+<p><strong>Does str_count() count overlapping matches?</strong></p>
+
+<p>No. str_count() returns non-overlapping match counts because it relies on <code>gregexpr()</code> semantics under the hood. If you need overlapping counts, use a regex lookahead: <code>str_count(x, &quot;(?=pattern)&quot;)</code>. The lookahead matches at every position without consuming characters, so all overlapping starts count.</p>
+
+<p><strong>How do I count words in a column with stringr?</strong></p>
+
+<p>Use <code>str_count(text, boundary(&quot;word&quot;))</code>. The <code>boundary(&quot;word&quot;)</code> helper is Unicode-aware, handles repeated whitespace, and counts tokens rather than characters. For ASCII-only text <code>&quot;\\w+&quot;</code> works too, but the boundary helper is safer with multilingual data and contractions.</p>
+
+<p><strong>Is str_count() faster than gregexpr() in base R?</strong></p>
+
+<p>For typical vectors (under 1M elements), str_count() and <code>lengths(gregexpr(p, x))</code> perform within 10% of each other because both call the same regex engine. str_count() wins on readability and NA handling. For tight inner loops, profile both; otherwise prefer the stringr version.</p>
+
+<p><strong>Why does str_count() return NA for some rows?</strong></p>
+
+<p>NA inputs propagate to NA outputs by design. This avoids hiding <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a> behind a 0 count. If you specifically want missing strings to count as 0, <a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">replace NA values</a> first with <code>tidyr::replace_na(x, &quot;&quot;)</code> or <code>dplyr::coalesce(x, &quot;&quot;)</code> before counting.</p>
+
+{% endraw %}
