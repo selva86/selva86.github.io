@@ -20,7 +20,6 @@ POSTS_DIR = os.path.join(REPO_ROOT, '_posts')
 SIDEBAR_PATH = os.path.join(REPO_ROOT, 'www', 'sidebar.json')
 LINKS_PATH = os.path.join(REPO_ROOT, 'www', 'links.json')
 CURRICULUM_PATH = os.path.join(REPO_ROOT, 'curriculum-status.json')
-PSEO_PATH = os.path.join(REPO_ROOT, 'www', 'programmatic-seo.json')
 PENDING_REFRESH_PATH = os.path.join(SCRIPT_DIR, '.fr_refresh_pending.json')
 
 
@@ -204,32 +203,10 @@ def sync_links_auto(posts, links_data, dry_run=False):
         added += 1
         new_terms_set.update(new_terms)
 
-    # Also sync PSEO reserved terms
-    if os.path.exists(PSEO_PATH):
-        with open(PSEO_PATH, 'r', encoding='utf-8') as f:
-            pseo = json.load(f)
-        for series in pseo.get('series', []):
-            for p in series.get('posts', []):
-                # Check if already in links
-                terms = p.get('auto_link_terms', [])
-                url = p.get('url') or (p.get('id', '').replace('pseo-', '') + '.html')
-                if url in existing_index:
-                    continue
-                if not terms:
-                    continue
-                status = p.get('status', 'not_published')
-                links['auto_links'].append({
-                    'url': url,
-                    'title': p.get('title', ''),
-                    'terms': terms,
-                    'case_sensitive': p.get('case_sensitive', True),
-                    'max_per_page': 1,
-                    'status': status
-                })
-                existing_index[url] = links['auto_links'][-1]
-                added += 1
-                if status == 'published':
-                    new_terms_set.update(terms)
+    # PSEO terms are picked up via the same _posts/ frontmatter scan above
+    # (post_type:PSEO posts have auto_link_terms in their frontmatter). The
+    # legacy www/programmatic-seo.json series read was removed during the
+    # 2026-05-15 registry consolidation; see _archive/.
 
     return added, updated, new_terms_set
 

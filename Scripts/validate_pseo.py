@@ -29,7 +29,6 @@ import urllib.request
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-PSEO_JSON = PROJECT_ROOT / "www" / "programmatic-seo.json"
 
 USER_AGENT = "Mozilla/5.0 (validate_pseo)"
 
@@ -71,15 +70,9 @@ def derive_slug(topic):
 
 
 def check_slug_registry(slug):
-    if not PSEO_JSON.exists():
-        return ("WARN", f"{PSEO_JSON.name} not found - cannot dedupe")
-    try:
-        data = json.loads(PSEO_JSON.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as e:
-        return ("WARN", f"{PSEO_JSON.name} unparsable: {e}")
-    registry = data.get("slug_registry", [])
-    if slug in registry:
-        return ("FAIL", f"slug '{slug}' already in slug_registry")
+    """Filesystem-based dedupe: a slug is "taken" if either the built page
+    or the markdown draft already exists. The legacy slug_registry in
+    www/programmatic-seo.json is no longer consulted (consolidated)."""
     html_path = PROJECT_ROOT / f"{slug}.html"
     if html_path.exists():
         return ("FAIL", f"{slug}.html already exists at site root")
