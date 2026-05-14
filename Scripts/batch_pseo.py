@@ -7,7 +7,7 @@ skill (11-pass SERP-informed write), quality-gated, then published in another
 fresh subprocess. State is tracked in pseo-status.json so runs are resumable.
 
 Usage:
-  python Scripts/batch_pseo.py                 # process all pending
+  python Scripts/batch_pseo.py                 # process all pending (sync every 10)
   python Scripts/batch_pseo.py --max 5         # cap to 5 posts
   python Scripts/batch_pseo.py --slug <slug>   # one specific slug
   python Scripts/batch_pseo.py --category function-deep
@@ -16,6 +16,8 @@ Usage:
   python Scripts/batch_pseo.py --no-publish    # write only
   python Scripts/batch_pseo.py --audit-only    # gate every PSEO post, no spawns
   python Scripts/batch_pseo.py --dry-run       # show plan, no spawns
+  python Scripts/batch_pseo.py --sync-every 1  # sync_registries per post (slowest, safest)
+  python Scripts/batch_pseo.py --sync-every 0  # skip final sync (run manually after)
 """
 from __future__ import annotations
 import argparse
@@ -307,9 +309,10 @@ def reconcile_publish_false_positive(slug: str) -> bool:
     return ok
 
 
-def run_final_sync_registries():
-    """Run sync_registries.py once at the end of a batch."""
-    log("Running final sync_registries.py (catch-up after skip-sync batch)")
+def run_sync_registries(label="final"):
+    """Run sync_registries.py once. `label` distinguishes mid-batch from final
+    sync passes in log output and commit messages."""
+    log(f"Running {label} sync_registries.py")
     t0 = time.time()
     try:
         result = subprocess.run(
@@ -321,15 +324,20 @@ def run_final_sync_registries():
         if result.returncode == 0:
             subprocess.run(["git", "add", "-u"], capture_output=True, cwd=str(REPO_ROOT))
             cm = subprocess.run(
-                ["git", "commit", "-m", "Final sync_registries pass after PSEO batch"],
+                ["git", "commit", "-m", f"{label.capitalize()} sync_registries pass after PSEO batch"],
                 capture_output=True, cwd=str(REPO_ROOT)
             )
             if cm.returncode == 0:
                 subprocess.run(["git", "push", "origin", "master"],
                                capture_output=True, cwd=str(REPO_ROOT))
-                log("  Final sync committed and pushed")
+                log(f"  {label.capitalize()} sync committed and pushed")
     except subprocess.TimeoutExpired:
         log(f"  sync_registries timed out after {SYNC_TIMEOUT}s")
+
+
+def run_final_sync_registries():
+    """Backwards-compatible alias for run_sync_registries('final')."""
+    run_sync_registries("final")
 
 
 def audit_only():
@@ -357,7 +365,15 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="show plan, no spawns")
     ap.add_argument("--no-publish", action="store_true",
                     help="run write+gate only; skip publish")
+    ap.add_argument("--sync-every", type=int, default=10,
+                    help="run sync_registries.py every N successful posts "
+                         "(default 10). Use 0 to skip the final sync entirely "
+                         "(no mid-batch syncs either). Use 1 to sync per post "
+                         "(slowest but maximum cross-post visibility).")
     args = ap.parse_args()
+    if args.sync_every < 0:
+        log("ERROR: --sync-every must be >= 0")
+        sys.exit(2)
 
     if args.audit_only:
         audit_only()
@@ -392,6 +408,7 @@ def main():
             return
 
         claude = find_claude()
+        done_in_batch = 0  # successful posts since last sync, for --sync-every
 
         for i, entry in enumerate(queue, 1):
             slug = entry["slug"]
@@ -501,8 +518,15 @@ def main():
             entry["last_error"] = ""
             write_status(status)
             log(f"  DONE: {slug}")
+            done_in_batch += 1
+            if args.sync_every > 0 and done_in_batch % args.sync_every == 0:
+                run_sync_registries(f"mid-batch ({done_in_batch}/{len(queue)})")
 
-        run_final_sync_registries()
+        if args.sync_every == 0:
+            log("Skipping final sync_registries (--sync-every 0).")
+            log("Run `python _build/sync_registries.py` manually to catch up.")
+        else:
+            run_sync_registries("final")
     finally:
         release_lock()
 

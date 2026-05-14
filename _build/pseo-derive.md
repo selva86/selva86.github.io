@@ -66,15 +66,15 @@ existing PSEO posts). Aspirational links silently no-op until the parent ships.
 | `stringr-functions` | `stringr-in-R.html` | EXISTS |
 | `lubridate-functions` | `lubridate-in-R.html` | EXISTS |
 | `purrr-functions` | `Functional-Programming-in-R.html` | EXISTS |
-| `forcats-functions` | `R-Vectors.html` | EXISTS (factors are a vector type) |
+| `forcats-functions` | `Categorical-Data-in-R.html` | EXISTS (factors handle categorical data) |
 | `readr--readxl--haven` | `Importing-Data-in-R.html` | EXISTS |
-| `datatable-functions` | `Data-Wrangling-With-dplyr.html` | ASPIRATIONAL |
-| `tibble-functions` | `R-Vectors.html` | EXISTS (best available; R-Data-Types not yet published) |
+| `datatable-functions` | `data-table-vs-dplyr.html` | EXISTS (dedicated data.table comparison hub) |
+| `tibble-functions` | `R-Data-Frames.html` | EXISTS (tibbles are a data-frame variant) |
 | `janitor-functions` | `janitor-Package-in-R.html` | EXISTS |
 | `glue-functions` | `stringr-in-R.html` | EXISTS (string-adjacent) |
 | `broom-functions` | `Linear-Regression.html` | EXISTS |
-| `caret-functions` | `Linear-Regression.html` | EXISTS (Caret-Package parent aspirational) |
-| `tidymodels-family` | `Linear-Regression.html` | EXISTS (Tidymodels-in-R parent aspirational) |
+| `caret-functions` | `Machine-Learning-Workflow-in-R.html` | ASPIRATIONAL (curriculum-planned ML workflow Core) |
+| `tidymodels-family` | `Machine-Learning-Workflow-in-R.html` | ASPIRATIONAL (same as caret-functions) |
 | `base-r-essentials` | `R-Basic-Syntax-Beginners-Guide.html` | ASPIRATIONAL (used by 5 existing PSEO) |
 
 Sub-Claude may override with a more-specific deep-dive parent if the slug
