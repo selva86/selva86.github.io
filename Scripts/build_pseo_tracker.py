@@ -47,6 +47,7 @@ CATEGORIES_DIR = PROJECT_ROOT / "Plans" / "PSEO" / "categories"
 POSTS_DIR = PROJECT_ROOT / "posts"
 FRAGMENTS_DIR = PROJECT_ROOT / "_posts"
 TRACKER_PATH = PROJECT_ROOT / "pseo-status.json"
+LEGACY_PSEO_PATH = PROJECT_ROOT / "www" / "programmatic-seo.json"
 SITE_BASE = "https://r-statistics.co/"
 
 CATEGORY_FILENAME_RE = re.compile(r"^\d+-([a-z\-]+)\.md$")
@@ -55,6 +56,9 @@ SLUG_LINE_RE = re.compile(r"^-\s+([A-Za-z][\w\-]*)\s*$")
 FRONTMATTER_RE = re.compile(r"^---\s*$\n(.+?)\n^---\s*$", re.MULTILINE | re.DOTALL)
 TITLE_RE = re.compile(r'^title:\s*"?(.+?)"?\s*$', re.MULTILINE)
 DATE_RE = re.compile(r'^date:\s*"?(\d{4}-\d{2}-\d{2})"?\s*$', re.MULTILINE)
+POST_TYPE_RE = re.compile(r'^post_type:\s*"?([\w]+)"?\s*$', re.MULTILINE)
+CATEGORY_ID_RE = re.compile(r'^category_id:\s*"?([\w\-]+)"?\s*$', re.MULTILINE)
+SUBCATEGORY_ID_RE = re.compile(r'^subcategory_id:\s*"?([\w\-]+)"?\s*$', re.MULTILINE)
 
 
 def slugify(s):
@@ -89,6 +93,69 @@ def collect_planned():
                 {"slug": slug, "category": category, "type": subcategory}
             )
     return planned
+
+
+def _load_legacy_category_map():
+    """Return {slug: (category_id, subcategory_id)} from the legacy PSEO registry.
+    Used as a fallback when an orphan _posts/ fragment lacks category_id frontmatter."""
+    mapping = {}
+    if not LEGACY_PSEO_PATH.exists():
+        return mapping
+    try:
+        data = json.loads(LEGACY_PSEO_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return mapping
+    for series in data.get("series", []):
+        for p in series.get("posts", []):
+            slug = p.get("slug")
+            if not slug:
+                continue
+            mapping[slug] = (
+                p.get("category_id", ""),
+                p.get("subcategory_id", ""),
+            )
+    return mapping
+
+
+def collect_orphans(planned_slugs):
+    """Find PSEO _posts/<slug>.html files whose slug isn't in any appendix.
+
+    Resolves (category, type) by frontmatter category_id/subcategory_id first,
+    legacy registry second, ('uncategorized', 'misc') last. Returns list of
+    {slug, category, type} dicts. Empty if FRAGMENTS_DIR is missing."""
+    orphans = []
+    if not FRAGMENTS_DIR.exists():
+        return orphans
+    legacy_map = _load_legacy_category_map()
+    for frag in sorted(FRAGMENTS_DIR.glob("*.html")):
+        slug = frag.stem
+        if slug in planned_slugs:
+            continue
+        try:
+            text = frag.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        m = FRONTMATTER_RE.search(text)
+        if not m:
+            continue
+        fm = m.group(1)
+        pt = POST_TYPE_RE.search(fm)
+        if not pt or pt.group(1).upper() != "PSEO":
+            continue
+        cat_m = CATEGORY_ID_RE.search(fm)
+        sub_m = SUBCATEGORY_ID_RE.search(fm)
+        category = cat_m.group(1) if cat_m else ""
+        subcategory = sub_m.group(1) if sub_m else ""
+        if not category or not subcategory:
+            legacy_cat, legacy_sub = legacy_map.get(slug, ("", ""))
+            category = category or legacy_cat
+            subcategory = subcategory or legacy_sub
+        if not category:
+            category = "uncategorized"
+        if not subcategory:
+            subcategory = "misc"
+        orphans.append({"slug": slug, "category": category, "type": subcategory})
+    return orphans
 
 
 def read_post_metadata(slug):
@@ -148,8 +215,10 @@ def build_entry(planned_row):
 
 
 def rebuild():
-    entries = [build_entry(p) for p in collect_planned()]
-    return entries
+    planned = collect_planned()
+    planned_slugs = {p["slug"] for p in planned}
+    orphans = collect_orphans(planned_slugs)
+    return [build_entry(p) for p in planned + orphans]
 
 
 def update_one(slug):
