@@ -3,7 +3,7 @@
 Generate a published-content dashboard from all 3 trackers.
 
 Reads:
-  - www/programmatic-seo.json (PSEO posts)
+  - pseo-status.json (PSEO posts; canonical tracker)
   - curriculum-status.json (Core/FR/EX posts; gitignored)
   - Plans/PSEO/asset-tracker.json (calculators, cheatsheets, interview-questions)
 
@@ -13,13 +13,10 @@ Writes:
 
 Each entry includes:
   - slug, title, url
-  - status (lifecycle state)
   - category_id, subcategory_id (for PSEO/asset)
   - published_date
-  - last_modified
-  - last_reviewed
-  - word_count
-  - traffic_30d (optional, GA-populated; placeholder for now)
+  - last_modified (from file mtime)
+  - word_count (computed from posts/<slug>.md when present)
 
 Usage:
   python Scripts/published_status.py            # write dashboard
@@ -39,7 +36,7 @@ except AttributeError:
     pass
 
 ROOT = Path(__file__).resolve().parent.parent  # selva86.github.io/
-PSEO_JSON = ROOT / "www" / "programmatic-seo.json"
+PSEO_JSON = ROOT / "pseo-status.json"
 CURRICULUM_JSON = ROOT / "curriculum-status.json"
 ASSET_JSON = ROOT / "Plans" / "PSEO" / "asset-tracker.json"
 OUT_MD = ROOT / "Plans" / "PSEO" / "published-status.md"
@@ -65,30 +62,46 @@ def _file_mtime(slug):
     return None
 
 
+def _word_count_for(slug):
+    """Compute word count from posts/<slug>.md if it exists. Strips frontmatter
+    and fenced code blocks before counting. Returns int or None."""
+    md = ROOT / "posts" / f"{slug}.md"
+    if not md.exists():
+        return None
+    text = md.read_text(encoding="utf-8", errors="replace")
+    import re
+    body = re.sub(r"^---.*?---", "", text, count=1, flags=re.DOTALL)
+    body = re.sub(r"```.*?```", "", body, flags=re.DOTALL)
+    return len(body.split())
+
+
 def collect_pseo():
+    """Iterate the flat pseo-status.json. Treat entries with non-empty `url`
+    as published. Map pseo-status fields: category -> category_id,
+    type -> subcategory_id. last_modified comes from file mtime; word_count
+    is computed from the markdown body."""
     rows = []
     data = _load(PSEO_JSON)
     if not data:
         return rows
-    for series in data.get("series", []):
-        for post in series.get("posts", []):
-            if post.get("status") != "published":
-                continue
-            slug = post.get("slug")
-            rows.append({
-                "type": "PSEO",
-                "slug": slug,
-                "title": post.get("title", ""),
-                "url": post.get("url") or f"https://r-statistics.co/{slug}.html",
-                "category_id": post.get("category_id"),
-                "subcategory_id": post.get("subcategory_id"),
-                "series_id": series.get("id"),
-                "published_date": post.get("published_date"),
-                "last_modified": post.get("last_modified") or _file_mtime(slug),
-                "last_reviewed": post.get("last_reviewed"),
-                "word_count": post.get("word_count"),
-                "traffic_30d": post.get("traffic_30d"),
-            })
+    for entry in data:
+        if not entry.get("url"):
+            continue
+        slug = entry.get("slug")
+        rows.append({
+            "type": "PSEO",
+            "slug": slug,
+            "title": entry.get("title", ""),
+            "url": entry.get("url"),
+            "category_id": entry.get("category"),
+            "subcategory_id": entry.get("type"),
+            "series_id": None,
+            "published_date": entry.get("published_date"),
+            "last_modified": _file_mtime(slug),
+            "last_reviewed": None,
+            "word_count": _word_count_for(slug),
+            "traffic_30d": None,
+        })
     return rows
 
 
@@ -253,7 +266,7 @@ def render_markdown(rows):
     lines.append("")
     lines.append("## Source files")
     lines.append("")
-    lines.append("- `www/programmatic-seo.json` (PSEO)")
+    lines.append("- `pseo-status.json` (PSEO)")
     lines.append("- `curriculum-status.json` (Core, FR, EX) [gitignored]")
     lines.append("- `Plans/PSEO/asset-tracker.json` (calculators, cheatsheets, interview-questions)")
     lines.append("")
