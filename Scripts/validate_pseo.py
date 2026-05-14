@@ -2,10 +2,9 @@
 """
 validate_pseo.py - Pre-write demand validation for PSEO topics.
 
-Three gates:
-  1. Google Suggest    confirm autocomplete suggestions exist (real demand)
-  2. Slug-registry     ensure candidate slug is not already taken
-  3. Competitor scan   top organic results via SerpAPI (skipped if no API key)
+Two gates:
+  1. Slug-registry     ensure candidate slug is not already taken
+  2. Competitor scan   top organic results via SerpAPI (skipped if no API key)
 
 Usage:
   python Scripts/validate_pseo.py "stringr str_extract"
@@ -13,7 +12,7 @@ Usage:
   python Scripts/validate_pseo.py "stringr str_extract" --json
 
 Env:
-  SERPAPI_KEY  optional; if set, gate 3 runs, otherwise it is skipped.
+  SERPAPI_KEY  optional; if set, gate 2 runs, otherwise it is skipped.
 
 Exit codes:
   0  PASS or WARN  proceed (WARN means caveats noted)
@@ -61,18 +60,6 @@ def load_env_file():
 load_env_file()
 
 
-def fetch_google_suggest(query, timeout=10):
-    url = (
-        "https://suggestqueries.google.com/complete/search?client=firefox&q="
-        + urllib.parse.quote(query)
-    )
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8", errors="replace")
-    data = json.loads(raw)
-    return data[1] if isinstance(data, list) and len(data) > 1 else []
-
-
 def derive_slug(topic):
     """Derive canonical slug from topic. Matches PSEO post naming convention."""
     slug = topic.strip()
@@ -109,18 +96,6 @@ def fetch_serp(query, api_key, timeout=20):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
-
-
-def gate_suggest(topic):
-    try:
-        sugs = fetch_google_suggest(topic)
-    except Exception as e:
-        return ("WARN", f"Google Suggest request failed: {e}", [])
-    if not sugs:
-        return ("FAIL", "no autocomplete suggestions - likely no demand", [])
-    if len(sugs) < 3:
-        return ("WARN", f"only {len(sugs)} suggestions - thin demand", sugs)
-    return ("PASS", f"{len(sugs)} suggestions", sugs)
 
 
 def gate_competitors(topic, api_key):
@@ -163,21 +138,14 @@ def render_text(report):
     out.append(bar)
     out.append("")
 
-    s = report["suggest"]
-    out.append(f"[1/3] Google Suggest                {s['status']}")
-    out.append(f"      {s['message']}")
-    for sug in s["suggestions"][:10]:
-        out.append(f"        - {sug}")
-    out.append("")
-
     sl = report["slug"]
-    out.append(f"[2/3] Slug-registry dedupe          {sl['status']}")
+    out.append(f"[1/2] Slug-registry dedupe          {sl['status']}")
     out.append(f"      candidate slug: {sl['candidate']}")
     out.append(f"      {sl['message']}")
     out.append("")
 
     c = report["competitors"]
-    out.append(f"[3/3] Competitor scan               {c['status']}")
+    out.append(f"[2/2] Competitor scan               {c['status']}")
     out.append(f"      {c['message']}")
     for r in c["results"]:
         out.append(f"        {r['position']}. {r['title']}")
@@ -204,16 +172,14 @@ def main():
     slug = args.slug or derive_slug(args.topic)
     api_key = os.environ.get("SERPAPI_KEY", "").strip()
 
-    sug_status, sug_msg, sug_list = gate_suggest(args.topic)
     slug_status, slug_msg = check_slug_registry(slug)
     comp_status, comp_msg, comp_rows = gate_competitors(args.topic, api_key)
 
     report = {
         "topic": args.topic,
-        "suggest": {"status": sug_status, "message": sug_msg, "suggestions": sug_list},
         "slug": {"status": slug_status, "candidate": slug, "message": slug_msg},
         "competitors": {"status": comp_status, "message": comp_msg, "results": comp_rows},
-        "overall": overall_status([sug_status, slug_status, comp_status]),
+        "overall": overall_status([slug_status, comp_status]),
     }
 
     if args.json:

@@ -183,6 +183,7 @@ def check_git_clean() -> bool:
             "Scripts/batch_pseo.log",
             "Scripts/batch_pseo.run.log",
             "Scripts/batch_pseo.lock",
+            "Scripts/pseo-failures.log",
         ):
             continue
         if path.startswith("posts/_failed/"):
@@ -399,8 +400,26 @@ def main():
                 f"attempt {entry.get('retry_count', 0) + 1})")
 
             if not check_git_clean():
-                log("  Skipping batch: git is dirty. Resolve and re-run.")
-                break
+                # Mid-batch dirty tree usually means a prior slot's failed write
+                # left unexpected files. Stash and continue so one bad slot
+                # doesn't kill the rest; user can `git stash list` to inspect.
+                dirty = subprocess.run(
+                    ["git", "status", "--porcelain"], capture_output=True,
+                    text=True, cwd=str(REPO_ROOT)
+                ).stdout.strip()
+                stash_msg = f"batch_pseo auto-stash before slot {i} ({slug})"
+                r = subprocess.run(
+                    ["git", "stash", "push", "-u", "-m", stash_msg],
+                    capture_output=True, text=True, cwd=str(REPO_ROOT)
+                )
+                if r.returncode != 0 or not check_git_clean():
+                    log(f"  Auto-stash failed (rc={r.returncode}); aborting batch.")
+                    log(f"  Dirty paths:\n{dirty}")
+                    if r.stderr.strip():
+                        log(f"  git stash stderr: {r.stderr.strip()}")
+                    break
+                log(f"  Tree dirty before slot {i}; auto-stashed: {stash_msg}")
+                log(f"  Stashed paths:\n{dirty}")
 
             entry["status"] = "in_progress"
             entry["last_started"] = datetime.now().strftime("%Y-%m-%d %H:%M")
