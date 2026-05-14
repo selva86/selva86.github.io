@@ -47,8 +47,24 @@ CATEGORIES_DIR = PROJECT_ROOT / "Plans" / "PSEO" / "categories"
 POSTS_DIR = PROJECT_ROOT / "posts"
 FRAGMENTS_DIR = PROJECT_ROOT / "_posts"
 TRACKER_PATH = PROJECT_ROOT / "pseo-status.json"
-LEGACY_PSEO_PATH = PROJECT_ROOT / "www" / "programmatic-seo.json"
 SITE_BASE = "https://r-statistics.co/"
+
+# 10 PSEO slugs published before the appendix files existed. Categorization
+# is baked in here so the orphan scan resolves cleanly without depending on
+# the archived legacy registry. Values match the original
+# (category_id, subcategory_id) from www/programmatic-seo.json's series.
+LEGACY_ORPHAN_CATEGORIES = {
+    "dplyr-joins-in-R":                            ("function-deep",    "dplyr-functions"),
+    "R-Assignment-Operators-in-R":                 ("function-deep",    "base-r-essentials"),
+    "R-Pipe-Operator-in-R":                        ("function-deep",    "base-r-essentials"),
+    "R-Logical-Operators-in-R":                    ("function-deep",    "base-r-essentials"),
+    "R-Comparison-Operators-in-R":                 ("function-deep",    "base-r-essentials"),
+    "How-to-do-Chi-Square-Independence-Test-in-R": ("statistical-test", "chi-square"),
+    "How-to-do-One-Way-ANOVA-in-R":                ("statistical-test", "anova"),
+    "How-to-do-Pearson-Correlation-Test-in-R":     ("statistical-test", "correlation"),
+    "How-to-do-Wilcoxon-Signed-Rank-Test-in-R":    ("statistical-test", "nonparametric"),
+    "How-to-do-Shapiro-Wilk-Test-in-R":            ("statistical-test", "normality-variance"),
+}
 
 CATEGORY_FILENAME_RE = re.compile(r"^\d+-([a-z\-]+)\.md$")
 SUBCLUSTER_HEADER_RE = re.compile(r"^##\s+\d+\.\d+\s+(.+?)\s*(?:\(\d+\))?\s*$")
@@ -95,38 +111,16 @@ def collect_planned():
     return planned
 
 
-def _load_legacy_category_map():
-    """Return {slug: (category_id, subcategory_id)} from the legacy PSEO registry.
-    Used as a fallback when an orphan _posts/ fragment lacks category_id frontmatter."""
-    mapping = {}
-    if not LEGACY_PSEO_PATH.exists():
-        return mapping
-    try:
-        data = json.loads(LEGACY_PSEO_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return mapping
-    for series in data.get("series", []):
-        for p in series.get("posts", []):
-            slug = p.get("slug")
-            if not slug:
-                continue
-            mapping[slug] = (
-                p.get("category_id", ""),
-                p.get("subcategory_id", ""),
-            )
-    return mapping
-
-
 def collect_orphans(planned_slugs):
     """Find PSEO _posts/<slug>.html files whose slug isn't in any appendix.
 
     Resolves (category, type) by frontmatter category_id/subcategory_id first,
-    legacy registry second, ('uncategorized', 'misc') last. Returns list of
-    {slug, category, type} dicts. Empty if FRAGMENTS_DIR is missing."""
+    LEGACY_ORPHAN_CATEGORIES second (for the 10 pre-consolidation orphans),
+    ('uncategorized', 'misc') last. Returns list of {slug, category, type}
+    dicts. Empty if FRAGMENTS_DIR is missing."""
     orphans = []
     if not FRAGMENTS_DIR.exists():
         return orphans
-    legacy_map = _load_legacy_category_map()
     for frag in sorted(FRAGMENTS_DIR.glob("*.html")):
         slug = frag.stem
         if slug in planned_slugs:
@@ -147,7 +141,7 @@ def collect_orphans(planned_slugs):
         category = cat_m.group(1) if cat_m else ""
         subcategory = sub_m.group(1) if sub_m else ""
         if not category or not subcategory:
-            legacy_cat, legacy_sub = legacy_map.get(slug, ("", ""))
+            legacy_cat, legacy_sub = LEGACY_ORPHAN_CATEGORIES.get(slug, ("", ""))
             category = category or legacy_cat
             subcategory = subcategory or legacy_sub
         if not category:

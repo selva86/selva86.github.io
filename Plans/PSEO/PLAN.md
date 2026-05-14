@@ -55,7 +55,7 @@
 
 | Track | Items | Source of truth | Status today |
 |---|---|---|---|
-| PSEO posts (14 categories) | 3,200 | `www/programmatic-seo.json` | 36 seeded, 0 published |
+| PSEO posts (14 categories) | 3,200 | `pseo-status.json` (canonical; legacy `www/programmatic-seo.json` archived 2026-05-15) | 1,915 planned, 200 published |
 | Calculators (net new) | 50 | `Plans/PSEO/asset-tracker.json` | 28 already live (additive) |
 | Cheatsheets | 55 | `Plans/PSEO/asset-tracker.json` | 1 live (ggplot2) |
 | Comparison posts | 260 | `Plans/PSEO/asset-tracker.json` (canonical) + `categories/06-comparison.md` (cross-ref) | 0 |
@@ -256,7 +256,7 @@ not_started → demand_validated → drafted → review → published → needs_
 
 | File | Covers | Committed | Pipeline coupling |
 |---|---|---|---|
-| `www/programmatic-seo.json` | All 3,200 PSEO posts | yes | sync_pseo_to_links.py, /publish-post |
+| `pseo-status.json` | All 3,200 PSEO posts (canonical since 2026-05-15) | yes | build_pseo_tracker.py auto-refresh post `/publish-post` |
 | `curriculum-status.json` | Core, FR, EX, comparisons, calculator companions (~700) | no (gitignored) | /publish-post |
 | `Plans/PSEO/asset-tracker.json` | Calculators, cheatsheets, interview, cookbook (~1,400) | yes | new asset publish playbook |
 
