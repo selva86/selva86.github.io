@@ -1,0 +1,431 @@
+---
+title: "stringr str_length() in R: Count Characters in Strings"
+description: "Count characters per string with stringr str_length() in R. Vectorized, NA-aware, Unicode-safe, plus comparisons to nchar(), length() and width helpers."
+keywords: "stringr str_length, str_length function R, stringr str_length examples, R string length, str_length vs nchar, character count R, length of string in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "str_length()|stringr str_length|stringr::str_length()|string length in R|character count in R"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>stringr str_length() in R: Count Characters in Strings</h1>
+
+<p class="lead">stringr str_length() returns the number of characters in each element of a character vector, counting by Unicode code points so accented letters, emoji, and CJK text all score correctly. It is vectorized, NA-aware, and the safe replacement for base R nchar() in modern UTF-8 code.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>str_length(&quot;hello&quot;)<span class="qa-cmt">                          # length of one string</span>
+str_length(c(&quot;a&quot;, &quot;bb&quot;, &quot;ccc&quot;))<span class="qa-cmt">              # length per element</span>
+str_length(x)<span class="qa-cmt">                                # vectorized over a column</span>
+str_length(NA)<span class="qa-cmt">                               # NA, not 0</span>
+str_length(&quot;&quot;)<span class="qa-cmt">                               # 0 for empty string</span>
+str_length(&quot;naïve&quot;)<span class="qa-cmt">                          # 5, not 6 (codepoints)</span>
+str_length(c(&quot;hi&quot;, &quot;नमस्ते&quot;))<span class="qa-cmt">                  # 2, 6 (CJK / Devanagari safe)</span>
+nchar(x, type = &quot;chars&quot;) == str_length(x)<span class="qa-cmt">    # base R equivalence</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is str_length() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">character count per string</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">str_length(x)</text><text x="125" y="126" class="branch-label">display width with wide CJK characters</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">stringi::stri_width(x)</text><text x="125" y="182" class="branch-label">bytes consumed by each string</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nchar(x, type = &quot;bytes&quot;)</text><text x="125" y="238" class="branch-label">number of strings in a vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">length(x)</text><text x="125" y="294" class="branch-label">count pattern matches per string</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">str_count(x, &quot;[0-9]&quot;)</text><text x="125" y="350" class="branch-label">pad strings to a fixed length</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">str_pad(x, 10)</text><text x="125" y="406" class="branch-label">truncate strings to a max length</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">str_trunc(x, 10)</text></svg></div>
+
+<h2>What str_length() does in one sentence</h2>
+
+<p><strong>str_length() turns each string into an integer count of its Unicode code points.</strong> Unlike <code>length()</code> which returns how many strings are in a vector, str_length() reports how many characters live inside every string, NA stays NA, and empty strings score 0. That makes it the workhorse for validating IDs, padding columns, trimming display strings, and any downstream check that cares about content size rather than container size.</p>
+
+<div class="webr-container" data-block-title="Load stringr and check basic lengths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load stringr and check basic lengths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(stringr)
+
+x &lt;- c(&quot;banana&quot;, &quot;apple&quot;, &quot;kiwi&quot;, NA, &quot;&quot;)
+str_length(x)
+#&gt; [1]  6  5  4 NA  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output vector is the same length as the input. Six characters in "banana", five in "apple", four in "kiwi", NA propagates, the empty string contributes 0. There is no pattern argument and no recycling to reason about; the function is intentionally minimal.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>str_length() takes one argument: a character vector.</strong> It does not accept a pattern, encoding flag, or weight argument. Anything more complex belongs to <code>str_count()</code> or <code>stringi::stri_width()</code>.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># str_length(string)
+#
+# string : character vector (factors are coerced to character)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function is a thin wrapper around <code>stringi::stri_length()</code>, which counts Unicode code points using ICU. That sounds academic but matters in practice. The next block shows why.</p>
+
+<div class="webr-container" data-block-title="Codepoint counting works for non-ASCII">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Codepoint counting works for non-ASCII</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_length(c(&quot;hi&quot;, &quot;café&quot;, &quot;नमस्ते&quot;, &quot;🙂🙂&quot;))
+#&gt; [1] 2 4 6 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>"café" is 4 characters even though it takes 5 bytes in UTF-8. "नमस्ते" is 6 code points (Devanagari is a script with combining marks). Two smileys score 2. Compare this with <code>nchar(x, type = &quot;bytes&quot;)</code> below to see why str_length() is the right default for user-facing text.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Default behavior changed in base R 4.0.</strong> Recent versions of <code>nchar()</code> default to <code>type = &quot;chars&quot;</code>, which matches str_length() on most platforms. Older code that relied on <code>type = &quot;bytes&quot;</code> semantics will return different numbers.</div></div>
+
+<h2>Five common str_length() scenarios</h2>
+
+<p><strong>Five scenarios cover almost every real use of str_length().</strong> Each block is independent so you can paste it into the live console.</p>
+
+<h3>Filter rows by string length</h3>
+
+<p><strong>Length predicates are the most common use.</strong> Combine str_length() with a comparator in dplyr to keep rows whose strings fall in a range.</p>
+
+<div class="webr-container" data-block-title="Keep states with short names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep states with short names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+tibble(state = state.name) |&gt;
+  filter(str_length(state) &lt;= 5) |&gt;
+  pull(state)
+#&gt; [1] &quot;Idaho&quot; &quot;Iowa&quot;  &quot;Maine&quot; &quot;Ohio&quot;  &quot;Texas&quot; &quot;Utah&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>str_length(state)</code> returns a numeric vector with one entry per row, so dplyr can vectorize the comparison. Use this pattern any time you want a "strings between X and Y chars" filter.</p>
+
+<h3>Validate fixed-width identifiers</h3>
+
+<p><strong>Phone numbers, SKUs, postal codes all have known widths.</strong> A quick str_length() check catches truncated rows before they reach a join.</p>
+
+<div class="webr-container" data-block-title="Flag rows where the ID is the wrong width">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag rows where the ID is the wrong width</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ids &lt;- c(&quot;0012345678&quot;, &quot;12345678&quot;, &quot;9876543210&quot;, &quot;abc&quot;)
+tibble(id = ids) |&gt;
+  mutate(ok = str_length(id) == 10) |&gt;
+  filter(!ok)
+#&gt; # A tibble: 2 x 2
+#&gt;   id        ok
+#&gt;   &lt;chr&gt;  &lt;lgl&gt;
+#&gt; 1 12345678 FALSE
+#&gt; 2 abc      FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The check is one line and survives <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>: <code>str_length(NA) == 10</code> returns <code>NA</code>, which <code>filter()</code> drops. That is usually what you want when validating data quality.</p>
+
+<h3>Pad strings to a common width</h3>
+
+<p><strong>str_pad() uses str_length() internally to decide how many characters to add.</strong> When you need fixed-width strings for printing or alignment, reach for the pair.</p>
+
+<div class="webr-container" data-block-title="Left-pad codes to width 6">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Left-pad codes to width 6</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(&quot;1&quot;, &quot;42&quot;, &quot;350&quot;, &quot;9999&quot;)
+str_pad(codes, width = 6, side = &quot;left&quot;, pad = &quot;0&quot;)
+#&gt; [1] &quot;000001&quot; &quot;000042&quot; &quot;000350&quot; &quot;009999&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You rarely call str_length() directly here, but the underlying contract is the same: count code points, then add what is missing on the chosen side.</p>
+
+<h3>Truncate long strings safely</h3>
+
+<p><strong>str_trunc() pairs with str_length() for safe display.</strong> It avoids the off-by-one bugs that plague manual substring slicing.</p>
+
+<div class="webr-container" data-block-title="Truncate descriptions to 20 chars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Truncate descriptions to 20 chars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">desc &lt;- c(&quot;Short&quot;, &quot;A medium length description here&quot;, &quot;Tiny&quot;)
+str_trunc(desc, width = 20, side = &quot;right&quot;, ellipsis = &quot;...&quot;)
+#&gt; [1] &quot;Short&quot;
+#&gt; [2] &quot;A medium length d...&quot;
+#&gt; [3] &quot;Tiny&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>str_trunc()</code> only truncates strings whose <code>str_length()</code> exceeds the width, leaving shorter strings unchanged. Compare with <code>substr(x, 1, 20)</code> which silently passes shorter strings but produces the same result. The named arguments make intent clear.</p>
+
+<h3>Build a length histogram for QA</h3>
+
+<p><strong>Distribution shapes catch encoding bugs.</strong> Plotting str_length() over a column reveals whether a CSV import dropped a multi-byte prefix or duplicated rows.</p>
+
+<div class="webr-container" data-block-title="Length distribution of state names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length distribution of state names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lengths &lt;- str_length(state.name)
+table(lengths)
+#&gt; lengths
+#&gt;  4  5  6  7  8  9 10 11 12 13 14
+#&gt;  3  3  4  9  4 11  3  2  4  4  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a small <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">frequency table</a> you can pass to <code>barplot()</code> or <code>ggplot()</code>. Use this pattern as a one-line data quality check on any text column with expected width bounds.</p>
+
+<h2>str_length() vs nchar() vs length() vs str_width()</h2>
+
+<p><strong>Four functions return integers from strings, but they answer four different questions.</strong> Picking the wrong one is the most common bug in string-length code.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Counts</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str_length(x)</code></td>
+<td>integer vector</td>
+<td>code points</td>
+<td>content size of each string</td>
+</tr>
+<tr>
+<td><code>nchar(x, &quot;chars&quot;)</code></td>
+<td>integer vector</td>
+<td>code points (default)</td>
+<td>base R equivalent of str_length</td>
+</tr>
+<tr>
+<td><code>nchar(x, &quot;bytes&quot;)</code></td>
+<td>integer vector</td>
+<td>UTF-8 bytes</td>
+<td>byte budget, e.g., MySQL VARCHAR</td>
+</tr>
+<tr>
+<td><code>length(x)</code></td>
+<td>scalar integer</td>
+<td>elements in the vector</td>
+<td>how many strings you have</td>
+</tr>
+<tr>
+<td><code>stringi::stri_width(x)</code></td>
+<td>integer vector</td>
+<td>display columns (wide CJK = 2)</td>
+<td>terminal alignment, fixed-width output</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bytes, characters, and columns are different.</strong> UTF-8 lets one character span 1 to 4 bytes, and some CJK or emoji glyphs occupy 2 display columns. Use str_length() for content, <code>nchar(x, &quot;bytes&quot;)</code> for storage budgets, and <code>stri_width()</code> for terminal layout. Mixing them is the source of most "string is too long" production bugs.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three pitfalls cause most str_length() surprises.</strong> Each has a one-line fix.</p>
+
+<h3>Confusing str_length() with length()</h3>
+
+<p><strong>length() counts containers; str_length() counts contents.</strong> Calling the wrong one returns plausible but useless numbers.</p>
+
+<div class="webr-container" data-block-title="length() returns the wrong answer for a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">length() returns the wrong answer for a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">words &lt;- c(&quot;hello&quot;, &quot;world&quot;)
+length(words)
+#&gt; [1] 2
+str_length(words)
+#&gt; [1] 5 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>length(words)</code> says "2 strings". <code>str_length(words)</code> says "5 chars each". Mixing them is one of the top causes of off-by-one errors when wiring text features into models.</p>
+
+<h3>Treating NA as 0</h3>
+
+<p><strong>NA propagates to NA, not 0.</strong> Summing a column with NAs produces NA unless you handle them.</p>
+
+<div class="webr-container" data-block-title="Sum total characters in a column with NAs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum total characters in a column with NAs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;alpha&quot;, NA, &quot;beta&quot;)
+sum(str_length(x))
+#&gt; [1] NA
+sum(str_length(x), na.rm = TRUE)
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass <code>na.rm = TRUE</code> to <code>sum()</code>, or coerce NAs to empty strings with <code>str_replace_na(x, &quot;&quot;)</code> before counting. Choose based on whether NA-as-missing should count as 0 or be dropped.</p>
+
+<h3>Byte vs codepoint confusion</h3>
+
+<p><strong>Multibyte characters break naive byte-based length code.</strong> Use str_length() for content; reserve byte counts for storage decisions.</p>
+
+<div class="webr-container" data-block-title="Bytes are not characters for UTF-8">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bytes are not characters for UTF-8</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emoji &lt;- &quot;🙂&quot;
+str_length(emoji)
+#&gt; [1] 1
+nchar(emoji, type = &quot;bytes&quot;)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The smiley is one code point but four bytes in UTF-8. A database column declared <code>VARCHAR(1)</code> rejects it; a logical "this string has one character" check accepts it. Match the function to the question you are actually asking.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Surrogate pairs and graphemes are still tricky.</strong> Some emoji like the family glyphs are sequences of multiple code points joined by zero-width joiners. str_length() counts the code points (e.g., 7 for a four-person family), not the visual glyph. Use <code>stringi::stri_count_boundaries(x, type = &quot;character&quot;)</code> if you need grapheme cluster counts.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>state.name</code> vector to find the longest state name and its length. Return them as a one-row tibble.</p>
+<div class="webr-container" data-block-title="Your turn: find the longest state name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the longest state name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: longest state name
+ex_longest &lt;- # your code here
+
+ex_longest
+#&gt; Expected: 1 row, columns name and len</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_longest &lt;- tibble(name = state.name) |&gt;
+  mutate(len = str_length(name)) |&gt;
+  slice_max(len, n = 1)
+ex_longest
+#&gt; # A tibble: 1 x 2
+#&gt;   name             len
+#&gt;   &lt;chr&gt;          &lt;int&gt;
+#&gt; 1 North Carolina    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mutate()</code> adds a per-row character count using str_length(). <code>slice_max()</code> then keeps the single row with the highest value, which is "North Carolina" at 14 characters.</p>
+
+</details>
+</section>
+
+<h2>Related stringr functions</h2>
+
+<p>When str_length() is not quite what you need, these are the next stops:</p>
+
+<ul>
+
+<li><a href="stringr-str_count-in-R.html">str_count()</a> counts pattern matches per string instead of total characters.</li>
+
+<li><a href="stringr-str_pad-in-R.html">str_pad()</a> extends short strings to a fixed width.</li>
+
+<li><a href="stringr-str_trunc-in-R.html">str_trunc()</a> shortens long strings with an ellipsis.</li>
+
+<li><a href="stringr-str_sub-in-R.html">str_sub()</a> extracts or replaces substrings by position.</li>
+
+<li><a href="stringr-str_trim-in-R.html">str_trim()</a> and <code>str_squish()</code> strip whitespace before length checks.</li>
+
+<li>The full <a href="https://stringr.tidyverse.org/reference/str_length.html">stringr reference</a> documents every helper.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between str_length() and length() in R?</strong></p>
+
+<p><code>length(x)</code> returns a single integer: the number of elements in the vector. str_length() returns a vector of the same length where each entry is the number of characters in that element. So <code>length(c(&quot;a&quot;, &quot;bb&quot;))</code> is 2 (two strings), while <code>str_length(c(&quot;a&quot;, &quot;bb&quot;))</code> is <code>c(1, 2)</code> (one character, then two). Use length() for vector size, str_length() for string size.</p>
+
+<p><strong>Is str_length() the same as nchar() in base R?</strong></p>
+
+<p>For modern UTF-8 locales, <code>nchar(x, type = &quot;chars&quot;)</code> and <code>str_length(x)</code> return the same values on regular strings. The differences appear at the edges: nchar() can produce platform-dependent results on malformed encodings, while str_length() delegates to ICU via stringi for consistent behavior. str_length() also has cleaner NA handling. Prefer str_length() in new code; both are valid.</p>
+
+<p><strong>How does str_length() handle emoji and Unicode?</strong></p>
+
+<p>str_length() counts Unicode code points, so most accented Latin letters score 1 and basic emoji score 1. Combined sequences like family emoji or skin-tone modified faces score higher because they are several code points joined together. If you need the count of visible glyphs (grapheme clusters), use <code>stringi::stri_count_boundaries(x, type = &quot;character&quot;)</code> instead.</p>
+
+<p><strong>Why does str_length() return NA?</strong></p>
+
+<p>NA inputs always return NA outputs by design, so <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing data</a> is never silently treated as a zero-length string. If you want NAs to count as 0, replace them first with <code>str_replace_na(x, &quot;&quot;)</code> or <code>tidyr::replace_na(x, &quot;&quot;)</code>. If you want to ignore them in aggregations, pass <code>na.rm = TRUE</code> to <code>sum()</code> or <code>mean()</code> over the result.</p>
+
+<p><strong>Does str_length() work on factors?</strong></p>
+
+<p>Yes, but with a coercion. Passing a factor calls <code>as.character()</code> first, so str_length() returns the character count of each level label, not the integer code. If you only want unique level lengths, pass <code>levels(f)</code> explicitly to avoid the per-row coercion cost on large vectors.</p>
+
+{% endraw %}
