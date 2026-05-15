@@ -1,0 +1,342 @@
+---
+title: "purrr list_modify() in R: Update List Elements by Name"
+description: "Use purrr list_modify() to replace, add, and remove named elements of a list in R. Covers recursive merging, zap(), list_merge, and modifyList comparison."
+keywords: "purrr list_modify, list_modify function R, purrr list_modify examples, R modify list elements, update list by name R, list_modify vs modifyList, purrr list_merge"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr list_modify|list_modify()|purrr::list_modify()|list_merge()|list_assign()"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr list_modify() in R: Update List Elements by Name</h1>
+
+<p class="lead">The <code>list_modify()</code> function in purrr updates a list in R by replacing, adding, or removing elements by name, recursively merging any <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a> you pass in.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>list_modify(x, b = 20)<span class="qa-cmt">               # replace element b</span>
+list_modify(x, d = 4)<span class="qa-cmt">                # add a new element d</span>
+list_modify(x, b = zap())<span class="qa-cmt">            # remove element b</span>
+list_modify(x, !!!updates)<span class="qa-cmt">           # splice in a list of updates</span>
+list_modify(cfg, db = list(port = 1))# recursive merge of nested list
+list_modify(list(1, 2, 3), 99)<span class="qa-cmt">       # replace by position</span>
+list_merge(x, tags = &quot;new&quot;)<span class="qa-cmt">          # concatenate instead of replace</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is list_modify() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">replace, add or remove list items by name</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">list_modify()</text><text x="125" y="126" class="branch-label">transform every element with a function</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">modify()</text><text x="125" y="182" class="branch-label">concatenate values into existing elements</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">list_merge()</text><text x="125" y="238" class="branch-label">get or set a deeply nested element</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pluck()</text><text x="125" y="294" class="branch-label">drop one level of list nesting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_flatten()</text><text x="125" y="350" class="branch-label">modify without recursive merging</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">list_assign()</text></svg></div>
+
+<h2>What list_modify() does in one sentence</h2>
+
+<p><strong><code>list_modify(.x, ...)</code> takes a list and a set of named values, then returns a copy of the list with those names replaced, added, or removed.</strong> It is the structural editor of purrr: you describe the changes by name and get a new list back.</p>
+
+<p>This is a different job from <code>modify()</code>. <code>modify()</code> runs a function over every element. <code>list_modify()</code> does not run a function at all. It merges a second set of values into an existing list, the way you would patch a configuration object.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Read <code>list_modify(x, a = 1)</code> as "give me <code>x</code>, but with <code>a</code> set to 1".</strong> Names that already exist are overwritten, names that are new are appended, and the merge reaches into nested lists so you can patch one deep field without retyping the rest.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>list_modify(.x, ...)</code> takes the list to edit followed by <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">name-value pairs</a> describing the edits.</strong> Each <code>name = value</code> either replaces an existing element or adds a new one.</p>
+
+<p>The <code>...</code> arguments are flexible. Named arguments match list elements by name. Unnamed arguments match by position. You can also splice an entire list of changes with the <code>!!!</code> operator. The sibling <code>list_merge()</code> shares the exact same signature.</p>
+
+<div class="webr-container" data-block-title="list_modify replaces a named element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">list_modify replaces a named element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+x &lt;- list(a = 1, b = 2, c = 3)
+
+list_modify(x, b = 20)
+#&gt; $a
+#&gt; [1] 1
+#&gt;
+#&gt; $b
+#&gt; [1] 20
+#&gt;
+#&gt; $c
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The element <code>b</code> is overwritten with <code>20</code>. Elements <code>a</code> and <code>c</code> are copied across untouched, and the result is a brand new list.</p>
+
+<h2>Common patterns</h2>
+
+<h3>1. Add a new element by name</h3>
+
+<p>If a name in <code>...</code> does not exist in the list, <code>list_modify()</code> appends it as a new element at the end.</p>
+
+<div class="webr-container" data-block-title="Add a new element to a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a new element to a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">list_modify(x, d = 4)
+#&gt; $a
+#&gt; [1] 1
+#&gt;
+#&gt; $b
+#&gt; [1] 2
+#&gt;
+#&gt; $c
+#&gt; [1] 3
+#&gt;
+#&gt; $d
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same call both updates and grows a list, so you rarely need <code>x[[&quot;d&quot;]] &lt;- 4</code> style assignment.</p>
+
+<h3>2. Remove an element with zap()</h3>
+
+<p>To delete an element, set its name to <code>zap()</code>. This is the one purrr-specific piece of syntax to remember.</p>
+
+<div class="webr-container" data-block-title="Remove an element with zap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Remove an element with zap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">list_modify(x, b = zap())
+#&gt; $a
+#&gt; [1] 1
+#&gt;
+#&gt; $c
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The element <code>b</code> is dropped entirely. Note that <code>b = NULL</code> would not remove it; it would keep <code>b</code> with a <code>NULL</code> value instead.</p>
+
+<h3>3. Recursively merge a nested list</h3>
+
+<p>When a value is itself a list, <code>list_modify()</code> merges it into the matching nested element rather than overwriting the whole thing.</p>
+
+<div class="webr-container" data-block-title="Recursive merge of a nested config">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recursive merge of a nested config</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">config &lt;- list(
+  db    = list(host = &quot;localhost&quot;, port = 5432),
+  debug = FALSE
+)
+
+list_modify(config, db = list(port = 9090))
+#&gt; $db
+#&gt; $db$host
+#&gt; [1] &quot;localhost&quot;
+#&gt;
+#&gt; $db$port
+#&gt; [1] 9090
+#&gt;
+#&gt;
+#&gt; $debug
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only <code>db$port</code> changed. The <code>db$host</code> field survived because the merge is recursive, which is exactly what you want when patching settings.</p>
+
+<h3>4. Splice a list of updates with !!!</h3>
+
+<p>When the changes are already collected in a list, splice them into <code>...</code> with <code>!!!</code> instead of typing each pair by hand.</p>
+
+<div class="webr-container" data-block-title="Splice updates with the bang-bang-bang operator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Splice updates with the bang-bang-bang operator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">updates &lt;- list(a = 100, c = 300)
+
+list_modify(x, !!!updates)
+#&gt; $a
+#&gt; [1] 100
+#&gt;
+#&gt; $b
+#&gt; [1] 2
+#&gt;
+#&gt; $c
+#&gt; [1] 300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Splicing with <code>!!!</code> makes <code>list_modify()</code> programmable.</strong> Build the update list however you like, from a loop, a function argument, or <code>reduce()</code>, then splice it in. This keeps dynamic edits out of hard-coded argument names.</div></div>
+
+<h2>list_modify() vs modifyList() vs list_merge()</h2>
+
+<p><strong>All three combine two lists, but they differ on how they handle values and removals.</strong> That difference decides which one fits your task.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Recursive?</th>
+<th>Removes element by</th>
+<th>Combines values by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_modify()</code></td>
+<td>purrr</td>
+<td>Yes</td>
+<td><code>zap()</code></td>
+<td>Replacing</td>
+</tr>
+<tr>
+<td><code>list_merge()</code></td>
+<td>purrr</td>
+<td>Yes</td>
+<td>n/a</td>
+<td>Concatenating</td>
+</tr>
+<tr>
+<td><code>modifyList()</code></td>
+<td>base R</td>
+<td>Yes</td>
+<td><code>NULL</code></td>
+<td>Replacing</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>list_modify()</code> for general patching where <code>NULL</code> is a value you want to keep. Use <code>base::modifyList()</code> if you have no purrr dependency and treat <code>NULL</code> as "delete". Use <code>list_merge()</code> when new values should extend existing ones, as the example below shows.</p>
+
+<div class="webr-container" data-block-title="list_merge concatenates instead of replacing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">list_merge concatenates instead of replacing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">list_merge(list(tags = c(&quot;r&quot;, &quot;stats&quot;)), tags = &quot;purrr&quot;)
+#&gt; $tags
+#&gt; [1] &quot;r&quot;     &quot;stats&quot; &quot;purrr&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <code>NULL</code> does not remove an element.</strong> Passing <code>b = NULL</code> keeps <code>b</code> in the list with a <code>NULL</code> value. Only <code>b = zap()</code> deletes the element. This trips up anyone arriving from <code>modifyList()</code>, where <code>NULL</code> is the delete signal.</p>
+
+<p><strong>Pitfall 2: nested lists are merged, not replaced.</strong> <code>list_modify(cfg, db = list(port = 1))</code> keeps every other field of <code>cfg$db</code>. If you genuinely want to swap the whole nested list, the recursive merge is not what you want, and you should assign with <code>cfg$db &lt;- list(port = 1)</code> instead.</p>
+
+<p><strong>Pitfall 3: it does not edit in place.</strong> R uses copy-on-modify, so <code>list_modify(x, ...)</code> returns a new list while <code>x</code> is left unchanged. Reassign with <code>x &lt;- list_modify(x, ...)</code> to keep the result.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Unnamed arguments modify by position, which is easy to do by accident.</strong> <code>list_modify(x, 99)</code> replaces the first element, not an element called <code>99</code>. Always name your arguments unless positional replacement is genuinely what you intend.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>purrr 1.0.0 added <code>list_assign()</code> as the non-recursive sibling.</strong> <code>list_assign()</code> replaces a nested element wholesale instead of merging into it. Reach for it when Pitfall 2 bites and you want a full swap rather than a deep merge.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given the <code>settings</code> list, use <code>list_modify()</code> to change <code>timeout</code> to 60 and remove <code>verbose</code>. Save the result to <code>ex_settings</code>.</p>
+<div class="webr-container" data-block-title="Your turn: update a settings list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: update a settings list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">settings &lt;- list(timeout = 30, retries = 3, verbose = TRUE)
+
+ex_settings &lt;- # your code here
+
+ex_settings
+#&gt; Expected: timeout = 60, retries = 3, verbose removed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_settings &lt;- list_modify(settings, timeout = 60, verbose = zap())
+ex_settings
+#&gt; $timeout
+#&gt; [1] 60
+#&gt;
+#&gt; $retries
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The named argument <code>timeout = 60</code> matches an existing element and overwrites it, while <code>verbose = zap()</code> deletes that element. The untouched <code>retries</code> element is copied straight through.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>Once <code>list_modify()</code> clicks, these neighbouring functions round out list editing:</p>
+
+<ul>
+
+<li><code>modify()</code>: transforms every element with a function, rather than replacing elements by name.</li>
+
+<li><code>list_merge()</code>: the concatenating variant, used when new values should extend existing ones.</li>
+
+<li><code>list_assign()</code>: the non-recursive variant that swaps nested elements wholesale.</li>
+
+<li><code>pluck()</code>: reads or writes a single deeply nested element by a path of names or positions.</li>
+
+<li><code>list_flatten()</code>: removes one level of nesting from a list of lists.</li>
+
+</ul>
+
+<p>The official reference for the family lives at <a href="https://purrr.tidyverse.org/reference/list_modify.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between list_modify() and modifyList()?</strong></p>
+
+<p>Both recursively merge a second set of values into a list. The key difference is removal and <code>NULL</code> handling. In <code>base::modifyList()</code>, setting an element to <code>NULL</code> deletes it. In <code>purrr::list_modify()</code>, <code>NULL</code> is kept as a real value and you must use <code>zap()</code> to delete. <code>list_modify()</code> also accepts the <code>!!!</code> splice operator, which <code>modifyList()</code> does not.</p>
+
+<p><strong>How do I remove an element with list_modify()?</strong></p>
+
+<p>Set the element's name to <code>zap()</code>, for example <code>list_modify(x, b = zap())</code>. The function <code>zap()</code> is purrr's explicit "delete this" sentinel. Do not use <code>NULL</code> for removal: <code>list_modify(x, b = NULL)</code> keeps <code>b</code> in the list with a <code>NULL</code> value rather than dropping it.</p>
+
+<p><strong>Does list_modify() modify the original list?</strong></p>
+
+<p>No. R follows copy-on-modify semantics, so <code>list_modify()</code> builds and returns a new list while the original stays untouched. Despite the name, nothing is mutated in place. To keep the updated list, assign the result back, for example <code>x &lt;- list_modify(x, a = 1)</code>.</p>
+
+<p><strong>What is the difference between list_modify() and list_merge()?</strong></p>
+
+<p><code>list_modify()</code> replaces a matching element with the new value. <code>list_merge()</code> concatenates the new value onto the existing one. For an element holding <code>c(&quot;r&quot;, &quot;stats&quot;)</code>, <code>list_modify(x, tags = &quot;purrr&quot;)</code> leaves <code>&quot;purrr&quot;</code> alone as the value, while <code>list_merge(x, tags = &quot;purrr&quot;)</code> returns <code>c(&quot;r&quot;, &quot;stats&quot;, &quot;purrr&quot;)</code>. Choose <code>list_merge()</code> when you are extending collections.</p>
