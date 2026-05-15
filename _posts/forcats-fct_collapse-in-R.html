@@ -1,0 +1,370 @@
+---
+title: "forcats fct_collapse() in R: Merge Factor Levels by Group"
+description: "Learn forcats fct_collapse() in R to merge several factor levels into new named groups. Combine, rename, and bucket levels with runnable code examples."
+keywords: "forcats fct_collapse, fct_collapse function R, forcats fct_collapse examples, R collapse factor levels, group factor levels R, merge factor levels R, recode factor levels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fct_collapse()|forcats fct_collapse|forcats::fct_collapse()|collapse factor levels|merge factor levels"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>forcats fct_collapse() in R: Merge Factor Levels by Group</h1>
+
+<p class="lead">forcats fct_collapse() in R merges several named factor levels into new, fewer groups in a single call. You pass it a factor and one named argument per output group, and it rewrites every listed level to that group's name.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fct_collapse(f, new = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">             # merge a and b into new</span>
+fct_collapse(f, x = c(&quot;a&quot;,&quot;b&quot;), y = &quot;c&quot;)<span class="qa-cmt">       # several groups at once</span>
+fct_collapse(f, big = grp, other_level = &quot;X&quot;)<span class="qa-cmt">  # bucket unnamed levels into X</span>
+fct_collapse(f, kept = &quot;a&quot;)<span class="qa-cmt">                    # rename one level, keep rest</span>
+df |&gt; mutate(g = fct_collapse(g, lo = &quot;a&quot;))<span class="qa-cmt">    # inside a dplyr pipeline</span>
+fct_count(fct_collapse(f, lo = &quot;a&quot;))<span class="qa-cmt">           # tally the collapsed factor</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fct_collapse() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">merge named level sets into new groups</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fct_collapse(f, new = c(&quot;a&quot;,&quot;b&quot;))</text><text x="125" y="126" class="branch-label">collapse every unnamed level into Other</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fct_other(f, keep = top)</text><text x="125" y="182" class="branch-label">lump rare levels automatically</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fct_lump_n(f, n = 5)</text><text x="125" y="238" class="branch-label">rename levels one-to-one</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fct_recode(f, new = &quot;old&quot;)</text><text x="125" y="294" class="branch-label">reorder levels, not merge them</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fct_relevel(f, &quot;a&quot;)</text><text x="125" y="350" class="branch-label">tally levels before grouping</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fct_count(f)</text></svg></div>
+
+<h2>What fct_collapse() does</h2>
+
+<p><strong>fct_collapse() performs a many-to-few mapping on factor levels.</strong> You give it a factor and one named argument for each group you want in the result. Every level you list under a name is rewritten to that name, so a dozen messy levels become three or four meaningful ones.</p>
+
+<p>This is the manual, many-group counterpart to <code>fct_other()</code>. Where <code>fct_other()</code> produces exactly one catch-all bucket, <code>fct_collapse()</code> lets you define as many target groups as you need in the same call. The return value is always a factor, ready for plots, models, and <code>dplyr</code> summaries.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>fct_collapse() takes a factor plus one named argument per output group.</strong> The signature is short:</p>
+
+<div class="webr-container" data-block-title="The fct_collapse signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fct_collapse signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fct_collapse(.f, ..., other_level = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments behave like this:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.f</code></td>
+<td>The factor (or character vector) to modify.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Named arguments. Each name is a new group; its value is a character vector of old levels to merge.</td>
+</tr>
+<tr>
+<td><code>other_level</code></td>
+<td>Optional label for a catch-all group. Every level not named in <code>...</code> is collapsed into it.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each <code>...</code> name becomes a level in the output. A level you do not mention anywhere stays unchanged unless you set <code>other_level</code>, in which case it joins the catch-all group.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>fct_collapse()</code> replaces a chain of <code>levels(f)[levels(f) %in% c(&quot;a&quot;,&quot;b&quot;)] &lt;- &quot;new&quot;</code> assignments. The forcats version handles every group in one call, manages level ordering, and never mutates the original factor.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Run these examples top to bottom.</strong> Each block builds on a shared session, so objects created earlier stay available in the blocks that follow.</p>
+
+<h3>Merge level sets into new groups</h3>
+
+<p><strong>Pass one named argument per group to define the mapping.</strong> Here six month abbreviations collapse into two quarters.</p>
+
+<div class="webr-container" data-block-title="Merge months into quarters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Merge months into quarters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forcats)
+
+f &lt;- factor(c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;, &quot;Apr&quot;, &quot;May&quot;, &quot;Jun&quot;))
+fct_collapse(f, Q1 = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;), Q2 = c(&quot;Apr&quot;, &quot;May&quot;, &quot;Jun&quot;))
+#&gt; [1] Q1 Q1 Q1 Q2 Q2 Q2
+#&gt; Levels: Q1 Q2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The names <code>Q1</code> and <code>Q2</code> become the new levels, and each appears where its first member sat in the original ordering.</p>
+
+<h3>Collapse a real survey factor</h3>
+
+<p><strong>fct_collapse() shines on high-cardinality survey data.</strong> The <code>gss_cat$partyid</code> factor bundled with forcats has ten levels. The call below folds them into three political groups and leaves the rest alone.</p>
+
+<div class="webr-container" data-block-title="Collapse partyid into three groups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse partyid into three groups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">partyid2 &lt;- fct_collapse(gss_cat$partyid,
+  Republican  = c(&quot;Strong republican&quot;, &quot;Not str republican&quot;),
+  Democrat    = c(&quot;Strong democrat&quot;, &quot;Not str democrat&quot;),
+  Independent = c(&quot;Ind,near rep&quot;, &quot;Independent&quot;, &quot;Ind,near dem&quot;))
+
+fct_count(partyid2)
+#&gt; # A tibble: 6 x 2
+#&gt;   f               n
+#&gt;   &lt;fct&gt;       &lt;int&gt;
+#&gt; 1 No answer     154
+#&gt; 2 Don't know      1
+#&gt; 3 Other party   393
+#&gt; 4 Republican   5346
+#&gt; 5 Independent  8409
+#&gt; 6 Democrat     7180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three minor levels (<code>No answer</code>, <code>Don&#x27;t know</code>, <code>Other party</code>) survive untouched because they were never named.</p>
+
+<h3>Bucket the leftover levels with other_level</h3>
+
+<p><strong>Set <code>other_level</code> to sweep every unnamed level into one group.</strong> This combines a precise mapping with a single catch-all in the same call.</p>
+
+<div class="webr-container" data-block-title="Use other_level for the remainder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use other_level for the remainder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">partyid3 &lt;- fct_collapse(gss_cat$partyid,
+  Republican  = c(&quot;Strong republican&quot;, &quot;Not str republican&quot;),
+  Democrat    = c(&quot;Strong democrat&quot;, &quot;Not str democrat&quot;),
+  Independent = c(&quot;Ind,near rep&quot;, &quot;Independent&quot;, &quot;Ind,near dem&quot;),
+  other_level = &quot;Other&quot;)
+
+fct_count(partyid3)
+#&gt; # A tibble: 4 x 2
+#&gt;   f               n
+#&gt;   &lt;fct&gt;       &lt;int&gt;
+#&gt; 1 Republican   5346
+#&gt; 2 Independent  8409
+#&gt; 3 Democrat     7180
+#&gt; 4 Other         548</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>other_level</code> when leftover levels would clutter a chart.</strong> Without it, the three minor partyid levels stay as separate slivers. With it, they merge into a tidy <code>Other</code> group of 548 rows that sorts last.</div></div>
+
+<h3>Use fct_collapse() inside a dplyr pipeline</h3>
+
+<p><strong>Wrap fct_collapse() in <code>mutate()</code> to clean a column in place.</strong> This is the most common production use: simplify a factor right before a <code>count()</code> or a plot.</p>
+
+<div class="webr-container" data-block-title="fct_collapse inside a dplyr mutate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">fct_collapse inside a dplyr mutate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+gss_cat |&gt;
+  mutate(status = fct_collapse(marital,
+                    Single  = c(&quot;Never married&quot;, &quot;Separated&quot;,
+                                &quot;Divorced&quot;, &quot;Widowed&quot;),
+                    Married = &quot;Married&quot;,
+                    other_level = &quot;Unknown&quot;)) |&gt;
+  count(status)
+#&gt; # A tibble: 3 x 2
+#&gt;   status      n
+#&gt;   &lt;fct&gt;   &lt;int&gt;
+#&gt; 1 Single  11349
+#&gt; 2 Married 10117
+#&gt; 3 Unknown    17</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The six marital levels collapse into a clean three-level factor that drops straight into a bar chart.</p>
+
+<h2>fct_collapse() vs fct_recode and friends</h2>
+
+<p><strong>fct_collapse() merges many levels into few; the alternatives each solve a narrower problem.</strong> Choosing the right one keeps your code readable and your intent obvious.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it does</th>
+<th>You specify</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fct_collapse()</code></td>
+<td>Merges named level sets into new groups</td>
+<td>One named vector per output group</td>
+</tr>
+<tr>
+<td><code>fct_recode()</code></td>
+<td>Renames levels one-to-one</td>
+<td>A new name for each old level</td>
+</tr>
+<tr>
+<td><code>fct_other()</code></td>
+<td>Collapses unnamed levels into one bucket</td>
+<td>A <code>keep</code> or <code>drop</code> list</td>
+</tr>
+<tr>
+<td><code>fct_lump_n()</code></td>
+<td>Lumps rare levels by frequency</td>
+<td>How many levels to keep (<code>n</code>)</td>
+</tr>
+<tr>
+<td><code>fct_relevel()</code></td>
+<td>Reorders levels without merging</td>
+<td>The desired level order</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use fct_collapse() when one new level absorbs several old ones.</strong> If every old level maps to exactly one new name, that is a rename, so reach for <code>fct_recode()</code>. The moment two or more old levels share a single new name, the operation is a collapse, and <code>fct_collapse()</code> expresses it in one readable call.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>1. Expecting unnamed levels to disappear.</strong> A level you never mention stays in the result unchanged. If you want the remainder gone, set <code>other_level</code> so they collapse into a catch-all instead of lingering:</p>
+
+<div class="webr-container" data-block-title="Unnamed levels are kept, not dropped">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unnamed levels are kept, not dropped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fct_collapse(f, Half1 = c(&quot;Jan&quot;, &quot;Feb&quot;, &quot;Mar&quot;))
+#&gt; [1] Half1 Half1 Half1 Apr   May   Jun
+#&gt; Levels: Half1 Apr May Jun</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>2. Misspelling an old level name.</strong> A typo is not a hard error, but forcats warns and leaves the real level uncollapsed, so a wrong result can ship if you ignore the warning:</p>
+
+<div class="webr-container" data-block-title="A typo triggers a warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A typo triggers a warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fct_collapse(f, Half1 = c(&quot;Jan&quot;, &quot;Febuary&quot;, &quot;Mar&quot;))
+#&gt; Warning: Unknown levels in `.f`: Febuary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>3. Using the deprecated <code>group_other</code> argument.</strong> Older code passed <code>group_other = TRUE</code> to bucket the remainder. Modern forcats deprecates it. Use <code>other_level = &quot;Other&quot;</code> instead, which also lets you choose the label.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Collapse <code>gss_cat$rincome</code> so the three highest brackets become <code>High</code> and the rest collapse into <code>Other</code>. Save the result to <code>ex_income</code>.</p>
+<div class="webr-container" data-block-title="Your turn: collapse income brackets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: collapse income brackets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: merge three levels, bucket the rest
+ex_income &lt;- # your code here
+
+fct_count(ex_income)
+#&gt; Expected: 2 rows, High and Other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_income &lt;- fct_collapse(gss_cat$rincome,
+  High = c(&quot;$25000 or more&quot;, &quot;$20000 - 24999&quot;, &quot;$15000 - 19999&quot;),
+  other_level = &quot;Other&quot;)
+fct_count(ex_income)
+#&gt; # A tibble: 2 x 2
+#&gt;   f          n
+#&gt;   &lt;fct&gt;  &lt;int&gt;
+#&gt; 1 High   13412
+#&gt; 2 Other   8071</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The named <code>High</code> argument merges the three top brackets, and <code>other_level</code> sweeps every remaining level into a single <code>Other</code> group.</p>
+
+</details>
+</section>
+
+<h2>Related forcats functions</h2>
+
+<p>These functions pair well with <code>fct_collapse()</code> when you reshape categorical data:</p>
+
+<ul>
+
+<li><a href="forcats-fct_recode-in-R.html">fct_recode()</a> renames levels one-to-one without merging them.</li>
+
+<li><a href="forcats-fct_other-in-R.html">fct_other()</a> collapses every unnamed level into a single Other bucket.</li>
+
+<li><a href="forcats-fct_lump_n-in-R.html">fct_lump_n()</a> lumps the rarest levels automatically by frequency.</li>
+
+<li><a href="forcats-fct_relevel-in-R.html">fct_relevel()</a> reorders levels after you collapse them.</li>
+
+<li><a href="forcats-fct_count-in-R.html">fct_count()</a> tallies levels so you can verify the result.</li>
+
+</ul>
+
+<p>For the wider picture, see the guide to <a href="Categorical-Data-in-R.html">categorical data in R</a> and the official <a href="https://forcats.tidyverse.org/reference/fct_collapse.html">forcats reference</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fct_collapse() and fct_recode()?</strong> <code>fct_recode()</code> renames levels one-to-one: each old level maps to exactly one new name. <code>fct_collapse()</code> merges many levels into few: you list several old levels under one new group name. If two or more old levels should share a single label, use <code>fct_collapse()</code>. If every level just needs a cleaner name, <code>fct_recode()</code> is the simpler choice. Both return a factor and leave the original untouched.</p>
+
+<p><strong>How do I collapse the levels I did not name?</strong> Set the <code>other_level</code> argument. Any level not listed in a named group collapses into a catch-all level with that label, for example <code>other_level = &quot;Other&quot;</code>. Without <code>other_level</code>, unnamed levels stay in the result unchanged. This makes <code>other_level</code> the clean way to combine a precise mapping with a single remainder bucket in one call.</p>
+
+<p><strong>Does fct_collapse() work on <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>?</strong> Yes. If you pass a character vector, forcats coerces it to a factor first and then applies the collapsing. The return value is always a factor, never a character vector. To keep your code explicit, wrap the input in <code>factor()</code> yourself before the call so the level set is clear to anyone reading it.</p>
+
+<p><strong>Why does fct_collapse() warn about unknown levels?</strong> The warning means a level name you passed inside <code>...</code> does not exist in the factor, usually because of a typo. forcats reports it as <code>Unknown levels in .f</code> and leaves the genuine level uncollapsed. Check the names against <code>levels(f)</code> and fix the spelling. The warning is easy to miss in a long script, so treat it as a real error.</p>
+
+<p><strong>Can fct_collapse() merge levels into more than one group at once?</strong> Yes, that is its main purpose. Pass one named argument per output group, such as <code>Republican = c(...)</code>, <code>Democrat = c(...)</code>. Each name becomes a level in the result, and every old level you list under it is rewritten to that name. This many-group capability is what separates <code>fct_collapse()</code> from <code>fct_other()</code>, which always produces a single Other bucket.</p>
+
+</content>
+
+</invoke>
