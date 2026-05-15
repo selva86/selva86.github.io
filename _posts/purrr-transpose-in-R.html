@@ -1,0 +1,357 @@
+---
+title: "purrr transpose() in R: Restructure Nested Lists by Index"
+description: "Learn purrr transpose() in R to flip a list of records into a list of fields. Examples, list_transpose() comparison, pitfalls, and FAQ with runnable code."
+keywords: "purrr transpose, transpose function R, purrr transpose examples, R transpose list, transpose nested list R, purrr transpose list of lists"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "transpose()|purrr transpose|purrr::transpose()|transpose a list|transpose nested list"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr transpose() in R: Restructure Nested Lists by Index</h1>
+
+<p class="lead">purrr transpose() in R flips a list of lists inside-out, turning a list of records into a list of fields indexed by name or position.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>transpose(records)<span class="qa-cmt">                      # flip list inside-out</span>
+transpose(records)$score<span class="qa-cmt">                # pull one field across records</span>
+transpose(records, .names = c(&quot;a&quot;,&quot;b&quot;))<span class="qa-cmt"> # set output names explicitly</span>
+transpose(records)$score |&gt; unlist()<span class="qa-cmt">    # collapse a field to a vector</span>
+transpose(safely_results)<span class="qa-cmt">               # split result/error pairs</span>
+list_transpose(records)<span class="qa-cmt">                 # modern purrr 1.0 replacement</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is transpose() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">reshape records to fields</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">transpose(records)</text><text x="125" y="126" class="branch-label">modern version that simplifies</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">list_transpose(records)</text><text x="125" y="182" class="branch-label">split safely() output</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">transpose(map(x, safely(f)))</text><text x="125" y="238" class="branch-label">transpose a matrix or data frame</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">t(df)</text><text x="125" y="294" class="branch-label">reshape a data frame long or wide</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="tidyr-Pivot-Exercises-in-R.html" title="tidyr Pivot Exercises in R: 25 Practice Problems">pivot_longer</a>(df, cols)</text><text x="125" y="350" class="branch-label">apply a function over a list</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">map(records, f)</text></svg></div>
+
+<h2>What transpose() does</h2>
+
+<p><strong>transpose() turns a list of lists "inside-out".</strong> You pass a list where every element is itself a list of the same fields, and it returns a new list keyed by those fields. A list of three person records becomes a list with one <code>name</code> element and one <code>score</code> element, each holding three values.</p>
+
+<p>This is the standard way to pull one component out of many similar nested structures at once. It pairs naturally with the output of <a href="purrr-map-in-R.html">map()</a>, which often returns a list of small lists you then want to regroup by field.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>transpose() is its own inverse.</strong> Calling <code>transpose(transpose(x))</code> returns the original list. Think of it as rotating a table 90 degrees: rows become columns, and rotating twice lands you back where you started.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>transpose() takes just two arguments.</strong> The function signature is short, and only the first is required.</p>
+
+<div class="webr-container" data-block-title="The transpose function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The transpose function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">transpose(.l, .names = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>.l</code> is the list to transpose. Every element should be a list with the same fields, named consistently.</li>
+
+<li><code>.names</code> is an optional character vector of names for the transposed output. When <code>NULL</code>, names are taken from the first element of <code>.l</code>.</li>
+
+</ul>
+
+<p>Matching is by name when the first element is named, and by position otherwise. That rule is the source of most surprises, so it is worth keeping in mind.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Every example below builds on the same record list.</strong> Start by loading purrr and building a small list of records to work with.</p>
+
+<div class="webr-container" data-block-title="Load purrr and build a nested list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and build a nested list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+records &lt;- list(
+  list(name = &quot;Ann&quot;, score = 88),
+  list(name = &quot;Bob&quot;, score = 91),
+  list(name = &quot;Cy&quot;,  score = 79)
+)
+
+str(records, max.level = 1)
+#&gt; List of 3
+#&gt;  $ :List of 2
+#&gt;  $ :List of 2
+#&gt;  $ :List of 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most common use is flipping that list so each field becomes its own element. The result has two top-level names, <code>name</code> and <code>score</code>, taken from the first record.</p>
+
+<div class="webr-container" data-block-title="Transpose the list inside-out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transpose the list inside-out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fields &lt;- transpose(records)
+
+names(fields)
+#&gt; [1] &quot;name&quot;  &quot;score&quot;
+
+fields$score
+#&gt; [[1]]
+#&gt; [1] 88
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 91
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each field comes back as a list, not a vector. To get a plain numeric vector, pull the field and pass it through <code>unlist()</code>.</p>
+
+<div class="webr-container" data-block-title="Collapse a transposed field to a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse a transposed field to a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- transpose(records)$score |&gt; unlist()
+scores
+#&gt; [1] 88 91 79
+
+mean(scores)
+#&gt; [1] 86</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the inner lists are unnamed, transpose uses integer positions. Supply <code>.names</code> to label the output instead of relying on <code>[[1]]</code>, <code>[[2]]</code>.</p>
+
+<div class="webr-container" data-block-title="Control output names explicitly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control output names explicitly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">unnamed &lt;- list(list(1, &quot;a&quot;), list(2, &quot;b&quot;), list(3, &quot;c&quot;))
+named   &lt;- transpose(unnamed, .names = c(&quot;num&quot;, &quot;lab&quot;))
+
+named$num |&gt; unlist()
+#&gt; [1] 1 2 3
+named$lab |&gt; unlist()
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A classic real-world use is splitting the output of <a href="purrr-safely-in-R.html">safely()</a>. Mapping a safe function over inputs gives a list of <code>{result, error}</code> pairs, and one <code>transpose()</code> separates them cleanly.</p>
+
+<div class="webr-container" data-block-title="Split safely() output with transpose">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split safely() output with transpose</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_log &lt;- safely(log)
+out &lt;- map(list(1, 10, &quot;x&quot;), safe_log)
+
+res &lt;- transpose(out)
+res$result[[2]]
+#&gt; [1] 2.302585
+res$error[[3]]
+#&gt; &lt;simpleError in log(x): non-numeric argument to mathematical function&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>transpose() vs list_transpose()</h2>
+
+<p><strong>purrr 1.0.0 superseded transpose() with list_transpose().</strong> The older function still works and is not deprecated, but <code>list_transpose()</code> is the recommended choice for new code. The key difference is that <code>list_transpose()</code> simplifies its output to vectors automatically when it can.</p>
+
+<div class="webr-container" data-block-title="The modern replacement returns vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The modern replacement returns vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">list_transpose(records)$score
+#&gt; [1] 88 91 79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>transpose()</code></th>
+<th><code>list_transpose()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Status</td>
+<td>Superseded (still works)</td>
+<td>Recommended since purrr 1.0.0</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>Always a list of lists</td>
+<td>Simplifies to vectors when possible</td>
+</tr>
+<tr>
+<td>Control</td>
+<td><code>.names</code> only</td>
+<td><code>simplify</code>, <code>template</code>, <code>default</code></td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Maintaining older code</td>
+<td>New code, cleaner results</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>transpose()</code> when you maintain an existing codebase that already depends on it. Reach for <code>list_transpose()</code> in anything new, since it removes the manual <code>unlist()</code> step.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A missing field silently becomes NULL.</strong> If one record lacks a field that others have, transpose does not error. It inserts <code>NULL</code> in that slot, which can break a later <code>unlist()</code> or arithmetic step.</p>
+
+<div class="webr-container" data-block-title="Pitfall: a missing field becomes NULL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: a missing field becomes NULL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ragged &lt;- list(list(x = 1, y = 2), list(x = 3))
+transpose(ragged)$y
+#&gt; [[1]]
+#&gt; [1] 2
+#&gt;
+#&gt; [[2]]
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Inconsistent inner names cause silent misalignment.</strong> transpose() takes its field names from the first element only. If later elements use different names or a different order, values land in the wrong slot or vanish without any message. Validate that every record has identical names before transposing.</div></div>
+
+<p>The second frequent mistake is forgetting that <code>transpose()</code> returns lists. Doing <code>mean(transpose(records)$score)</code> fails because the field is a list, not a numeric vector. Pipe it through <code>unlist()</code> first, or switch to <code>list_transpose()</code>. The third is confusing it with <code>t()</code>, the base <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">R matrix</a> transpose, which is unrelated and works on matrices and data frames, not <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> transpose() is close to <code>zip(*records)</code> on a list of dictionaries: it regroups parallel records by key. The named output mirrors a dictionary of lists.</div></div>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions are commonly used alongside <code>transpose()</code> when reshaping nested data:</p>
+
+<ul>
+
+<li><a href="purrr-map-in-R.html">map()</a> builds the list of records that transpose then regroups.</li>
+
+<li><a href="purrr-pluck-in-R.html">pluck()</a> reaches into a single deep element instead of reshaping the whole list.</li>
+
+<li><a href="purrr-flatten-in-R.html">flatten()</a> removes one level of nesting without flipping the structure.</li>
+
+<li><a href="purrr-list_modify-in-R.html">list_modify()</a> edits elements of a list in place.</li>
+
+<li><a href="purrr-safely-in-R.html">safely()</a> produces the result/error pairs that transpose splits apart.</li>
+
+</ul>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Transpose the <code>people</code> list below and compute the mean <code>age</code> across all three records. Save the mean to <code>ex_mean_age</code>.</p>
+<div class="webr-container" data-block-title="Your turn: transpose and summarise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: transpose and summarise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people &lt;- list(
+  list(name = &quot;Dee&quot;, age = 30),
+  list(name = &quot;Eli&quot;, age = 42),
+  list(name = &quot;Fay&quot;, age = 36)
+)
+
+# Try it: transpose people, then average the age field
+ex_mean_age &lt;- # your code here
+
+ex_mean_age
+#&gt; Expected: 36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean_age &lt;- mean(unlist(transpose(people)$age))
+ex_mean_age
+#&gt; [1] 36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> transpose() regroups the records so <code>$age</code> holds all three ages as a list. <code>unlist()</code> turns that list into a numeric vector, and <code>mean()</code> averages it.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between transpose() and list_transpose() in purrr?</strong></p>
+
+<p>Both flip a list of lists inside-out. <code>transpose()</code> always returns a list of lists, so you must call <code>unlist()</code> to get vectors. <code>list_transpose()</code>, added in purrr 1.0.0, simplifies its output to <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> when possible and adds <code>simplify</code>, <code>template</code>, and <code>default</code> arguments for finer control. <code>transpose()</code> is superseded but not removed, so existing code keeps working while new code should use <code>list_transpose()</code>.</p>
+
+<p><strong>Is purrr transpose() deprecated?</strong></p>
+
+<p>No, it is superseded, which is a softer status. Superseded functions are not recommended for new code but receive no warnings and are not scheduled for removal. Any script that already uses <code>transpose()</code> will keep running. For fresh work, prefer <code>list_transpose()</code>, which produces cleaner output with fewer manual steps.</p>
+
+<p><strong>How do I transpose a list of lists in R without purrr?</strong></p>
+
+<p>Base R has no direct equivalent, but you can combine <code>lapply()</code> with <code>setNames()</code>: <code>lapply(names(records[[1]]), function(f) lapply(records, \</code>[[\<code>, f))</code>. This loops over each field name and extracts that field from every record. It works but is verbose, which is exactly the boilerplate <code>transpose()</code> removes.</p>
+
+<p><strong>Can transpose() handle lists of different lengths?</strong></p>
+
+<p>It runs without error, but the result is unreliable. transpose() reads field names from the first element only. Records missing a field get <code>NULL</code> in that position, and records with extra fields have those fields dropped. Make every record consistent before transposing, or you will get silent data loss.</p>
+
+<p><strong>How is transpose() different from t() in R?</strong></p>
+
+<p>They are unrelated despite the similar name. <code>t()</code> is base R and transposes a matrix or data frame, swapping its <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>. <code>transpose()</code> is from purrr and reshapes a nested list, regrouping records by field. Use <code>t()</code> for rectangular data and <code>transpose()</code> for lists of lists.</p>
+
+<p>For the official reference, see the <a href="https://purrr.tidyverse.org/reference/transpose.html">purrr transpose() documentation</a>.</p>
+
+{% endraw %}
