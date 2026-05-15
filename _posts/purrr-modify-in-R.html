@@ -1,0 +1,333 @@
+---
+title: "purrr modify() in R: Transform Elements, Keep the Type"
+description: "Use purrr modify() to transform every element of a list, vector, or data frame in R while keeping the same type. Covers modify_if, modify_at, modify2, examples."
+keywords: "purrr modify, modify function R, purrr modify examples, R modify list, modify vs map purrr, modify_if R, modify_at R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr modify|modify()|modify_if()|modify_at()|modify2()"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr modify() in R: Transform Elements, Keep the Type</h1>
+
+<p class="lead">The <code>modify()</code> function in purrr applies a function to each element of a list, vector, or data frame and returns the result with the <em>same type</em> as the input. That type-preservation is the one thing that separates it from <code>map()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>modify(df, ~ .x * 2)<span class="qa-cmt">                  # each column, returns a data frame</span>
+modify(list(a = 1, b = 2), ~ .x + 1)<span class="qa-cmt">  # each element, returns a list</span>
+modify_if(df, is.numeric, round)<span class="qa-cmt">      # only the numeric columns</span>
+modify_at(df, &quot;x&quot;, ~ .x * 100)<span class="qa-cmt">        # only the named columns</span>
+modify_at(df, c(1, 3), sqrt)<span class="qa-cmt">          # columns picked by position</span>
+modify2(x, y, `+`)<span class="qa-cmt">                    # two inputs, type preserved</span>
+imodify(df, ~ paste(.y, .x))<span class="qa-cmt">          # element plus its name or index</span>
+modify_depth(nested, 2, ~ .x + 1)<span class="qa-cmt">     # modify at a nesting depth</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is modify() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">transform elements, keep input type</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">modify()</text><text x="125" y="126" class="branch-label">transform elements, always get a list</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map()</text><text x="125" y="182" class="branch-label">transform only elements that pass a test</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">modify_if()</text><text x="125" y="238" class="branch-label">transform elements at known names or positions</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">modify_at()</text><text x="125" y="294" class="branch-label">replace, add or remove list items by name</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_modify()</text><text x="125" y="350" class="branch-label">transform two lists in parallel</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">modify2()</text><text x="125" y="406" class="branch-label">run for side effects only, no return</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">walk()</a></text></svg></div>
+
+<h2>What modify() does in one sentence</h2>
+
+<p><strong><code>modify(.x, .f)</code> runs <code>.f</code> on every element of <code>.x</code> and gives you back an object of the same class as <code>.x</code>.</strong> Feed it a data frame, you get a data frame. Feed it an integer vector, you get an integer vector.</p>
+
+<p>This is the whole reason <code>modify()</code> exists. <code>map()</code> is the workhorse of purrr, but it always flattens its result into a plain list. When you want the structure you started with, <code>modify()</code> is the type-stable choice.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>modify()</code> is <code>map()</code> plus a promise: "the shape goes out the way it came in".</strong> Mentally, read <code>modify(x, f)</code> as "apply <code>f</code> element-wise, then put the answers back into a copy of <code>x</code>". That copy-back step is what preserves the data frame, the named list, or the atomic vector.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>modify(.x, .f, ...)</code> takes the object to transform and a function (or <code>~</code> lambda) to apply to each element.</strong> Extra arguments after <code>.f</code> are passed straight through to it.</p>
+
+<p>The same <code>.x</code>-then-<code>.f</code> signature is shared by every member of the family: <code>modify_if()</code>, <code>modify_at()</code>, <code>modify2()</code>, <code>imodify()</code>, and <code>modify_depth()</code>. Learn one and the rest follow.</p>
+
+<div class="webr-container" data-block-title="modify keeps the input type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify keeps the input type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+modify(c(1, 2, 3), ~ .x * 10)
+#&gt; [1] 10 20 30
+
+modify(list(a = 1, b = 2), ~ .x * 10)
+#&gt; $a
+#&gt; [1] 10
+#&gt;
+#&gt; $b
+#&gt; [1] 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call returns a numeric vector; the second returns a named list. Same function, same lambda, two different output types, each matching its input.</p>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Transform every column of a data frame</h3>
+
+<p>A data frame is a list of columns, so <code>modify()</code> walks it column by column and rebuilds the data frame.</p>
+
+<div class="webr-container" data-block-title="Modify every column of a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Modify every column of a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = c(1, 2, 3), y = c(10, 20, 30))
+
+modify(df, ~ .x / sum(.x))
+#&gt;           x         y
+#&gt; 1 0.1666667 0.1666667
+#&gt; 2 0.3333333 0.3333333
+#&gt; 3 0.5000000 0.5000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>map(df, ...)</code> would have returned a bare list of two vectors. <code>modify()</code> keeps the <code>data.frame</code> class and the row names.</p>
+
+<h3>2. Touch only the numeric columns with modify_if</h3>
+
+<p><code>modify_if(.x, .p, .f)</code> applies <code>.f</code> only to elements where the predicate <code>.p</code> returns <code>TRUE</code>. Everything else is left untouched.</p>
+
+<div class="webr-container" data-block-title="modify_if transforms only matching elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_if transforms only matching elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modify_if(iris[1:3, ], is.numeric, ~ round(.x))
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1            5           4            1           0  setosa
+#&gt; 2            5           3            1           0  setosa
+#&gt; 3            5           3            1           0  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four numeric columns are rounded; the <code>Species</code> factor passes the <code>is.numeric</code> test as <code>FALSE</code> and survives unchanged.</p>
+
+<h3>3. Target columns by name with modify_at</h3>
+
+<p>When you know exactly which elements to change, <code>modify_at()</code> accepts a character vector of names or an integer vector of positions.</p>
+
+<div class="webr-container" data-block-title="modify_at targets columns by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_at targets columns by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modify_at(iris[1:3, ], c(&quot;Sepal.Length&quot;, &quot;Petal.Length&quot;), ~ .x * 10)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1           51         3.5           14         0.2  setosa
+#&gt; 2           49         3.0           14         0.2  setosa
+#&gt; 3           47         3.2           13         0.2  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the two named columns are scaled. The other three are copied across verbatim.</p>
+
+<h3>4. Walk two inputs in parallel with modify2</h3>
+
+<p><code>modify2(.x, .y, .f)</code> is to <code>modify()</code> what <code>map2()</code> is to <code>map()</code>: it steps through two objects together, exposing <code>.x</code> and <code>.y</code> inside the lambda.</p>
+
+<div class="webr-container" data-block-title="modify2 walks two inputs in parallel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify2 walks two inputs in parallel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices    &lt;- c(100, 200, 300)
+discounts &lt;- c(0.1, 0.2, 0.5)
+
+modify2(prices, discounts, ~ .x * (1 - .y))
+#&gt; [1]  90 160 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a numeric vector because <code>prices</code> (the <code>.x</code> argument) was a numeric vector. <code>modify2()</code> always copies its answer back into the type of <code>.x</code>.</p>
+
+<h3>5. Use the element name with imodify</h3>
+
+<p><code>imodify()</code> is the indexed variant. Inside the lambda, <code>.x</code> is the value and <code>.y</code> is the name (or the integer position when the input is unnamed).</p>
+
+<div class="webr-container" data-block-title="imodify exposes each element name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">imodify exposes each element name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- list(alice = 8, bob = 6, carol = 9)
+
+imodify(scores, ~ paste0(.y, &quot;: &quot;, .x))
+#&gt; $alice
+#&gt; [1] &quot;alice: 8&quot;
+#&gt;
+#&gt; $bob
+#&gt; [1] &quot;bob: 6&quot;
+#&gt;
+#&gt; $carol
+#&gt; [1] &quot;carol: 9&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get a named list back, exactly the structure of <code>scores</code>, with each value rewritten using its own name.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For column-wise data frame work, <code>modify()</code> beats <code>lapply()</code> and a manual <code>as.data.frame()</code> rebuild.</strong> It does the transform and the type restoration in one call, so you never lose column names, row names, or the <code>data.frame</code> class along the way.</div></div>
+
+<h2>modify() vs map() vs lapply()</h2>
+
+<p><strong>All three apply a function element-wise; they differ in what type they hand back.</strong> That difference decides which one belongs in your pipeline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Type-preserving?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>purrr::modify()</code></td>
+<td>Same class as <code>.x</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>purrr::map()</code></td>
+<td>Always a plain list</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>base::lapply()</code></td>
+<td>Always a plain list</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>base::sapply()</code></td>
+<td>Simplified, varies by input</td>
+<td>Inconsistent</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Reach for <code>modify()</code> when you want the input structure preserved, especially data frames. Reach for <code>map()</code> or its typed cousins (<code>map_dbl()</code>, <code>map_chr()</code>) when a list or a specific atomic vector is the goal. Avoid <code>sapply()</code> in production code because its return type is unpredictable.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: modify() does not change the original in place.</strong> R uses <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a>, so <code>modify(x, ~ .x + 1)</code> builds and returns a new object while <code>x</code> itself is untouched. The name "modify" describes the type-preserving behaviour, not mutation. You must reassign with <code>x &lt;- modify(x, ...)</code> to keep the result.</p>
+
+<p><strong>Pitfall 2: returning a new type silently coerces <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a>.</strong> When <code>.x</code> is an atomic vector, <code>modify()</code> writes each answer back with <code>[[&lt;-</code>. If your <code>.f</code> returns a different type, the whole vector is coerced. <code>modify(c(1, 2, 3), ~ as.character(.x))</code> quietly returns a character vector, so the type-preservation promise can break under you.</p>
+
+<p><strong>Pitfall 3: modify() on a data frame is column-wise, never row-wise.</strong> Each "element" of a data frame is a full column. If you expected the function to see one row at a time, you will get the wrong answer. For row-wise work, use <code>dplyr::rowwise()</code> or <code>purrr::pmap()</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>.f</code> must return a value the container can hold.</strong> For a list, anything goes. For an atomic vector, <code>.f</code> should return a length-1 value of a compatible type per element, or you trigger coercion (Pitfall 2) or a length error. When in doubt, transform into a list first.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>modify_if()</code> to double only the numeric columns of <code>df_mix</code>, leaving the character <code>name</code> column alone. Save the result to <code>ex_modified</code>.</p>
+<div class="webr-container" data-block-title="Your turn: modify only numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: modify only numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_mix &lt;- data.frame(
+  name   = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
+  score  = c(1, 2, 3),
+  weight = c(10, 20, 30),
+  stringsAsFactors = FALSE
+)
+
+ex_modified &lt;- # your code here
+
+ex_modified
+#&gt; Expected: score and weight doubled, name unchanged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_modified &lt;- modify_if(df_mix, is.numeric, ~ .x * 2)
+ex_modified
+#&gt;   name score weight
+#&gt; 1    a     2     20
+#&gt; 2    b     4     40
+#&gt; 3    c     6     60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>modify_if()</code> runs <code>is.numeric()</code> on each column and applies the lambda only where it returns <code>TRUE</code>. The <code>name</code> column fails the test and is copied through unchanged, while the data frame class is preserved.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>Once <code>modify()</code> clicks, the neighbouring functions extend it:</p>
+
+<ul>
+
+<li><code>map()</code>: the same element-wise idea, but it always returns a plain list.</li>
+
+<li><code>modify_if()</code> and <code>modify_at()</code>: conditional and positional variants of <code>modify()</code>.</li>
+
+<li><code>modify_depth()</code>: reaches into <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a> and modifies elements at a chosen depth.</li>
+
+<li><code>list_modify()</code>: a different operation entirely, it replaces, adds, or removes list items by name.</li>
+
+<li><code>map2()</code> and <code>imap()</code>: the list-returning cousins of <code>modify2()</code> and <code>imodify()</code>.</li>
+
+</ul>
+
+<p>The official reference for the whole family lives at <a href="https://purrr.tidyverse.org/reference/modify.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map() and modify() in purrr?</strong></p>
+
+<p><code>map()</code> always returns a plain list, no matter what you pass in. <code>modify()</code> returns an object of the same class as its input: a data frame stays a data frame, an atomic vector stays an atomic vector. Both apply the function element-wise in exactly the same way. Choose <code>modify()</code> when preserving the input structure matters, and <code>map()</code> when a list is what you actually want.</p>
+
+<p><strong>Does purrr modify() change the original object?</strong></p>
+
+<p>No. R follows copy-on-modify semantics, so <code>modify()</code> builds a new object and returns it while the original is left untouched. Despite the name, it does not mutate anything in place. To keep the transformed result, assign it back, for example <code>x &lt;- modify(x, ~ .x + 1)</code>.</p>
+
+<p><strong>How do I modify only some columns of a <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame in R</a>?</strong></p>
+
+<p>Use <code>modify_if()</code> with a predicate when the columns are defined by a test, such as <code>modify_if(df, is.numeric, round)</code>. Use <code>modify_at()</code> when you know the exact column names or positions, such as <code>modify_at(df, c(&quot;x&quot;, &quot;y&quot;), sqrt)</code>. Both leave the remaining columns and the data frame class intact.</p>
+
+<p><strong>What does modify_at() do in purrr?</strong></p>
+
+<p><code>modify_at(.x, .at, .f)</code> applies <code>.f</code> only to the elements named or positioned in <code>.at</code>, and copies every other element across unchanged. It is the targeted version of <code>modify()</code>: instead of transforming everything, you pick the exact slots. The return type still matches the input, so a data frame in gives a data frame out.</p>
