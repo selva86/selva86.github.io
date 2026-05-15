@@ -1,0 +1,418 @@
+---
+title: "lubridate days() in R: Add or Subtract Calendar Days"
+description: "Use lubridate days() in R to add or subtract calendar-day periods from dates, vectorise across columns, and contrast days() with ddays() across DST boundaries."
+keywords: "lubridate days, days function R, lubridate days examples, add days to date R, lubridate period days, days() lubridate, subtract days from date R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "days()|lubridate days|lubridate::days()|add days to date|day period"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate days() in R: Add or Subtract Calendar Days</h1>
+
+<p class="lead">The <code>days()</code> function in lubridate builds a Period object representing N calendar days. Add it to a Date or POSIXct to shift forward, subtract to shift backward, and rely on calendar-aware behaviour across daylight saving boundaries.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>days(7)<span class="qa-cmt">                                  # a 7-day period object</span>
+ymd(&quot;2024-01-01&quot;) + days(30)<span class="qa-cmt">             # shift a date forward</span>
+today() - days(1)<span class="qa-cmt">                        # yesterday</span>
+days(c(1, 7, 30))<span class="qa-cmt">                        # vector of period lengths</span>
+ymd(&quot;2024-01-15&quot;) + days(-10)<span class="qa-cmt">            # negative shift, same as subtract</span>
+dates + days(1)<span class="qa-cmt">                          # vectorised over a date column</span>
+df %&gt;% mutate(due = order_date + days(30))<span class="qa-cmt">  # 30-day due date column</span>
+ymd_hms(&quot;2024-03-09 22:00&quot;, tz = &quot;US/Eastern&quot;) + days(1)<span class="qa-cmt">  # DST-safe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is days() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 517" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="482"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">shift a date by N calendar days</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">x + days(N)</text><text x="125" y="126" class="branch-label">shift by exact 86,400-second units (ignore DST)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">x + ddays(N)</text><text x="125" y="182" class="branch-label">shift by calendar weeks, months, years</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">x + weeks(N), months(N), years(N)</text><text x="125" y="238" class="branch-label">compute the gap between two dates</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">difftime(b, a, units = &quot;days&quot;)</text><text x="125" y="294" class="branch-label">find the last day of the month</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">ceiling_date(x, &quot;month&quot;) - days(1)</text><text x="125" y="350" class="branch-label">extract the day-of-month integer</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">day(x)</text><text x="125" y="406" class="branch-label">count working days only</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">bizdays::bizdays(a, b, calendar)</text><text x="125" y="462" class="branch-label">build a date from year, month, day</text><line class="branch" x1="100" y1="482" x2="200" y2="482" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="469" width="490" height="28" rx="5"/><text x="222" y="487" class="code">make_date(y, m, d)</text></svg></div>
+
+<h2>What days() does in one sentence</h2>
+
+<p><strong><code>days()</code> constructs a calendar-aware Period of N days that you can add to or subtract from a date.</strong> Pass an integer or numeric vector and lubridate returns a Period that respects the calendar when added to Date or POSIXct values.</p>
+
+<p>This is the lubridate counterpart to base R's <code>x + N</code> on a Date. The difference matters once time zones and daylight saving appear, because <code>days()</code> shifts the date component while leaving the clock time alone.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>days(x = 1)</code> accepts a numeric vector and returns a Period of the same length.</strong> Default <code>x</code> is 1, so <code>days()</code> by itself is a one-day period.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and build a period">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and build a period</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+days(7)
+#&gt; [1] &quot;7d 0H 0M 0S&quot;
+
+class(days(7))
+#&gt; [1] &quot;Period&quot;
+#&gt; attr(,&quot;package&quot;)
+#&gt; [1] &quot;lubridate&quot;
+
+days(c(1, 7, 30))
+#&gt; [1] &quot;1d 0H 0M 0S&quot;  &quot;7d 0H 0M 0S&quot;  &quot;30d 0H 0M 0S&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The "d" prefix in the print method confirms a Period, not a Duration. Both add to dates, but Periods track calendar units while Durations track exact seconds.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>days()</code> when you want "same time, N days later" semantics.</strong> A Period of one day is always one calendar day, even when daylight saving steals or adds an hour. If you need an exact 86,400-second shift instead, use <code>ddays()</code>.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Add N days to a date</h3>
+
+<div class="webr-container" data-block-title="Shift a date forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shift a date forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ymd(&quot;2024-01-01&quot;) + days(7)
+#&gt; [1] &quot;2024-01-08&quot;
+
+ymd(&quot;2024-01-31&quot;) + days(1)
+#&gt; [1] &quot;2024-02-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a Date that respects month boundaries. January 31 plus one day rolls cleanly into February 1; no leap-year or month-length logic needed.</p>
+
+<h3>2. Subtract N days from a date</h3>
+
+<div class="webr-container" data-block-title="Shift a date backward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shift a date backward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">today_val &lt;- ymd(&quot;2024-07-15&quot;)
+today_val - days(30)
+#&gt; [1] &quot;2024-06-15&quot;
+
+today_val + days(-30)
+#&gt; [1] &quot;2024-06-15&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both forms produce the same result. Negative values inside <code>days()</code> shift backwards, which is useful when the offset comes from a column or variable that can carry either sign.</p>
+
+<h3>3. Vector of period lengths</h3>
+
+<div class="webr-container" data-block-title="Build a vector of periods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a vector of periods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shifts &lt;- days(c(0, 1, 7, 30, 90))
+ymd(&quot;2024-01-01&quot;) + shifts
+#&gt; [1] &quot;2024-01-01&quot; &quot;2024-01-02&quot; &quot;2024-01-08&quot; &quot;2024-01-31&quot; &quot;2024-03-31&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>days()</code> is fully vectorised. Adding a 5-element period vector to a single date returns 5 shifted dates, one per offset. This is the shortest path to "1-day, 1-week, 1-month, 1-quarter ahead" buckets from a single anchor date.</p>
+
+<h3>4. Inside a dplyr pipeline</h3>
+
+<div class="webr-container" data-block-title="Add a due-date column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a due-date column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+orders &lt;- tibble(
+  order_id = 1:4,
+  order_date = ymd(c(&quot;2024-01-15&quot;, &quot;2024-02-29&quot;, &quot;2024-06-30&quot;, &quot;2024-12-25&quot;))
+)
+
+orders %&gt;%
+  mutate(due_date = order_date + days(30))
+#&gt; # A tibble: 4 x 3
+#&gt;   order_id order_date due_date  
+#&gt;      &lt;int&gt; &lt;date&gt;     &lt;date&gt;    
+#&gt; 1        1 2024-01-15 2024-02-14
+#&gt; 2        2 2024-02-29 2024-03-30
+#&gt; 3        3 2024-06-30 2024-07-30
+#&gt; 4        4 2024-12-25 2025-01-24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 30-day due date column is the most common business use of <code>days()</code>. The expression <code>order_date + days(30)</code> is vectorised, type-stable, and survives leap years and year boundaries correctly. The same pattern fits net-15, net-60, or any custom payment window.</p>
+
+<h3>5. Generate a date sequence</h3>
+
+<div class="webr-container" data-block-title="Seven consecutive days from an anchor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seven consecutive days from an anchor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd(&quot;2024-07-01&quot;)
+start + days(0:6)
+#&gt; [1] &quot;2024-07-01&quot; &quot;2024-07-02&quot; &quot;2024-07-03&quot; &quot;2024-07-04&quot;
+#&gt; [5] &quot;2024-07-05&quot; &quot;2024-07-06&quot; &quot;2024-07-07&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>days(0:6)</code> produces a Period vector of length 7. Adding it to a single date returns the seven-day window starting at the anchor. For <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> axes or feature engineering, this is one line shorter than <code>seq.Date(start, by = &quot;day&quot;, length.out = 7)</code>.</p>
+
+<h3>6. Subtract one day to find month-end</h3>
+
+<div class="webr-container" data-block-title="Last day of any month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Last day of any month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ceiling_date(ymd(&quot;2024-02-15&quot;), &quot;month&quot;) - days(1)
+#&gt; [1] &quot;2024-02-29&quot;
+
+ceiling_date(ymd(&quot;2024-04-15&quot;), &quot;month&quot;) - days(1)
+#&gt; [1] &quot;2024-04-30&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ceiling_date(x, &quot;month&quot;)</code> returns the first day of the next month. Subtracting <code>days(1)</code> lands on the last day of the current month. This pattern beats hard-coding 31 because it handles February in leap and non-leap years, plus 30-day months, with one expression.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Periods are calendar-aware; Durations are not. Pick the one that matches your domain.</strong> A Period of 1 day stays a calendar day, even if daylight saving makes that day 23 or 25 hours. A Duration of 1 day is always exactly 86,400 seconds. For business rules (rents, billing, due dates), use Periods. For physics-style elapsed time, use Durations.</div></div>
+
+<h2>days() vs ddays() vs base date arithmetic</h2>
+
+<p><strong>Three ways to shift a date by "one day" exist in R, and they answer different questions.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Class returned</th>
+<th>DST behaviour</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x + days(1)</code></td>
+<td>Period</td>
+<td>Keeps clock time</td>
+<td>Calendar-day business logic</td>
+</tr>
+<tr>
+<td><code>x + ddays(1)</code></td>
+<td>Duration</td>
+<td>Adds exactly 86,400 s</td>
+<td>Elapsed time, physics</td>
+</tr>
+<tr>
+<td><code>x + 1</code> (base, on Date)</td>
+<td>Date</td>
+<td>No time, no DST</td>
+<td>Plain dates only</td>
+</tr>
+</tbody>
+</table>
+
+<p>The DST contrast is the real test. Here is what happens on the spring-forward transition in the US Eastern zone:</p>
+
+<div class="webr-container" data-block-title="Period vs Duration across DST">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Period vs Duration across DST</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t1 &lt;- ymd_hms(&quot;2024-03-09 22:00:00&quot;, tz = &quot;America/New_York&quot;)
+
+t1 + days(1)
+#&gt; [1] &quot;2024-03-10 22:00:00 EDT&quot;
+
+t1 + ddays(1)
+#&gt; [1] &quot;2024-03-10 23:00:00 EDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Daylight saving began at 02:00 on 2024-03-10 in the Eastern zone. <code>days(1)</code> preserves the 22:00 clock reading, so elapsed real time is 23 hours. <code>ddays(1)</code> adds exactly 24 hours, landing at 23:00. Pick the one that matches what a business user means by "the next day".</p>
+
+<p>For plain Date values, the choice does not matter: <code>x + 1</code>, <code>x + days(1)</code>, and <code>x + ddays(1)</code> all return the next calendar date.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing <code>days()</code> with <code>day()</code>.</strong> <code>days(7)</code> builds a Period for <a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">date arithmetic</a>. <code>day(x)</code> extracts the day-of-month integer from a date. The names differ by one letter and the results have entirely different classes. Read the function name carefully when writing pipelines.</p>
+
+<p><strong>Pitfall 2: adding <code>days()</code> to a character string.</strong> <code>&quot;2024-01-01&quot; + days(7)</code> errors with a <a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument</a> message. Parse the string first: <code>ymd(&quot;2024-01-01&quot;) + days(7)</code> returns a Date. The same rule applies to slash-separated or US-format strings; use <code>mdy()</code> or <code>dmy()</code> to parse before adding.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>months(1)</code> and <code>years(1)</code> can return <code>NA</code> on month-end dates.</strong> <code>ymd(&quot;2024-01-31&quot;) + months(1)</code> returns <code>NA</code> because February 31 does not exist. <code>days(1)</code> never has this problem because the calendar always has a next day. If you reach for the month or year Period constructors after <code>days()</code>, switch to <code>%m+%</code> or <code>add_with_rollback()</code> for safe rollover.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>x + days(7)</code> is <code>x + pd.Timedelta(days=7)</code> for clock-aware shifts on a Timestamp, or <code>x + pd.offsets.Day(7)</code> for the calendar-aware version. Pandas does not separate Period and Duration as cleanly as lubridate; the <code>DateOffset</code> family is the closest analogue to lubridate's Period constructors.</div></div>
+
+<h2>A practical workflow with days()</h2>
+
+<p><strong>Calendar-day shifts show up in three places: due-date columns, sliding windows for time-series joins, and last-N-days filters for recent activity.</strong></p>
+
+<ol>
+
+<li><strong>Due-date columns</strong>: <code>mutate(due = order_date + days(30))</code> produces net-30 windows that survive leap years.</li>
+
+<li><strong>Sliding windows</strong>: <code>filter(event_date &gt;= today() - days(7))</code> keeps the last seven days of events.</li>
+
+<li><strong>Backfill ranges</strong>: <code>seq(today() - days(89), today(), by = &quot;day&quot;)</code> builds a 90-day anchor sequence.</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="A 30-day rolling activity flag">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A 30-day rolling activity flag</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- tibble(
+  user_id = c(1, 1, 2, 3),
+  event_time = ymd(c(&quot;2024-06-01&quot;, &quot;2024-07-10&quot;,
+                     &quot;2024-07-12&quot;, &quot;2024-04-20&quot;))
+)
+
+cutoff &lt;- ymd(&quot;2024-07-15&quot;) - days(30)
+
+events %&gt;%
+  mutate(is_recent = event_time &gt;= cutoff)
+#&gt; # A tibble: 4 x 3
+#&gt;   user_id event_time is_recent
+#&gt;     &lt;dbl&gt; &lt;date&gt;     &lt;lgl&gt;    
+#&gt; 1       1 2024-06-01 FALSE    
+#&gt; 2       1 2024-07-10 TRUE     
+#&gt; 3       2 2024-07-12 TRUE     
+#&gt; 4       3 2024-04-20 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cutoff</code> is a Date 30 calendar days before the anchor. The <code>is_recent</code> flag handles "active in last 7 days", "renewals due in 14 days", and any other fixed-window business metric with the same template.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>orders</code> tibble from pattern 4 and add a <code>reminder_date</code> column that is 25 days after <code>order_date</code>. Save the result to <code>ex_reminders</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add a 25-day reminder column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a 25-day reminder column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add reminder column
+ex_reminders &lt;- # your code here
+
+ex_reminders
+#&gt; Expected: 4 rows with reminder_date 25 days after order_date</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_reminders &lt;- orders %&gt;%
+  mutate(reminder_date = order_date + days(25))
+
+ex_reminders
+#&gt; # A tibble: 4 x 3
+#&gt;   order_id order_date reminder_date
+#&gt;      &lt;int&gt; &lt;date&gt;     &lt;date&gt;       
+#&gt; 1        1 2024-01-15 2024-02-09   
+#&gt; 2        2 2024-02-29 2024-03-25   
+#&gt; 3        3 2024-06-30 2024-07-25   
+#&gt; 4        4 2024-12-25 2025-01-19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>order_date + days(25)</code> returns a Date column shifted 25 calendar days forward. The expression is vectorised, survives the February leap day on row 2, and crosses the year boundary on row 4 without manual handling.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<p>After mastering days(), look at:</p>
+
+<ul>
+
+<li><code>ddays()</code>: same N-day shift, but as an exact-seconds Duration</li>
+
+<li><code>weeks()</code>, <code>months()</code>, <code>years()</code>: build Periods for larger calendar units</li>
+
+<li><code>hours()</code>, <code>minutes()</code>, <code>seconds()</code>: build Periods for time-of-day shifts</li>
+
+<li><code>period()</code>, <code>duration()</code>: build mixed-unit Periods and Durations</li>
+
+<li><code>interval()</code>, <code>%within%</code>: model a range from start to end, not an offset</li>
+
+<li><code>floor_date()</code>, <code>ceiling_date()</code>, <code>rollback()</code>: snap a date to a calendar boundary</li>
+
+<li><code>today()</code>, <code>now()</code>: anchor expressions like <code>today() - days(7)</code> for recency windows</li>
+
+</ul>
+
+<p>For the official reference, see the <a href="https://lubridate.tidyverse.org/reference/period.html">lubridate period documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I add days to a date in R?</strong></p>
+
+<p>Use <code>lubridate::days()</code> and the <code>+</code> operator: <code>ymd(&quot;2024-01-01&quot;) + days(7)</code> returns <code>&quot;2024-01-08&quot;</code>. The function builds a Period object that respects calendar boundaries, so January 31 plus <code>days(1)</code> correctly returns February 1. The same pattern works on POSIXct datetimes, where <code>days()</code> preserves the clock time across day boundaries.</p>
+
+<p><strong>What is the difference between days() and ddays() in lubridate?</strong></p>
+
+<p><code>days(1)</code> is a Period of one calendar day; <code>ddays(1)</code> is a Duration of exactly 86,400 seconds. They return identical results on a plain Date, but differ across DST on a POSIXct value. <code>days(1)</code> keeps the clock time the same the next day; <code>ddays(1)</code> adds exact 24 hours, which can land on a different clock time after a DST transition.</p>
+
+<p><strong>How do I subtract days from a date in R?</strong></p>
+
+<p>Use the <code>-</code> operator: <code>ymd(&quot;2024-07-15&quot;) - days(30)</code> returns <code>&quot;2024-06-15&quot;</code>. A negative value works too: <code>ymd(&quot;2024-07-15&quot;) + days(-30)</code> gives the same result. The negative form is useful when the offset comes from a column that can carry either sign.</p>
+
+<p><strong>Can days() take a vector of values?</strong></p>
+
+<p>Yes, days() is fully vectorised. <code>days(c(1, 7, 30))</code> returns a length-3 Period vector. Adding it to a single date returns three shifted dates; adding it to a same-length date vector pairs them up element by element. This is the shortest path to multi-window comparisons in a dplyr pipeline.</p>
+
+<p><strong>Why does ymd("2024-01-31") + months(1) return NA but + days(31) works?</strong></p>
+
+<p><code>months(1)</code> refuses to invent a February 31, which does not exist. <code>days(31)</code> just adds 31 calendar days and lands somewhere valid. For safe month-end arithmetic, use <code>%m+% months(1)</code> or <code>add_with_rollback()</code>. For day-count shifts, <code>days()</code> is always safe.</p>
