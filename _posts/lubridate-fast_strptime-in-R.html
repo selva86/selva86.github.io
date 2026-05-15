@@ -1,0 +1,430 @@
+---
+title: "lubridate fast_strptime() in R: Fast Format-Specific Parser"
+description: "lubridate fast_strptime() parses date-time strings up to 10x faster than ymd_hms() when the format is fixed. Examples cover codes, timezones, and traps."
+keywords: "lubridate fast_strptime, fast_strptime function R, lubridate fast_strptime examples, R parse datetime fast, fast_strptime vs strptime, R fast date parser, lubridate parse fixed format"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fast_strptime()|lubridate fast_strptime|lubridate::fast_strptime()|fast date parsing R|fixed format date parser"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate fast_strptime() in R: Fast Format-Specific Parser</h1>
+
+<p class="lead">lubridate <code>fast_strptime()</code> parses date-time strings using a fast C parser when every row follows the same explicit format. It accepts <code>strptime()</code>-style format codes and runs several times faster than <code>ymd_hms()</code> on long vectors.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fast_strptime(x, format = &quot;%Y-%m-%d&quot;)<span class="qa-cmt">              # date only</span>
+fast_strptime(x, format = &quot;%Y-%m-%d %H:%M:%S&quot;)<span class="qa-cmt">     # date and time</span>
+fast_strptime(x, format = &quot;%d/%m/%Y&quot;)<span class="qa-cmt">              # European order</span>
+fast_strptime(x, format = &quot;%Y%m%d&quot;)<span class="qa-cmt">                # compact, no separators</span>
+fast_strptime(x, format = &quot;%Y-%m-%d&quot;, tz = &quot;UTC&quot;)<span class="qa-cmt">  # set timezone</span>
+fast_strptime(x, format = &quot;%Y-%m-%d&quot;, lt = FALSE)<span class="qa-cmt">  # return POSIXct</span>
+fast_strptime(x, format = c(&quot;%Y-%m-%d&quot;,&quot;%d/%m/%Y&quot;))<span class="qa-cmt"> # try multiple formats</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fast_strptime() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one fixed known format, large vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fast_strptime(x, &quot;%Y-%m-%d&quot;)</text><text x="125" y="126" class="branch-label">format varies row to row</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">parse_date_time(x, orders = c(&quot;ymd&quot;,&quot;mdy&quot;))</text><text x="125" y="182" class="branch-label">year-month-day order, simple input</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ymd(x) or ymd_hms(x)</text><text x="125" y="238" class="branch-label">POSIXct output preferred over POSIXlt</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fast_strptime(x, fmt, lt = FALSE)</text><text x="125" y="294" class="branch-label">Unix epoch seconds input</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">as.POSIXct</a>(x, origin = &quot;1970-01-01&quot;)</text><text x="125" y="350" class="branch-label">fastest possible parser, ISO 8601 only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fasttime::fastPOSIXct(x)</text><text x="125" y="406" class="branch-label">needs locale-aware month names</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">parse_date_time(x, &quot;dmy&quot;, locale = ...)</text></svg></div>
+
+<h2>What fast_strptime() does in one sentence</h2>
+
+<p><strong><code>fast_strptime(x, format)</code> parses character input through a C-level numeric parser when the format is fixed and known.</strong> It is the lubridate function for performance-critical pipelines where the input layout never changes.</p>
+
+<p>Unlike <code>parse_date_time()</code> it does no format guessing. Unlike <code>ymd()</code> and friends it does not assume a token order. You give it the exact <code>strptime()</code> format string and it walks the input once.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong><code>fast_strptime()</code> takes five arguments and the only required ones are <code>x</code> and <code>format</code>.</strong> Every other argument has a sensible default.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>(required)</td>
+<td>Character or numeric vector of date-time strings</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>(required)</td>
+<td>One or more <code>strptime()</code> format strings</td>
+</tr>
+<tr>
+<td><code>tz</code></td>
+<td><code>&quot;UTC&quot;</code></td>
+<td>Timezone for the returned object</td>
+</tr>
+<tr>
+<td><code>lt</code></td>
+<td><code>TRUE</code></td>
+<td>If <code>TRUE</code> returns POSIXlt, if <code>FALSE</code> returns POSIXct</td>
+</tr>
+<tr>
+<td><code>cutoff_2000</code></td>
+<td><code>68L</code></td>
+<td>Two-digit years at or below cutoff become 20xx, otherwise 19xx</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Minimal call with one fixed format">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Minimal call with one fixed format</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+fast_strptime(&quot;2026-01-15 14:30:45&quot;,
+              format = &quot;%Y-%m-%d %H:%M:%S&quot;)
+#&gt; [1] &quot;2026-01-15 14:30:45 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The format string mirrors <code>base::strptime()</code>: every literal character must appear in the input and every datetime piece must use a <code>%</code>-prefixed code (<code>%Y</code>, <code>%m</code>, <code>%d</code>, <code>%H</code>, <code>%M</code>, <code>%S</code>). Whitespace inside the format matches one or more whitespace characters.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fast_strptime is a C parser that trades flexibility for speed.</strong> It cannot guess, infer, or recover. If the input deviates from the format by even one character the row returns <code>NA</code>. That strictness is the source of its speed and the source of its sharp edges.</div></div>
+
+<h2>Format codes you will use most often</h2>
+
+<p><strong>Five letter codes cover the vast majority of real input.</strong> The full list mirrors <code>?strptime</code>, but these are the workhorses.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+<th>Example match</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>%Y</code></td>
+<td>Four-digit year</td>
+<td><code>2026</code></td>
+</tr>
+<tr>
+<td><code>%m</code></td>
+<td>Two-digit month (01-12)</td>
+<td><code>01</code></td>
+</tr>
+<tr>
+<td><code>%d</code></td>
+<td>Two-digit day (01-31)</td>
+<td><code>15</code></td>
+</tr>
+<tr>
+<td><code>%H</code></td>
+<td>Hour, 24-hour (00-23)</td>
+<td><code>14</code></td>
+</tr>
+<tr>
+<td><code>%M</code></td>
+<td>Minute (00-59)</td>
+<td><code>30</code></td>
+</tr>
+<tr>
+<td><code>%S</code></td>
+<td>Second (00-59)</td>
+<td><code>45</code></td>
+</tr>
+<tr>
+<td><code>%y</code></td>
+<td>Two-digit year</td>
+<td><code>26</code></td>
+</tr>
+<tr>
+<td><code>%I</code></td>
+<td>Hour, 12-hour (01-12)</td>
+<td><code>02</code></td>
+</tr>
+<tr>
+<td><code>%p</code></td>
+<td>AM or PM marker</td>
+<td><code>PM</code></td>
+</tr>
+<tr>
+<td><code>%z</code></td>
+<td>UTC offset</td>
+<td><code>-0500</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Three common input shapes parsed with explicit codes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three common input shapes parsed with explicit codes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fast_strptime(&quot;2026-01-15&quot;, format = &quot;%Y-%m-%d&quot;)
+#&gt; [1] &quot;2026-01-15 UTC&quot;
+
+fast_strptime(&quot;15/01/2026 14:30&quot;, format = &quot;%d/%m/%Y %H:%M&quot;)
+#&gt; [1] &quot;2026-01-15 14:30:00 UTC&quot;
+
+fast_strptime(&quot;20260115&quot;, format = &quot;%Y%m%d&quot;)
+#&gt; [1] &quot;2026-01-15 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compact formats with no separators work as long as each field has the expected width. <code>&quot;20260115&quot;</code> parses cleanly because <code>%Y</code> consumes 4 digits and <code>%m</code>, <code>%d</code> consume 2 each.</p>
+
+<h2>Setting a timezone at parse time</h2>
+
+<p><strong>The <code>tz</code> argument controls how the parser interprets the input, not how it converts it.</strong> A string like <code>&quot;2026-06-01 09:00:00&quot;</code> with <code>tz = &quot;America/New_York&quot;</code> is read as 9:00 AM Eastern, not as UTC then converted.</p>
+
+<div class="webr-container" data-block-title="Same string, three different timezones">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same string, three different timezones</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- &quot;2026-06-01 09:00:00&quot;
+
+fast_strptime(ts, &quot;%Y-%m-%d %H:%M:%S&quot;, tz = &quot;UTC&quot;)
+#&gt; [1] &quot;2026-06-01 09:00:00 UTC&quot;
+
+fast_strptime(ts, &quot;%Y-%m-%d %H:%M:%S&quot;, tz = &quot;America/New_York&quot;)
+#&gt; [1] &quot;2026-06-01 09:00:00 EDT&quot;
+
+fast_strptime(ts, &quot;%Y-%m-%d %H:%M:%S&quot;, tz = &quot;Asia/Kolkata&quot;)
+#&gt; [1] &quot;2026-06-01 09:00:00 IST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Default <code>tz = &quot;UTC&quot;</code> is the safe choice for storage and arithmetic. Switch only when the source explicitly produces local time. To convert an already-parsed value to a different zone use <code>with_tz()</code>.</p>
+
+<h2>POSIXlt vs POSIXct: choosing the return type</h2>
+
+<p><strong><code>lt = TRUE</code> (the default) returns POSIXlt; <code>lt = FALSE</code> returns POSIXct.</strong> POSIXct is the friendlier type for data frames and most downstream code.</p>
+
+<div class="webr-container" data-block-title="Switch return type with lt = FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch return type with lt = FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- fast_strptime(&quot;2026-01-15 14:30:00&quot;,
+                   format = &quot;%Y-%m-%d %H:%M:%S&quot;,
+                   lt = FALSE)
+class(x)
+#&gt; [1] &quot;POSIXct&quot; &quot;POSIXt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>POSIXlt stores each component (year, month, day, hour, ...) as a list and breaks when assigned to a tibble or data.table column. POSIXct stores seconds since epoch as a numeric and round-trips cleanly. Set <code>lt = FALSE</code> whenever the result enters a column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Default to <code>lt = FALSE</code> in scripts.</strong> The POSIXlt default exists for compatibility with <code>base::strptime()</code>, but every modern pipeline (dplyr, data.table, <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>) prefers POSIXct. Make <code>lt = FALSE</code> your team standard.</div></div>
+
+<h2>Trying multiple formats</h2>
+
+<p><strong>Pass a character vector to <code>format</code> and the parser tries each in order.</strong> This is fast_strptime's only concession to mixed input. Each row stops at the first format that succeeds.</p>
+
+<div class="webr-container" data-block-title="Two formats tried left to right">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two formats tried left to right</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- c(&quot;2026-01-15&quot;, &quot;15/01/2026&quot;)
+fast_strptime(mixed, format = c(&quot;%Y-%m-%d&quot;, &quot;%d/%m/%Y&quot;))
+#&gt; [1] &quot;2026-01-15 UTC&quot; &quot;2026-01-15 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Order matters: the leftmost format wins on ambiguous strings, so list the strict format before the loose one to avoid silent misreads. For more than five candidates or fully unknown formats, switch back to <code>parse_date_time(orders = ...)</code>.</p>
+
+<h2>When fast_strptime is worth reaching for</h2>
+
+<p><strong>The speed advantage shows up at scale, not on a handful of rows.</strong> On a 10-row vector <code>ymd_hms()</code> and <code>fast_strptime()</code> finish in microseconds either way. The gap matters when the input is large or the parsing happens inside a tight loop.</p>
+
+<p>Three workloads where the switch pays off:</p>
+
+<ul>
+
+<li><strong>Log ingestion.</strong> A 1 million-row log file with one fixed timestamp format parses in under a second versus several seconds with <code>ymd_hms()</code>.</li>
+
+<li><strong>Streaming pipelines.</strong> When a parser sits inside a function called per chunk, fast_strptime amortizes a single C call across the whole vector.</li>
+
+<li><strong>Tick data prep.</strong> High-frequency <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> often parse millions of timestamps before any modeling begins.</li>
+
+</ul>
+
+<p>For one-off interactive work or vectors under a few thousand rows, prefer <code>ymd_hms()</code> for its forgiveness.</p>
+
+<h2>fast_strptime vs strptime vs parse_date_time</h2>
+
+<p><strong>Three parsers, three sweet spots.</strong> The decision is about format certainty and vector length.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When it wins</th>
+<th>When it loses</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fast_strptime()</code></td>
+<td>Fixed format, long vectors (10k+ rows)</td>
+<td>Format varies row to row</td>
+</tr>
+<tr>
+<td><code>base::strptime()</code></td>
+<td>Short vectors, no extra dependency</td>
+<td>5-10x slower on long vectors</td>
+</tr>
+<tr>
+<td><code>parse_date_time()</code></td>
+<td>Mixed or unknown formats</td>
+<td>Slowest of the three on uniform input</td>
+</tr>
+</tbody>
+</table>
+
+<p>For the canonical reference on every parameter, see <a href="https://lubridate.tidyverse.org/reference/parse_date_time.html">lubridate's parse_date_time documentation</a>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: silent NA on format mismatch.</strong> A single deviating character returns <code>NA</code> with a warning that is easy to miss inside a pipeline. Always check <code>sum(is.na(result))</code> after parsing or wrap the call in <code>stopifnot(!anyNA(result))</code> to fail loudly.</p>
+
+<div class="webr-container" data-block-title="Format mismatch silently returns NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format mismatch silently returns NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fast_strptime(c(&quot;2026-01-15&quot;, &quot;Jan 15 2026&quot;),
+              format = &quot;%Y-%m-%d&quot;)
+#&gt; [1] &quot;2026-01-15 UTC&quot; NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: forgetting separators in the format.</strong> The format must include every literal character: dashes, slashes, spaces, colons. <code>&quot;%Y%m%d %H:%M:%S&quot;</code> will not parse <code>&quot;2026-01-15 14:30:45&quot;</code> because the dashes are missing from the format.</p>
+
+<p><strong>Pitfall 3: POSIXlt sneaking into a data frame.</strong> Default <code>lt = TRUE</code> returns a list-like object. Assigning it to a column yields a malformed structure or an error depending on the data frame variant. Always set <code>lt = FALSE</code> when the result enters tabular storage.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>fast_strptime ignores fractional seconds in most formats.</strong> Subsecond input like <code>&quot;2026-01-15 14:30:45.123&quot;</code> parsed with <code>&quot;%Y-%m-%d %H:%M:%OS&quot;</code> may drop the fraction depending on the lubridate version. Use <code>parse_date_time2()</code> or test with your version if milliseconds matter.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Parse the three timestamps below into a POSIXct vector using one fast_strptime call. The format is uniform. Save the result to <code>ex_times</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parse three uniform timestamps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parse three uniform timestamps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">strings &lt;- c(&quot;2026-03-01 08:15:00&quot;,
+             &quot;2026-03-01 09:30:00&quot;,
+             &quot;2026-03-01 10:45:00&quot;)
+
+ex_times &lt;- # your code here
+
+ex_times
+#&gt; Expected: three POSIXct values one hour and 15 minutes apart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_times &lt;- fast_strptime(
+  c(&quot;2026-03-01 08:15:00&quot;,
+    &quot;2026-03-01 09:30:00&quot;,
+    &quot;2026-03-01 10:45:00&quot;),
+  format = &quot;%Y-%m-%d %H:%M:%S&quot;,
+  lt = FALSE
+)
+ex_times
+#&gt; [1] &quot;2026-03-01 08:15:00 UTC&quot; &quot;2026-03-01 09:30:00 UTC&quot; &quot;2026-03-01 10:45:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The format string matches every literal character including the space and colons. <code>lt = FALSE</code> returns POSIXct so the result is safe to drop into a data frame.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<p>After mastering fast_strptime, look at:</p>
+
+<ul>
+
+<li><code>parse_date_time()</code>: multi-format parser when input layout varies</li>
+
+<li><code>parse_date_time2()</code>: even faster path for ISO 8601-like input</li>
+
+<li><code>ymd()</code>, <code>mdy()</code>, <code>dmy()</code>: convenience wrappers for one-off parsing</li>
+
+<li><code>ymd_hms()</code>, <code>ymd_hm()</code>: date plus time wrappers</li>
+
+<li><code>with_tz()</code>, <code>force_tz()</code>: convert or override a timezone after parsing</li>
+
+<li><code>as_datetime()</code>: lightweight POSIXct constructor</li>
+
+<li><code>format()</code>: round-trip a parsed value back to a string</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fast_strptime and ymd_hms in R?</strong></p>
+
+<p><code>ymd_hms()</code> infers the format on each call and accepts several layouts (<code>&quot;2026-01-15 14:30:45&quot;</code>, <code>&quot;2026/01/15 14:30:45&quot;</code>). <code>fast_strptime()</code> skips inference and uses one explicit <code>strptime()</code>-style format you supply. On a fixed-format vector of 100,000 rows fast_strptime is roughly 5 to 10x faster, but it returns <code>NA</code> on any row that does not match the format.</p>
+
+<p><strong>Why does fast_strptime return POSIXlt by default?</strong></p>
+
+<p>The <code>lt = TRUE</code> default mirrors <code>base::strptime()</code> for backward compatibility. POSIXlt is a list of components and breaks when stored in tibbles or data.table columns. Most users should pass <code>lt = FALSE</code> to get POSIXct, which is the standard tidyverse and base R type for date-time columns.</p>
+
+<p><strong>How do I parse fractional seconds with fast_strptime?</strong></p>
+
+<p>Use <code>%OS</code> in the format string instead of <code>%S</code>. The result depends on the lubridate version and the <code>options(digits.secs = N)</code> setting. If subsecond precision is critical and the format is ISO 8601, prefer <code>parse_date_time2()</code> or the <code>fasttime</code> package, both of which preserve milliseconds reliably.</p>
+
+<p><strong>Can fast_strptime handle multiple input formats at once?</strong></p>
+
+<p>Yes, pass a character vector to <code>format</code>: <code>fast_strptime(x, format = c(&quot;%Y-%m-%d&quot;, &quot;%d/%m/%Y&quot;))</code>. The parser tries each format in order for every element. For two or three known formats this is faster than <code>parse_date_time()</code>. For more candidates or unknown formats, use <code>parse_date_time(x, orders = c(...))</code> instead.</p>
+
+<p><strong>Is fast_strptime faster than base R strptime?</strong></p>
+
+<p>Yes, by 5 to 10x on long vectors. <code>base::strptime()</code> is implemented in R-level C with per-call overhead that dominates short vectors but scales poorly past a few thousand rows. <code>fast_strptime()</code> calls a tighter C parser and processes the entire vector in one pass, so the gap widens as input grows.</p>
