@@ -1,0 +1,333 @@
+---
+title: "purrr some() in R: Test If Any Element Matches"
+description: "Learn purrr some() in R to test whether at least one element of a list or vector matches a predicate. Covers syntax, examples, NA handling, some vs every."
+keywords: "purrr some, some function R, purrr some examples, purrr some vs every, test if any element R, R predicate function"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "some()|purrr some|purrr::some()|purrr some function|test if any element|purrr some predicate"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr some() in R: Test If Any Element Matches</h1>
+
+<p class="lead">The purrr some() function tests whether at least one element of a list or vector satisfies a predicate, returning a single TRUE or FALSE. It is the predicate-driven equivalent of asking "does any element match?"</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>some(1:10, ~ .x &gt; 8)<span class="qa-cmt">              # any element greater than 8?</span>
+some(x, is.character)<span class="qa-cmt">            # any character element?</span>
+some(x, is.na)<span class="qa-cmt">                   # any NA element?</span>
+some(list(), ~ TRUE)<span class="qa-cmt">             # empty input always FALSE</span>
+some(x, ~ .x %% 2 == 0)<span class="qa-cmt">          # any even number?</span>
+some(x, `&gt;`, 80)<span class="qa-cmt">                 # extra arg 80 passed to &gt;</span>
+every(x, .p)<span class="qa-cmt">                     # ALL elements must match</span>
+some(df, ~ any(is.na(.x)))<span class="qa-cmt">       # any column with NAs?</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is some() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">test if ANY element matches</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">some(x, .p)</text><text x="125" y="126" class="branch-label">test if ALL elements match</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">every(x, .p)</text><text x="125" y="182" class="branch-label">test if NO element matches</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">none(x, .p)</text><text x="125" y="238" class="branch-label">find the first matching value</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">detect(x, .p)</text><text x="125" y="294" class="branch-label">find position of first match</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">detect_index(x, .p)</text><text x="125" y="350" class="branch-label">check a known value is present</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">has_element(x, value)</text><text x="125" y="406" class="branch-label">count how many elements match</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">sum(map_lgl(x, .p))</text></svg></div>
+
+<h2>What purrr some() does</h2>
+
+<p><strong>some() reduces a whole collection to one yes/no answer.</strong> You hand it a list or vector and a predicate, and it walks the elements applying that predicate. The instant one element returns <code>TRUE</code>, <code>some()</code> stops and returns <code>TRUE</code>. If it reaches the end without a match, it returns <code>FALSE</code>.</p>
+
+<p>This makes <code>some()</code> the natural tool for existence checks: "is there at least one missing value?", "did any test fail?", "does this list contain a data frame?". Because it short-circuits on the first match, it never does more work than it has to.</p>
+
+<p>It belongs to a trio of predicate reducers in purrr alongside <code>every()</code> (all elements match) and <code>none()</code> (no elements match). Together they cover the three quantifier questions you can ask about a collection.</p>
+
+<p>Because <code>some()</code> always returns a single logical, it slots cleanly into an <code>if</code> condition or a pipeline guard. A common pattern is to test inputs before running an expensive step: if <code>some()</code> of the inputs are invalid, you skip the work and report early. The predicate is evaluated element by element only as far as needed, so the check stays cheap even on long lists.</p>
+
+<h2>some() syntax and arguments</h2>
+
+<p><strong>some() takes a collection, a predicate, and optional extra arguments.</strong> The signature is compact:</p>
+
+<div class="webr-container" data-block-title="The some function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The some function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">some(.x, .p, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it accepts</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.x</code></td>
+<td>A list or atomic vector</td>
+<td>The collection to test</td>
+</tr>
+<tr>
+<td><code>.p</code></td>
+<td>A predicate function</td>
+<td>Applied to each element; must return one <code>TRUE</code> or <code>FALSE</code></td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra arguments</td>
+<td>Passed on to <code>.p</code> on every call</td>
+</tr>
+</tbody>
+</table>
+
+<p>The predicate <code>.p</code> is flexible. You can pass a named function like <code>is.na</code>, an anonymous function such as <code>function(x) x &gt; 0</code>, or a purrr formula shortcut where <code>.x</code> stands for the current element. All three forms behave identically.</p>
+
+<p>The formula shortcut is the most concise option for one-off tests. Inside <code>~ ...</code>, the symbol <code>.x</code> (or its single-dot alias <code>.</code>) refers to whichever element is currently under inspection. The formula is converted into a real function once, then reused for every element, so there is no per-call parsing cost. Whatever expression you write must collapse to one <code>TRUE</code> or <code>FALSE</code>, which is why aggregations like <code>any()</code> often appear inside it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>some()</code> is close to <code>any(sapply(x, .p))</code>, but it short-circuits and guarantees a single logical, so it is both faster and safer on large lists.</div></div>
+
+<h2>some() examples by use case</h2>
+
+<p><strong>The same call shape handles every input type.</strong> The examples below move from a plain numeric vector to a mixed list and then to a data frame, which covers the three input shapes you will meet most often. Each call follows the same structure: a collection, then a predicate. Only the predicate changes as the question changes, and that is the main idea worth carrying away from this section.</p>
+
+<p><strong>Start with a numeric threshold check.</strong> The formula <code>~ .x &gt; 10</code> is applied to each number, and <code>some()</code> reports whether any element clears the bar.</p>
+
+<div class="webr-container" data-block-title="Test a numeric vector against a threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test a numeric vector against a threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- c(3, 7, 11, 4)
+some(nums, ~ .x &gt; 10)
+#&gt; [1] TRUE
+
+some(nums, ~ .x &gt; 100)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Predicates work on heterogeneous lists too.</strong> Pass a type-checking function to ask whether a list holds any element of a given class.</p>
+
+<div class="webr-container" data-block-title="Check element types in a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check element types in a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(1L, &quot;a&quot;, TRUE, 2.5)
+
+some(mixed, is.character)
+#&gt; [1] TRUE
+
+some(mixed, is.data.frame)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A data frame is a list of columns, so <code>some()</code> iterates over columns. This gives a clean one-liner for spotting missing data anywhere in a table. The inner <code>any(is.na(.x))</code> collapses each column to one logical, and <code>some()</code> then collapses those column results to a single answer for the whole frame.</p>
+
+<div class="webr-container" data-block-title="Detect missing values across columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect missing values across columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">some(airquality, ~ any(is.na(.x)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This nesting pattern generalises well. Swap the inner test for whatever column-level rule you need, such as <code>~ is.numeric(.x)</code> to check for any numeric column, or <code>~ max(.x, na.rm = TRUE) &gt; 100</code> to flag an out-of-range column. The outer <code>some()</code> stays the same; only the predicate changes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>some() is the predicate version of any().</strong> Where <code>any()</code> consumes a logical vector, <code>some()</code> consumes raw data plus a rule. That rule lives in one place, so the question reads like plain English.</div></div>
+
+<p><strong>Extra arguments are forwarded straight to the predicate.</strong> Passing the backtick-quoted <code>&gt;</code> operator with a second argument turns it into a clean comparison.</p>
+
+<div class="webr-container" data-block-title="Pass extra arguments to the predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass extra arguments to the predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- c(45, 72, 88)
+some(scores, `&gt;`, 80)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the backtick-quoted <code>&gt;</code> operator is the predicate and <code>80</code> is forwarded through <code>...</code> as its second argument, so each element is compared against the threshold. This style keeps a reusable threshold out of the predicate body, which is handy when the cutoff comes from a variable. The same mechanism works with any function that accepts extra parameters, such as passing <code>na.rm = TRUE</code> to a summary predicate.</p>
+
+<h2>some() vs every(), none(), and any()</h2>
+
+<p><strong>Pick the function that matches the quantifier you mean.</strong> All four answer existence questions, but they differ in what counts as success and whether they short-circuit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns TRUE when</th>
+<th>Stops early on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>some(x, .p)</code></td>
+<td>At least one element matches</td>
+<td>First match</td>
+</tr>
+<tr>
+<td><code>every(x, .p)</code></td>
+<td>Every element matches</td>
+<td>First non-match</td>
+</tr>
+<tr>
+<td><code>none(x, .p)</code></td>
+<td>No element matches</td>
+<td>First match, then FALSE</td>
+</tr>
+<tr>
+<td><code>any(map_lgl(x, .p))</code></td>
+<td>At least one element matches</td>
+<td>Never, evaluates all</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>some()</code> for "any", <code>every()</code> for "all", and <code>none()</code> for "none". Reach for <code>any(map_lgl(...))</code> only when you also need the full logical vector for something else.</p>
+
+<p>Short-circuiting matters most on large or expensive collections. If your predicate calls a slow function, <code>some()</code> may finish after the first element while <code>any(map_lgl(...))</code> evaluates every one. For a quick existence check on a long list, the purrr reducer is both shorter to read and faster to run.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Mistake 1: expecting an empty collection to error.</strong> <code>some()</code> returns <code>FALSE</code> for an empty input because no element matched. This is the mathematically correct answer, but it can surprise you.</p>
+
+<div class="webr-container" data-block-title="Empty input returns FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empty input returns FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">some(list(), ~ TRUE)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Mistake 2: assuming NA propagates like base any().</strong> When a predicate yields <code>NA</code>, <code>some()</code> treats it as "not a match" rather than passing the <code>NA</code> through. Base <code>any()</code> would return <code>NA</code> instead. If you actually want <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> to count, test for them directly with <code>is.na</code> so the predicate returns a real <code>TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="NA elements count as no match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA elements count as no match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">some(c(5, NA, 8), ~ .x &gt; 10)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A predicate must return exactly one TRUE or FALSE per element.</strong> If <code>.p</code> returns a length-2 logical or a non-logical value, <code>some()</code> raises an error. Wrap multi-value logic in <code>any()</code> or <code>all()</code> inside the predicate.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>some()</code> to test whether the <code>mtcars</code> dataset has any car with <code>mpg</code> above 30. Save the result to <code>ex_has_efficient</code>.</p>
+<div class="webr-container" data-block-title="Your turn: test mtcars mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test mtcars mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: does any car beat 30 mpg?
+ex_has_efficient &lt;- # your code here
+
+ex_has_efficient
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_has_efficient &lt;- some(mtcars$mpg, ~ .x &gt; 30)
+ex_has_efficient
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars$mpg</code> is a numeric vector, so <code>some()</code> applies the formula <code>~ .x &gt; 30</code> to each value and returns <code>TRUE</code> as soon as one car clears 30 mpg.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<ul>
+
+<li><code>every()</code>: returns <code>TRUE</code> only when all elements satisfy the predicate.</li>
+
+<li><code>none()</code>: returns <code>TRUE</code> only when no element satisfies the predicate.</li>
+
+<li><code>detect()</code>: returns the first matching element instead of a logical.</li>
+
+<li><code>detect_index()</code>: returns the position of the first match.</li>
+
+<li><code>has_element()</code>: tests whether a specific value is present in a list.</li>
+
+</ul>
+
+<p>For the wider picture of predicate-driven iteration, see the guide to <a href="Functional-Programming-in-R.html">functional programming in R</a>. The official reference lives at <a href="https://purrr.tidyverse.org/reference/every.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between some() and any() in R?</strong></p>
+
+<p><code>any()</code> works on a logical vector you have already computed, while <code>some()</code> works on raw data plus a predicate rule. <code>some()</code> applies the rule itself, short-circuits on the first match, and always returns a single <code>TRUE</code> or <code>FALSE</code>. It also treats <code>NA</code> predicate results as non-matches, whereas <code>any()</code> can return <code>NA</code>. Use <code>some()</code> when the test logic should travel with the question.</p>
+
+<p><strong>Does purrr some() work on data frames?</strong></p>
+
+<p>Yes. A data frame is a list of columns, so <code>some()</code> iterates over its columns. A call like <code>some(df, ~ any(is.na(.x)))</code> checks whether any column contains a missing value. To test rows instead, transpose the data or use a row-wise approach, since <code>some()</code> only sees the top-level list elements.</p>
+
+<p><strong>What does some() return for an empty list?</strong></p>
+
+<p>It returns <code>FALSE</code>. No element exists, so no element can satisfy the predicate, and "at least one match" is therefore false. This mirrors the behaviour of <code>any(logical(0))</code>, which is also <code>FALSE</code>. If your logic depends on collection size, check <code>length(x)</code> separately before calling <code>some()</code>.</p>
+
+<p><strong>How does purrr some() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong></p>
+
+<p>When the predicate returns <code>NA</code> for an element, <code>some()</code> treats that element as not matching and keeps scanning. The final result is <code>TRUE</code> only if some element produced a genuine <code>TRUE</code>. This differs from base <code>any()</code>, which propagates <code>NA</code>. To make missing values themselves count as a match, test for them explicitly with <code>is.na</code> inside the predicate. The safest habit is to decide up front whether <code>NA</code> means "no" or "unknown" for your task, then write the predicate so that intent is explicit rather than relying on the default.</p>
+
+{% endraw %}
