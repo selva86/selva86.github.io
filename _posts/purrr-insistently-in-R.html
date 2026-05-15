@@ -1,0 +1,389 @@
+---
+title: "purrr insistently() in R: Retry a Call Until It Succeeds"
+description: "Use purrr insistently() in R to retry a flaky function until it succeeds. Examples with rate_backoff, rate_delay, the quiet argument, map(), and pitfalls."
+keywords: "purrr insistently, insistently function R, purrr insistently examples, R retry function, rate_backoff R, purrr retry on error, insistently rate_delay"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "insistently()|purrr insistently|purrr::insistently()|insistently() function|purrr insistently function|insistently adverb"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr insistently() in R: Retry a Call Until It Succeeds</h1>
+
+<p class="lead">purrr insistently() wraps a function so it retries automatically after an error instead of failing. The wrapped function waits a short pause, calls the original code again, and keeps trying until it succeeds or the retry budget runs out.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>insistently(f)<span class="qa-cmt">                                # retry with default backoff</span>
+insistently(f, rate_backoff(max_times = 5))<span class="qa-cmt">   # allow up to 5 attempts</span>
+insistently(f, rate_delay(pause = 2))<span class="qa-cmt">         # fixed 2s gap between tries</span>
+insistently(f, quiet = FALSE)<span class="qa-cmt">                 # print each error and retry</span>
+insistently(f)()<span class="qa-cmt">                              # build the wrapper, then call it</span>
+rate_backoff(pause_base = 1, pause_cap = 60)<span class="qa-cmt">  # tune exponential backoff</span>
+map(urls, insistently(fetch))<span class="qa-cmt">                 # retry inside a map</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is insistently() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">retry a call that fails sometimes</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">insistently(f)</text><text x="125" y="126" class="branch-label">pace calls without retrying</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">slowly(f, rate_delay(1))</text><text x="125" y="182" class="branch-label">return a fallback value on error</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">possibly(f, otherwise = NA)</text><text x="125" y="238" class="branch-label">capture errors for inspection</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">safely(f)</text><text x="125" y="294" class="branch-label">silence warnings and messages</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">quietly(f)</text><text x="125" y="350" class="branch-label">retry across a whole list</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">map(x, insistently(f))</text></svg></div>
+
+<h2>What purrr insistently() does</h2>
+
+<p><strong>insistently() turns a fragile function into a stubborn one.</strong> It is a purrr adverb: you hand it a function and it returns a new function that does the same job, except it retries whenever the original raises an error. Each retry waits a short pause first. The loop ends when a call finally succeeds, or when the retry budget is exhausted and the last error is raised.</p>
+
+<p>This is built for transient failures. A network request times out, an API returns a rate-limit error, a file is briefly locked. None of these are real bugs, and a second attempt a moment later usually works. <code>insistently()</code> automates that "just try again" reflex.</p>
+
+<p>The catch is that <code>insistently()</code> never judges <em>why</em> a call failed. It retries on any error, transient or permanent. That makes it a precise fit for unreliable infrastructure and a poor fit for logic bugs.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>insistently() takes a function, a rate, and a quiet flag.</strong> Only the first argument is required.</p>
+
+<div class="webr-container" data-block-title="The insistently function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The insistently function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# insistently(f, rate = rate_backoff(), quiet = TRUE)
+args(insistently)
+#&gt; function (f, rate = rate_backoff(), quiet = TRUE)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f</code></td>
+<td>(required)</td>
+<td>The function to make retry-capable.</td>
+</tr>
+<tr>
+<td><code>rate</code></td>
+<td><code>rate_backoff()</code></td>
+<td>A rate object setting pause length and max attempts.</td>
+</tr>
+<tr>
+<td><code>quiet</code></td>
+<td><code>TRUE</code></td>
+<td>When <code>FALSE</code>, prints each error and the next pause.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>rate</code> argument is where the real tuning happens. Two helpers build it. <code>rate_backoff()</code> uses exponential back-off, so attempt <code>i</code> waits roughly <code>pause_base * 2^i</code> seconds, capped at <code>pause_cap</code>. <code>rate_delay()</code> uses a constant pause between every attempt. Both accept <code>max_times</code>, the hard ceiling on attempts.</p>
+
+<p><code>rate_backoff()</code> also accepts <code>jitter</code>, on by default, which adds randomness to every pause. Jitter matters when many processes retry at once: without it they all wake together and hammer the recovering service in lockstep.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>insistently() returns a function, not a result.</strong> Like every purrr adverb, it modifies a verb. You call <code>insistently(f)</code> once to build the retrying wrapper, then call that wrapper to actually run the work.</div></div>
+
+<h2>Retry a flaky function</h2>
+
+<p><strong>Start with a function that fails before it succeeds.</strong> The example below fails its first two calls, then works, which mimics a connection that needs a couple of tries. The global <code>attempt</code> counter lets the function behave differently on each call, so the retry logic has something real to react to.</p>
+
+<div class="webr-container" data-block-title="Build a function that fails twice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a function that fails twice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">attempt &lt;- 0
+flaky_connect &lt;- function() {
+  attempt &lt;&lt;- attempt + 1
+  if (attempt &lt; 3) stop(&quot;connection timed out&quot;)
+  paste(&quot;connected on attempt&quot;, attempt)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrapping it with <code>insistently()</code> produces a function that absorbs those early failures. Here <code>rate_backoff()</code> allows up to five attempts with tiny pauses so the example runs quickly.</p>
+
+<div class="webr-container" data-block-title="Wrap the function with insistently">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap the function with insistently</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">robust_connect &lt;- insistently(
+  flaky_connect,
+  rate = rate_backoff(pause_base = 0.05, pause_cap = 0.2, max_times = 5)
+)
+
+robust_connect()
+#&gt; [1] &quot;connected on attempt 3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first two errors never surface to the caller. With exponential back-off each wait is roughly double the last, giving a struggling service more room to recover than a fixed gap would.</p>
+
+<p>To retry on a fixed interval instead of growing pauses, swap in <code>rate_delay()</code>. This suits polling, where you check a job every few seconds until it is ready. A constant interval is the right choice when the remote system defines the cadence, such as an API that asks you to poll a status endpoint at a steady rate.</p>
+
+<div class="webr-container" data-block-title="Retry on a fixed delay">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Retry on a fixed delay</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">attempt &lt;- 0
+poll_job &lt;- insistently(
+  flaky_connect,
+  rate = rate_delay(pause = 0.05, max_times = 4)
+)
+
+poll_job()
+#&gt; [1] &quot;connected on attempt 3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By default <code>quiet = TRUE</code> hides the failures, which keeps production logs clean since a call that eventually succeeds is not a problem. Set <code>quiet = FALSE</code> while developing to watch each retry and pause as it happens.</p>
+
+<div class="webr-container" data-block-title="See each error with quiet = FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See each error with quiet = FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">attempt &lt;- 0
+loud_connect &lt;- insistently(
+  flaky_connect,
+  rate = rate_backoff(pause_base = 0.05, max_times = 5),
+  quiet = FALSE
+)
+
+loud_connect()
+#&gt; Error: connection timed out
+#&gt; Retrying in 0.1 seconds.
+#&gt; Error: connection timed out
+#&gt; Retrying in 0.2 seconds.
+#&gt; [1] &quot;connected on attempt 3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set max_times explicitly.</strong> The default <code>rate_backoff()</code> stops after three attempts. For a genuinely flaky service, raise <code>max_times</code> so a brief outage does not exhaust the budget before recovery.</div></div>
+
+<h2>Use insistently() inside map()</h2>
+
+<p><strong>insistently() composes cleanly with the map family.</strong> Because it returns a plain function, you can drop it straight into <code>map()</code> and every element gets its own retry loop.</p>
+
+<div class="webr-container" data-block-title="Retry inside a map call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Retry inside a map call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">attempt &lt;- 0
+counter &lt;- function() {
+  attempt &lt;&lt;- attempt + 1
+  if (attempt %% 3 != 0) stop(&quot;not ready&quot;)
+  attempt
+}
+robust_counter &lt;- insistently(
+  counter,
+  rate = rate_backoff(pause_base = 0.02, max_times = 5)
+)
+
+map_dbl(1:3, ~ robust_counter())
+#&gt; [1] 3 6 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each of the three iterations retries until the counter lands on a multiple of three. One slow or flaky element no longer aborts the whole iteration. This is the everyday pattern for batch work against a network: wrap the fetch with <code>insistently()</code> and each ID retries on its own.</p>
+
+<h2>insistently() vs the other purrr adverbs</h2>
+
+<p><strong>insistently() is one of five purrr adverbs for handling failure.</strong> Pick the one that matches your intent: retry, capture, fall back, or pace.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Adverb</th>
+<th>On error</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>insistently()</code></td>
+<td>retries <code>f</code></td>
+<td>result of <code>f</code>, or final error</td>
+<td>failures are transient</td>
+</tr>
+<tr>
+<td><code>safely()</code></td>
+<td>captures error</td>
+<td>list of <code>result</code> and <code>error</code></td>
+<td>you want to inspect every failure</td>
+</tr>
+<tr>
+<td><code>possibly()</code></td>
+<td>swallows error</td>
+<td>a default <code>otherwise</code> value</td>
+<td>a failure should not stop a pipeline</td>
+</tr>
+<tr>
+<td><code>slowly()</code></td>
+<td>does not handle errors</td>
+<td>result of <code>f</code></td>
+<td>you must pace calls, not retry them</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>insistently()</code> when a second attempt is likely to work. Use <code>possibly()</code> or <code>safely()</code> when an error is final and you only need to handle it gracefully. Reach for <code>slowly()</code> when the goal is rate limiting rather than recovery.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most insistently() trouble.</strong> All are easy to avoid once you know them.</p>
+
+<p>First, calling <code>insistently(f)</code> and expecting a value. It returns a function, so you must call the result. <code>insistently(f)()</code> runs once; assigning the wrapper to a name is clearer.</p>
+
+<p>Second, retrying side effects. If <code>f</code> writes a row or sends an email, every retry repeats that action. The code below appends to a log on each failed attempt, so a function that succeeds on attempt three writes three lines.</p>
+
+<div class="webr-container" data-block-title="Side effects repeat on every retry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side effects repeat on every retry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_lines &lt;- character(0)
+risky_write &lt;- function() {
+  log_lines &lt;&lt;- c(log_lines, &quot;wrote a line&quot;)
+  if (length(log_lines) &lt; 3) stop(&quot;disk busy&quot;)
+  &quot;saved&quot;
+}
+insistently(risky_write, rate = rate_backoff(pause_base = 0.02, max_times = 5))()
+length(log_lines)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Third, expecting <code>insistently()</code> to tell a transient error from a real bug. It cannot. It retries on <em>any</em> error, so a typo in <code>f</code> will simply be retried until the budget runs out.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Wrap only idempotent operations.</strong> Retrying a payment, an insert, or any non-idempotent call can duplicate the effect. Make the action safe to repeat before you make it insistent.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a function <code>ex_unstable</code> that fails its first two calls and then returns "ok". Wrap it with <code>insistently()</code> allowing up to four attempts, call the wrapper, and save the result to <code>ex_result</code>.</p>
+<div class="webr-container" data-block-title="Your turn: retry until success">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: retry until success</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: make ex_unstable, wrap it, call it
+ex_result &lt;- # your code here
+
+ex_result
+#&gt; Expected: &quot;ok&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tries &lt;- 0
+ex_unstable &lt;- function() {
+  ex_tries &lt;&lt;- ex_tries + 1
+  if (ex_tries &lt; 3) stop(&quot;still warming up&quot;)
+  &quot;ok&quot;
+}
+ex_robust &lt;- insistently(ex_unstable, rate = rate_backoff(pause_base = 0.02, max_times = 4))
+ex_result &lt;- ex_robust()
+ex_result
+#&gt; [1] &quot;ok&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>insistently()</code> builds <code>ex_robust</code> from <code>ex_unstable</code>. The first two calls error, the third returns "ok", and the wrapper hands back that success because four attempts were allowed.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These adverbs and helpers pair naturally with <code>insistently()</code>:</p>
+
+<ul>
+
+<li><code>safely()</code> captures each error as a value instead of retrying.</li>
+
+<li><code>possibly()</code> returns a fixed fallback when a call fails.</li>
+
+<li><code>quietly()</code> captures warnings and messages alongside the result.</li>
+
+<li><code>rate_backoff()</code> and <code>rate_delay()</code> build the <code>rate</code> object that controls pacing.</li>
+
+<li><code>map()</code> applies a retrying function across a list or vector.</li>
+
+</ul>
+
+<p>See the official <a href="https://purrr.tidyverse.org/reference/insistently.html">purrr insistently() reference</a> for the full rate-helper documentation.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does insistently() do in R?</strong></p>
+
+<p><code>insistently()</code> takes a function and returns a modified version that retries after an error. The new function calls the original code, and if it fails, waits a short pause and tries again. Retrying continues until a call succeeds or the maximum attempts are used up. It is purrr's tool for handling transient failures such as network timeouts without writing manual retry loops.</p>
+
+<p><strong>How many times does insistently() retry?</strong></p>
+
+<p>The retry count comes from the <code>rate</code> object, not from <code>insistently()</code> itself. The default <code>rate_backoff()</code> allows three attempts. Pass <code>rate_backoff(max_times = 5)</code> or <code>rate_delay(max_times = 10)</code> to change the ceiling. Once the limit is reached, <code>insistently()</code> stops retrying and raises the most recent error so the failure is not hidden.</p>
+
+<p><strong>What is the difference between insistently() and slowly()?</strong></p>
+
+<p>Both adverbs add pauses, but for different reasons. <code>insistently()</code> retries a function after it errors, so the pause happens between failed attempts. <code>slowly()</code> does not handle errors at all; it simply inserts a delay before each call so you do not exceed a rate limit. Use <code>insistently()</code> for recovery and <code>slowly()</code> for pacing.</p>
+
+<p><strong>Does insistently() work with <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a>?</strong></p>
+
+<p>Yes. Because <code>insistently()</code> returns an ordinary function, you can pass it straight to <code>map()</code>, <code>map_dbl()</code>, or any iteration helper. Each element then gets its own independent retry loop, so a single flaky input no longer aborts the whole iteration. This is the standard pattern for retrying a request across a list of URLs or IDs.</p>
+
+<p><strong>Can insistently() retry forever?</strong></p>
+
+<p>You can set <code>rate_delay(max_times = Inf)</code> to retry indefinitely, but that risks an infinite loop if the function never succeeds. A finite ceiling is safer: it guarantees the call eventually returns control and surfaces the underlying error rather than hanging.</p>
+
+{% endraw %}
