@@ -1,0 +1,356 @@
+---
+title: "purrr modify_if() in R: Conditionally Transform Elements"
+description: "Use purrr modify_if() in R to transform only the list or data frame elements that pass a predicate test. Examples, the .else argument, comparison, pitfalls."
+keywords: "purrr modify_if, modify_if function R, purrr modify_if examples, R modify_if list, modify_if vs map_if, conditional list transformation R, modify_if R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr modify_if|modify_if()|purrr::modify_if()|modify_if function|modify_if in R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr modify_if() in R: Conditionally Transform Elements</h1>
+
+<p class="lead">The purrr <code>modify_if()</code> function transforms only the list elements or <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> that pass a predicate test, and returns an object of the same type you passed in.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>modify_if(x, is.numeric, ~ .x * 2)<span class="qa-cmt">        # transform numeric elements</span>
+modify_if(x, is.character, toupper)<span class="qa-cmt">       # transform character elements</span>
+modify_if(df, is.numeric, round)<span class="qa-cmt">          # round numeric columns only</span>
+modify_if(x, is.numeric, f, .else = g)<span class="qa-cmt">    # two-way transform</span>
+modify_if(x, c(TRUE, FALSE, TRUE), f)<span class="qa-cmt">     # logical-vector selector</span>
+modify_if(x, ~ length(.x) &gt; 1, sum)<span class="qa-cmt">       # custom predicate per element</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is modify_if() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">transform elements that pass a test</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">modify_if(x, is.numeric, f)</text><text x="125" y="126" class="branch-label">transform named or positioned elements</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">modify_at(x, &quot;col&quot;, f)</text><text x="125" y="182" class="branch-label">transform every element</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">modify(x, f)</text><text x="125" y="238" class="branch-label">get a list back, not the input type</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map_if(x, .p, f)</text><text x="125" y="294" class="branch-label">keep only the matching elements</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">keep(x, is.numeric)</text><text x="125" y="350" class="branch-label">drop the matching elements</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">discard(x, is.numeric)</text></svg></div>
+
+<h2>What modify_if() does in one sentence</h2>
+
+<p><strong><code>modify_if(.x, .p, .f)</code> runs <code>.f</code> on every element of <code>.x</code> for which the predicate <code>.p</code> returns <code>TRUE</code>, then returns an object of the same class as <code>.x</code>.</strong> Elements that fail the test are copied through unchanged.</p>
+
+<p>Think of it as a conditional version of <code>modify()</code>. Where <code>modify()</code> transforms everything, <code>modify_if()</code> first asks a yes-or-no question about each element and only transforms the ones that answer yes. The question is the <code>.p</code> argument, and it can be a function like <code>is.numeric</code>, a formula like <code>~ .x &gt; 0</code>, or even a plain logical vector.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>modify_if()</code> selects elements by a property of their values, while <code>modify_at()</code> selects them by name or position.</strong> Reach for <code>modify_if()</code> when the elements to change share a type or pass a test. Reach for <code>modify_at()</code> when you already know exactly which slots to touch.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>modify_if(.x, .p, .f, ..., .else = NULL)</code> takes the object to transform, a predicate, and a function.</strong> Extra arguments after <code>.f</code> are forwarded to it on every call.</p>
+
+<p>The <code>.p</code> predicate decides which elements get transformed. The <code>.f</code> function does the transforming. The optional <code>.else</code> argument supplies a second function for the elements that fail the predicate. Because the return type matches <code>.x</code>, a data frame in gives a data frame out and a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> in gives a named list out.</p>
+
+<div class="webr-container" data-block-title="modify_if applies a function where a test passes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_if applies a function where a test passes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- list(4, 9, 16, 25)
+
+modify_if(nums, ~ .x &gt; 10, sqrt)
+#&gt; [[1]]
+#&gt; [1] 4
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 9
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 4
+#&gt;
+#&gt; [[4]]
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicate <code>~ .x &gt; 10</code> is <code>FALSE</code> for 4 and 9, so they pass through. It is <code>TRUE</code> for 16 and 25, so <code>sqrt()</code> runs on them.</p>
+
+<h2>Four ways to use modify_if()</h2>
+
+<p><strong>Each example below uses a different kind of predicate.</strong> Together they cover almost every real use of the function.</p>
+
+<p>The most common pattern is transforming the numeric columns of a data frame. A data frame is a list of columns, so <code>is.numeric</code> selects exactly the numeric ones.</p>
+
+<div class="webr-container" data-block-title="Transform only the numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transform only the numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  product = c(&quot;pen&quot;, &quot;mug&quot;, &quot;book&quot;),
+  price   = c(2, 8, 15),
+  stock   = c(120, 45, 30)
+)
+
+modify_if(df, is.numeric, ~ .x * 1.1)
+#&gt;   product price stock
+#&gt; 1     pen   2.2 132.0
+#&gt; 2     mug   8.8  49.5
+#&gt; 3    book  16.5  33.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>product</code> column is character, so it is left alone. Both numeric columns are scaled by 1.1.</p>
+
+<p>The same idea works on a plain list. Here <code>is.character</code> selects the text elements and uppercases them.</p>
+
+<div class="webr-container" data-block-title="Transform only the character elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transform only the character elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(year = 2026, city = &quot;boston&quot;, count = 7, label = &quot;active&quot;)
+
+modify_if(mixed, is.character, toupper)
+#&gt; $year
+#&gt; [1] 2026
+#&gt;
+#&gt; $city
+#&gt; [1] &quot;BOSTON&quot;
+#&gt;
+#&gt; $count
+#&gt; [1] 7
+#&gt;
+#&gt; $label
+#&gt; [1] &quot;ACTIVE&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.else</code> argument lets you transform both groups in one call. Numeric elements go through <code>.f</code>, everything else goes through <code>.else</code>.</p>
+
+<div class="webr-container" data-block-title="Transform both groups with .else">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transform both groups with .else</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- list(10, &quot;ok&quot;, 25, &quot;fail&quot;, 8)
+
+modify_if(records, is.numeric, ~ .x * 10, .else = ~ toupper(.x))
+#&gt; [[1]]
+#&gt; [1] 100
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;OK&quot;
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 250
+#&gt;
+#&gt; [[4]]
+#&gt; [1] &quot;FAIL&quot;
+#&gt;
+#&gt; [[5]]
+#&gt; [1] 80</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Finally, <code>.p</code> can be a logical vector the same length as <code>.x</code>. This is handy when the decision comes from outside the data.</p>
+
+<div class="webr-container" data-block-title="Select elements with a logical vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select elements with a logical vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quarters &lt;- list(q1 = 100, q2 = 200, q3 = 300, q4 = 400)
+adjust   &lt;- c(TRUE, FALSE, FALSE, TRUE)
+
+modify_if(quarters, adjust, ~ .x + 50)
+#&gt; $q1
+#&gt; [1] 150
+#&gt;
+#&gt; $q2
+#&gt; [1] 200
+#&gt;
+#&gt; $q3
+#&gt; [1] 300
+#&gt;
+#&gt; $q4
+#&gt; [1] 450</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass extra arguments to <code>.f</code> through the <code>...</code> slot.</strong> <code>modify_if(df, is.numeric, round, digits = 2)</code> rounds every numeric column to two decimals without writing a formula.</div></div>
+
+<h2>modify_if() vs map_if() vs modify()</h2>
+
+<p><strong>All three apply a function across elements, but they differ in what they select and what they return.</strong> The table makes the choice quick.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Selects</th>
+<th>Returns</th>
+<th>Has <code>.else</code>?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modify_if()</code></td>
+<td>elements passing <code>.p</code></td>
+<td>same type as <code>.x</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>map_if()</code></td>
+<td>elements passing <code>.p</code></td>
+<td>always a list</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>modify()</code></td>
+<td>every element</td>
+<td>same type as <code>.x</code></td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: use <code>modify_if()</code> when you want the input type preserved, such as keeping a data frame a data frame. Use <code>map_if()</code> when you want a list back no matter what. Use <code>modify()</code> when there is no condition and every element should change.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is <code>df.select_dtypes(include=&#x27;number&#x27;)</code> combined with an assignment back into the frame. <code>modify_if()</code> does the select-and-assign in one expression.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>modify_if()</code> has a few sharp edges that produce confusing errors.</strong> Knowing them saves debugging time.</p>
+
+<p>The predicate <code>.p</code> must return a single <code>TRUE</code> or <code>FALSE</code> for each element. If your formula is vectorized over values inside an element, it returns several logicals and the call fails.</p>
+
+<div class="webr-container" data-block-title="Predicate must return one TRUE or FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicate must return one TRUE or FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">groups &lt;- list(a = c(1, 5), b = c(8, 2))
+
+# Errors: ~ .x &gt; 4 yields a length-2 logical for each element
+modify_if(groups, ~ .x &gt; 4, ~ .x * 10)
+#&gt; Error: Result 1 must be a single logical, not a logical vector of length 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is a predicate that collapses to one value, such as <code>~ any(.x &gt; 4)</code> or <code>~ mean(.x) &gt; 4</code>.</p>
+
+<p>Two more traps to watch:</p>
+
+<ul>
+
+<li><strong><code>modify_if()</code> does not filter.</strong> Elements that fail <code>.p</code> are kept untouched, not removed. Use <code>keep()</code> or <code>discard()</code> when you actually want to drop elements.</li>
+
+<li><strong>The return type follows the input.</strong> Passing a data frame returns a data frame, not a list. If downstream code expects a list, convert with <code>as.list()</code> or switch to <code>map_if()</code>.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A predicate that returns <code>NA</code> is treated as failing.</strong> If <code>.p</code> can produce <code>NA</code>, those elements silently skip <code>.f</code>. Guard the predicate so it always returns a clean <code>TRUE</code> or <code>FALSE</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>modify_if()</code> on the built-in <code>iris</code> data frame to multiply only its numeric columns by 10, leaving the <code>Species</code> column unchanged. Save the result to <code>ex_iris</code>.</p>
+<div class="webr-container" data-block-title="Your turn: scale numeric columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: scale numeric columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: transform only the numeric columns of iris
+ex_iris &lt;- # your code here
+
+head(ex_iris, 3)
+#&gt; Expected: numeric columns 10x larger, Species unchanged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- modify_if(iris, is.numeric, ~ .x * 10)
+head(ex_iris, 3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1           51          35           14           2  setosa
+#&gt; 2           49          30           14           2  setosa
+#&gt; 3           47          32           13           2  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>is.numeric</code> selects the four measurement columns, the formula <code>~ .x * 10</code> scales them, and the character <code>Species</code> column fails the predicate so it is copied through unchanged.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong><code>modify_if()</code> belongs to a family of element-wise transformers.</strong> These related functions cover the adjacent tasks:</p>
+
+<ul>
+
+<li><code>modify()</code> applies a function to every element with no condition.</li>
+
+<li><code>modify_at()</code> selects elements by name or position instead of a test.</li>
+
+<li><code>map_if()</code> does the same conditional transform but always returns a list.</li>
+
+<li><code>keep()</code> and <code>discard()</code> filter elements by a predicate rather than transforming them.</li>
+
+<li><code>modify2()</code> and <code>imap_modify()</code> extend the idea to paired inputs and indices.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/modify.html">purrr reference</a> for the full modify family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between modify_if() and map_if() in R?</strong></p>
+
+<p>Both apply a function only to elements that pass a predicate. The difference is the return type. <code>modify_if()</code> returns an object of the same class as its input, so a data frame stays a data frame. <code>map_if()</code> always returns a list, even when you pass a data frame or an atomic vector. Choose <code>modify_if()</code> to preserve structure and <code>map_if()</code> when a list is what you want next.</p>
+
+<p><strong>Does modify_if() change the original object?</strong></p>
+
+<p>No. <code>modify_if()</code> returns a new object and leaves the input untouched, following R's <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a> behavior. You must assign the result to a name, such as <code>df &lt;- modify_if(df, is.numeric, round)</code>, to keep the transformed version. Forgetting the assignment is a common reason the change appears to vanish.</p>
+
+<p><strong>Can modify_if() work on data frames?</strong></p>
+
+<p>Yes. A data frame is a list of columns, so <code>modify_if()</code> treats each column as an element. A predicate like <code>is.numeric</code> selects columns by type, and <code>.f</code> transforms them. The result is still a data frame because <code>modify_if()</code> preserves the input class. This makes it a clean way to scale or round numeric columns while leaving character columns alone.</p>
+
+<p><strong>What does the .else argument do in modify_if()?</strong></p>
+
+<p>The <code>.else</code> argument supplies a second function for elements that fail the predicate. Without it, failing elements are copied through unchanged. With it, <code>modify_if()</code> becomes a two-way switch: <code>.f</code> runs on the <code>TRUE</code> elements and <code>.else</code> runs on the <code>FALSE</code> elements. It is the equivalent of an <code>if-else</code> applied across a whole list in one expression.</p>
+
+<p><strong>Is modify_if() a stable purrr function?</strong></p>
+
+<p>Yes. <code>modify_if()</code> is part of purrr's stable modify family and is safe to use in production code. It has been available since early purrr releases and its interface has not changed. The function is documented alongside <code>modify()</code> and <code>modify_at()</code> in the official purrr reference.</p>
