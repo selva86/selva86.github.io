@@ -1,0 +1,319 @@
+---
+title: "lubridate with_tz() in R: Convert Time Zones for Display"
+description: "lubridate with_tz() displays a date-time in another time zone without changing the underlying instant. Examples cover UTC conversion, vectors, and force_tz."
+keywords: "lubridate with_tz, with_tz function R, lubridate with_tz examples, R with_tz time zone, convert UTC to local R, with_tz vs force_tz, change timezone R lubridate"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "with_tz()|lubridate with_tz|lubridate::with_tz()|convert time zone|change time zone"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate with_tz() in R: Convert Time Zones for Display</h1>
+
+<p class="lead">The lubridate <code>with_tz()</code> function shows a date-time in a different time zone without changing the actual moment in time it represents. It re-labels the clock for display while the underlying instant stays exactly the same.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>with_tz(t, &quot;America/New_York&quot;)<span class="qa-cmt">        # display in New York</span>
+with_tz(t, &quot;Asia/Tokyo&quot;)<span class="qa-cmt">              # display in Tokyo</span>
+with_tz(t, &quot;Europe/London&quot;)<span class="qa-cmt">           # display in London</span>
+with_tz(t, &quot;UTC&quot;)<span class="qa-cmt">                     # display in UTC</span>
+with_tz(t)<span class="qa-cmt">                            # display in system tz</span>
+with_tz(t, tzone = Sys.timezone())<span class="qa-cmt">    # explicit system tz</span>
+with_tz(now(), &quot;Australia/Sydney&quot;)<span class="qa-cmt">    # current time elsewhere</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is with_tz() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">show an instant in another zone</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">with_tz(t, &quot;Asia/Tokyo&quot;)</text><text x="125" y="126" class="branch-label">relabel zone, keep clock time</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">force_tz(t, &quot;Asia/Tokyo&quot;)</text><text x="125" y="182" class="branch-label">attach a zone while parsing</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ymd_hms(x, tz = &quot;UTC&quot;)</text><text x="125" y="238" class="branch-label">read which zone a value carries</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tz(t)</text><text x="125" y="294" class="branch-label">get the current time as POSIXct</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">now()</text><text x="125" y="350" class="branch-label">strip time and keep the date</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">as_date(t)</text></svg></div>
+
+<h2>What with_tz() does in one sentence</h2>
+
+<p><strong><code>with_tz(time, tzone)</code> returns the same instant displayed under a different time zone.</strong> The number of seconds since the epoch is untouched; only the calendar and clock labels used to print the value change.</p>
+
+<p>A date-time in R is an absolute moment, like "the instant 1.7 billion seconds after 1970". That moment can be described as 12:00 in London or 07:00 in New York, and both descriptions point to the identical event. <code>with_tz()</code> swaps which description you see.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>with_tz()</code> changes the label, not the instant.</strong> If you compare a value before and after <code>with_tz()</code>, they test as equal, because they are the same point on the timeline viewed through two different clocks.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>with_tz(time, tzone = &quot;&quot;, ...)</code>. <code>time</code> is a POSIXct date-time; <code>tzone</code> is an Olson time zone name string; an empty string means the system time zone.</strong></p>
+
+<div class="webr-container" data-block-title="Load lubridate and convert one instant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and convert one instant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+t &lt;- ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;)
+t
+#&gt; [1] &quot;2024-01-15 12:00:00 UTC&quot;
+
+with_tz(t, &quot;America/New_York&quot;)
+#&gt; [1] &quot;2024-01-15 07:00:00 EST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The input must already carry a correct time zone. <code>with_tz()</code> reads that zone, converts to the requested <code>tzone</code>, and prints the result. It never guesses what zone your data came from.</p>
+
+<h2>Convert between time zones</h2>
+
+<h3>1. Display a UTC timestamp locally</h3>
+
+<div class="webr-container" data-block-title="Show a UTC instant in three cities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show a UTC instant in three cities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;)
+
+with_tz(t, &quot;America/New_York&quot;)
+#&gt; [1] &quot;2024-01-15 07:00:00 EST&quot;
+
+with_tz(t, &quot;Asia/Tokyo&quot;)
+#&gt; [1] &quot;2024-01-15 21:00:00 JST&quot;
+
+with_tz(t, &quot;Australia/Sydney&quot;)
+#&gt; [1] &quot;2024-01-15 23:00:00 AEDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One UTC instant becomes three readings. New York is five hours behind, Tokyo nine ahead, and Sydney eleven ahead because January falls in its daylight saving period. The event is one moment; only the display differs.</p>
+
+<h3>2. Convert between two non-UTC zones</h3>
+
+<div class="webr-container" data-block-title="Convert a New York time to London">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a New York time to London</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t_ny &lt;- ymd_hms(&quot;2024-06-01 09:00:00&quot;, tz = &quot;America/New_York&quot;)
+
+with_tz(t_ny, &quot;Europe/London&quot;)
+#&gt; [1] &quot;2024-06-01 14:00:00 BST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>with_tz()</code> works from any source zone, not just UTC. A 9 AM New York meeting in June shows as 2 PM in London, and lubridate applies each zone's daylight saving rules automatically.</p>
+
+<h3>3. Vectorized conversion</h3>
+
+<div class="webr-container" data-block-title="Convert a vector of date-times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a vector of date-times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">times &lt;- ymd_hms(c(&quot;2024-01-15 12:00:00&quot;,
+                    &quot;2024-07-15 12:00:00&quot;), tz = &quot;UTC&quot;)
+
+with_tz(times, &quot;America/New_York&quot;)
+#&gt; [1] &quot;2024-01-15 07:00:00 EST&quot; &quot;2024-07-15 08:00:00 EDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>with_tz()</code> is vectorized. Note the offset changes within the vector: January prints EST at UTC-5, July prints EDT at UTC-4, because the conversion respects daylight saving on a per-element basis.</p>
+
+<h3>4. Current time in another city</h3>
+
+<div class="webr-container" data-block-title="See the current time elsewhere">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See the current time elsewhere</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">now_utc &lt;- now(tzone = &quot;UTC&quot;)
+
+with_tz(now_utc, &quot;Asia/Kolkata&quot;)
+#&gt; [1] &quot;2026-05-15 19:30:00 IST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pair <code>with_tz()</code> with <code>now()</code> to answer "what time is it there right now". The output above is illustrative; the live value depends on when the code runs.</p>
+
+<h2>with_tz() vs force_tz()</h2>
+
+<p><strong>These two functions look alike but do opposite jobs.</strong> <code>with_tz()</code> preserves the instant and re-labels the clock, while <code>force_tz()</code> preserves the clock and re-labels the instant.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>with_tz()</code> and <code>force_tz()</code> are not interchangeable.</strong> <code>with_tz()</code> keeps the instant and changes the clock reading. <code>force_tz()</code> keeps the clock reading and changes the instant. Picking the wrong one shifts your data by hours without any error.</div></div>
+
+<div class="webr-container" data-block-title="The same input, two different results">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same input, two different results</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;)
+
+with_tz(t, &quot;America/New_York&quot;)   # same instant
+#&gt; [1] &quot;2024-01-15 07:00:00 EST&quot;
+
+force_tz(t, &quot;America/New_York&quot;)  # different instant
+#&gt; [1] &quot;2024-01-15 12:00:00 EST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Clock reading</th>
+<th>Underlying instant</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>with_tz()</code></td>
+<td>changes</td>
+<td>unchanged</td>
+<td>you have the correct moment, want a different display</td>
+</tr>
+<tr>
+<td><code>force_tz()</code></td>
+<td>unchanged</td>
+<td>changes</td>
+<td>the zone label is wrong but the clock reading is right</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Decision rule.</strong> Use <code>with_tz()</code> when the timestamp is correct and you only want to read it in another city. Use <code>force_tz()</code> when the timestamp was parsed with the wrong zone, for example data stored as local time that lubridate assumed was UTC.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> <code>with_tz()</code> is the equivalent of <code>Series.dt.tz_convert()</code>, and <code>force_tz()</code> matches <code>Series.dt.tz_localize()</code>. The convert-versus-localize split is the same idea in both languages.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<div class="webr-container" data-block-title="Three traps to avoid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three traps to avoid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">with_tz(ymd_hms(&quot;2024-01-15 12:00:00&quot;), &quot;Asia/Tokyo&quot;)
+#&gt; [1] &quot;2024-01-15 21:00:00 JST&quot;
+
+with_tz(t, &quot;New York&quot;)
+#&gt; Warning: Unrecognized time zone 'New York'
+#&gt; [1] &quot;2024-01-15 12:00:00 UTC&quot;
+
+d &lt;- as_date(&quot;2024-01-15&quot;)
+with_tz(d, &quot;Asia/Tokyo&quot;)
+#&gt; [1] &quot;2024-01-15 09:00:00 JST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three traps catch most users. First, a string parsed without <code>tz =</code> is assumed to be UTC, so the conversion starts from the wrong zone; pass <code>tz</code> to <code>ymd_hms()</code> or use <code>force_tz()</code>. Second, an unrecognized zone name warns and leaves the value unchanged, so always use full Olson names such as <code>&quot;America/New_York&quot;</code> rather than <code>&quot;New York&quot;</code> or <code>&quot;EST&quot;</code>. Third, a plain <code>Date</code> has no time component, so converting it invents a midnight that then shifts across the date line.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Store everything in UTC, convert only at display time.</strong> Keep timestamps in UTC throughout your analysis and call <code>with_tz()</code> only in the final report or plot. This keeps arithmetic, joins, and comparisons consistent, because every value shares one reference zone until the moment a human reads it.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take a UTC instant of 2024-03-10 15:30:00 and display it in both <code>&quot;Europe/Paris&quot;</code> and <code>&quot;America/Los_Angeles&quot;</code>. Save the Los Angeles result to <code>ex_la</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert a UTC instant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert a UTC instant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: convert one instant to two zones
+t_utc &lt;- ymd_hms(&quot;2024-03-10 15:30:00&quot;, tz = &quot;UTC&quot;)
+
+ex_la &lt;- # your code here
+
+ex_la
+#&gt; Expected: 2024-03-10 07:30:00 in Los Angeles</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_la &lt;- with_tz(t_utc, &quot;America/Los_Angeles&quot;)
+ex_la
+#&gt; [1] &quot;2024-03-10 07:30:00 PST&quot;
+
+with_tz(t_utc, &quot;Europe/Paris&quot;)
+#&gt; [1] &quot;2024-03-10 16:30:00 CET&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>with_tz()</code> reports the same instant in each zone. Los Angeles is eight hours behind UTC in March, and Paris is one hour ahead, so one moment prints as 07:30 PST and 16:30 CET.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<ul>
+
+<li><code>force_tz()</code>: keeps the clock reading and changes the instant, the opposite of <code>with_tz()</code>.</li>
+
+<li><code>tz()</code>: returns the time zone string currently attached to a date-time.</li>
+
+<li><code>now()</code>: current date-time as a POSIXct, ready to pass to <code>with_tz()</code>.</li>
+
+<li><code>ymd_hms()</code>, <code>mdy_hms()</code>, <code>dmy_hms()</code>: <a class="auto-link" href="lubridate-ymd-in-R.html" title="lubridate ymd() in R: Parse Dates From Strings">parse date</a>-time strings with a <code>tz</code> argument.</li>
+
+<li><code>as_date()</code>: drop the time component and return a plain Date.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between with_tz() and force_tz() in R?</strong></p>
+
+<p><code>with_tz()</code> keeps the underlying instant fixed and changes how it is displayed, so a UTC noon becomes a New York 7 AM that points to the same moment. <code>force_tz()</code> keeps the clock reading fixed and changes the instant, so a UTC noon becomes a New York noon that is a different moment five hours later. Use <code>with_tz()</code> to view a correct timestamp elsewhere, and <code>force_tz()</code> to correct a timestamp parsed in the wrong zone.</p>
+
+<p><strong>Does with_tz() change the actual time?</strong></p>
+
+<p>No. <code>with_tz()</code> never alters the moment a date-time represents. If you compare a value before and after <code>with_tz()</code>, R reports them as equal because they are the same point on the timeline. Only the time zone label and the printed clock and calendar values change. This is why <code>with_tz()</code> is safe to use right before printing or plotting without affecting any arithmetic.</p>
+
+<p><strong>How do I convert UTC to local time in R?</strong></p>
+
+<p>Parse or store the timestamp with <code>tz = &quot;UTC&quot;</code>, then call <code>with_tz()</code> with your local Olson zone name. For example, <code>with_tz(ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;), &quot;America/Chicago&quot;)</code>. To use the machine's own zone, call <code>with_tz(t)</code> with no second argument, or pass <code>tzone = Sys.timezone()</code> to be explicit about the target zone.</p>
+
+<p><strong>What time zone names does with_tz() accept?</strong></p>
+
+<p><code>with_tz()</code> accepts Olson (IANA) time zone names such as <code>&quot;America/New_York&quot;</code>, <code>&quot;Europe/London&quot;</code>, and <code>&quot;Asia/Tokyo&quot;</code>. Run <code>OlsonNames()</code> to list every value your <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> supports. Avoid short abbreviations like <code>&quot;EST&quot;</code> or <code>&quot;PST&quot;</code>, because they are ambiguous, ignore daylight saving, and may trigger a warning or silently fall back to UTC.</p>
+
+<p><strong>Can with_tz() handle a vector of date-times?</strong></p>
+
+<p>Yes. <code>with_tz()</code> is vectorized and converts every element of a POSIXct vector in one call. Each element is converted independently, so a vector spanning winter and summer correctly shows different UTC offsets per element as daylight saving turns on and off. The result is a single POSIXct vector carrying the requested time zone.</p>
