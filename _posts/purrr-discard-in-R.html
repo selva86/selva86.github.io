@@ -1,0 +1,360 @@
+---
+title: "purrr discard() in R: Drop List Elements by Predicate"
+description: "Learn how purrr discard() in R drops list or vector elements that match a predicate function. Syntax, worked examples, keep vs discard, and common pitfalls."
+keywords: "purrr discard, discard function R, purrr discard examples, R discard list elements, keep vs discard R, remove list elements R, filter list by predicate R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "discard()|purrr discard|purrr::discard()|discard_at()|discard list elements"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr discard() in R: Drop List Elements by Predicate</h1>
+
+<p class="lead">The purrr discard() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> drops every list or vector element where a predicate function returns TRUE, keeping the rest. It is the fastest way to strip <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>, empty strings, or any element failing a test.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>discard(x, is.na)<span class="qa-cmt">                  # drop NA elements</span>
+discard(x, \(v) v &lt; 0)<span class="qa-cmt">             # drop by a condition</span>
+discard(x, ~ .x == 0)<span class="qa-cmt">              # formula shorthand</span>
+discard(x, is.character)<span class="qa-cmt">           # drop by type</span>
+discard_at(x, &quot;key&quot;)<span class="qa-cmt">               # drop by name</span>
+discard_at(x, c(2, 4))<span class="qa-cmt">             # drop by position</span>
+keep(x, \(v) v &gt; 0)<span class="qa-cmt">                # inverse: keep matches</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is discard() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop elements failing a test</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">discard(x, \(v) v &lt; 0)</text><text x="125" y="126" class="branch-label">keep elements passing a test</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">keep(x, \(v) v &gt; 0)</text><text x="125" y="182" class="branch-label">drop only NULL and empty elements</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">compact(x)</text><text x="125" y="238" class="branch-label">drop elements by name or position</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">discard_at(x, &quot;key&quot;)</text><text x="125" y="294" class="branch-label">drop a single element by index</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">x[-2]</text><text x="125" y="350" class="branch-label">find the first matching element</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">detect(x, \(v) v &gt; 0)</text></svg></div>
+
+<h2>What purrr discard() does</h2>
+
+<p><strong>discard() removes the elements you do not want.</strong> It walks a list or vector, applies a predicate function to each element, and drops every element for which the predicate returns TRUE. Everything that returns FALSE survives. That makes it the natural tool for cleaning a collection: strip NA values, empty strings, or any element that fails a test.</p>
+
+<p>Because <code>discard()</code> keeps the opposite of <code>keep()</code>, you reach for it whenever the rule for rejection is shorter to write than the rule for acceptance.</p>
+
+<div class="webr-container" data-block-title="Load purrr and drop NA values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and drop NA values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- list(23, NA, 14, 7, NA, 24)
+discard(nums, is.na) |&gt; unlist()
+#&gt; [1] 23 14  7 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>discard() keeps FALSE, not TRUE.</strong> Write the predicate to describe what you want gone. If <code>is.na</code> returns TRUE for an element, that element is dropped. Reading the predicate as "what to remove" prevents the most common logic error with this function.</div></div>
+
+<h2>discard() syntax and arguments</h2>
+
+<p><strong>discard() takes two core arguments plus optional extras.</strong> The signature is <code>discard(.x, .p, ...)</code>, and each part has a specific job.</p>
+
+<ul>
+
+<li><code>.x</code>: the list or atomic vector to filter.</li>
+
+<li><code>.p</code>: the predicate function applied to each element. It must return a single TRUE or FALSE.</li>
+
+<li><code>...</code>: extra arguments forwarded to <code>.p</code> on every call.</li>
+
+</ul>
+
+<p>You can supply the predicate in three styles. Pass a named function like <code>is.na</code>, an anonymous function with the <code>\(x)</code> shorthand, or a formula where <code>.x</code> stands for the current element.</p>
+
+<div class="webr-container" data-block-title="Drop elements with an anonymous predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop elements with an anonymous predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- list(a = 12, b = 45, c = 8, d = 33)
+discard(scores, \(x) x &lt; 20)
+#&gt; $b
+#&gt; [1] 45
+#&gt;
+#&gt; $d
+#&gt; [1] 33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result preserves names and the input type. Discarding from a list returns a list; discarding from an atomic vector returns an atomic vector.</p>
+
+<h2>discard() examples by use case</h2>
+
+<p><strong>Real cleaning tasks fall into a few repeating shapes.</strong> These four examples cover the cases you will meet most often.</p>
+
+<p>Drop empty strings from a list of text by testing string length:</p>
+
+<div class="webr-container" data-block-title="Drop empty strings from a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop empty strings from a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">words &lt;- list(&quot;apple&quot;, &quot;&quot;, &quot;kiwi&quot;, &quot;&quot;, &quot;mango&quot;)
+discard(words, \(x) nchar(x) == 0) |&gt; unlist()
+#&gt; [1] &quot;apple&quot; &quot;kiwi&quot;  &quot;mango&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula syntax does the same job with less typing. Inside a formula, <code>.x</code> is the element being tested:</p>
+
+<div class="webr-container" data-block-title="Drop short words with formula syntax">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop short words with formula syntax</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">discard(words, ~ nchar(.x) &lt; 5) |&gt; unlist()
+#&gt; [1] &quot;apple&quot; &quot;mango&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you know the name of the element to remove, <code>discard_at()</code> skips the predicate entirely and targets names or positions directly:</p>
+
+<div class="webr-container" data-block-title="Drop elements by name with discard_at">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop elements by name with discard_at</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">config &lt;- list(host = &quot;localhost&quot;, port = 8080, debug = TRUE)
+discard_at(config, &quot;debug&quot;)
+#&gt; $host
+#&gt; [1] &quot;localhost&quot;
+#&gt;
+#&gt; $port
+#&gt; [1] 8080</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A data frame is a list of columns, so <code>discard()</code> works on it column by column. Here it drops every character column and leaves the numeric ones:</p>
+
+<div class="webr-container" data-block-title="Drop character columns from a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop character columns from a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  name = c(&quot;Mazda&quot;, &quot;Honda&quot;),
+  mpg  = c(21.0, 30.4),
+  cyl  = c(6, 4)
+)
+discard(df, is.character)
+#&gt;    mpg cyl
+#&gt; 1 21.0   6
+#&gt; 2 30.4   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>keep() vs discard(): two sides of the same filter</h2>
+
+<p><strong>keep() and discard() are mirror images.</strong> Both apply a predicate to every element; they differ only in which result they retain. Pick the one whose rule is simpler to express.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Retains elements where the predicate is</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keep()</code></td>
+<td>TRUE</td>
+<td>you can describe what to <strong>keep</strong></td>
+</tr>
+<tr>
+<td><code>discard()</code></td>
+<td>FALSE</td>
+<td>you can describe what to <strong>remove</strong></td>
+</tr>
+<tr>
+<td><code>compact()</code></td>
+<td>length greater than 0</td>
+<td>you only want to drop NULL or empty elements</td>
+</tr>
+<tr>
+<td><code>Filter()</code> (base R)</td>
+<td>TRUE</td>
+<td>no purrr dependency is available</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>compact()</code> is a focused shortcut: it is equivalent to <code>discard()</code> with a length test, but reads better when removing empties is the only goal. Use <code>discard()</code> when the rejection rule is anything more specific than "empty".</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>discard()</code> is a list comprehension that filters out matches, such as <code>[v for v in x if not v &lt; 0]</code>, or <code>filterfalse()</code> from the <code>itertools</code> module.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most discard() errors trace back to the predicate.</strong> The function is strict: <code>.p</code> must return exactly one TRUE or one FALSE per element.</p>
+
+<p>A predicate that returns a vector longer than one fails. Calling <code>is.na</code> on a multi-value element produces a logical vector, not a single flag:</p>
+
+<div class="webr-container" data-block-title="Pitfall: predicate must return one value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: predicate must return one value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vecs &lt;- list(c(1, NA), c(3, 4))
+# discard(vecs, is.na)
+#&gt; Error: `.p` must return a single `TRUE` or `FALSE`
+
+# Fix: collapse to one logical with anyNA()
+discard(vecs, anyNA) |&gt; str()
+#&gt; List of 1
+#&gt;  $ : num [1:2] 3 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A predicate that returns NA fails the same way. Comparing an NA element with <code>&gt;</code> yields NA, which is neither TRUE nor FALSE:</p>
+
+<div class="webr-container" data-block-title="Pitfall: a predicate that returns NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: a predicate that returns NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(5, NA, 10)
+# discard(mixed, \(x) x &gt; 6)
+#&gt; Error: `.p` must return a single `TRUE` or `FALSE`
+
+# Fix: guard against NA inside the predicate
+discard(mixed, \(x) !is.na(x) &amp;&amp; x &gt; 6) |&gt; unlist()
+#&gt; [1]  5 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Discarding every element returns an empty list, never NULL.</strong> If the predicate matches all elements, <code>discard()</code> gives back <code>list()</code>. Downstream code that assumes at least one value will break. Check with <code>length()</code> before using the result.</div></div>
+
+<div class="webr-container" data-block-title="Pitfall: discarding everything yields an empty list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: discarding everything yields an empty list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_na &lt;- list(NA, NA, NA)
+discard(all_na, is.na)
+#&gt; list()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the list <code>prices &lt;- list(10, NA, 25, 0, NA, 8)</code>, use discard() to drop both the NA values and the zero. Save the result to ex_clean.</p>
+<div class="webr-container" data-block-title="Your turn: clean a price list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: clean a price list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- list(10, NA, 25, 0, NA, 8)
+ex_clean &lt;- # your code here
+
+ex_clean
+#&gt; Expected: 10, 25, 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- list(10, NA, 25, 0, NA, 8)
+ex_clean &lt;- discard(prices, \(x) is.na(x) || x == 0)
+unlist(ex_clean)
+#&gt; [1] 10 25  8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicate returns TRUE for NA elements and for zero, so discard() drops both. <code>||</code> short-circuits, so <code>x == 0</code> is never tested on an NA value.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>discard() sits in a small family of filtering verbs.</strong> Reach for a neighbour when the task shifts from rejection to selection or lookup.</p>
+
+<ul>
+
+<li><a href="purrr-keep-in-R.html">keep()</a> keeps elements where the predicate is TRUE, the exact inverse of <code>discard()</code>.</li>
+
+<li><a href="purrr-compact-in-R.html">compact()</a> drops only NULL and zero-length elements.</li>
+
+<li><code>discard_at()</code> and <code>keep_at()</code> filter by name or position instead of value.</li>
+
+<li><a href="purrr-detect-in-R.html">detect()</a> returns the first element that matches a predicate.</li>
+
+<li><a href="purrr-map-in-R.html">map()</a> transforms elements once you have filtered the ones you want.</li>
+
+</ul>
+
+<p>See the official <a href="https://purrr.tidyverse.org/reference/keep.html">purrr keep and discard reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between keep() and discard() in purrr?</strong></p>
+
+<p>Both functions test every element with a predicate. <code>keep()</code> retains the elements where the predicate returns TRUE, while <code>discard()</code> retains the elements where it returns FALSE. They are exact opposites, so <code>discard(x, p)</code> equals <code>keep(x, negate(p))</code>. Choose whichever lets you write the simpler rule: keep when describing what to retain is easier, discard when describing what to remove is easier.</p>
+
+<p><strong>How do I remove NA values from a list with discard()?</strong></p>
+
+<p>Pass <code>is.na</code> as the predicate: <code>discard(my_list, is.na)</code>. The <code>is.na</code> function returns TRUE for each NA element, and <code>discard()</code> drops those, leaving only the non-<a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. This works when every element is a single value. If elements are multi-value vectors, use <code>anyNA</code> instead so the predicate still returns a single TRUE or FALSE.</p>
+
+<p><strong>Can discard() be used on a data frame?</strong></p>
+
+<p>Yes. A data frame is a list of columns, so <code>discard()</code> applies the predicate to each column. For example, <code>discard(df, is.character)</code> drops every character column and returns a data frame of the remaining columns. This is a quick way to keep only numeric columns before modelling or to strip identifier columns before a summary.</p>
+
+<p><strong>Why does discard() throw a "single TRUE or FALSE" error?</strong></p>
+
+<p>The predicate returned something other than one logical value. Common causes are a function like <code>is.na</code> applied to a multi-element vector, which returns a logical vector, or a comparison against an NA value, which returns NA. Fix it by collapsing the result with <code>anyNA</code> or <code>any</code>, or by guarding the comparison with <code>!is.na(x) &amp;&amp;</code> so the predicate always returns a single TRUE or FALSE.</p>
+
+{% endraw %}
