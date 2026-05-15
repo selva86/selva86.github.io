@@ -1,0 +1,356 @@
+---
+title: "purrr map_chr() in R: Map a List to a Character Vector"
+description: "Learn purrr map_chr() in R to apply a function over a list or vector and return a type-stable character vector, with worked examples and common pitfalls."
+keywords: "purrr map_chr, map_chr function R, purrr map_chr examples, R map_chr character vector, map over list R, map_chr vs map"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "map_chr()|purrr map_chr|purrr::map_chr()|map_chr function|character vector from a list|map over a list returning strings"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr map_chr() in R: Map a List to a Character Vector</h1>
+
+<p class="lead">purrr <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_chr()</a> applies a function to every element of a list or vector and always returns a character vector, erroring loudly if any result is not a single string.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_chr(x, f)<span class="qa-cmt">                     # apply f, return a character vector</span>
+map_chr(x, ~ paste0(.x, &quot;!&quot;))<span class="qa-cmt">     # formula shorthand for f</span>
+map_chr(people, &quot;name&quot;)<span class="qa-cmt">           # extract element &quot;name&quot; from each item</span>
+map_chr(people, 1)<span class="qa-cmt">                # extract element by position</span>
+map_chr(x, f, .default = NA)<span class="qa-cmt">      # fallback when the element is missing</span>
+map_chr(letters, toupper)<span class="qa-cmt">         # works on atomic vectors too</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is map_chr() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need a character vector out</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map_chr(x, f)</text><text x="125" y="126" class="branch-label">need a numeric vector instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map_dbl(x, f)</text><text x="125" y="182" class="branch-label">need a logical (TRUE/FALSE) vector</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map_lgl(x, f)</text><text x="125" y="238" class="branch-label">output length varies per element</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map(x, f)</text><text x="125" y="294" class="branch-label">iterate over two lists in parallel</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">map2_chr(x, y, f)</text><text x="125" y="350" class="branch-label">only side effects, no return value</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">walk(x, f)</text></svg></div>
+
+<h2>What map_chr() does in one sentence</h2>
+
+<p><strong>map_chr() is the string-returning member of the <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">purrr map</a> family.</strong> You hand it a list or vector and a function, and it runs that function once per element, then binds the results into a single character vector. The "chr" suffix is a contract: every call must produce exactly one string per element, or the function stops with an error.</p>
+
+<p>This type stability is the whole point. A plain <code>map()</code> returns a list, which forces you to unlist or flatten afterward. <code>map_chr()</code> guarantees a flat character vector up front, so downstream code never has to guess what came back.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature takes the data first, then the function.</strong> Like every map variant, <code>map_chr()</code> follows the purrr argument order.</p>
+
+<div class="webr-container" data-block-title="The map_chr signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The map_chr signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# map_chr(.x, .f, ..., .default = NULL)
+#   .x        a list or atomic vector to iterate over
+#   .f        a function, formula (~), or extractor (name/position)
+#   ...       extra arguments passed on to .f
+#   .default  value to use when an extracted element is missing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.f</code> argument is flexible. It accepts a named function like <code>toupper</code>, a formula such as <code>~ paste0(.x, &quot;!&quot;)</code> where <code>.x</code> is the current element, or a string or integer that acts as an extractor for nested data.</p>
+
+<div class="webr-container" data-block-title="Three ways to write the function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three ways to write the function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_chr(c(&quot;ada&quot;, &quot;grace&quot;), toupper)         # named function
+#&gt; [1] &quot;ADA&quot;   &quot;GRACE&quot;
+
+map_chr(1:3, ~ paste0(&quot;row-&quot;, .x))          # formula with .x
+#&gt; [1] &quot;row-1&quot; &quot;row-2&quot; &quot;row-3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Worked examples</h2>
+
+<p><strong>Example 1 reports the class of every column in a data frame.</strong> A data frame is a list of columns, so mapping over it visits one column at a time.</p>
+
+<div class="webr-container" data-block-title="Class of each iris column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Class of each iris column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_chr(iris, class)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
+#&gt;    &quot;numeric&quot;    &quot;numeric&quot;    &quot;numeric&quot;    &quot;numeric&quot;     &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result keeps the column names, because <code>map_chr()</code> preserves the names of <code>.x</code>. This makes it ideal for building labelled summaries.</p>
+
+<p><strong>Example 2 builds a formatted label per column with a formula.</strong> The <code>.x</code> placeholder refers to each column vector in turn.</p>
+
+<div class="webr-container" data-block-title="Formatted mean per column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Formatted mean per column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+cols &lt;- mtcars[c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+map_chr(cols, ~ paste0(&quot;mean = &quot;, round(mean(.x), 1)))
+#&gt;             mpg              hp              wt
+#&gt; &quot;mean = 20.1&quot; &quot;mean = 146.7&quot;   &quot;mean = 3.2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 3 extracts a field from a list of records.</strong> When <code>.f</code> is a string, <code>map_chr()</code> plucks that named element from each item.</p>
+
+<div class="webr-container" data-block-title="Extract a field from nested records">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract a field from nested records</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+people &lt;- list(
+  list(name = &quot;Ada&quot;,   role = &quot;engineer&quot;),
+  list(name = &quot;Linus&quot;, role = &quot;developer&quot;),
+  list(name = &quot;Grace&quot;, role = &quot;admiral&quot;)
+)
+
+map_chr(people, &quot;name&quot;)
+#&gt; [1] &quot;Ada&quot;   &quot;Linus&quot; &quot;Grace&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 supplies a fallback for missing fields.</strong> If a record lacks the requested element, <code>.default</code> prevents the error.</p>
+
+<div class="webr-container" data-block-title="Handle a missing element with .default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handle a missing element with .default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_chr(people, &quot;email&quot;, .default = NA_character_)
+#&gt; [1] NA NA NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for the typed variant that matches your output.</strong> Use <code>map_chr()</code> for strings, <code>map_dbl()</code> for numbers, and <code>map_lgl()</code> for TRUE/FALSE. Typed variants fail fast on the wrong type, which catches bugs that a plain <code>map()</code> would silently pass downstream.</div></div>
+
+<h2>map_chr() vs map() and the other variants</h2>
+
+<p><strong>The difference is the shape and type of what comes back.</strong> All variants iterate identically; they differ only in how results are combined.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map()</code></td>
+<td>A list</td>
+<td>Each result has a different type or length</td>
+</tr>
+<tr>
+<td><code>map_chr()</code></td>
+<td>Character vector</td>
+<td>Each result is one string</td>
+</tr>
+<tr>
+<td><code>map_dbl()</code></td>
+<td>Double vector</td>
+<td>Each result is one number</td>
+</tr>
+<tr>
+<td><code>map_lgl()</code></td>
+<td>Logical vector</td>
+<td>Each result is one TRUE/FALSE</td>
+</tr>
+<tr>
+<td><code>map2_chr()</code></td>
+<td>Character vector</td>
+<td>You iterate over two inputs in parallel</td>
+</tr>
+</tbody>
+</table>
+
+<p>The contrast with <code>map()</code> is clearest on the same input:</p>
+
+<div class="webr-container" data-block-title="map returns a list, map_chr returns a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">map returns a list, map_chr returns a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map(1:3, ~ as.character(.x * 10))
+#&gt; [[1]]
+#&gt; [1] &quot;10&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;20&quot;
+#&gt;
+#&gt; [[3]]
+#&gt; [1] &quot;30&quot;
+
+map_chr(1:3, ~ as.character(.x * 10))
+#&gt; [1] &quot;10&quot; &quot;20&quot; &quot;30&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Decision rule:</strong> if you know every result is a single string, use <code>map_chr()</code>. If results vary in length or type, use <code>map()</code> and post-process.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The type suffix is a runtime test, not just a convenience.</strong> <code>map_chr()</code> checks every result and stops on the first one that is not a length-one string. That turns a vague "my output looks wrong" bug into a precise error at the exact failing index.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: the function returns more than one value.</strong> <code>map_chr()</code> demands exactly one string per element.</p>
+
+<div class="webr-container" data-block-title="Length error when output is not scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length error when output is not scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_chr(list(1:2, 3:4), ~ as.character(.x))
+#&gt; Error in `map_chr()`:
+#&gt; i In index: 1.
+#&gt; Caused by error:
+#&gt; ! Result must be length 1, not 2.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to collapse the result, for example <code>~ paste(as.character(.x), collapse = &quot;,&quot;)</code>, or switch to <code>map()</code> if you genuinely need varying lengths.</p>
+
+<p><strong>Pitfall 2: extracting a missing element without <code>.default</code>.</strong> Plucking a name that some records lack throws an error unless you provide a fallback, as shown in Example 4.</p>
+
+<p><strong>Pitfall 3: using <code>map_chr()</code> for side effects.</strong> If you only want to print or write each element, <code>map_chr()</code> still forces a character return. Use <code>walk()</code> instead, which runs the function for its side effect and returns the input invisibly.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>map_chr() does not coerce numbers to strings for you in purrr 1.0+.</strong> If <code>.f</code> returns a double, you get a type error, not an automatic conversion. Wrap the result in <code>as.character()</code> or <code>format()</code> so the output is genuinely a string.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_chr()</code> to return the type of each column in <code>mtcars</code> as a character vector. Save the result to <code>ex_types</code>.</p>
+<div class="webr-container" data-block-title="Your turn: column types of mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: column types of mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: return the class of every mtcars column
+ex_types &lt;- # your code here
+
+ex_types
+#&gt; Expected: a named character vector, all &quot;numeric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+ex_types &lt;- map_chr(mtcars, class)
+ex_types
+#&gt; mpg  cyl disp   hp drat   wt qsec   vs   am gear carb
+#&gt; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot; &quot;numeric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars</code> is a list of columns, so <code>map_chr()</code> calls <code>class()</code> on each one. Because every column is numeric, the result is a named character vector of <code>&quot;numeric&quot;</code> values.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>These functions pair naturally with map_chr() in everyday pipelines.</strong></p>
+
+<ul>
+
+<li><code>map()</code>: the untyped base case that returns a list when results vary.</li>
+
+<li><code>map_dbl()</code>: the numeric sibling for results that are single numbers.</li>
+
+<li><code>map2_chr()</code>: iterates over two inputs in parallel to build strings.</li>
+
+<li><code>imap_chr()</code>: passes the index or name alongside each element.</li>
+
+<li><code>walk()</code>: runs a function purely for side effects with no return value.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>map_chr(x, f)</code> is equivalent to <code>vapply(x, f, character(1))</code>. Both enforce a one-string-per-element contract; purrr just adds formula shorthand and the <code>.default</code> argument.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map and map_chr in purrr?</strong></p>
+
+<p><code>map()</code> always returns a list, regardless of what the function produces. <code>map_chr()</code> returns a flat character vector and requires every result to be a single string. Use <code>map_chr()</code> when you know the output is text and want a vector you can use directly; use <code>map()</code> when results differ in type or length and you will process them afterward.</p>
+
+<p><strong>Why does map_chr() throw a "Result must be length 1" error?</strong></p>
+
+<p>That error means the function returned a vector with more than one element for at least one item. <code>map_chr()</code> can only combine length-one results into its output vector. The error reports the failing index. Either collapse the result with <code>paste(collapse = ...)</code> or switch to <code>map()</code> if varying lengths are expected.</p>
+
+<p><strong>How do I extract a named element from a list with map_chr()?</strong></p>
+
+<p>Pass the element name as a string in the <code>.f</code> position, like <code>map_chr(records, &quot;name&quot;)</code>. purrr treats a string <code>.f</code> as an extractor that plucks that element from each item. Add <code>.default = NA_character_</code> so missing elements return <code>NA</code> instead of stopping with an error.</p>
+
+<p><strong>Does map_chr() keep the names of the input?</strong></p>
+
+<p>Yes. If the input list or vector has names, <code>map_chr()</code> carries them onto the output character vector. This is why <code>map_chr(iris, class)</code> returns a vector labelled with the column names, which makes the result self-documenting.</p>
+
+<p><strong>Can map_chr() iterate over a plain atomic vector?</strong></p>
+
+<p>Yes. Although purrr is often shown with lists, <code>map_chr()</code> accepts any atomic vector. For example <code>map_chr(letters[1:3], toupper)</code> returns <code>c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;)</code>. Each element is passed to the function one at a time, exactly as with a list.</p>
