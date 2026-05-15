@@ -1,0 +1,363 @@
+---
+title: "purrr quietly() in R: Trap Output, Warnings, Messages"
+description: "Learn how purrr's quietly() in R wraps a function to capture its printed output, warnings, and messages as a tidy list. Worked examples, pitfalls, FAQ."
+keywords: "purrr quietly, quietly function R, purrr quietly examples, R capture warnings, purrr adverbs, quietly purrr output, capture side-effects R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "quietly()|purrr quietly|purrr::quietly()|capture side-effects|quietly adverb"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr quietly() in R: Trap Output, Warnings, Messages</h1>
+
+<p class="lead">purrr <code>quietly()</code> in R wraps a function so its printed output, warnings, and messages are captured as data instead of spilling to the console. The wrapped function returns a tidy four-element list you can inspect, store, or filter.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>quietly(f)<span class="qa-cmt">                          # wrap a function</span>
+quietly(f)(x)$result<span class="qa-cmt">                # the return value</span>
+quietly(f)(x)$output<span class="qa-cmt">                # captured print() output</span>
+quietly(f)(x)$warnings<span class="qa-cmt">              # warnings as a character vector</span>
+quietly(f)(x)$messages<span class="qa-cmt">              # messages as a character vector</span>
+map(inputs, quietly(f))<span class="qa-cmt">             # run quietly across a list</span>
+map(runs, &quot;warnings&quot;)<span class="qa-cmt">               # pluck warnings from each run</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is quietly() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">inspect warnings or messages a function emits</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">quietly(f)</text><text x="125" y="126" class="branch-label">catch an error that would stop your code</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">safely(f)</text><text x="125" y="182" class="branch-label">swap an error for a fallback value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">possibly(f, otherwise = NA)</text><text x="125" y="238" class="branch-label">retry a flaky call a few times</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">insistently(f)</text><text x="125" y="294" class="branch-label">discard warnings entirely, no record</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">suppressWarnings(expr)</text></svg></div>
+
+<h2>What quietly() does</h2>
+
+<p><strong>quietly() turns side-effects into data.</strong> Most <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> emit warnings and messages straight to the console. Those signals do not stop execution, which makes them easy to miss in a long script and impossible to test programmatically. <code>quietly()</code> solves this by capturing those signals where you can actually work with them.</p>
+
+<p>It belongs to a small group of purrr functions called adverbs. An adverb takes one function and returns a modified version of it, leaving the original untouched. <code>safely()</code> and <code>possibly()</code> are adverbs for errors; <code>quietly()</code> is the adverb for the quieter side-effects. The wrapped function still does exactly what the original did, accepts the same arguments, and produces the same result. The only change is what happens to the noise.</p>
+
+<p>When you call the wrapped function, its return value is no longer a bare value. Instead you get a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with four parts: <code>result</code> holds the original return value, <code>output</code> holds anything sent to <code>print()</code> or <code>cat()</code>, <code>warnings</code> holds a character vector of warning text, and <code>messages</code> holds a character vector of message text. Nothing reaches the console, so you can examine each channel on its own terms.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Side-effects become inspectable values.</strong> Once a warning lives inside <code>res$warnings</code> rather than the console, you can count it, log it, store it, or branch on it. That is the entire purpose of <code>quietly()</code>: it makes the noisy parts of a function as queryable as its return value.</div></div>
+
+<h2>quietly() syntax and arguments</h2>
+
+<p><strong>quietly() takes a single argument.</strong> You pass the function you want to silence, and you get back a new function with the same call signature as the original.</p>
+
+<div class="webr-container" data-block-title="quietly basic syntax">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">quietly basic syntax</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+quiet_sqrt &lt;- quietly(sqrt)
+out &lt;- quiet_sqrt(-4)
+names(out)
+#&gt; [1] &quot;result&quot;   &quot;output&quot;   &quot;warnings&quot; &quot;messages&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The only argument is <code>.f</code>, the function to wrap. It accepts a plain function object, an anonymous function written inline, or a string naming a function such as <code>&quot;sqrt&quot;</code>. The returned function forwards every argument straight through to <code>.f</code>, so <code>quiet_sqrt(-4)</code> behaves like <code>sqrt(-4)</code> in every way except that the warning is trapped rather than printed.</p>
+
+<p>The shape of the returned list never changes. Even when a function emits no warnings at all, the <code>warnings</code> slot still exists as a zero-length character vector. Here <code>sqrt(-4)</code> produces <code>NaN</code> plus a warning, and both are reachable by name:</p>
+
+<div class="webr-container" data-block-title="quietly return list elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">quietly return list elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">out$result
+#&gt; [1] NaN
+
+out$warnings
+#&gt; [1] &quot;NaNs produced&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Four worked examples</h2>
+
+<h3>Capture everything from a noisy function</h3>
+
+<p><strong>Start with a function that emits all three side-effects.</strong> This example prints, messages, and warns in one call, so every slot of the returned list gets filled. Seeing all four channels populated at once makes the structure concrete.</p>
+
+<div class="webr-container" data-block-title="Capture print message and warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capture print message and warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">noisy &lt;- function(x) {
+  print(paste(&quot;Processing&quot;, x))
+  message(&quot;Working on it&quot;)
+  warning(&quot;Something looked odd&quot;)
+  x * 10
+}
+
+quiet_noisy &lt;- quietly(noisy)
+result &lt;- quiet_noisy(4)
+str(result)
+#&gt; List of 4
+#&gt;  $ result  : num 40
+#&gt;  $ output  : chr &quot;[1] \&quot;Processing 4\&quot;&quot;
+#&gt;  $ warnings: chr &quot;Something looked odd&quot;
+#&gt;  $ messages: chr &quot;Working on it\n&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The console stays completely silent. <code>result$result</code> holds <code>40</code>, the print call is stored as a string in <code>output</code>, and the message and warning sit in their own slots. Notice the message keeps its trailing newline, because <code>message()</code> adds one before sending text.</p>
+
+<h3>Collect warnings from coercion</h3>
+
+<p><strong>Real warnings are worth capturing too.</strong> Converting bad strings with <code>as.numeric()</code> triggers the familiar "<a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">NAs introduced by coercion</a>" warning. With <code>quietly()</code>, that warning becomes a value you can keep alongside the partially converted result.</p>
+
+<div class="webr-container" data-block-title="Capture coercion warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capture coercion warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quiet_num &lt;- quietly(as.numeric)
+coerced &lt;- quiet_num(c(&quot;10&quot;, &quot;20&quot;, &quot;oops&quot;))
+
+coerced$result
+#&gt; [1] 10 20 NA
+
+coerced$warnings
+#&gt; [1] &quot;NAs introduced by coercion&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Run quietly across a list with map()</h3>
+
+<p><strong>quietly() shines when paired with <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a>.</strong> Wrap the function once, then map it over many inputs to get one capture list per element. This is the pattern that makes <code>quietly()</code> worth learning.</p>
+
+<div class="webr-container" data-block-title="quietly across a list with map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">quietly across a list with map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inputs &lt;- list(c(&quot;1&quot;, &quot;2&quot;), c(&quot;3&quot;, &quot;bad&quot;), c(&quot;x&quot;, &quot;y&quot;))
+runs &lt;- map(inputs, quietly(as.numeric))
+
+map(runs, &quot;result&quot;)
+#&gt; [[1]]
+#&gt; [1] 1 2
+#&gt;
+#&gt; [[2]]
+#&gt; [1]  3 NA
+#&gt;
+#&gt; [[3]]
+#&gt; [1] NA NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>runs</code> is a list of three capture lists. The string shortcut <code>map(runs, &quot;result&quot;)</code> plucks the <code>result</code> slot out of each one, so you get the values without the surrounding noise.</p>
+
+<h3>Flag which inputs produced warnings</h3>
+
+<p><strong>Now the captured data earns its keep.</strong> Because warnings are stored as vectors, you can test their length to find out exactly which inputs were problematic, then act on that.</p>
+
+<div class="webr-container" data-block-title="Flag inputs that warned">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag inputs that warned</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">had_warning &lt;- map_lgl(runs, ~ length(.x$warnings) &gt; 0)
+had_warning
+#&gt; [1] FALSE  TRUE  TRUE
+
+sum(had_warning)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two of the three inputs raised a warning, and you found out without reading a single console line. In a batch job, this turns a silent data-quality problem into a clear audit trail.</p>
+
+<h2>quietly() vs safely() vs possibly()</h2>
+
+<p><strong>quietly() is the side-effects adverb; safely() and possibly() are the error adverbs.</strong> They share the same wrapping idea but solve different problems, so picking the right one matters.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Adverb</th>
+<th>Captures</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>quietly()</code></td>
+<td>output, warnings, messages</td>
+<td>list of <code>result</code>, <code>output</code>, <code>warnings</code>, <code>messages</code></td>
+<td>you want to inspect side-effects</td>
+</tr>
+<tr>
+<td><code>safely()</code></td>
+<td>errors</td>
+<td>list of <code>result</code> and <code>error</code></td>
+<td>a call might throw an error</td>
+</tr>
+<tr>
+<td><code>possibly()</code></td>
+<td>errors</td>
+<td>the result, or your <code>otherwise</code> default</td>
+<td>you want a fallback on error</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If your concern is a function that <em>stops</em> execution, reach for <code>safely()</code> or <code>possibly()</code>. If your concern is a function that <em>runs fine but complains</em>, reach for <code>quietly()</code>. When a call can do both, nest the adverbs: <code>safely(quietly(f))</code> captures the warnings inside the success branch and still traps any error in its own slot.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>quietly() does not capture errors.</strong> A wrapped function that hits <code>stop()</code> still aborts your code. <code>quietly()</code> only intercepts output, warnings, and messages, never errors. If a call can both warn and fail, combine <code>quietly()</code> with <code>safely()</code> rather than expecting <code>quietly()</code> to handle everything.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most quietly() confusion.</strong> Each has a quick fix once you can see it.</p>
+
+<p><strong>Forgetting the result is nested.</strong> The wrapped function never returns a bare value. It always returns the four-element list, so using the call directly in arithmetic silently breaks downstream code:</p>
+
+<div class="webr-container" data-block-title="Pitfall nested result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall nested result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quiet_sum &lt;- quietly(sum)
+total &lt;- quiet_sum(1:5)
+# total + 1                       # error: non-numeric argument
+total$result + 1                  # correct
+#&gt; [1] 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Always reach into <code>$result</code> when you want the value the original function would have returned.</p>
+
+<p><strong>Expecting errors to be trapped.</strong> <code>quietly()</code> ignores <code>stop()</code> entirely, so a wrapped function that errors still aborts. Wrap with <code>safely()</code> when failure is possible:</p>
+
+<div class="webr-container" data-block-title="Pitfall errors not caught">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall errors not caught</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">risky &lt;- quietly(function() stop(&quot;real error&quot;))
+# risky()                         # still throws: real error</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Confusing output with result.</strong> The <code>output</code> slot holds captured console text from <code>print()</code> or <code>cat()</code>, while <code>result</code> holds the actual return value. They are different channels and usually hold different things. A function that prints a table but returns a data frame will put the printed text in <code>output</code> and the data frame in <code>result</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap <code>log</code> with <code>quietly()</code> and call the wrapped function on <code>-1</code>. <code>log(-1)</code> returns <code>NaN</code> and raises a warning. Pull the warning text out of the capture list, storing the full list in <code>ex_result</code>.</p>
+<div class="webr-container" data-block-title="Your turn: capture a log warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: capture a log warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: capture the warning from log(-1)
+ex_quiet &lt;- # your code here
+ex_result &lt;- # your code here
+
+ex_result$warnings
+#&gt; Expected: &quot;NaNs produced&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quiet &lt;- quietly(log)
+ex_result &lt;- ex_quiet(-1)
+
+ex_result$warnings
+#&gt; [1] &quot;NaNs produced&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>quietly(log)</code> returns a wrapped function. Calling it on <code>-1</code> runs <code>log(-1)</code>, which yields <code>NaN</code> with a warning. The warning text is captured in the <code>warnings</code> slot instead of printing to the console.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>quietly() belongs to the purrr adverb family.</strong> These functions modify other functions rather than mapping over data:</p>
+
+<ul>
+
+<li><code>safely()</code> wraps a function to capture errors as a <code>result</code> and <code>error</code> pair.</li>
+
+<li><code>possibly()</code> returns a default value when a function errors.</li>
+
+<li><code>insistently()</code> retries a function that fails intermittently.</li>
+
+<li><code>compose()</code> chains several functions into one combined function.</li>
+
+<li><code>negate()</code> flips a predicate function's <code>TRUE</code> and <code>FALSE</code> results.</li>
+
+</ul>
+
+<p>For the full argument reference, see the <a href="https://purrr.tidyverse.org/reference/quietly.html">purrr quietly() documentation</a> on the tidyverse site.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does quietly() catch errors in R?</strong></p>
+
+<p>No. <code>quietly()</code> only captures printed output, warnings, and messages. If the wrapped function calls <code>stop()</code>, the error still propagates and halts your code. To trap errors, use <code>safely()</code>, which returns a list with <code>result</code> and <code>error</code> elements, or <code>possibly()</code>, which substitutes a default value. You can nest the adverbs, such as <code>safely(quietly(f))</code>, to capture both side-effects and errors from a single call.</p>
+
+<p><strong>What is the difference between quietly() and suppressWarnings()?</strong></p>
+
+<p><code>suppressWarnings()</code> discards warnings completely, leaving no record that anything happened. <code>quietly()</code> keeps them: the warnings are stored in the returned list so you can count, log, or test them later. Use <code>suppressWarnings()</code> when a warning is genuinely noise you never need again. Use <code>quietly()</code> when you want the warning out of the console but still need it available as data.</p>
+
+<p><strong>What does quietly() return?</strong></p>
+
+<p>The wrapped function returns a named list with four elements. <code>result</code> is the original return value of the function. <code>output</code> is a character string of anything sent to <code>print()</code> or <code>cat()</code>. <code>warnings</code> is a character vector of warning messages, and <code>messages</code> is a character vector of message text. Empty channels return zero-length vectors, so <code>length(res$warnings)</code> is a reliable test for whether any warning fired.</p>
+
+<p><strong>Can I use quietly() with map()?</strong></p>
+
+<p>Yes, and it is the most common pattern. Pass <code>quietly(f)</code> as the function argument to <code>map()</code> to get one capture list per input. You can then call <code>map(runs, &quot;result&quot;)</code> to extract just the values, or <code>map(runs, &quot;warnings&quot;)</code> to gather every warning across the run. This makes <code>quietly()</code> ideal for batch processing where you want to audit side-effects after the work is done.</p>
+
+{% endraw %}
