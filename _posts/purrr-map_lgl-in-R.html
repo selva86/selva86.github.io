@@ -1,0 +1,378 @@
+---
+title: "purrr map_lgl() in R: Map a List to a Logical Vector"
+description: "Learn purrr map_lgl() in R to apply a predicate over a list or vector and return a type-stable logical vector, with worked examples and common pitfalls."
+keywords: "purrr map_lgl, map_lgl function R, purrr map_lgl examples, R map_lgl logical vector, map_lgl predicate, map_lgl vs sapply"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "map_lgl()|purrr map_lgl|purrr::map_lgl()|map_lgl function|logical vector from a list|test each element of a list"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr map_lgl() in R: Map a List to a Logical Vector</h1>
+
+<p class="lead">purrr map_lgl() applies a predicate to every element of a list or vector and always returns a logical vector, erroring loudly if any result is not a single TRUE or FALSE.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_lgl(x, f)<span class="qa-cmt">                      # apply f, return a logical vector</span>
+map_lgl(x, ~ .x &gt; 0)<span class="qa-cmt">               # formula predicate shorthand</span>
+map_lgl(df, is.numeric)<span class="qa-cmt">            # test each column of a data frame</span>
+map_lgl(x, ~ any(is.na(.x)))<span class="qa-cmt">       # flag elements that contain NA</span>
+map_lgl(people, &quot;active&quot;)<span class="qa-cmt">          # extract a logical field from records</span>
+which(map_lgl(x, f))<span class="qa-cmt">               # indices of elements that pass the test</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is map_lgl() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need a TRUE/FALSE per element</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map_lgl(x, f)</text><text x="125" y="126" class="branch-label">need a number per element instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl</a>(x, f)</text><text x="125" y="182" class="branch-label">need a string per element instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map_chr(x, f)</text><text x="125" y="238" class="branch-label">keep only elements that pass a test</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">keep(x, p)</text><text x="125" y="294" class="branch-label">one answer for &quot;do all pass&quot;</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">every(x, p)</text><text x="125" y="350" class="branch-label">one answer for &quot;does any pass&quot;</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">some(x, p)</text></svg></div>
+
+<h2>What map_lgl() does in one sentence</h2>
+
+<p><strong>map_lgl() is the logical-returning member of the <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">purrr map</a> family.</strong> You hand it a list or vector and a predicate function, and it runs that function once per element, then binds the results into a single logical vector. The "lgl" suffix is a contract: every call must produce exactly one <code>TRUE</code>, <code>FALSE</code>, or <code>NA</code> per element, or the function stops with an error.</p>
+
+<p>This type stability is the whole point. A plain <code>map()</code> returns a list, which you would have to unlist before you could use it in <code>which()</code>, <code>if</code>, or a subsetting bracket. <code>map_lgl()</code> guarantees a flat logical vector up front, so it slots directly into those tools.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature takes the data first, then the predicate.</strong> Like every map variant, <code>map_lgl()</code> follows the standard purrr argument order.</p>
+
+<div class="webr-container" data-block-title="The map_lgl signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The map_lgl signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# map_lgl(.x, .f, ..., .default = NULL)
+#   .x        a list or atomic vector to iterate over
+#   .f        a function, formula (~), or extractor (name/position)
+#   ...       extra arguments passed on to .f
+#   .default  value to use when an extracted element is missing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.f</code> argument is flexible. It accepts a named function like <code>is.numeric</code>, a formula such as <code>~ .x &gt; 0</code> where <code>.x</code> is the current element, or a string or integer that acts as an extractor for nested data.</p>
+
+<div class="webr-container" data-block-title="Two ways to write the predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two ways to write the predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_lgl(list(1, -2, 3), ~ .x &gt; 0)    # formula with .x
+#&gt; [1]  TRUE FALSE  TRUE
+
+map_lgl(list(1L, &quot;a&quot;, TRUE), is.numeric)   # named function
+#&gt; [1]  TRUE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Worked examples</h2>
+
+<p><strong>Example 1 tests which columns of a data frame are numeric.</strong> A data frame is a list of columns, so mapping over it visits one column at a time.</p>
+
+<div class="webr-container" data-block-title="Find the numeric columns of iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the numeric columns of iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_lgl(iris, is.numeric)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width      Species
+#&gt;         TRUE         TRUE         TRUE         TRUE        FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result keeps the column names, because <code>map_lgl()</code> preserves the names of <code>.x</code>. You can feed it straight into <code>iris[map_lgl(iris, is.numeric)]</code> to drop the non-numeric column.</p>
+
+<p><strong>Example 2 flags list elements that contain a missing value.</strong> The <code>.x</code> placeholder refers to each element in turn, and <code>any()</code> collapses a vector of tests into one logical.</p>
+
+<div class="webr-container" data-block-title="Flag elements containing NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag elements containing NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nested &lt;- list(a = c(1, 2, NA), b = c(3, 4, 5), c = c(NA, 6))
+map_lgl(nested, ~ any(is.na(.x)))
+#&gt;     a     b     c
+#&gt;  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 3 extracts a logical field from a list of records.</strong> When <code>.f</code> is a string, <code>map_lgl()</code> plucks that named element from each item.</p>
+
+<div class="webr-container" data-block-title="Extract a logical field from nested records">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract a logical field from nested records</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+people &lt;- list(
+  list(name = &quot;Ada&quot;,   active = TRUE),
+  list(name = &quot;Linus&quot;, active = FALSE),
+  list(name = &quot;Grace&quot;, active = TRUE)
+)
+
+map_lgl(people, &quot;active&quot;)
+#&gt; [1]  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 finds the positions of passing elements.</strong> Wrapping <code>map_lgl()</code> in <code>which()</code> turns a logical vector into the indices you can subset with.</p>
+
+<div class="webr-container" data-block-title="Locate the positive numbers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Locate the positive numbers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+x &lt;- list(10, -3, 7, -1, 4)
+which(map_lgl(x, ~ .x &gt; 0))
+#&gt; [1] 1 3 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for the typed variant that matches your output.</strong> Use <code>map_lgl()</code> for TRUE/FALSE, <code>map_dbl()</code> for numbers, and <code>map_chr()</code> for strings. Typed variants fail fast on the wrong type, which catches bugs that a plain <code>map()</code> would silently pass downstream.</div></div>
+
+<h2>map_lgl() vs map() and the other variants</h2>
+
+<p><strong>The difference is the shape and type of what comes back.</strong> All variants iterate identically; they differ only in how results are combined.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map()</code></td>
+<td>A list</td>
+<td>Each result has a different type or length</td>
+</tr>
+<tr>
+<td><code>map_lgl()</code></td>
+<td>Logical vector</td>
+<td>Each result is one TRUE/FALSE</td>
+</tr>
+<tr>
+<td><code>map_dbl()</code></td>
+<td>Double vector</td>
+<td>Each result is one number</td>
+</tr>
+<tr>
+<td><code>map_chr()</code></td>
+<td>Character vector</td>
+<td>Each result is one string</td>
+</tr>
+<tr>
+<td><code>map2_lgl()</code></td>
+<td>Logical vector</td>
+<td>You iterate over two inputs in parallel</td>
+</tr>
+</tbody>
+</table>
+
+<p>The contrast with <code>map()</code> is clearest on the same input:</p>
+
+<div class="webr-container" data-block-title="map returns a list, map_lgl returns a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">map returns a list, map_lgl returns a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map(1:3, ~ .x &gt; 1)
+#&gt; [[1]]
+#&gt; [1] FALSE
+#&gt;
+#&gt; [[2]]
+#&gt; [1] TRUE
+#&gt;
+#&gt; [[3]]
+#&gt; [1] TRUE
+
+map_lgl(1:3, ~ .x &gt; 1)
+#&gt; [1] FALSE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Decision rule:</strong> if you know every result is a single logical, use <code>map_lgl()</code>. If results vary in length or type, use <code>map()</code> and post-process.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A logical vector is the natural input to subsetting and counting.</strong> Because <code>map_lgl()</code> returns a flat logical vector, you can drop it straight into <code>x[...]</code>, <code>which()</code>, or <code>sum()</code> to count how many elements passed. That last trick works because <code>TRUE</code> counts as 1 and <code>FALSE</code> as 0.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: the predicate returns more than one value.</strong> <code>map_lgl()</code> demands exactly one logical per element.</p>
+
+<div class="webr-container" data-block-title="Length error when output is not scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length error when output is not scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_lgl(list(1:2, 3:4), ~ .x &gt; 2)
+#&gt; Error in `map_lgl()`:
+#&gt; i In index: 1.
+#&gt; Caused by error:
+#&gt; ! Result must be length 1, not 2.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to collapse the result with <code>any()</code> or <code>all()</code>, as Example 2 does, or switch to <code>map()</code> if you genuinely need varying lengths.</p>
+
+<p><strong>Pitfall 2: the predicate returns a number instead of a logical.</strong> In purrr 1.0 and later, <code>map_lgl()</code> will not coerce a <code>0</code> or <code>1</code> into <code>FALSE</code> or <code>TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Type error when output is not logical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type error when output is not logical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_lgl(1:3, ~ .x)
+#&gt; Error in `map_lgl()`:
+#&gt; i In index: 1.
+#&gt; Caused by error:
+#&gt; ! Can't coerce from a number to a logical.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrap the body in an explicit comparison such as <code>~ .x &gt; 0</code> so the result is a real logical.</p>
+
+<p><strong>Pitfall 3: using <code>map_lgl()</code> when you want a single answer.</strong> If you only need to know whether all or any elements pass, <code>every()</code> and <code>some()</code> read better and stop early.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Watch for NA leaking into your logical vector.</strong> A predicate that returns <code>NA</code> (for example <code>~ mean(.x) &gt; 0</code> on data with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>) produces an <code>NA</code> in the output. That <code>NA</code> then breaks <code>if</code>, and <code>which()</code> silently ignores it. Guard with <code>na.rm = TRUE</code> or test explicitly.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_lgl()</code> to test which columns of <code>mtcars</code> contain only values greater than 0. Save the result to <code>ex_allpos</code>.</p>
+<div class="webr-container" data-block-title="Your turn: all-positive columns of mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: all-positive columns of mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: TRUE if every value in the column is &gt; 0
+ex_allpos &lt;- # your code here
+
+ex_allpos
+#&gt; Expected: vs and am are FALSE, every other column TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+ex_allpos &lt;- map_lgl(mtcars, ~ all(.x &gt; 0))
+ex_allpos
+#&gt;   mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars</code> is a list of columns, so <code>map_lgl()</code> calls <code>~ all(.x &gt; 0)</code> on each one. The <code>vs</code> and <code>am</code> columns contain <code>0</code> values, so <code>all(.x &gt; 0)</code> is <code>FALSE</code> for them and <code>TRUE</code> for every other column.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>These functions pair naturally with map_lgl() in everyday pipelines.</strong></p>
+
+<ul>
+
+<li><code>map()</code>: the untyped base case that returns a list when results vary.</li>
+
+<li><code>keep()</code> and <code>discard()</code>: filter a list by a predicate instead of testing it.</li>
+
+<li><code>every()</code> and <code>some()</code>: collapse a predicate over a whole list to one logical.</li>
+
+<li><code>map2_lgl()</code>: iterates over two inputs in parallel to build logicals.</li>
+
+<li><code>detect_index()</code>: returns the position of the first element that passes.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>map_lgl(x, f)</code> is equivalent to <code>vapply(x, f, logical(1))</code>. Both enforce a one-logical-per-element contract; purrr just adds formula shorthand and the <code>.default</code> argument for missing fields.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map and map_lgl in purrr?</strong></p>
+
+<p><code>map()</code> always returns a list, regardless of what the function produces. <code>map_lgl()</code> returns a flat logical vector and requires every result to be a single <code>TRUE</code>, <code>FALSE</code>, or <code>NA</code>. Use <code>map_lgl()</code> when you know the output is a yes/no test and want a vector you can use directly in subsetting or <code>which()</code>; use <code>map()</code> when results differ in type or length.</p>
+
+<p><strong>Why does map_lgl() throw a "Result must be length 1" error?</strong></p>
+
+<p>That error means the predicate returned a vector with more than one element for at least one item. <code>map_lgl()</code> can only combine length-one results into its output vector. The error reports the failing index. Collapse the result with <code>any()</code> or <code>all()</code>, or switch to <code>map()</code> if varying lengths are expected.</p>
+
+<p><strong>How is map_lgl() different from every() and some()?</strong></p>
+
+<p><code>map_lgl()</code> returns one logical per element, so a 10-element list gives a 10-element vector. <code>every()</code> and <code>some()</code> collapse the whole list to a single <code>TRUE</code> or <code>FALSE</code>. Use <code>map_lgl()</code> when you need the per-element results, for example to subset; use <code>every()</code> or <code>some()</code> when you only need the overall answer.</p>
+
+<p><strong>Does map_lgl() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong></p>
+
+<p>Yes, <code>NA</code> is a valid logical, so a predicate may return <code>NA</code> and <code>map_lgl()</code> will accept it. The risk is downstream: <code>NA</code> breaks <code>if</code> statements and is dropped by <code>which()</code>. If your predicate can produce <code>NA</code>, add <code>na.rm = TRUE</code> inside it or filter the result before using it in control flow.</p>
+
+<p><strong>What is the base R equivalent of map_lgl()?</strong></p>
+
+<p>The <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">closest match</a> is <code>vapply(x, f, logical(1))</code>, which also enforces a one-logical-per-element contract. <code>sapply(x, f)</code> returns a logical vector too, but only when every result happens to be a scalar logical, so it is less predictable. <code>map_lgl()</code> adds the formula shorthand <code>~ .x &gt; 0</code> and the <code>.default</code> argument for missing extracted fields.</p>
