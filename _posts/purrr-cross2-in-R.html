@@ -1,0 +1,322 @@
+---
+title: "purrr cross2() in R: All Pairs of Two Lists"
+description: "purrr cross2() in R builds every pair from two lists, the Cartesian product. Learn its syntax, the .filter argument, examples, and the expand_grid replacement."
+keywords: "purrr cross2, cross2 function R, purrr cross2 examples, R cross2 list combinations, cartesian product two lists R, cross two vectors R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cross2()|purrr cross2|purrr::cross2()|cross two lists|cross2 function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr cross2() in R: All Pairs of Two Lists</h1>
+
+<p class="lead">The purrr cross2() function pairs every element of one list with every element of another, returning the Cartesian product as a list of two-element lists. It is the fixed two-input member of the purrr cross family.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cross2(1:3, c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">             # all pairs of two vectors</span>
+cross2(x, y, .filter = `==`)<span class="qa-cmt">         # drop pairs where x equals y</span>
+length(cross2(1:3, 1:2))<span class="qa-cmt">             # count = length(x) * length(y)</span>
+map(cross2(x, y), \(p) p[[1]])<span class="qa-cmt">       # pull the first slot of each pair</span>
+cross2(x, y) |&gt; map(set_names, nm)<span class="qa-cmt">   # name the two slots</span>
+tidyr::expand_grid(a = x, b = y)<span class="qa-cmt">     # modern, non-deprecated replacement</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cross2() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">all pairs of exactly two vectors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cross2(x, y)</text><text x="125" y="126" class="branch-label">pairs of three or more inputs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cross3(x, y, z)</text><text x="125" y="182" class="branch-label">want a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame of pairs</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tidyr::expand_grid(a = x, b = y)</text><text x="125" y="238" class="branch-label">step two equal-length lists together</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map2(x, y, f)</text><text x="125" y="294" class="branch-label">combinations within one list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cross(list(a = x, b = x))</text><text x="125" y="350" class="branch-label">run a function over each pair</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">map(cross2(x, y), f)</text></svg></div>
+
+<h2>What cross2() does in purrr</h2>
+
+<p><strong>The cross2() function pairs every element of one list with every element of another.</strong> You pass it two vectors or lists, and it returns the Cartesian product: one entry for each possible pairing across the two inputs. Cross a vector of length two with a vector of length three and you get six pairs back. The result is a flat list, and each entry is itself a two-element list holding one value from each input.</p>
+
+<p>This two-input case is common enough to deserve its own helper. A grid search over learning rate and batch size needs every pairing of the two. A plotting routine that varies colour and shape needs all colour-shape combinations. The cross2 function turns two short vectors into the full grid, so you iterate over it once instead of writing a nested loop.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The cross family is deprecated since purrr 1.0.0, released in December 2022.</strong> The cross2 function still runs and returns correct results, but it prints a one-time lifecycle warning per session. For new code the tidyverse team recommends the expand_grid function from tidyr, covered below. This page still documents cross2 because many legacy scripts and older tutorials depend on it.</div></div>
+
+<h2>cross2() syntax and arguments</h2>
+
+<p><strong>The signature has two inputs and one optional filter.</strong> Unlike the variadic cross function, cross2 is fixed-arity: it always takes exactly two inputs.</p>
+
+<div class="webr-container" data-block-title="The cross2 function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The cross2 function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># cross2(.x, .y, .filter = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments work as follows:</p>
+
+<ul>
+
+<li><code>.x</code> is the first vector or list. Its values vary fastest in the output.</li>
+
+<li><code>.y</code> is the second vector or list.</li>
+
+<li><code>.filter</code> is an optional predicate of two arguments. Any pair for which it returns TRUE is dropped before the result is returned.</li>
+
+</ul>
+
+<p>The output length is always <code>length(.x)</code> times <code>length(.y)</code>, minus whatever the filter removes. Each output element is an unnamed list of two values, the first drawn from <code>.x</code> and the second from <code>.y</code>.</p>
+
+<h2>cross2() examples</h2>
+
+<p><strong>Start with two plain vectors to see the pairing order.</strong> The first input varies fastest, so the two red pairs come before the two blue pairs in the result.</p>
+
+<div class="webr-container" data-block-title="All pairs of two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All pairs of two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+pairs &lt;- cross2(c(&quot;S&quot;, &quot;L&quot;), c(&quot;red&quot;, &quot;blue&quot;))
+length(pairs)
+#&gt; [1] 4
+pairs[[1]]
+#&gt; [[1]]
+#&gt; [1] &quot;S&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;red&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each element is a two-slot list, with <code>pairs[[1]]</code> holding the small-and-red combination. To act on the pairs, pass the list to map and index the two slots by position.</p>
+
+<div class="webr-container" data-block-title="Apply a function over every pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply a function over every pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- cross2(c(10, 20), c(0.1, 0.5))
+map_chr(grid, \(p) sprintf(&quot;n=%g, rate=%g&quot;, p[[1]], p[[2]]))
+#&gt; [1] &quot;n=10, rate=0.1&quot; &quot;n=20, rate=0.1&quot; &quot;n=10, rate=0.5&quot; &quot;n=20, rate=0.5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.filter</code> argument trims the grid before it is returned. The predicate receives the two candidate values, and any pair it flags as TRUE is removed. A frequent use is dropping pairs whose values are equal.</p>
+
+<div class="webr-container" data-block-title="Drop matching pairs with a filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop matching pairs with a filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combos &lt;- cross2(1:3, 1:3, .filter = `==`)
+length(combos)
+#&gt; [1] 6
+combos[[1]]
+#&gt; [[1]]
+#&gt; [1] 2
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A full cross of the integers one to three with themselves has nine pairs. The equality predicate flags the three pairs with matching values, so six remain. The two slots of each pair are unnamed, which trips up downstream code, so set the names yourself when you need labelled slots.</p>
+
+<div class="webr-container" data-block-title="Name the two slots in each pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Name the two slots in each pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">named &lt;- cross2(c(10, 20), c(0.1, 0.5)) |&gt;
+  map(\(p) set_names(p, c(&quot;n&quot;, &quot;rate&quot;)))
+named[[2]]
+#&gt; $n
+#&gt; [1] 20
+#&gt;
+#&gt; $rate
+#&gt; [1] 0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>cross2() multiplies, while <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map2()</a> adds.</strong> The cross2 call returns <code>length(.x)</code> times <code>length(.y)</code> pairs, every possible combination. The map2 function instead walks two equal-length lists in lockstep and returns one result per position. Reach for cross2 when you want all pairings, and map2 when the two lists are already aligned one to one.</div></div>
+
+<h2>cross2() vs alternatives</h2>
+
+<p><strong>Three functions can do what cross2 does, and one of them is not deprecated.</strong> The table compares the realistic choices for pairing two inputs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Status</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cross2()</code></td>
+<td>list of 2-element lists</td>
+<td>Deprecated</td>
+<td>Legacy purrr code</td>
+</tr>
+<tr>
+<td><code>expand_grid()</code></td>
+<td>tibble, one column per input</td>
+<td>Active (tidyr)</td>
+<td>New tidyverse code</td>
+</tr>
+<tr>
+<td><code>expand.grid()</code></td>
+<td>data.frame</td>
+<td>Active (base R)</td>
+<td>Base-only scripts</td>
+</tr>
+</tbody>
+</table>
+
+<p>The expand_grid function is the modern replacement. It takes the inputs as named arguments and returns a tibble, so it slots directly into a tidyverse pipeline without a conversion step.</p>
+
+<div class="webr-container" data-block-title="The modern replacement expand_grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The modern replacement expand_grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+expand_grid(size = c(&quot;S&quot;, &quot;L&quot;), color = c(&quot;red&quot;, &quot;blue&quot;))
+#&gt; # A tibble: 4 x 2
+#&gt;   size  color
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 S     red
+#&gt; 2 S     blue
+#&gt; 3 L     red
+#&gt; 4 L     blue</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note the row order differs. The cross2 function varies its first input fastest, while expand_grid varies its last argument fastest. The set of pairs is identical in both cases; only the sequence changes. To run a function over the tibble, pass it to pmap.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes cause most cross2 trouble.</strong></p>
+
+<ul>
+
+<li><strong>Expecting named slots.</strong> The inner lists from cross2 are unnamed. Any code that indexes by name fails or returns NULL. Name the slots with set_names, or use <code>cross(list(a = .x, b = .y))</code> for named output.</li>
+
+<li><strong>Comparing row order with expand_grid.</strong> cross2 and expand_grid produce the same pairs in a different order. Never diff their outputs without sorting both first.</li>
+
+<li><strong>Ignoring the deprecation warning.</strong> cross2 prints a lifecycle warning the first time it runs in a session. It is a warning, not an error, but it clutters logs. Switching to expand_grid removes the noise.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>cross2() returns a list, not a data frame.</strong> A common error is feeding the cross2 result straight to a function that expects a rectangular table, such as ggplot or a dplyr verb. Convert the pairs first, or skip cross2 and use expand_grid, which returns a tibble directly.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use cross2() to build every pair from <code>c(1, 2, 3)</code> and <code>c(&quot;a&quot;, &quot;b&quot;)</code>, then confirm the count. Save the result to <code>ex_pairs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cross two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cross two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: all pairs of two vectors
+ex_pairs &lt;- # your code here
+
+length(ex_pairs)
+#&gt; Expected: 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pairs &lt;- cross2(c(1, 2, 3), c(&quot;a&quot;, &quot;b&quot;))
+length(ex_pairs)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> cross2 pairs each of the three numbers with each of the two letters, so the count is three times two, which equals six. Each element is a two-slot list holding one number and one letter.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions appear alongside cross2 in iteration code:</p>
+
+<ul>
+
+<li><code>cross()</code> crosses a list of any number of inputs, not just two.</li>
+
+<li><code>cross3()</code> is the three-input fixed-arity helper.</li>
+
+<li><code>map2()</code> walks two equal-length lists in parallel without crossing them.</li>
+
+<li><code>map()</code> applies a function to each element of one list, the natural partner for iterating over cross2 output.</li>
+
+<li><code>transpose()</code> flips a list of lists, turning per-pair records into per-slot vectors.</li>
+
+</ul>
+
+<p>For the wider picture of list iteration in R, see the <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide. The official function reference lives at <a href="https://purrr.tidyverse.org/reference/cross.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is purrr cross2() deprecated?</strong></p>
+
+<p>Yes. The cross2 function, along with cross, cross3, and cross_df, was deprecated in purrr 1.0.0, released in December 2022. It still works and returns correct results, but it emits a lifecycle warning the first time it runs in a session. The tidyverse team recommends the expand_grid function from tidyr for all new code.</p>
+
+<p><strong>What is the difference between cross2() and cross()?</strong></p>
+
+<p>Both build a Cartesian product. The cross2 function is fixed-arity: it always takes exactly two inputs and returns a list of two-element lists. The cross function is variadic: it takes a single list of any number of inputs and, when that list is named, returns named inner lists. Use cross2 for the common two-input case and cross when the number of inputs varies.</p>
+
+<p><strong>What is the difference between cross2() and map2()?</strong></p>
+
+<p>The cross2 function returns every possible pairing of its two inputs, so the output length is the product of the two input lengths. The map2 function steps two equal-length inputs together one position at a time and returns one result per position. In short, cross2 builds a grid while map2 performs a parallel walk.</p>
+
+<p><strong>How do I run a function over every pair from cross2()?</strong></p>
+
+<p>Pass the cross2 result to map, and index the two slots inside the function with <code>[[1]]</code> and <code>[[2]]</code>. Each element of the cross2 output is a two-element list, so a lambda like <code>\(p) f(p[[1]], p[[2]])</code> applies your function to both values of every pair.</p>
+
+<p><strong>Why are the inner lists from cross2() unnamed?</strong></p>
+
+<p>The cross2 function takes its inputs as positional arguments, <code>.x</code> and <code>.y</code>, so it has no names to carry through. If you need labelled slots, call set_names on each element, or switch to <code>cross(list(a = .x, b = .y))</code>, which propagates the list names into every combination.</p>
+
+{% endraw %}
