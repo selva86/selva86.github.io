@@ -1,0 +1,309 @@
+---
+title: "readxl cell_cols() in R: Read Specific Excel Columns"
+description: "Use readxl cell_cols() in R to read a chosen range of columns from an Excel sheet. Covers the syntax, four worked examples, common pitfalls, and an FAQ."
+keywords: "readxl cell_cols, cell_cols function R, readxl cell_cols examples, read specific columns Excel R, read_excel range columns, import Excel columns R, readxl select columns"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cell_cols()|readxl cell_cols|readxl::cell_cols()|read specific columns from Excel|read a range of columns"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readxl cell_cols() in R: Read Specific Excel Columns</h1>
+
+<p class="lead">The readxl cell_cols() function limits <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel()</a> to a chosen range of columns in an Excel sheet, so you import only the columns you need and leave the rest of the sheet behind.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cell_cols(2:4)<span class="qa-cmt">                                   # columns 2 through 4</span>
+cell_cols(c(2, 4))<span class="qa-cmt">                               # same band, two-element form</span>
+cell_cols(c(&quot;B&quot;, &quot;D&quot;))<span class="qa-cmt">                           # by Excel column letters</span>
+cell_cols(c(NA, 4))<span class="qa-cmt">                              # from column 1 down to 4</span>
+cell_cols(c(3, NA))<span class="qa-cmt">                              # from column 3 to the last</span>
+read_excel(path, range = cell_cols(c(2, 4)))<span class="qa-cmt">     # use it inside read_excel</span>
+read_excel(path, range = cell_cols(2:4), col_names = FALSE)<span class="qa-cmt">  # no header row</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cell_cols() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">limit reading to a column band</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cell_cols(c(2, 4))</text><text x="125" y="126" class="branch-label">limit to a row band instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cell_rows(c(5, 15))</text><text x="125" y="182" class="branch-label">limit both <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a></text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cell_limits(c(2, 1), c(10, 4))</text><text x="125" y="238" class="branch-label">drop a few columns after import</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">select(df, -bad_col)</text><text x="125" y="294" class="branch-label">read a fixed-size block from a cell</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">anchored(&quot;B3&quot;, dim = c(10, 4))</text><text x="125" y="350" class="branch-label">use a literal Excel address</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_excel(path, range = &quot;A1:D20&quot;)</text></svg></div>
+
+<h2>What cell_cols() does</h2>
+
+<p><strong>cell_cols() is a column-range selector for Excel imports.</strong> You pass it a vector of column numbers or letters, and it builds a range object that tells <code>read_excel()</code> to read those columns and leave every row unbounded. It comes from the cellranger package and is re-exported by readxl, so loading readxl is enough to use it.</p>
+
+<p>The function reads the smallest and largest value in the vector and treats them as the first and last column of a contiguous band. It never selects scattered columns. Its job is to draw a vertical slice through the sheet so that unrelated columns to the left or right never reach your tibble.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>cell_cols() bounds columns and nothing else.</strong> Every row of the sheet is still read, top to bottom. If you need to cut rows as well, that is a job for <code>cell_rows()</code> or <code>cell_limits()</code>, not cell_cols().</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>cell_cols() takes one argument and returns a range object, not data.</strong> You hand the result to the <code>range</code> argument of <code>read_excel()</code>, which then performs the actual import.</p>
+
+<div class="webr-container" data-block-title="The cell_cols signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The cell_cols signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cell_cols(x)
+# x: a vector naming the column(s) to read.
+#    cell_cols uses only min(x) and max(x).
+#    Numeric form:  cell_cols(2:4)
+#    Letter form:   cell_cols(c(&quot;B&quot;, &quot;D&quot;))
+#    Open-ended:    cell_cols(c(NA, 4)) or cell_cols(c(3, NA))
+
+read_excel(path, sheet = NULL, range = cell_cols(...), col_names = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The useful shapes of <code>x</code> are a two-element numeric vector like <code>c(2, 4)</code>, an integer sequence like <code>2:4</code>, a pair of column letters like <code>c(&quot;B&quot;, &quot;D&quot;)</code>, and a half-open form like <code>c(NA, 4)</code> or <code>c(3, NA)</code>. The first row of the sheet still becomes the column header unless you set <code>col_names = FALSE</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>cell_cols() pairs with its siblings.</strong> Use <code>cell_rows()</code> to bound rows, <code>cell_limits()</code> to bound rows and columns together, and <code>anchored()</code> to read a fixed-size block from a starting cell. All four produce the same kind of range object.</div></div>
+
+<h2>cell_cols() examples</h2>
+
+<p><strong>Every example below uses a workbook that ships with readxl.</strong> So you can run them without your own file. <code>readxl_example()</code> returns the path to a bundled sheet, and the <code>iris</code> sheet inside <code>datasets.xlsx</code> has five clean columns starting at cell A1.</p>
+
+<h3>Example 1: Read the first few columns</h3>
+
+<p><strong>The simplest use is keeping the leftmost columns and dropping the rest.</strong> The iris sheet has five columns; <code>cell_cols(1:3)</code> reads the first three and ignores Petal.Width and Species.</p>
+
+<div class="webr-container" data-block-title="Read the first three columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the first three columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+
+datasets &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(1:3))
+#&gt; # A tibble: 150 x 3
+#&gt;    Sepal.Length Sepal.Width Petal.Length
+#&gt;           &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;
+#&gt;  1          5.1         3.5          1.4
+#&gt;  2          4.9         3            1.4
+#&gt;  3          4.7         3.2          1.3
+#&gt;  # ... 147 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All 150 rows are kept, but the tibble is now three columns wide instead of five.</p>
+
+<h3>Example 2: Select columns by Excel letter</h3>
+
+<p><strong>You can name columns the way Excel labels them, with letters.</strong> Pass the letters as a two-element character vector and cell_cols() converts them to numbers for you.</p>
+
+<div class="webr-container" data-block-title="Select columns by Excel letter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select columns by Excel letter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(c(&quot;B&quot;, &quot;D&quot;)))
+#&gt; # A tibble: 150 x 3
+#&gt;    Sepal.Width Petal.Length Petal.Width
+#&gt;          &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt;
+#&gt;  1         3.5          1.4         0.2
+#&gt;  2         3            1.4         0.2
+#&gt;  3         3.2          1.3         0.2
+#&gt;  # ... 147 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Column B is the second column and column D is the fourth, so the band spans columns 2, 3, and 4.</p>
+
+<h3>Example 3: Read an open-ended column range</h3>
+
+<p><strong>Use NA on one side to leave that edge of the band open.</strong> <code>cell_cols(c(3, NA))</code> starts at column 3 and reads every column to the right, however many there are.</p>
+
+<div class="webr-container" data-block-title="Read from a column to the last">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read from a column to the last</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(c(3, NA)))
+#&gt; # A tibble: 150 x 3
+#&gt;    Petal.Length Petal.Width Species
+#&gt;           &lt;dbl&gt;       &lt;dbl&gt; &lt;chr&gt;
+#&gt;  1          1.4         0.2 setosa
+#&gt;  2          1.4         0.2 setosa
+#&gt;  3          1.3         0.2 setosa
+#&gt;  # ... 147 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The band runs from column 3 to the last populated column, which here is Species.</p>
+
+<h3>Example 4: The sequence form equals the pair form</h3>
+
+<p><strong><code>cell_cols(2:4)</code> and <code>cell_cols(c(2, 4))</code> build the same range</strong> because only the minimum and maximum of the vector matter. The row count never changes, because cell_cols() leaves rows untouched.</p>
+
+<div class="webr-container" data-block-title="Sequence and pair are equal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sequence and pair are equal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">narrow &lt;- read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(c(2, 4)))
+dim(narrow)
+#&gt; [1] 150   3
+
+identical(cell_cols(2:4), cell_cols(c(2, 4)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use whichever form reads more clearly; the resulting range object is identical.</p>
+
+<h2>cell_cols() vs cell_rows, select and string ranges</h2>
+
+<p><strong>cell_cols() is one of several ways to control which columns reach your tibble.</strong> Each option fits a different situation, summarized below.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it selects</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range = cell_cols(c(2, 4))</code></td>
+<td>a column band, all rows</td>
+<td>columns sit in a known, contiguous range</td>
+</tr>
+<tr>
+<td><code>range = cell_rows(c(5, 15))</code></td>
+<td>a row band, all columns</td>
+<td>the messy part is rows, not columns</td>
+</tr>
+<tr>
+<td><code>read_excel(path)</code> then <code>select()</code></td>
+<td>any columns, after import</td>
+<td>columns are scattered or chosen by name</td>
+</tr>
+<tr>
+<td><code>range = &quot;B1:D87&quot;</code></td>
+<td>exact rows and columns</td>
+<td>you know the full Excel address</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The decision rule is straightforward.</strong> Reach for <code>cell_cols()</code> when the columns you want sit side by side and you know their positions. Use <code>cell_rows()</code> when only rows need trimming, <code>dplyr::select()</code> when you want columns by name or in a custom order, and a string range when junk surrounds the data on every side.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The cell_cols() equivalent is the <code>usecols</code> argument: <code>pd.read_excel(path, usecols=&quot;B:D&quot;)</code> reads the same column band. pandas accepts the colon string directly, but readxl does not, as the next section explains.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>cell_cols() does not accept a colon range string.</strong> Writing <code>cell_cols(&quot;B:D&quot;)</code> looks natural but fails, because cell_cols() reads a single column letter per element, not an Excel range. Pass the endpoints as a two-element vector instead: <code>cell_cols(c(&quot;B&quot;, &quot;D&quot;))</code> or the numeric <code>cell_cols(2:4)</code>.</p>
+
+<p><strong>cell_cols() leaves rows unbounded, so junk above the data is still read.</strong> If a sheet has title rows on top, <code>cell_cols()</code> happily reads them because it never touches the row axis. When a sheet has both messy rows and unwanted columns, reach for <code>cell_limits()</code>, which bounds both axes at once.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>range overrides skip and n_max without a warning.</strong> When you pass <code>range</code>, readxl ignores <code>skip</code> and <code>n_max</code> entirely. Pairing <code>cell_cols()</code> with <code>skip</code> looks reasonable but the <code>skip</code> silently does nothing, so trim rows through <code>cell_limits()</code> instead.</div></div>
+
+<p><strong>cell_cols() cannot pick scattered columns.</strong> A vector like <code>c(1, 3, 8)</code> does not read three columns; it reads the whole band from 1 to 8. cell_cols() is a slice, not a picker. To keep specific non-adjacent columns, import the band and then choose columns with <code>dplyr::select()</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read columns 1 through 4 of the <code>iris</code> sheet in <code>datasets.xlsx</code>. You should get a tibble that is four columns wide and still 150 rows tall. Save the result to <code>ex_iris</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read a column band">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read a column band</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read columns 1 to 4 of the iris sheet
+library(readxl)
+datasets &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+
+ex_iris &lt;- # your code here
+
+ncol(ex_iris)
+#&gt; Expected: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+datasets &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+ex_iris &lt;- read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(1:4))
+ncol(ex_iris)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The band 1:4 spans the four numeric columns and drops Species, the fifth column. Because cell_cols() never bounds rows, all 150 rows survive.</p>
+
+</details>
+</section>
+
+<h2>Related readxl functions</h2>
+
+<p><strong>cell_cols() is one member of a small family of range helpers.</strong> These functions all build range objects for the <code>range</code> argument of <code>read_excel()</code>.</p>
+
+<ul>
+
+<li><code>cell_rows()</code>: bounds the row range and leaves columns open.</li>
+
+<li><code>cell_limits()</code>: bounds rows and columns at once for a rectangular block.</li>
+
+<li><code>anchored()</code>: reads a fixed-size block starting from one anchor cell.</li>
+
+<li><code>read_excel()</code>: the import function that consumes the range object.</li>
+
+<li><code>excel_sheets()</code>: lists sheet names so you know which sheet to target.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Can cell_cols() read non-consecutive columns?</strong></p>
+
+<p>No. cell_cols() looks only at the smallest and largest value you give it and reads every column in between. Passing <code>c(1, 3, 8)</code> reads columns 1 through 8, not just those three. To keep scattered columns, import the full band first, then subset the resulting tibble with <code>dplyr::select()</code> or by name.</p>
+
+<p><strong>Does cell_cols() accept Excel column letters?</strong></p>
+
+<p>Yes, but as separate elements, not a colon range. Use <code>cell_cols(c(&quot;B&quot;, &quot;D&quot;))</code> to read columns B through D. The single string <code>cell_cols(&quot;B:D&quot;)</code> fails because cell_cols() expects one column letter per vector element. Numeric positions like <code>cell_cols(2:4)</code> work the same way and avoid letter parsing entirely.</p>
+
+<p><strong>Does cell_cols() also limit which rows are read?</strong></p>
+
+<p>No. cell_cols() bounds only the column axis; every row of the sheet is still read. To bound rows as well, use <code>cell_rows()</code> for a row band or <code>cell_limits()</code> to set both the row and column edges in a single rectangular range.</p>
+
+<p><strong>Can I use cell_cols() with read_xlsx() and read_xls()?</strong></p>
+
+<p>Yes. <code>read_xlsx()</code> and <code>read_xls()</code> accept the same <code>range</code> argument as <code>read_excel()</code>, so <code>cell_cols()</code> works with all three. <code>read_excel()</code> simply detects the file type for you, so most code can call it and pass the cell_cols() range directly.</p>
+
+<p>For broader coverage of spreadsheet and file import, see the <a href="https://readxl.tidyverse.org/reference/cell-specification.html">official readxl reference</a>.</p>
