@@ -1,0 +1,321 @@
+---
+title: "forcats fct_drop() in R: Drop Unused Factor Levels"
+description: "Learn forcats fct_drop() in R to drop unused factor levels after subsetting. See examples, the only argument, the droplevels difference, and common pitfalls."
+keywords: "forcats fct_drop, fct_drop function R, forcats fct_drop examples, drop unused factor levels R, remove unused levels R, fct_drop vs droplevels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fct_drop()|forcats fct_drop|forcats::fct_drop()|drop unused factor levels|fct_drop|remove unused levels"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>forcats fct_drop() in R: Drop Unused Factor Levels</h1>
+
+<p class="lead">The <code>fct_drop()</code> function in forcats drops unused levels from a factor. It removes any level that has zero observations, so the level table matches the data that is actually present.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fct_drop(f)<span class="qa-cmt">                          # drop every unused level</span>
+fct_drop(df$grp)<span class="qa-cmt">                     # drop on a data frame column</span>
+fct_drop(f, only = &quot;b&quot;)<span class="qa-cmt">              # drop only the level &quot;b&quot;</span>
+fct_drop(f, only = c(&quot;b&quot;, &quot;c&quot;))<span class="qa-cmt">      # drop a chosen set</span>
+fct_drop(f[f != &quot;b&quot;])<span class="qa-cmt">                # drop after subsetting a factor</span>
+levels(fct_drop(f))<span class="qa-cmt">                  # inspect the kept levels</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fct_drop() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop levels with zero rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fct_drop(f)</text><text x="125" y="126" class="branch-label">add new empty levels instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fct_expand(f, &quot;new&quot;)</text><text x="125" y="182" class="branch-label">merge rare levels into one</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fct_lump(f, n = 3)</text><text x="125" y="238" class="branch-label">rename a level label</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fct_recode(f, new = &quot;old&quot;)</text><text x="125" y="294" class="branch-label">reorder the kept levels</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">fct_relevel</a>(f, &quot;a&quot;)</text><text x="125" y="350" class="branch-label">collapse several levels into one</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fct_collapse(f, big = c(&quot;a&quot;, &quot;b&quot;))</text></svg></div>
+
+<h2>What fct_drop() does</h2>
+
+<p><strong><code>fct_drop()</code> removes factor levels that no observation uses.</strong> A factor stores its categories as a fixed table of levels. That table does not shrink on its own. When you subset a vector or filter a data frame, rows disappear but every original level stays behind, even if nothing in the data points to it anymore.</p>
+
+<p>Those leftover levels are called unused or orphan levels. They are harmless to the stored values but they leak into output. An unused level still shows up as an empty bar in a chart, a zero-count row in <code>table()</code>, and an extra coefficient slot in a model. <code>fct_drop()</code> is the forcats tool that clears them.</p>
+
+<p>By default the function drops every unused level in one call. The optional <code>only</code> argument narrows that down to a named set, which is useful when you want to keep a deliberate placeholder level while removing the rest.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Subsetting trims data, not levels.</strong> A factor is a pair: integer codes per observation and a lookup table of labels. Filtering rows changes the codes but never the table. <code>fct_drop()</code> is the step that re-syncs the table to the codes, which is why it almost always follows a filter or a subset.</div></div>
+
+<h2>fct_drop() syntax</h2>
+
+<p><strong><code>fct_drop()</code> takes the factor to clean plus an optional <code>only</code> argument.</strong> The full signature is short:</p>
+
+<pre><code>fct_drop(f, only)</code></pre>
+
+<ul>
+
+<li><code>f</code> is a factor. A character vector is accepted and coerced to a factor first.</li>
+
+<li><code>only</code> is an optional character vector. When supplied, only the levels you name are considered for dropping, and any of those that are unused get removed. Levels not named are always kept, used or not.</li>
+
+</ul>
+
+<p>When <code>only</code> is omitted, <code>fct_drop()</code> drops all unused levels. The code below builds a factor whose level table is wider than its data.</p>
+
+<div class="webr-container" data-block-title="Load forcats and build a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load forcats and build a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forcats)
+
+sizes &lt;- factor(c(&quot;S&quot;, &quot;M&quot;, &quot;S&quot;, &quot;M&quot;), levels = c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;))
+levels(sizes)
+#&gt; [1] &quot;S&quot; &quot;M&quot; &quot;L&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The level <code>L</code> exists in the table but no observation uses it. That is the unused level the examples below remove.</p>
+
+<h2>fct_drop() examples</h2>
+
+<p><strong>Each example removes one or more unused levels and prints the kept set.</strong> <code>fct_drop()</code> returns a new factor, so assign the result to keep it.</p>
+
+<h3>1. Drop every unused level</h3>
+
+<p>Pass the factor straight to <code>fct_drop()</code>. Every level with zero observations is removed.</p>
+
+<div class="webr-container" data-block-title="Drop all unused factor levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop all unused factor levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sizes_dropped &lt;- fct_drop(sizes)
+levels(sizes_dropped)
+#&gt; [1] &quot;S&quot; &quot;M&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The orphan level <code>L</code> is gone and the data values in <code>sizes</code> are untouched. The level table now lists only categories that the data actually contains.</p>
+
+<h3>2. Drop unused levels after subsetting</h3>
+
+<p>The most common real use is cleaning a factor column after filtering rows. Subsetting keeps every original level, so call <code>fct_drop()</code> to catch up.</p>
+
+<div class="webr-container" data-block-title="Drop unused levels after subsetting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop unused levels after subsetting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(grade = factor(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;A&quot;, &quot;B&quot;)))
+sub &lt;- df[df$grade != &quot;C&quot;, ]
+levels(sub$grade)
+#&gt; [1] &quot;A&quot; &quot;B&quot; &quot;C&quot;
+
+sub$grade &lt;- fct_drop(sub$grade)
+levels(sub$grade)
+#&gt; [1] &quot;A&quot; &quot;B&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After the filter, no row holds grade <code>C</code>, yet the level survived until <code>fct_drop()</code> removed it. Assigning the result back to <code>sub$grade</code> updates the column in place.</p>
+
+<h3>3. Drop only a chosen level</h3>
+
+<p>The <code>only</code> argument restricts which unused levels are eligible. Here two levels are unused but just one is named.</p>
+
+<div class="webr-container" data-block-title="Drop only a chosen level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop only a chosen level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f &lt;- factor(c(&quot;a&quot;, &quot;b&quot;), levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;))
+levels(fct_drop(f, only = &quot;c&quot;))
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;d&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>c</code> and <code>d</code> are unused, but <code>only = &quot;c&quot;</code> limits the drop to <code>c</code>. The level <code>d</code> is kept as a deliberate placeholder.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>only</code> to keep a known-future level.</strong> If a category has no rows yet but you expect it soon, naming the other orphans in <code>only</code> clears the clutter while preserving the placeholder. This keeps chart axes and factor tables stable across data refreshes.</div></div>
+
+<h3>4. fct_drop() is a safe no-op when all levels are used</h3>
+
+<p>When every level already has data, <code>fct_drop()</code> returns the factor unchanged.</p>
+
+<div class="webr-container" data-block-title="No unused levels means no change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">No unused levels means no change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">full &lt;- factor(c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;))
+identical(levels(fct_drop(full)), levels(full))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This makes the call safe to run defensively in a pipeline. It never errors and never removes a level that the data still needs.</p>
+
+<h2>fct_drop() vs droplevels()</h2>
+
+<p><strong><code>fct_drop()</code> cleans one factor; base R <code>droplevels()</code> also cleans a whole data frame.</strong> The two solve the same problem from different angles. <code>droplevels()</code> is built into base R and accepts a data frame, dropping unused levels from every factor column at once.</p>
+
+<div class="webr-container" data-block-title="droplevels handles a whole data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">droplevels handles a whole data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df2 &lt;- data.frame(
+  grade = factor(c(&quot;A&quot;, &quot;B&quot;), levels = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;)),
+  size  = factor(c(&quot;S&quot;, &quot;M&quot;), levels = c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;))
+)
+df2 &lt;- droplevels(df2)
+levels(df2$grade)
+#&gt; [1] &quot;A&quot; &quot;B&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table below sums up when to reach for each.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Works on</th>
+<th>Restricting argument</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fct_drop()</code></td>
+<td>a single factor</td>
+<td><code>only</code> keeps a named set</td>
+<td>you clean one factor and want forcats consistency</td>
+</tr>
+<tr>
+<td><code>droplevels()</code></td>
+<td>a factor or a data frame</td>
+<td><code>exclude</code> protects named levels</td>
+<td>you clean every factor column at once</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. For one factor inside a forcats or dplyr pipeline, use <code>fct_drop()</code>. To sweep an entire data frame in one call, use <code>droplevels()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>fct_drop()</code> is <code>series.cat.remove_unused_categories()</code>, which drops categories with no observations from a categorical column.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: expecting subsetting to drop levels.</strong> Indexing a factor with <code>f[f != &quot;b&quot;]</code> or filtering a data frame removes rows but keeps the full level table. The unused level lingers until you call <code>fct_drop()</code>, so a stray empty bar or zero-count row is almost always a missing drop step.</p>
+
+<p><strong>Pitfall 2: forgetting to assign the result.</strong> <code>fct_drop()</code> returns a new factor and never edits the original in place. Call it without assigning the output and the cleaned factor is discarded.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>only</code> never drops a level that is in use.</strong> The <code>only</code> argument restricts which levels are eligible for dropping, but <code>fct_drop()</code> still removes a named level only when it is unused. Naming a level that has observations does nothing, so <code>only</code> cannot delete real categories by mistake.</div></div>
+
+<p><strong>Pitfall 3: confusing dropping with collapsing.</strong> <code>fct_drop()</code> removes empty levels only. To merge several small levels into one bucket, use <code>fct_lump()</code> or <code>fct_collapse()</code> instead.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> The <code>ex_team</code> factor was built with four levels but only three appear in the data. Drop the unused level and save the result to <code>ex_clean</code>.</p>
+<div class="webr-container" data-block-title="Your turn: drop the unused level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop the unused level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_team &lt;- factor(c(&quot;Red&quot;, &quot;Blue&quot;, &quot;Green&quot;, &quot;Red&quot;),
+                  levels = c(&quot;Red&quot;, &quot;Blue&quot;, &quot;Green&quot;, &quot;Gold&quot;))
+levels(ex_team)
+#&gt; [1] &quot;Red&quot;   &quot;Blue&quot;  &quot;Green&quot; &quot;Gold&quot;
+
+# Drop the unused level
+ex_clean &lt;- # your code here
+
+levels(ex_clean)
+#&gt; Expected: &quot;Red&quot; &quot;Blue&quot; &quot;Green&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_clean &lt;- fct_drop(ex_team)
+levels(ex_clean)
+#&gt; [1] &quot;Red&quot;   &quot;Blue&quot;  &quot;Green&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fct_drop()</code> scans the level table for entries with zero observations. The level <code>Gold</code> has no rows, so it is removed, while the three used levels and every data value stay intact.</p>
+
+</details>
+</section>
+
+<h2>Related forcats functions</h2>
+
+<p>After <code>fct_drop()</code>, these forcats functions cover the rest of factor-level work:</p>
+
+<ul>
+
+<li><code>fct_expand()</code>: add new empty levels to a factor, the inverse of dropping.</li>
+
+<li><code>fct_lump()</code>: merge infrequent levels into a single <code>Other</code> category.</li>
+
+<li><code>fct_collapse()</code>: combine named levels into broader groups by hand.</li>
+
+<li><code>fct_recode()</code>: rename level labels without changing their order.</li>
+
+<li><code>fct_relevel()</code>: set the order of the levels that remain.</li>
+
+</ul>
+
+<p>For the full argument reference, see the forcats documentation at <a href="https://forcats.tidyverse.org/reference/fct_drop.html">forcats.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does fct_drop do in R?</strong></p>
+
+<p><code>fct_drop()</code> removes unused levels from a factor. An unused level is one that exists in the factor's level table but has no observations pointing to it. You pass a factor and get back a new factor whose level table lists only categories present in the data. The stored values are not changed, only the lookup table is trimmed.</p>
+
+<p><strong>Why does my factor still show levels with no data?</strong></p>
+
+<p>Factors keep a fixed level table. When you subset a vector or filter a data frame, the rows are removed but the level table is left intact, so levels with zero rows remain. This is by design, since R cannot know whether the missing category is gone permanently or just absent from this slice. Call <code>fct_drop()</code> to remove those orphan levels once you are sure.</p>
+
+<p><strong>What is the difference between fct_drop and droplevels?</strong></p>
+
+<p>Both drop unused levels. <code>droplevels()</code> is base R and accepts either a single factor or a whole data frame, cleaning every factor column in one call. <code>fct_drop()</code> is from forcats, works on one factor, and offers the <code>only</code> argument to restrict which levels are eligible. Use <code>fct_drop()</code> inside a forcats pipeline and <code>droplevels()</code> to sweep a full data frame.</p>
+
+<p><strong>Can fct_drop keep some unused levels?</strong></p>
+
+<p>Yes. Pass the <code>only</code> argument a character vector naming the levels you want to consider. <code>fct_drop()</code> will drop only those named levels when they are unused and leave every other level alone. This is useful for keeping a deliberate placeholder category that has no rows yet.</p>
+
+<p><strong>Does fct_drop change my data values?</strong></p>
+
+<p>No. <code>fct_drop()</code> only edits the level table and remaps the integer codes to match the smaller table. Every observation keeps its original category, so counts, means, and other computed results are identical before and after. This makes it safe to run right before plotting or modeling.</p>
