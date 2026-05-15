@@ -1,0 +1,356 @@
+---
+title: "forcats fct_lump_prop() in R: Lump Rare Factor Levels"
+description: "Learn forcats fct_lump_prop() in R to lump factor levels below a proportion into Other, with examples for negative prop, weighted shares, and pitfalls."
+keywords: "forcats fct_lump_prop, fct_lump_prop function R, forcats fct_lump_prop examples, lump factor levels by proportion R, fct_lump_prop vs fct_lump_n, collapse rare factor levels R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fct_lump_prop()|forcats fct_lump_prop|forcats::fct_lump_prop()|lump factor levels by proportion|lump rare factor levels"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>forcats fct_lump_prop() in R: Lump Rare Factor Levels</h1>
+
+<p class="lead">The forcats fct_lump_prop() function lumps factor levels in R that appear below a proportion threshold into a single "Other" category, so the cutoff scales with your data instead of being a fixed count.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fct_lump_prop(x, prop = 0.1)<span class="qa-cmt">                       # keep levels above 10% of rows</span>
+fct_lump_prop(x, prop = 0.05)<span class="qa-cmt">                      # stricter 5% threshold</span>
+fct_lump_prop(x, prop = -0.1)<span class="qa-cmt">                      # keep the rare tail instead</span>
+fct_lump_prop(x, prop = 0.1, w = wt)<span class="qa-cmt">               # rank levels by a weighted share</span>
+fct_lump_prop(x, prop = 0.1, other_level = &quot;Misc&quot;)<span class="qa-cmt"> # rename the catch-all bucket</span>
+fct_count(fct_lump_prop(x, prop = 0.1))<span class="qa-cmt">            # tally the lumped result</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fct_lump_prop() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">keep levels above a frequency share</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fct_lump_prop(x, prop = 0.1)</text><text x="125" y="126" class="branch-label">keep a fixed number of levels</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fct_lump_n(x, n = 5)</text><text x="125" y="182" class="branch-label">keep levels seen at least k times</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fct_lump_min(x, min = 10)</text><text x="125" y="238" class="branch-label">keep named levels by hand</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fct_other(x, keep = c(&quot;a&quot;, &quot;b&quot;))</text><text x="125" y="294" class="branch-label">merge levels into named groups</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fct_collapse(x, big = c(&quot;a&quot;, &quot;b&quot;))</text><text x="125" y="350" class="branch-label">order levels by frequency</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fct_infreq(x)</text></svg></div>
+
+<h2>What fct_lump_prop() does in one sentence</h2>
+
+<p><strong>fct_lump_prop() collapses factor levels by their share of the data, not by a raw count.</strong> It comes from the forcats package in the tidyverse. You pass a factor and a proportion <code>prop</code>, and the function keeps every level that appears more often than <code>prop</code> of the time while merging the rest into one labelled bucket. Because the threshold is a fraction, the same <code>prop = 0.05</code> rule means "below 5 percent" whether the factor has 100 rows or 100,000.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>fct_lump_prop() takes a factor and a proportion cutoff.</strong> The signature has just four arguments:</p>
+
+<div class="webr-container" data-block-title="The fct_lump_prop signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fct_lump_prop signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fct_lump_prop(f, prop, w = NULL, other_level = &quot;Other&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments are:</p>
+
+<ul>
+
+<li><code>f</code>: a factor, or any vector that can be coerced to one (character, numeric, or logical).</li>
+
+<li><code>prop</code>: the proportion threshold, a number between -1 and 1. A positive <code>prop</code> keeps levels that appear <em>more</em> than <code>prop</code> of the time; a negative <code>prop</code> keeps levels that appear <em>less</em> than <code>-prop</code> of the time.</li>
+
+<li><code>w</code>: an optional numeric weight vector, one value per observation. Each level's share is then its summed weight divided by the total weight, instead of a plain row proportion.</li>
+
+<li><code>other_level</code>: the name of the catch-all level. Defaults to <code>&quot;Other&quot;</code>.</li>
+
+</ul>
+
+<p>fct_lump_prop() never drops rows. It only rewrites the <code>levels</code> attribute, so the result has the same length as the input and slots straight into a pipeline.</p>
+
+<h2>fct_lump_prop() examples</h2>
+
+<p><strong>Example 1 lumps every religion below 10 percent of survey responses.</strong> The <code>relig</code> column of <code>gss_cat</code>, a dataset bundled with forcats, has 15 religion levels with a long tail.</p>
+
+<div class="webr-container" data-block-title="Lump religions below 10 percent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lump religions below 10 percent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forcats)
+library(dplyr)
+
+gss_cat |&gt;
+  mutate(big_relig = fct_lump_prop(relig, prop = 0.10)) |&gt;
+  count(big_relig, sort = TRUE)
+#&gt; # A tibble: 4 x 2
+#&gt;   big_relig      n
+#&gt;   &lt;fct&gt;      &lt;int&gt;
+#&gt; 1 Protestant 10846
+#&gt; 2 Catholic    5124
+#&gt; 3 None        3523
+#&gt; 4 Other       1990</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only three religions clear the 10 percent line; the remaining twelve levels collapse into a single <code>Other</code> level holding 1,990 rows.</p>
+
+<p><strong>Example 2 shows that <code>prop</code> judges share, not raw count.</strong> A level with the exact same number of rows can survive in a small factor and get lumped in a large one.</p>
+
+<div class="webr-container" data-block-title="The cutoff is a share, not a count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The cutoff is a share, not a count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rare_in_small &lt;- rep(c(&quot;common&quot;, &quot;rare&quot;), times = c(10, 5))
+rare_in_big   &lt;- rep(c(&quot;common&quot;, &quot;rare&quot;), times = c(200, 5))
+
+table(fct_lump_prop(rare_in_small, prop = 0.10))
+#&gt;
+#&gt; common   rare
+#&gt;     10      5
+table(fct_lump_prop(rare_in_big, prop = 0.10))
+#&gt;
+#&gt; common  Other
+#&gt;    200      5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&quot;rare&quot;</code> level has 5 rows in both factors. In the small factor that is 33 percent and survives; in the big factor it is 2.4 percent and gets lumped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fct_lump_prop() answers a threshold question, not a count question.</strong> When the business rule is "anything under 5 percent is noise", <code>prop</code> encodes that rule directly and keeps holding as the dataset grows. If instead you need a fixed number of categories for a chart axis or a model formula, that is a count question and <code>fct_lump_n()</code> is the right tool.</div></div>
+
+<p><strong>Example 3 keeps the rare tail with a negative <code>prop</code>.</strong> A negative value inverts the rule: it keeps the uncommon levels and lumps the frequent ones.</p>
+
+<div class="webr-container" data-block-title="Negative prop keeps the rare tail">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Negative prop keeps the rare tail</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pets &lt;- rep(c(&quot;dog&quot;, &quot;cat&quot;, &quot;fox&quot;), times = c(6, 3, 1))
+
+# positive prop: keep the common levels
+table(fct_lump_prop(pets, prop = 0.20))
+#&gt;
+#&gt;   cat   dog Other
+#&gt;     3     6     1
+
+# negative prop: keep the rare levels
+table(fct_lump_prop(pets, prop = -0.20))
+#&gt;
+#&gt;   fox Other
+#&gt;     1     9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>prop = -0.20</code>, only <code>fox</code> appears in fewer than 20 percent of rows, so it stays named while <code>dog</code> and <code>cat</code> merge into <code>Other</code>. This is handy when the rare categories are the signal, such as unusual error codes or fraud flags.</p>
+
+<p><strong>Example 4 ranks levels by a weighted share and renames the bucket.</strong> Pass a numeric <code>w</code> so a level is judged by its summed weight rather than its row count.</p>
+
+<div class="webr-container" data-block-title="Rank levels by a weighted share">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank levels by a weighted share</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">animal &lt;- c(&quot;cat&quot;, &quot;cat&quot;, &quot;dog&quot;, &quot;dog&quot;, &quot;dog&quot;, &quot;fox&quot;, &quot;owl&quot;)
+spend  &lt;- c(50, 50, 5, 5, 5, 200, 180)
+
+# unweighted: ranked by row share
+table(fct_lump_prop(animal, prop = 0.25))
+#&gt;
+#&gt;   cat   dog Other
+#&gt;     2     3     2
+
+# weighted: ranked by share of total spend
+table(fct_lump_prop(animal, prop = 0.25, w = spend, other_level = &quot;Minor&quot;))
+#&gt;
+#&gt;   fox   owl Minor
+#&gt;     1     1     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By row share, <code>cat</code> and <code>dog</code> win. By spend share, <code>fox</code> and <code>owl</code> dominate even though each appears once, and the catch-all carries the friendlier <code>Minor</code> label.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Lump first, then order with fct_infreq().</strong> fct_lump_prop() leaves the kept levels in their original order and appends "Other" last, so a bar chart looks unsorted. Wrapping the result in <code>fct_infreq()</code> ranks the bars by frequency in one extra step.</div></div>
+
+<h2>fct_lump_prop() vs the other fct_lump_*() functions</h2>
+
+<p><strong>fct_lump_prop() is one of four lumping variants, each naming a different keep rule.</strong> Pick the variant whose rule matches the decision you actually want to make.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Keep rule</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fct_lump_prop()</td>
+<td>Levels above a proportion share</td>
+<td><code>fct_lump_prop(x, prop = 0.1)</code></td>
+</tr>
+<tr>
+<td>fct_lump_n()</td>
+<td>The <code>n</code> most common levels</td>
+<td><code>fct_lump_n(x, n = 5)</code></td>
+</tr>
+<tr>
+<td>fct_lump_min()</td>
+<td>Levels seen at least <code>min</code> times</td>
+<td><code>fct_lump_min(x, min = 10)</code></td>
+</tr>
+<tr>
+<td>fct_lump_lowfreq()</td>
+<td>Only the rare tail, automatically</td>
+<td><code>fct_lump_lowfreq(x)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use fct_lump_prop() when the cutoff should scale with the data, fct_lump_n() when you need a predictable category count, and fct_lump_min() when a raw frequency floor matters more than a share.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>fct_lump_prop() superseded the <code>prop</code> argument of fct_lump().</strong> Older code wrote <code>fct_lump(x, prop = 0.1)</code>; recent forcats versions split that umbrella function into the explicit <code>fct_lump_n()</code>, <code>fct_lump_prop()</code>, and <code>fct_lump_min()</code> functions. Both still run, but <code>fct_lump_prop(x, prop = 0.1)</code> states the intent more clearly and is the recommended form for new code.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>prop</code> is a fraction, not a percentage.</strong> Passing <code>prop = 10</code> to mean "10 percent" sets the threshold to 1,000 percent. No level can clear that, so every level lumps into one <code>Other</code> bucket.</p>
+
+<div class="webr-container" data-block-title="Pitfall: prop is a fraction not a percent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: prop is a fraction not a percent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(fct_lump_prop(pets, prop = 10))
+#&gt;
+#&gt; Other
+#&gt;    10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Write <code>prop = 0.10</code> for a 10 percent cutoff. Values of <code>prop</code> always live between -1 and 1.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A moderately high <code>prop</code> can silently lump a level you wanted to keep.</strong> With <code>prop = 0.5</code>, only a level holding an outright majority survives, so a substantial 30 percent category disappears into "Other" without any error or warning. Inspect the level shares with <code>fct_count(f, prop = TRUE)</code> before choosing a threshold.</div></div>
+
+<div class="webr-container" data-block-title="Pitfall: a high prop drops a real category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: a high prop drops a real category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(fct_lump_prop(pets, prop = 0.5))
+#&gt;
+#&gt;   dog Other
+#&gt;     6     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>cat</code> is 30 percent of the data, a meaningful group, yet it merges into <code>Other</code> because it fell short of the 50 percent line.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Collapse the <code>relig</code> column of <code>gss_cat</code> so only religions appearing in more than 15% of responses stay named. Save the factor to <code>ex_relig</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lump gss_cat relig">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lump gss_cat relig</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: keep religions above a 15% share
+ex_relig &lt;- # your code here
+
+levels(ex_relig)
+#&gt; Expected: 3 religion names plus &quot;Other&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_relig &lt;- fct_lump_prop(gss_cat$relig, prop = 0.15)
+levels(ex_relig)
+#&gt; [1] &quot;None&quot;       &quot;Catholic&quot;   &quot;Protestant&quot; &quot;Other&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> fct_lump_prop() computes each religion's share of the 21,483 rows, keeps the three above 15% ("None", "Catholic", "Protestant"), and merges every remaining level into a single "Other" level appended last.</p>
+
+</details>
+</section>
+
+<h2>Related forcats functions</h2>
+
+<p><strong>These forcats functions pair naturally with fct_lump_prop() for level management.</strong></p>
+
+<ul>
+
+<li><a href="forcats-fct_lump_n-in-R.html">fct_lump_n()</a>: keep a fixed number of levels instead of a proportion.</li>
+
+<li><a href="forcats-fct_lump_min-in-R.html">fct_lump_min()</a>: keep levels by a raw frequency floor.</li>
+
+<li><a href="forcats-fct_lump-in-R.html">fct_lump()</a>: the umbrella lumping function that switches on <code>n</code>, <code>prop</code>, or a heuristic.</li>
+
+<li><a href="forcats-fct_infreq-in-R.html">fct_infreq()</a>: order levels by frequency, the natural follow-up after lumping.</li>
+
+<li><a href="Categorical-Data-in-R.html">Categorical Data in R</a>: the full guide to <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">working with factors</a>.</li>
+
+</ul>
+
+<p>See the <a href="https://forcats.tidyverse.org/reference/fct_lump.html">forcats reference</a> for the official documentation.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does fct_lump_prop() do in R?</strong></p>
+
+<p>fct_lump_prop() collapses the infrequent levels of a factor into a single "Other" category based on a proportion threshold. You give it a factor and a <code>prop</code> value, and it keeps every level whose share of the rows exceeds <code>prop</code>, merging the rest. Because the cutoff is a fraction of the data rather than a fixed count, the same rule keeps working as the dataset grows or shrinks. It is part of the forcats package in the tidyverse.</p>
+
+<p><strong>What is the difference between fct_lump_prop() and fct_lump_n()?</strong></p>
+
+<p>They answer different questions. fct_lump_prop() keeps every level above a proportion share, so the number of surviving levels depends on how the data is distributed. fct_lump_n() keeps a fixed count of the most common levels, so you always get at most <code>n</code> named levels plus "Other". Use fct_lump_prop() when the rule is "drop anything under 5 percent" and fct_lump_n() when a chart or model needs a known, predictable number of categories.</p>
+
+<p><strong>How does a negative prop work in fct_lump_prop()?</strong></p>
+
+<p>A negative <code>prop</code> inverts the keep rule. Instead of keeping the common levels, <code>fct_lump_prop(x, prop = -0.1)</code> keeps the levels that appear in fewer than 10 percent of rows and lumps the frequent ones into "Other". This is useful when the rare categories carry the signal you care about, such as uncommon survey answers, rare diagnoses, or anomalous error codes that you want to isolate from the bulk of the data.</p>
+
+<p><strong>Why is fct_lump_prop() putting everything into "Other"?</strong></p>
+
+<p>Almost always because <code>prop</code> is too high. Remember <code>prop</code> is a fraction between 0 and 1, so passing <code>prop = 10</code> instead of <code>prop = 0.10</code> sets an impossible 1,000 percent threshold and lumps every level. Even a valid value like <code>prop = 0.5</code> lumps any level without an outright majority. Check the level shares first with <code>fct_count(f, prop = TRUE)</code>, then pick a <code>prop</code> below the share you want to preserve.</p>
+
+<p><strong>How do I rename the "Other" level from fct_lump_prop()?</strong></p>
+
+<p>Pass the <code>other_level</code> argument with your preferred label, for example <code>fct_lump_prop(x, prop = 0.1, other_level = &quot;Smaller groups&quot;)</code>. The catch-all level then carries that name instead of the default <code>&quot;Other&quot;</code>. This is worth doing whenever the factor appears on a chart axis or in a report, where a generic "Other" reads poorly. The <code>other_level</code> argument behaves identically across fct_lump_prop(), fct_lump_n(), and fct_lump_min().</p>
+
+</content>
+
+</invoke>
