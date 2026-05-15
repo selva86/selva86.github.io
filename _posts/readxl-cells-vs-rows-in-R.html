@@ -1,0 +1,305 @@
+---
+title: "readxl Cells vs Rows in R: Slice Excel Imports"
+description: "Compare cell-based and row-based Excel reading in readxl: when to use cell_rows(), skip and n_max versus cell_limits(), cell_cols() and range strings."
+keywords: "readxl cells vs rows, readxl read range, read_excel range argument, cell_rows readxl, cell_cols readxl, cell_limits readxl, read specific cells Excel R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "readxl cells vs rows|cells vs rows in readxl|cell_rows vs cell_limits|read a cell range vs rows|slice an Excel sheet by cells"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readxl Cells vs Rows in R: Slice Excel Imports</h1>
+
+<p class="lead">In readxl, cells vs rows is the choice between bounding a rectangle of cells and bounding a band of rows. Row tools leave columns open; cell tools fence in all four sides of your data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_excel(path, range = cell_rows(c(5, 15)))<span class="qa-cmt">     # rows: a horizontal band</span>
+read_excel(path, skip = 4, n_max = 10)<span class="qa-cmt">            # rows: drop top, cap count</span>
+read_excel(path, range = &quot;A5:F15&quot;)<span class="qa-cmt">                # cells: an exact rectangle</span>
+read_excel(path, range = cell_limits(c(5,1), c(15,6)))<span class="qa-cmt">  # cells: rectangle</span>
+read_excel(path, range = cell_cols(&quot;A:C&quot;))<span class="qa-cmt">        # cells: a vertical band</span>
+read_excel(path, range = anchored(&quot;A5&quot;, c(11,6)))<span class="qa-cmt"> # cells: a sized block</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Should I slice by rows or cells?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">junk only above and below the data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cell_rows(c(5, 15))</text><text x="125" y="126" class="branch-label">junk above only, end unknown</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_excel(path, skip = 4)</text><text x="125" y="182" class="branch-label">junk on all four sides</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_excel(path, range = &quot;A5:F15&quot;)</text><text x="125" y="238" class="branch-label">you know the exact corners</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">cell_limits(c(5,1), c(15,6))</text><text x="125" y="294" class="branch-label">you need a column band, all rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cell_cols(&quot;A:C&quot;)</text><text x="125" y="350" class="branch-label">a fixed-size block from one corner</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">anchored(&quot;A5&quot;, c(11, 6))</text></svg></div>
+
+<h2>What cells vs rows means in readxl</h2>
+
+<p><strong>readxl gives you two mental models for limiting an Excel import.</strong> The row model picks a start and end row and reads every column in between. The cell model picks a rectangle and fences in <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> at once.</p>
+
+<p>The row tools are <code>cell_rows()</code>, <code>skip</code>, and <code>n_max</code>. The cell tools are literal range strings like <code>&quot;A5:F15&quot;</code>, plus <code>cell_limits()</code>, <code>cell_cols()</code>, and <code>anchored()</code>. Both models feed the same <code>read_excel()</code> call, so the only real question is how much of the sheet you need to fence off.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Rows bound one axis, cells bound two.</strong> A row tool always reads full-width records and trims only the top and bottom. A cell tool also trims the left and right, which is the difference that decides everything below.</div></div>
+
+<h2>Reading by rows: cell_rows, skip, and n_max</h2>
+
+<p><strong>Row reading suits sheets where junk sits only above or below the data.</strong> Titles, notes, and totals usually stack vertically, so a row band is often all you need.</p>
+
+<p><code>cell_rows()</code> takes a start and end row and builds a range object for the <code>range</code> argument. The first row in the band becomes the column header.</p>
+
+<div class="webr-container" data-block-title="Read a row band with cell_rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a row band with cell_rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+
+deaths &lt;- readxl_example(&quot;deaths.xlsx&quot;)
+read_excel(deaths, range = cell_rows(c(5, 15)))
+#&gt; # A tibble: 10 x 6
+#&gt;    Name          Profession   Age `Has kids` `Date of birth`     `Date of death`
+#&gt;    &lt;chr&gt;         &lt;chr&gt;      &lt;dbl&gt; &lt;lgl&gt;      &lt;dttm&gt;              &lt;dttm&gt;
+#&gt;  1 David Bowie   musician      69 TRUE       1947-01-08 00:00:00 2016-01-10 ...
+#&gt;  2 Carrie Fisher actor         60 TRUE       1956-10-21 00:00:00 2016-12-27 ...
+#&gt;  # ... 8 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>deaths.xlsx</code> workbook keeps four title rows on top and a footer note at the bottom. The band 5 to 15 grabs the header plus ten data rows and nothing else.</p>
+
+<p>When you do not know where the data ends, reach for <code>skip</code> and <code>n_max</code> instead. <code>skip</code> drops a fixed number of rows from the top, and <code>n_max</code> caps how many data rows are read.</p>
+
+<div class="webr-container" data-block-title="Drop the top with skip and n_max">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the top with skip and n_max</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(deaths, skip = 4, n_max = 3)
+#&gt; # A tibble: 3 x 6
+#&gt;   Name          Profession   Age `Has kids` `Date of birth`     `Date of death`
+#&gt;   &lt;chr&gt;         &lt;chr&gt;      &lt;dbl&gt; &lt;lgl&gt;      &lt;dttm&gt;              &lt;dttm&gt;
+#&gt; 1 David Bowie   musician      69 TRUE       1947-01-08 00:00:00 2016-01-10 ...
+#&gt; 2 Carrie Fisher actor         60 TRUE       1956-10-21 00:00:00 2016-12-27 ...
+#&gt; 3 Chuck Berry   musician      90 TRUE       1926-10-18 00:00:00 2017-03-18 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Skipping four rows lands the header on row 5, and <code>n_max = 3</code> reads only the first three deaths. This is the quickest way to preview a long sheet.</p>
+
+<h2>Reading by cells: range strings, cell_limits, and cell_cols</h2>
+
+<p><strong>Cell reading suits sheets where junk also sits to the left or right.</strong> Side notes, an index column, or a second table on the same sheet all need a rectangle, not a band.</p>
+
+<p>A literal range string is the most direct cell tool. It reads exactly the Excel address you pass and ignores everything outside it.</p>
+
+<div class="webr-container" data-block-title="Read an exact rectangle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read an exact rectangle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(deaths, range = &quot;A5:F15&quot;)
+#&gt; # A tibble: 10 x 6
+#&gt;    Name          Profession   Age `Has kids` `Date of birth`     `Date of death`
+#&gt;    &lt;chr&gt;         &lt;chr&gt;      &lt;dbl&gt; &lt;lgl&gt;      &lt;dttm&gt;              &lt;dttm&gt;
+#&gt;  1 David Bowie   musician      69 TRUE       1947-01-08 00:00:00 2016-01-10 ...
+#&gt;  2 Carrie Fisher actor         60 TRUE       1956-10-21 00:00:00 2016-12-27 ...
+#&gt;  # ... 8 more rows
+
+identical(
+  read_excel(deaths, range = &quot;A5:F15&quot;),
+  read_excel(deaths, range = cell_limits(c(5, 1), c(15, 6)))
+)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>cell_limits()</code> builds the same rectangle from numeric corners: an upper-left <code>c(row, col)</code> and a lower-right <code>c(row, col)</code>. Use the string when you know the Excel address and <code>cell_limits()</code> when row and column numbers are easier to compute.</p>
+
+<p><code>cell_cols()</code> is the column-only cell tool. It bounds the columns and leaves the rows open, which is the mirror image of <code>cell_rows()</code>.</p>
+
+<div class="webr-container" data-block-title="Read a column band with cell_cols">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a column band with cell_cols</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">datasets &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+read_excel(datasets, sheet = &quot;iris&quot;, range = cell_cols(&quot;A:C&quot;))
+#&gt; # A tibble: 150 x 3
+#&gt;    Sepal.Length Sepal.Width Petal.Length
+#&gt;           &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;
+#&gt;  1          5.1         3.5          1.4
+#&gt;  2          4.9         3            1.4
+#&gt;  # ... 148 more rows
+
+anchored(&quot;A5&quot;, dim = c(11, 6))
+#&gt; &lt;cell_limits (5, 1) x (15, 6)&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>anchored()</code> is a convenience cell tool: give it one corner and a <code>dim = c(rows, cols)</code> size, and it computes the matching rectangle for you.</p>
+
+<h2>Cells vs rows compared</h2>
+
+<p><strong>Both models reach the same <code>read_excel()</code> call, so pick by how the junk is shaped.</strong> The table below maps each tool to the situation it solves.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Model</th>
+<th>Bounds</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cell_rows(c(5, 15))</code></td>
+<td>rows</td>
+<td>top and bottom</td>
+<td>data sits in known rows, full width</td>
+</tr>
+<tr>
+<td><code>skip</code> + <code>n_max</code></td>
+<td>rows</td>
+<td>top, then a count</td>
+<td>the end of the data is unknown</td>
+</tr>
+<tr>
+<td><code>range = &quot;A5:F15&quot;</code></td>
+<td>cells</td>
+<td>all four sides</td>
+<td>junk surrounds the data</td>
+</tr>
+<tr>
+<td><code>cell_limits(c(5,1), c(15,6))</code></td>
+<td>cells</td>
+<td>all four sides</td>
+<td>corners are easier as numbers</td>
+</tr>
+<tr>
+<td><code>cell_cols(&quot;A:C&quot;)</code></td>
+<td>cells</td>
+<td>left and right</td>
+<td>you need a column band, all rows</td>
+</tr>
+<tr>
+<td><code>anchored(&quot;A5&quot;, c(11,6))</code></td>
+<td>cells</td>
+<td>a sized block</td>
+<td>you know one corner and the size</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The decision rule is short.</strong> If every column in your rows is wanted, slice by rows. If unwanted columns sit beside the data, slice by cells. When in doubt, a literal range string is the safest cell tool because it commits to an exact, readable address.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Inspect the sheet before you slice it.</strong> Run <code>read_excel(path)</code> once with no <code>range</code> to see where the real header and data start, then write the exact band or rectangle. Guessing row and column numbers is the main source of off-by-one bugs.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>cell_cols()</code> does not escape header junk.</strong> Because it leaves rows open, <code>cell_cols(&quot;A:C&quot;)</code> on a sheet with four title rows still reads those rows. Pair it with <code>cell_limits()</code> or a range string when both axes need fencing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>range</code> silently overrides <code>skip</code> and <code>n_max</code>.</strong> When you pass a <code>range</code> argument, whether a string or a <code>cell_*()</code> object, readxl ignores <code>skip</code> and <code>n_max</code> with no warning. Set the window in exactly one place so the import does what the code reads like.</div></div>
+
+<p><strong>The first row of any window becomes the header.</strong> This is true for both models. If <code>cell_rows(c(6, 15))</code> or <code>range = &quot;A6:F15&quot;</code> starts on a data row, that record turns into column names and you lose it. Include the real header row, or set <code>col_names = FALSE</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> Row reading maps to <code>pd.read_excel(path, skiprows=4, nrows=10)</code>, and cell reading maps to the <code>usecols</code> argument plus <code>skiprows</code> for the rectangle.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the rectangle <code>A5:C15</code> from the first sheet of <code>deaths.xlsx</code>. Row 5 is the header and you keep only the first three columns. Save the result to <code>ex_block</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read a cell rectangle">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read a cell rectangle</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read A5:C15 from deaths.xlsx
+library(readxl)
+deaths &lt;- readxl_example(&quot;deaths.xlsx&quot;)
+
+ex_block &lt;- # your code here
+
+dim(ex_block)
+#&gt; Expected: 10 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+deaths &lt;- readxl_example(&quot;deaths.xlsx&quot;)
+ex_block &lt;- read_excel(deaths, range = &quot;A5:C15&quot;)
+dim(ex_block)
+#&gt; [1] 10  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The range <code>A5:C15</code> fences both axes. Rows 5 to 15 give the header plus ten data rows, and columns A to C keep Name, Profession, and Age.</p>
+
+</details>
+</section>
+
+<h2>Related readxl functions</h2>
+
+<p><strong>The cells vs rows tools are a small, connected family.</strong> Each builds or accepts a range for <code>read_excel()</code>.</p>
+
+<ul>
+
+<li><code>cell_rows()</code>: bounds a row band and leaves columns open.</li>
+
+<li><code>cell_cols()</code>: bounds a column band and leaves rows open.</li>
+
+<li><code>cell_limits()</code>: bounds rows and columns for a full rectangle.</li>
+
+<li><code>anchored()</code>: builds a rectangle from one corner and a size.</li>
+
+<li><code>read_excel()</code>: the import function every range tool feeds.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between cells and rows in readxl?</strong></p>
+
+<p>Reading by rows means bounding only the top and bottom of the data with <code>cell_rows()</code>, <code>skip</code>, or <code>n_max</code>, while every column is read in full. Reading by cells means bounding a rectangle with a range string, <code>cell_limits()</code>, <code>cell_cols()</code>, or <code>anchored()</code>, so columns are trimmed too. Use rows when all columns are wanted and cells when junk sits beside the data.</p>
+
+<p><strong>Should I use cell_rows() or cell_limits()?</strong></p>
+
+<p>Use <code>cell_rows()</code> when every column in the chosen rows belongs in your tibble and only the row band needs trimming. Use <code>cell_limits()</code> when unwanted columns sit to the left or right, since it fences both axes. <code>cell_limits()</code> is the more general tool: <code>cell_rows()</code> and <code>cell_cols()</code> are just <code>cell_limits()</code> with one axis left open.</p>
+
+<p><strong>Does a range argument override skip in <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel()</a>?</strong></p>
+
+<p>Yes. When you pass <code>range</code>, readxl ignores both <code>skip</code> and <code>n_max</code> without raising a warning. The <code>range</code> argument fully describes the window, so the row-count arguments become dead code. Choose one approach per call and delete the other so the import is unambiguous.</p>
+
+<p><strong>Can I read scattered rows or columns with these tools?</strong></p>
+
+<p>No. Every cells vs rows tool reads one contiguous block. <code>cell_rows(c(1, 5, 100))</code> reads rows 1 through 100, not three rows, because only the minimum and maximum matter. To keep non-adjacent rows or columns, import the block first, then subset the tibble with <code>dplyr::slice()</code> or <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a>.</p>
+
+<p>For the full range specification, see the <a href="https://readxl.tidyverse.org/reference/cell-specification.html">official readxl reference</a>.</p>
+
+</content>
+
+</invoke>
