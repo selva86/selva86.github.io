@@ -1,0 +1,282 @@
+---
+title: "purrr modify_at() in R: Transform Elements by Name"
+description: "Use purrr modify_at() in R to transform only the list elements or data frame columns you select by name or position, leaving the rest unchanged. With examples."
+keywords: "purrr modify_at, modify_at function R, purrr modify_at examples, R modify columns by name, modify_at vs modify_if, modify_at R, modify column purrr"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr modify_at|modify_at()|purrr::modify_at()|modify_at function|modify_at in R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr modify_at() in R: Transform Elements by Name</h1>
+
+<p class="lead">The purrr <code>modify_at()</code> function transforms only the list elements or <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> you select by name or position, and leaves every other element copied across unchanged.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>modify_at(df, &quot;x&quot;, ~ .x * 10)<span class="qa-cmt">            # one column by name</span>
+modify_at(df, c(&quot;x&quot;, &quot;y&quot;), round)<span class="qa-cmt">        # several columns by name</span>
+modify_at(df, c(1, 3), sqrt)<span class="qa-cmt">             # columns by position</span>
+modify_at(lst, &quot;a&quot;, toupper)<span class="qa-cmt">             # one list element by name</span>
+modify_at(lst, 2, ~ .x + 1)<span class="qa-cmt">              # list element by position</span>
+modify_at(lst, c(&quot;a&quot;, &quot;c&quot;), `+`, 5)<span class="qa-cmt">      # pass an extra argument to .f</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is modify_at() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">transform named or positioned elements</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">modify_at(df, &quot;x&quot;, f)</text><text x="125" y="126" class="branch-label">transform elements that pass a test</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">modify_if(df, is.numeric, f)</text><text x="125" y="182" class="branch-label">transform every element</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">modify(df, f)</text><text x="125" y="238" class="branch-label">get a list back, not the input type</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map_at(df, &quot;x&quot;, f)</text><text x="125" y="294" class="branch-label">replace or add list items by name</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_modify(lst, x = 1)</text><text x="125" y="350" class="branch-label">pull out a single nested element</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pluck(lst, &quot;a&quot;, &quot;b&quot;)</text></svg></div>
+
+<h2>What modify_at() does in one sentence</h2>
+
+<p><strong><code>modify_at(.x, .at, .f)</code> runs <code>.f</code> only on the elements named or positioned in <code>.at</code>, then returns an object of the same class as <code>.x</code>.</strong> Every element you did not select is copied through untouched.</p>
+
+<p>Think of it as a targeted version of <code>modify()</code>. Where <code>modify()</code> transforms everything, <code>modify_at()</code> lets you point at the exact slots that should change. The selection happens through the <code>.at</code> argument, and that argument is the whole story of this function.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>modify_at()</code> answers "change these specific elements" while <code>modify_if()</code> answers "change whatever passes this test".</strong> Use <code>modify_at()</code> when you already know the names or positions. Use <code>modify_if()</code> when the elements to change are defined by a property of their values.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>modify_at(.x, .at, .f, ...)</code> takes the object to transform, a selector, and a function.</strong> Any arguments after <code>.f</code> are forwarded straight to it on every call.</p>
+
+<p>The <code>.at</code> selector accepts a character vector of names or an integer vector of positions. The return type always matches <code>.x</code>: a data frame in gives a data frame out, a named list in gives a named list out.</p>
+
+<div class="webr-container" data-block-title="modify_at selects one column by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_at selects one column by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+df &lt;- data.frame(x = c(1, 2, 3), y = c(10, 20, 30), z = c(100, 200, 300))
+
+modify_at(df, &quot;x&quot;, ~ .x * 100)
+#&gt;     x  y   z
+#&gt; 1 100 10 100
+#&gt; 2 200 20 200
+#&gt; 3 300 30 300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only column <code>x</code> is scaled by 100. Columns <code>y</code> and <code>z</code> are returned exactly as they came in, and the result is still a <code>data.frame</code>.</p>
+
+<h2>Selecting elements with the .at argument</h2>
+
+<p><strong>The <code>.at</code> argument is what separates <code>modify_at()</code> from the rest of the <code>modify()</code> family.</strong> It supports three practical styles, all shown below.</p>
+
+<h3>Select by column or element name</h3>
+
+<p><strong>Pass a character vector to <code>.at</code> to target elements by name.</strong> This is the most common use because names are stable even when column order changes.</p>
+
+<div class="webr-container" data-block-title="modify_at targets columns by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_at targets columns by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modify_at(df, c(&quot;x&quot;, &quot;z&quot;), sqrt)
+#&gt;          x  y        z
+#&gt; 1 1.000000 10 10.00000
+#&gt; 2 1.414214 20 14.14214
+#&gt; 3 1.732051 30 17.32051</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Columns <code>x</code> and <code>z</code> get the square root; <code>y</code> is left alone. The order you list names in <code>.at</code> does not matter, since each named element is matched independently.</p>
+
+<h3>Select by position</h3>
+
+<p><strong>Pass an integer vector to <code>.at</code> to target elements by their index.</strong> Positions are handy for unnamed lists or quick one-off calls.</p>
+
+<div class="webr-container" data-block-title="modify_at targets columns by position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_at targets columns by position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modify_at(df, c(1, 3), ~ .x + 1)
+#&gt;   x  y   z
+#&gt; 1 2 10 101
+#&gt; 2 3 20 201
+#&gt; 3 4 30 301</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Positions <code>1</code> and <code>3</code> (<code>x</code> and <code>z</code>) are incremented. Position <code>2</code> (<code>y</code>) is skipped. Mixing names and positions in one call is not allowed, so pick one style per call.</p>
+
+<h3>Work on a named list</h3>
+
+<p><strong>A data frame is a list of columns, so <code>modify_at()</code> works the same way on any named list.</strong> Each named element is an independent slot.</p>
+
+<div class="webr-container" data-block-title="modify_at on a named list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">modify_at on a named list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">config &lt;- list(host = &quot;local&quot;, port = 8080, debug = 0)
+
+modify_at(config, &quot;host&quot;, toupper)
+#&gt; $host
+#&gt; [1] &quot;LOCAL&quot;
+#&gt;
+#&gt; $port
+#&gt; [1] 8080
+#&gt;
+#&gt; $debug
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only <code>host</code> is uppercased. <code>port</code> and <code>debug</code> are returned verbatim, and the result keeps the named-list structure of <code>config</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Forward extra arguments to <code>.f</code> by listing them after it.</strong> In <code>modify_at(df, &quot;x&quot;, round, digits = 2)</code>, the <code>digits = 2</code> is handed to <code>round()</code> on every selected element, so you avoid wrapping a one-line lambda just to set a single option.</div></div>
+
+<h2>modify_at() vs modify_if() vs map_at()</h2>
+
+<p><strong>All three apply a function to a subset of elements; they differ in how the subset is chosen and what type comes back.</strong> That decides which one belongs in your pipeline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Selects elements by</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modify_at()</code></td>
+<td>name or position</td>
+<td>same class as input</td>
+</tr>
+<tr>
+<td><code>modify_if()</code></td>
+<td>a predicate test on values</td>
+<td>same class as input</td>
+</tr>
+<tr>
+<td><code>map_at()</code></td>
+<td>name or position</td>
+<td>always a plain list</td>
+</tr>
+<tr>
+<td><code>modify()</code></td>
+<td>nothing, transforms all</td>
+<td>same class as input</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. Use <code>modify_at()</code> when you can name the elements. Use <code>modify_if()</code> when a test like <code>is.numeric</code> defines them. Reach for <code>map_at()</code> only when you actually want a plain list back instead of the original structure.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: a name that does not exist raises an error.</strong> Calling <code>modify_at(df, &quot;typo&quot;, ~ .x * 2)</code> stops with an error rather than silently skipping the bad name. Always confirm the names exist, for example with <code>names(df)</code>, before selecting them.</p>
+
+<p><strong>Pitfall 2: modify_at() does not change the original.</strong> R uses <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy-on-modify</a>, so <code>modify_at()</code> builds and returns a new object while <code>.x</code> itself stays untouched. To keep the result you must reassign it with <code>df &lt;- modify_at(df, ...)</code>.</p>
+
+<p><strong>Pitfall 3: modify_at() on a data frame is column-wise, never row-wise.</strong> Each selected "element" is a full column. If you expected <code>.f</code> to see one row at a time, the answer will be wrong. For row-wise work use <code>pmap()</code> or <code>dplyr::rowwise()</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>.f</code> should return a value the container can hold.</strong> When <code>.x</code> is an atomic vector, returning a different type from <code>.f</code> silently coerces the whole vector. For lists this is harmless, but for <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> check that <code>.f</code> returns a compatible length-1 value per element.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>modify_at()</code> to convert only the <code>city</code> column of <code>df_loc</code> to uppercase, leaving the <code>pop</code> column alone. Save the result to <code>ex_at</code>.</p>
+<div class="webr-container" data-block-title="Your turn: uppercase one column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: uppercase one column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_loc &lt;- data.frame(
+  city = c(&quot;paris&quot;, &quot;tokyo&quot;, &quot;lima&quot;),
+  pop  = c(2, 14, 9),
+  stringsAsFactors = FALSE
+)
+
+ex_at &lt;- # your code here
+
+ex_at
+#&gt; Expected: city uppercased, pop unchanged</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_at &lt;- modify_at(df_loc, &quot;city&quot;, toupper)
+ex_at
+#&gt;    city pop
+#&gt; 1 PARIS   2
+#&gt; 2 TOKYO  14
+#&gt; 3  LIMA   9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>modify_at()</code> applies <code>toupper()</code> only to the element named <code>&quot;city&quot;</code>. The <code>pop</code> column is not in <code>.at</code>, so it is copied across unchanged, and the data frame class is preserved.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>Once <code>modify_at()</code> clicks, the neighbouring functions extend it:</p>
+
+<ul>
+
+<li><code>modify()</code>: transforms every element instead of a selected subset.</li>
+
+<li><code>modify_if()</code>: selects elements by a predicate test rather than by name.</li>
+
+<li><code>map_at()</code>: the same name or position selection, but it always returns a plain list.</li>
+
+<li><code>modify_depth()</code>: reaches into <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a> and modifies elements at a chosen depth.</li>
+
+<li><code>list_modify()</code>: replaces, adds, or removes list items by name, a different operation entirely.</li>
+
+</ul>
+
+<p>The official reference for the whole family lives at <a href="https://purrr.tidyverse.org/reference/modify.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does modify_at() do in purrr?</strong></p>
+
+<p><code>modify_at(.x, .at, .f)</code> applies the function <code>.f</code> only to the elements you select with <code>.at</code>, which is a vector of names or positions. Every element not selected is copied across unchanged. The return value has the same class as the input, so a data frame stays a data frame and a named list stays a named list. It is the targeted member of the <code>modify()</code> family.</p>
+
+<p><strong>What is the difference between modify_at() and modify_if()?</strong></p>
+
+<p>Both transform a subset of elements and both preserve the input type. They differ in how the subset is chosen. <code>modify_at()</code> selects by explicit name or position, so you use it when you already know which columns or elements to change. <code>modify_if()</code> selects by a predicate test on the values, such as <code>is.numeric</code>, so you use it when a property defines the subset rather than a fixed name.</p>
+
+<p><strong>How do I modify only some columns of a data frame in R?</strong></p>
+
+<p>Use <code>modify_at()</code> with a character vector of the column names, for example <code>modify_at(df, c(&quot;x&quot;, &quot;y&quot;), sqrt)</code>. You can also pass integer positions like <code>modify_at(df, c(1, 3), sqrt)</code>. The unselected columns and the data frame class are kept intact, so the result is ready to use in the next step of your pipeline.</p>
+
+<p><strong>Does modify_at() change the original data frame?</strong></p>
+
+<p>No. R follows copy-on-modify semantics, so <code>modify_at()</code> returns a new object and leaves the original untouched. Despite the name, it does not mutate anything in place. To keep the transformed result, assign it back, for example <code>df &lt;- modify_at(df, &quot;x&quot;, round)</code>.</p>
