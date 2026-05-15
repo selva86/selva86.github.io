@@ -1,0 +1,306 @@
+---
+title: "purrr accumulate2() in R: Cumulative Reduce Over Two Vectors"
+description: "Learn purrr accumulate2() in R to run a cumulative reduce over two parallel vectors. Covers syntax, the .init argument, worked examples, and common pitfalls."
+keywords: "purrr accumulate2, accumulate2 function R, purrr accumulate2 examples, R accumulate2 two vectors, accumulate2 vs accumulate, accumulate2 vs reduce2"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "accumulate2()|purrr accumulate2|purrr::accumulate2()|accumulate over two lists|accumulate over two vectors"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr accumulate2() in R: Cumulative Reduce Over Two Vectors</h1>
+
+<p class="lead">The purrr <code>accumulate2()</code> function runs a cumulative reduce over two parallel vectors, returning every intermediate step instead of only the final value.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>accumulate2(x, y, \(acc, e, w) acc + e + w)<span class="qa-cmt">   # 3-arg accumulator</span>
+accumulate2(x, y, f)<span class="qa-cmt">                          # rule: length(y) = length(x) - 1</span>
+accumulate2(x, y, f, .init = 0)<span class="qa-cmt">               # seed; x and y equal length</span>
+accumulate2(x, ops, \(acc, e, op) op(acc, e))<span class="qa-cmt"> # different op each step</span>
+accumulate2(x, y, ~ ..1 + ..2 + ..3)<span class="qa-cmt">          # formula-style .f</span>
+accumulate2(x, y, paste)<span class="qa-cmt">                      # join three parts each step</span>
+tail(accumulate2(x, y, f), 1)<span class="qa-cmt">                 # keep only the final value</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is accumulate2() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fold two parallel lists, keep every step</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">accumulate2(x, y, f)</text><text x="125" y="126" class="branch-label">fold two parallel lists, final value only</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">reduce2(x, y, f)</text><text x="125" y="182" class="branch-label">fold one list, keep every step</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">accumulate(x, f)</text><text x="125" y="238" class="branch-label">fold one list, final value only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">reduce(x, f)</text><text x="125" y="294" class="branch-label">one transformed output per pair</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map2</a>(x, y, f)</text><text x="125" y="350" class="branch-label">run side effects over two lists</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">walk2(x, y, f)</text></svg></div>
+
+<h2>What accumulate2() does</h2>
+
+<p><strong><code>accumulate2(.x, .y, .f)</code> folds <code>.x</code> step by step while a second parallel vector <code>.y</code> feeds an extra value into every step, and it records the running result after each one.</strong> Where <code>reduce2()</code> collapses the two inputs to a single answer, <code>accumulate2()</code> keeps the full trail of partial results.</p>
+
+<p>It is the two-input version of <code>accumulate()</code> and the step-keeping version of <code>reduce2()</code>. The accumulator function <code>.f</code> takes three arguments: the running result, the next <code>.x</code> element, and the next <code>.y</code> element. Use it whenever a running calculation needs a second stream of data, such as a weight, separator, or operator.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>accumulate2()</code> is <code>reduce2()</code> with a memory.</strong> Both walk two parallel vectors in lockstep with the same three-argument function. <code>reduce2()</code> discards each partial result and returns one value; <code>accumulate2()</code> stores every partial result. Ask "how did the running value evolve?" and you want <code>accumulate2()</code>.</div></div>
+
+<h2>Syntax and the length rule</h2>
+
+<p><strong><code>accumulate2(.x, .y, .f, ..., .init)</code> requires <code>.y</code> to be exactly one element shorter than <code>.x</code>.</strong> That length rule is the detail beginners miss most often. An <code>.x</code> of length n produces n-1 fold steps, each step consumes one <code>.y</code> element, so <code>.y</code> has length n-1.</p>
+
+<div class="webr-container" data-block-title="accumulate2 versus reduce2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">accumulate2 versus reduce2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+x &lt;- c(1, 2, 3, 4)
+y &lt;- c(10, 20, 30)
+
+reduce2(x, y, \(acc, e, w) acc + e + w)
+#&gt; [1] 70
+
+accumulate2(x, y, \(acc, e, w) acc + e + w)
+#&gt; [1]  1 13 36 70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first output is <code>.x[1]</code> untouched, since the first element seeds the accumulator. Each later value folds in one more <code>.x</code> element and one more <code>.y</code> element. <code>accumulate2()</code> returns a vector the same length as <code>.x</code>, or one element longer when <code>.init</code> is supplied.</p>
+
+<p>The argument order inside <code>.f</code> is fixed: the first argument is always the running accumulator, the second is the current <code>.x</code> element, and the third is the current <code>.y</code> element. When you pass <code>.init</code>, the fold gains an extra step, so <code>.x</code> and <code>.y</code> must then have the <em>same</em> length. Unlike <code>accumulate()</code>, there is no <code>.dir</code> argument, so <code>accumulate2()</code> always folds left to right.</p>
+
+<h2>accumulate2() examples</h2>
+
+<p><strong>Each example below pairs <code>.x</code> with a different shape of <code>.y</code>: a numeric vector, a separator vector, a length-matched vector with <code>.init</code>, and a list of operators.</strong> All four run in the same session.</p>
+
+<h3>1. Running cart total with per-item discount</h3>
+
+<p><strong>A shopping cart total is a natural running fold: each item adds its price and subtracts a discount.</strong> The prices are <code>.x</code> and the discounts are <code>.y</code>.</p>
+
+<div class="webr-container" data-block-title="Running total with discounts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Running total with discounts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices    &lt;- c(100, 50, 80, 30)
+discounts &lt;- c(10, 5, 8)
+
+accumulate2(prices, discounts, \(acc, p, d) acc + p - d)
+#&gt; [1] 100 140 215 237</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fold seeds with <code>100</code>, then computes <code>100 + 50 - 10 = 140</code>, then <code>140 + 80 - 5 = 215</code>, then <code>215 + 30 - 8 = 237</code>. Each output position is the cart total after that item.</p>
+
+<h3>2. Join path segments with separators</h3>
+
+<p><strong><code>.y</code> does not have to be numeric.</strong> Here it holds the separator used to glue each new segment onto the path built so far.</p>
+
+<div class="webr-container" data-block-title="Build a file path step by step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a file path step by step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">join_seg &lt;- function(acc, seg, sep) paste0(acc, sep, seg)
+
+accumulate2(c(&quot;usr&quot;, &quot;local&quot;, &quot;share&quot;, &quot;R&quot;), c(&quot;/&quot;, &quot;/&quot;, &quot;/&quot;), join_seg)
+#&gt; [1] &quot;usr&quot;               &quot;usr/local&quot;         &quot;usr/local/share&quot;
+#&gt; [4] &quot;usr/local/share/R&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>join_seg()</code> reads its three arguments by name, so the separator from <code>.y</code> lands in the right place. The result shows the path growing one segment at a time.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use an explicit lambda when <code>.f</code> takes three arguments.</strong> Backtick operators like <code>+</code> accept only two arguments and error inside <code>accumulate2()</code>. Writing <code>\(acc, x, y) ...</code> or a named function makes the three roles obvious and prevents arity bugs.</div></div>
+
+<h3>3. Model an investment with growth and deposits</h3>
+
+<p><strong><code>.init</code> seeds the fold with a starting value and makes <code>.x</code> and <code>.y</code> equal length.</strong> This models an account that grows by a rate and receives a deposit each year.</p>
+
+<div class="webr-container" data-block-title="Investment balance with annual deposits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Investment balance with annual deposits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">growth  &lt;- c(1.05, 1.07, 1.04)
+deposit &lt;- c(200, 200, 200)
+
+accumulate2(growth, deposit, \(bal, g, add) bal * g + add, .init = 1000)
+#&gt; [1] 1000.0 1250.0 1537.5 1799.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>.init = 1000</code>, both vectors are length 3 and the output has 4 values. The balance starts at <code>1000</code>, grows by 5% and gains <code>200</code> to reach <code>1250</code>, and so on. Because <code>.init</code> adds an element, the result is one longer than <code>.x</code>.</p>
+
+<h3>4. Apply a different operation each step</h3>
+
+<p><strong><code>.y</code> can hold functions, turning <code>accumulate2()</code> into a small programmable calculator.</strong> Each step pulls the next operator from <code>.y</code> and applies it.</p>
+
+<div class="webr-container" data-block-title="One operator per fold step">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One operator per fold step</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">steps &lt;- list(`+`, `*`, `-`)
+
+accumulate2(c(6, 4, 5, 3), steps, \(acc, x, op) op(acc, x))
+#&gt; [1]  6 10 50 47</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The trail reads <code>6</code>, then <code>6 + 4 = 10</code>, then <code>10 * 5 = 50</code>, then <code>50 - 3 = 47</code>, exposing which operator produced each jump.</p>
+
+<h2>accumulate2() vs accumulate() vs reduce2()</h2>
+
+<p><strong>These three functions differ in how many lists they fold and in what they return.</strong> Pick by input count and by whether you need the intermediate steps.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accumulate()</code></td>
+<td>one list</td>
+<td>every step</td>
+<td>running trail over a single list</td>
+</tr>
+<tr>
+<td><code>accumulate2()</code></td>
+<td>two parallel lists</td>
+<td>every step</td>
+<td>each step needs a second value</td>
+</tr>
+<tr>
+<td><code>reduce2()</code></td>
+<td>two parallel lists</td>
+<td>final value only</td>
+<td>you want only the end result</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>accumulate2()</code> and <code>reduce2()</code> share the same two-list signature and the same length rule. The only difference is that <code>reduce2()</code> keeps the last value while <code>accumulate2()</code> keeps them all. For a single list, drop down to <code>accumulate()</code>; for just the end total, take <code>tail(accumulate2(...), 1)</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> <code>itertools.accumulate()</code> works on a single iterable. To accumulate over two streams you would <code>zip()</code> them first and unpack a tuple inside the function. <code>accumulate2()</code> keeps the two vectors separate, and the three-argument accumulator reads each role by name.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: length mismatch.</strong> <code>accumulate2(1:4, 1:4, f)</code> errors because <code>.y</code> must have <code>length(.x) - 1</code> elements. Drop one <code>.y</code> element, or add <code>.init</code> so that <code>.x</code> and <code>.y</code> become equal length.</p>
+
+<p><strong>Pitfall 2: a 2-argument <code>.f</code>.</strong> Passing a bare <code>+</code> fails because <code>accumulate2()</code> always calls <code>.f</code> with three arguments. Supply a three-argument lambda such as <code>\(acc, x, y) acc + x + y</code>, or a formula like <code>~ ..1 + ..2 + ..3</code>.</p>
+
+<p><strong>Pitfall 3: wrong argument order.</strong> The first argument of <code>.f</code> is the accumulator, not the <code>.x</code> element. Swapping them often runs without an error and returns a plausible but wrong number, so confirm the accumulator comes first.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An accumulator that ignores <code>.y</code> fails silently.</strong> If <code>.f</code> never uses its third argument, <code>accumulate2()</code> runs without complaint and quietly behaves like <code>accumulate()</code>. A wrong answer with no error is harder to catch than a crash, so check that <code>.f</code> actually consumes the <code>.y</code> value.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>accumulate2()</code> to track a running balance where deposits are <code>c(100, 200, 300)</code> and a per-step fee is <code>c(5, 10, 15)</code>. Start from <code>.init = 0</code>. Save the result to <code>ex_running</code>.</p>
+<div class="webr-container" data-block-title="Your turn: running balance with fees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: running balance with fees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fold deposits minus fees
+ex_running &lt;- # your code here
+
+ex_running
+#&gt; Expected: 0 95 285 570</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_running &lt;- accumulate2(
+  c(100, 200, 300),
+  c(5, 10, 15),
+  \(acc, dep, fee) acc + dep - fee,
+  .init = 0
+)
+ex_running
+#&gt; [1]   0  95 285 570</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>.init = 0</code>, both vectors are length 3 and the output has 4 values. Each step adds the next deposit and subtracts the next fee: <code>0 + 100 - 5 = 95</code>, then <code>95 + 200 - 10 = 285</code>, then <code>285 + 300 - 15 = 570</code>.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>After <code>accumulate2()</code>, these purrr tools cover nearby jobs:</p>
+
+<ul>
+
+<li><code>accumulate()</code>: the same running trail, but over a single list</li>
+
+<li><code>reduce2()</code>: fold two parallel lists down to one final value</li>
+
+<li><code>reduce()</code>: fold a single list down to one value</li>
+
+<li><code>map2()</code>: one transformed output per pair of inputs, with no folding</li>
+
+<li><code>walk2()</code>: two-list iteration for side effects only</li>
+
+</ul>
+
+<p>See the official <a href="https://purrr.tidyverse.org/reference/reduce.html">purrr reduce reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does accumulate2() do in purrr?</strong></p>
+
+<p><code>accumulate2(.x, .y, .f)</code> folds two parallel vectors with a three-argument function and returns every intermediate result. The accumulator function receives the running value, the next <code>.x</code> element, and the next <code>.y</code> element. The output is a vector the same length as <code>.x</code>, or one longer when <code>.init</code> is supplied. It is the step-keeping version of <code>reduce2()</code>, which returns only the final folded value.</p>
+
+<p><strong>What is the difference between accumulate2() and <a class="auto-link" href="purrr-reduce-in-R.html" title="purrr reduce() in R: Combine Elements With a Function">accumulate()</a>?</strong></p>
+
+<p>Both keep every intermediate step of a fold. <code>accumulate()</code> works on a single list and uses a two-argument function. <code>accumulate2()</code> folds two parallel lists and uses a three-argument function, where the third argument is the matching element of the second list. Reach for <code>accumulate2()</code> when each step of a running calculation needs an extra value, such as a weight, a separator, or an operator.</p>
+
+<p><strong>Why must .y be shorter than .x in accumulate2()?</strong></p>
+
+<p>A fold over n elements has only n-1 steps, because the first <code>.x</code> element seeds the accumulator and is not folded. Each step consumes one <code>.y</code> element, so <code>.y</code> has length n-1. When you pass <code>.init</code>, the seed comes from <code>.init</code> instead, the fold gains one step, and <code>.x</code> and <code>.y</code> must then have the same length.</p>
+
+<p><strong>Does accumulate2() return a list or a vector?</strong></p>
+
+<p><code>accumulate2()</code> simplifies its output to an atomic vector when every step returns a length-one value of the same type, such as a number or a string. When the steps return vectors or other objects that cannot be simplified, it returns a list instead. Wrap the call in <code>unlist()</code> if you always want a flat atomic vector.</p>
+
+<p><strong>What is the difference between accumulate2() and reduce2()?</strong></p>
+
+<p>Both take two parallel lists and a three-argument accumulator, and both follow the same length rule. <code>reduce2()</code> returns only the final folded value. <code>accumulate2()</code> returns the complete sequence of partial results, which is useful for debugging a fold or for showing how a running quantity evolved over time.</p>
+
+</content>
+
+</invoke>
