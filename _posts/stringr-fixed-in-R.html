@@ -1,0 +1,356 @@
+---
+title: "stringr fixed() in R: Match Literal Strings Without Regex"
+description: "Use stringr fixed() in R to match literal strings without regex interpretation. Covers syntax, ignore_case, performance vs regex, and 6 worked examples."
+keywords: "stringr fixed, fixed function R, stringr fixed examples, R literal string match, stringr regex vs fixed, fixed pattern R, escape regex special characters R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fixed()|stringr fixed|stringr::fixed()|literal string match|fixed pattern"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>stringr fixed() in R: Match Literal Strings Without Regex</h1>
+
+<p class="lead">The <code>stringr::fixed()</code> function wraps a pattern so stringr matches it as a literal string instead of a regular expression. Use it whenever your pattern contains characters like <code>.</code>, <code>*</code>, <code>?</code>, or <code>(</code> that you want treated as themselves, not as regex metacharacters.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>str_detect(x, fixed(&quot;.&quot;))<span class="qa-cmt">                       # match literal dot</span>
+str_replace(x, fixed(&quot;a.b&quot;), &quot;X&quot;)<span class="qa-cmt">               # replace literal &quot;a.b&quot;</span>
+str_extract(x, fixed(&quot;ver1.0&quot;))<span class="qa-cmt">                 # extract literal &quot;ver1.0&quot;</span>
+str_count(x, fixed(&quot;$&quot;))<span class="qa-cmt">                        # count literal &quot;$&quot;</span>
+str_detect(x, fixed(&quot;apple&quot;, ignore_case=TRUE))<span class="qa-cmt"> # case-insensitive literal</span>
+str_split(x, fixed(&quot;|&quot;))<span class="qa-cmt">                        # split on literal pipe</span>
+str_locate(x, fixed(&quot;(1)&quot;))<span class="qa-cmt">                     # locate literal &quot;(1)&quot;</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fixed() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">match a literal string (no regex)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fixed(&quot;text&quot;)</text><text x="125" y="126" class="branch-label">match with regex metacharacters as patterns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">leave as plain string</text><text x="125" y="182" class="branch-label">locale-aware comparison (accents, Turkish i)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">coll(&quot;text&quot;)</text><text x="125" y="238" class="branch-label">match word, line, or sentence boundaries</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">boundary(&quot;word&quot;)</text><text x="125" y="294" class="branch-label">tune regex options (multiline, dotall)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">regex(&quot;pat&quot;, multiline = TRUE)</text><text x="125" y="350" class="branch-label">case-insensitive literal match</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fixed(&quot;text&quot;, ignore_case = TRUE)</text></svg></div>
+
+<h2>What fixed() does in one sentence</h2>
+
+<p><strong><code>fixed(pattern, ignore_case = FALSE)</code> returns a pattern wrapper that tells any <code>str_*</code> function to compare bytes verbatim, with no regex parsing.</strong> Wrap your needle in <code>fixed()</code> whenever the literal characters in it (<code>.</code>, <code>*</code>, <code>+</code>, <code>?</code>, <code>(</code>, <code>)</code>, <code>[</code>, <code>]</code>, <code>{</code>, <code>}</code>, <code>^</code>, <code>$</code>, <code>|</code>, <code>\</code>) would otherwise be interpreted by the regex engine.</p>
+
+<p>It is not a matching function on its own. You pass its output to <code>str_detect()</code>, <code>str_replace()</code>, <code>str_extract()</code>, <code>str_count()</code>, <code>str_split()</code>, and similar.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>fixed(pattern, ignore_case = FALSE)</code>. Always pass the result into another <code>str_*</code> function.</strong></p>
+
+<div class="webr-container" data-block-title="Load stringr and wrap a literal pattern">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load stringr and wrap a literal pattern</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(stringr)
+
+x &lt;- c(&quot;v1.5&quot;, &quot;v125&quot;, &quot;v15&quot;, &quot;v1-5&quot;)
+str_detect(x, fixed(&quot;1.5&quot;))
+#&gt; [1]  TRUE FALSE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>fixed()</code>, the dot would mean "any single character" and would match <code>&quot;v125&quot;</code> too. With <code>fixed()</code>, the dot is just a dot.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>fixed()</code> whenever the pattern is user input or a known literal.</strong> Regex parsing of unsanitized input is a frequent silent-bug source: a stray <code>(</code> or <code>*</code> from user data turns a "did this column contain X?" query into a regex error or <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a>.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Match a literal dot, dollar, or other metacharacter</h3>
+
+<div class="webr-container" data-block-title="Literal dot in version strings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Literal dot in version strings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">versions &lt;- c(&quot;1.5&quot;, &quot;1a5&quot;, &quot;1b5&quot;, &quot;15&quot;)
+str_detect(versions, fixed(&quot;.&quot;))
+#&gt; [1]  TRUE FALSE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.</code> is the most common regex metacharacter and a frequent surprise. <code>fixed(&quot;.&quot;)</code> matches exactly one dot. The bare pattern <code>&quot;.&quot;</code> matches every non-empty string.</p>
+
+<h3>2. Replace a literal substring containing parens</h3>
+
+<div class="webr-container" data-block-title="Strip footnote markers like (1)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip footnote markers like (1)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;alpha(1)&quot;, &quot;beta(2)&quot;, &quot;gamma&quot;)
+str_replace(x, fixed(&quot;(1)&quot;), &quot;&quot;)
+#&gt; [1] &quot;alpha&quot; &quot;beta(2)&quot; &quot;gamma&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Parentheses are regex grouping operators. Without <code>fixed()</code>, you would have to escape them as <code>&quot;\\(1\\)&quot;</code>.</p>
+
+<h3>3. Case-insensitive literal match</h3>
+
+<div class="webr-container" data-block-title="Find apple regardless of case">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find apple regardless of case</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fruits &lt;- c(&quot;Apple pie&quot;, &quot;applesauce&quot;, &quot;BANANA&quot;, &quot;pineapple&quot;)
+str_detect(fruits, fixed(&quot;apple&quot;, ignore_case = TRUE))
+#&gt; [1]  TRUE  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ignore_case = TRUE</code> argument is the literal-match equivalent of <code>regex(..., ignore_case = TRUE)</code>. It uses simple ASCII case folding, not locale rules.</p>
+
+<h3>4. Count a literal special character</h3>
+
+<div class="webr-container" data-block-title="Count dollar signs in receipts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count dollar signs in receipts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lines &lt;- c(&quot;$12 and $5&quot;, &quot;no money&quot;, &quot;$$$ jackpot&quot;)
+str_count(lines, fixed(&quot;$&quot;))
+#&gt; [1] 2 0 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>$</code> is the regex anchor for end-of-string. <code>fixed(&quot;$&quot;)</code> counts the literal character.</p>
+
+<h3>5. Split on a pipe or other delimiter</h3>
+
+<div class="webr-container" data-block-title="Split records on literal pipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split records on literal pipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- c(&quot;Alice|30|NY&quot;, &quot;Bob|45|CA&quot;)
+str_split(records, fixed(&quot;|&quot;))
+#&gt; [[1]]
+#&gt; [1] &quot;Alice&quot; &quot;30&quot;    &quot;NY&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;Bob&quot; &quot;45&quot;  &quot;CA&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>|</code> is regex alternation. <code>fixed(&quot;|&quot;)</code> splits on the literal pipe character with no escaping needed.</p>
+
+<h3>6. Use inside dplyr filter</h3>
+
+<div class="webr-container" data-block-title="Filter rows by literal file extension">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter rows by literal file extension</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tibble)
+files &lt;- tibble(name = c(&quot;report.pdf&quot;, &quot;report-pdf.docx&quot;, &quot;data.pdf.bak&quot;))
+
+files |&gt; filter(str_detect(name, fixed(&quot;.pdf&quot;)))
+#&gt; # A tibble: 2 x 1
+#&gt;   name
+#&gt;   &lt;chr&gt;
+#&gt; 1 report.pdf
+#&gt; 2 data.pdf.bak</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The literal <code>.pdf</code> matches the substring exactly. The bare regex <code>&quot;.pdf&quot;</code> would also match <code>&quot;-pdf&quot;</code> because <code>.</code> is "any character".</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>fixed()</code> is faster than regex for literal needles, and the speed gap grows with pattern length.</strong> stringr uses a Boyer-Moore-style scan for fixed patterns and the full regex engine for everything else. For short patterns the difference is tiny; for long literals or millions of strings, <code>fixed()</code> is the right default.</div></div>
+
+<h2>fixed() vs regex() vs coll() vs boundary()</h2>
+
+<p><strong>stringr ships four pattern modifiers, and each one trades speed for matching power.</strong> Pick by what you need to match:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Modifier</th>
+<th>Use when</th>
+<th>Speed</th>
+<th>Locale-aware</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fixed(&quot;x&quot;)</code></td>
+<td>Literal byte-by-byte match</td>
+<td>Fastest</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>regex(&quot;x&quot;)</code></td>
+<td>Regular expression (default)</td>
+<td>Fast</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>coll(&quot;x&quot;)</code></td>
+<td>Accents, ligatures, Turkish i, locale rules</td>
+<td>Slowest</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>boundary(&quot;word&quot;)</code></td>
+<td>Split or detect word, line, sentence</td>
+<td>Fast</td>
+<td>Locale-aware boundaries</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Decision rule:</strong> start with the default (regex). Switch to <code>fixed()</code> when your pattern contains metacharacters you want literal, or you need a speed boost on big data. Switch to <code>coll()</code> only for human-facing text comparisons where <code>&quot;e&quot;</code> and <code>&quot;é&quot;</code> must match.</p>
+
+<div class="webr-container" data-block-title="Same input, three modifiers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same input, three modifiers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(&quot;naive&quot;, &quot;naïve&quot;, &quot;Naive&quot;)
+
+str_detect(x, &quot;naive&quot;)                                 # regex (default)
+#&gt; [1]  TRUE FALSE FALSE
+str_detect(x, fixed(&quot;naive&quot;, ignore_case = TRUE))      # case-insensitive literal
+#&gt; [1]  TRUE FALSE  TRUE
+str_detect(x, coll(&quot;naive&quot;, ignore_case = TRUE, locale = &quot;en&quot;))  # locale-aware
+#&gt; [1]  TRUE  TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>fixed(x, ignore_case = TRUE)</code> uses ASCII case rules.</strong> It does NOT treat accented letters or non-Latin scripts as case variants. For Unicode-correct case folding, use <code>coll(x, ignore_case = TRUE, locale = &quot;en&quot;)</code> instead.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to wrap when the pattern came from user input.</strong> If your pattern is a variable from a CSV or form field, assume it may contain regex metacharacters and wrap with <code>fixed()</code> unless you specifically want regex behavior. Otherwise a single user-supplied <code>(</code> raises <code>invalid regular expression</code>.</p>
+
+<p><strong>Pitfall 2: using <code>fixed()</code> when you actually want word boundaries.</strong> <code>str_detect(&quot;pineapple&quot;, fixed(&quot;apple&quot;))</code> returns TRUE. To match <code>apple</code> as a whole word, use the regex <code>&quot;\\bapple\\b&quot;</code> or <code>boundary(&quot;word&quot;)</code> plus equality.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>fixed()</code> does NOT escape backslashes for you, but it also does not interpret them.</strong> <code>fixed(&quot;\\d&quot;)</code> matches the literal two-character sequence backslash-d, not a digit. If you want digit detection, drop <code>fixed()</code> and use the regex <code>&quot;\\d&quot;</code> directly.</div></div>
+
+<p><strong>Pitfall 3: trying to combine <code>fixed()</code> with regex anchors or character classes.</strong> <code>fixed(&quot;^apple&quot;)</code> matches a literal caret followed by <code>&quot;apple&quot;</code>, not "starts with apple". For anchored matches, use regex: <code>str_detect(x, &quot;^apple&quot;)</code> or <code>str_starts(x, &quot;apple&quot;)</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>fixed()</code> to count how many times the literal substring <code>&quot;.&quot;</code> appears in each element of <code>c(&quot;a.b.c&quot;, &quot;no dots&quot;, &quot;1.5.0&quot;)</code>. Save the counts to <code>ex_dot_counts</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count literal dots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count literal dots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">strings &lt;- c(&quot;a.b.c&quot;, &quot;no dots&quot;, &quot;1.5.0&quot;)
+
+ex_dot_counts &lt;- # your code here
+
+ex_dot_counts
+#&gt; Expected: 2 0 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">strings &lt;- c(&quot;a.b.c&quot;, &quot;no dots&quot;, &quot;1.5.0&quot;)
+ex_dot_counts &lt;- str_count(strings, fixed(&quot;.&quot;))
+ex_dot_counts
+#&gt; [1] 2 0 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fixed(&quot;.&quot;)</code> tells <code>str_count()</code> to look for a literal dot, not the regex "any character". Without <code>fixed()</code>, every non-empty string would return its full length because <code>.</code> matches any character.</p>
+
+</details>
+</section>
+
+<h2>Related stringr functions and modifiers</h2>
+
+<p>After <code>fixed()</code>, the modifiers and functions you most often pair it with:</p>
+
+<ul>
+
+<li><code>regex()</code>: opt back into regex behaviour with options like <code>ignore_case</code>, <code>multiline</code>, <code>dotall</code></li>
+
+<li><code>coll()</code>: locale-sensitive literal match for accents and Unicode</li>
+
+<li><code>boundary()</code>: match word, line, sentence, or character boundaries</li>
+
+<li><code>str_detect()</code>: TRUE/FALSE per string for the wrapped pattern</li>
+
+<li><code>str_replace()</code> / <code>str_replace_all()</code>: substitute matched text</li>
+
+<li><code>str_extract()</code> / <code>str_extract_all()</code>: pull out the matched substring</li>
+
+</ul>
+
+<p>For multi-pattern lookups, see <code>str_subset()</code> (filter) and <code>str_locate()</code> (position). The full reference lives in the <a href="https://stringr.tidyverse.org/reference/modifiers.html">stringr documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fixed() and regex() in stringr?</strong></p>
+
+<p><code>fixed()</code> matches the pattern as a literal sequence of bytes, with no regex interpretation. <code>regex()</code> (the default for plain string patterns) treats characters like <code>.</code>, <code>*</code>, <code>+</code>, <code>?</code>, <code>(</code>, <code>)</code> as metacharacters. Use <code>fixed()</code> for speed on literal needles or when your pattern includes regex specials you want treated literally.</p>
+
+<p><strong>Is fixed() faster than <a class="auto-link" href="R-Regex-stringr-Pattern-Matching.html" title="R Regular Expressions: Pattern Matching with stringr (20 Examples)">regex in R</a>?</strong></p>
+
+<p>Yes, especially for long literal patterns and large input vectors. stringr scans fixed patterns with an algorithm tuned for literal substring search and skips regex compilation. For short patterns and small data, the difference is negligible; for production text pipelines, <code>fixed()</code> can be several times faster.</p>
+
+<p><strong>Can fixed() be case-insensitive in stringr?</strong></p>
+
+<p>Yes. Pass <code>ignore_case = TRUE</code>: <code>fixed(&quot;apple&quot;, ignore_case = TRUE)</code>. The match uses ASCII case folding, so <code>A</code> matches <code>a</code> but <code>é</code> does not match <code>E</code>. For Unicode-correct case folding, use <code>coll(pattern, ignore_case = TRUE, locale = &quot;en&quot;)</code> instead.</p>
+
+<p><strong>How do I match a literal dot or special character in stringr?</strong></p>
+
+<p>Wrap the pattern in <code>fixed()</code>: <code>str_detect(x, fixed(&quot;.&quot;))</code> matches a literal dot. The alternative is escaping in regex: <code>str_detect(x, &quot;\\.&quot;)</code>. <code>fixed()</code> is clearer when several special characters appear in the same pattern, like <code>fixed(&quot;v1.0.0(beta)&quot;)</code>.</p>
+
+<p><strong>Does fixed() work with stri_ functions from stringi?</strong></p>
+
+<p>Not directly. <code>fixed()</code> returns a stringr-specific wrapper. The stringi equivalent is the <code>stri_*</code> functions that already accept <code>opts_fixed = list()</code> and <code>opts_regex = list()</code> argument lists, or the lower-level <code>stri_detect_fixed()</code>, <code>stri_replace_all_fixed()</code> family.</p>
+
+<p><strong>Can I use fixed() with vectorized patterns?</strong></p>
+
+<p>Yes, <code>fixed()</code> is vectorized over <code>pattern</code>: <code>str_detect(c(&quot;a.b&quot;,&quot;x*y&quot;), fixed(c(&quot;.&quot;, &quot;*&quot;)))</code> returns <code>c(TRUE, TRUE)</code>. Each element of the input is matched against the corresponding element of the pattern. Lengths must match or one of them must be length one.</p>
