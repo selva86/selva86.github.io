@@ -1,0 +1,334 @@
+---
+title: "purrr pmap() in R: Iterate Over Many Lists in Parallel"
+description: "Use purrr pmap() to apply a function to several lists or data frame rows in parallel in R. Covers pmap_dbl, pmap_chr, pmap_dfr, and 5 worked examples."
+keywords: "purrr pmap, pmap function R, purrr pmap examples, pmap_dbl, pmap vs map2, pmap data frame rows, pwalk"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr pmap|pmap()|pmap_dbl()|pmap_dfr()|iterate over data frame rows"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr pmap() in R: Iterate Over Many Lists in Parallel</h1>
+
+<p class="lead">The <code>pmap()</code> function in purrr applies a function to any number of lists, vectors, or <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> in parallel, stepping through all of them at once. Type-safe variants (<code>pmap_dbl</code>, <code>pmap_chr</code>, <code>pmap_dfr</code>) return a specific atomic type or a data frame instead of a list.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pmap(list(a, b, c), ~ ..1 + ..2 + ..3)<span class="qa-cmt">   # list output</span>
+pmap_dbl(list(a, b), ~ ..1 * ..2)<span class="qa-cmt">        # numeric vector</span>
+pmap_chr(df, paste)<span class="qa-cmt">                      # character vector</span>
+pmap(df, function(x, y) x + y)<span class="qa-cmt">           # named args from columns</span>
+pmap_dfr(list(a, b), make_row)<span class="qa-cmt">           # row-bind to data frame</span>
+pmap(list(a, b), fn, na.rm = TRUE)<span class="qa-cmt">       # extra args after .f</span>
+pwalk(list(paths, data), write.csv)<span class="qa-cmt">      # side effects, no return</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">pmap()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">three or more inputs in lockstep</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pmap(list(a, b, c), fn)</text><text x="125" y="126" class="branch-label">iterate over data frame rows</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pmap(df, fn)</text><text x="125" y="182" class="branch-label">exactly one input</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map(a, fn)</text><text x="125" y="238" class="branch-label">exactly two inputs</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map2(a, b, fn)</text><text x="125" y="294" class="branch-label">many inputs, side effects only</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pwalk(list(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>, fn)</text><text x="125" y="350" class="branch-label">one input plus its index</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">imap(a, fn)</text></svg></div>
+
+<h2>What pmap() does in one sentence</h2>
+
+<p><strong><code>pmap(.l, .f)</code> calls <code>.f</code> once per position, drawing one element from every list inside <code>.l</code>.</strong> Element <code>i</code> of the result is <code>.f</code> applied to the <code>i</code>-th element of each input, so all inputs must have the same length.</p>
+
+<p>While <code>map()</code> walks one input and <code>map2()</code> walks two, <code>pmap()</code> walks any number of inputs in lockstep. You pass them as a single list, which is why <code>pmap()</code> has no fixed limit on input count. A data frame is itself a list of equal-length columns, so <code>pmap()</code> over a data frame iterates row by row.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>pmap(.l, .f, ...)</code>. <code>.l</code> is a list of inputs, <code>.f</code> is the function or lambda, and <code>...</code> holds extra arguments passed to <code>.f</code>.</strong></p>
+
+<p>Inside a purrr lambda, refer to inputs positionally as <code>..1</code>, <code>..2</code>, <code>..3</code>, and so on. If <code>.l</code> has named elements, you can instead write a function whose argument names match those names. Every list element in <code>.l</code> must have the same length.</p>
+
+<div class="webr-container" data-block-title="Sum three vectors in parallel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum three vectors in parallel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+pmap(list(1:3, 4:6, 7:9), ~ ..1 + ..2 + ..3)
+#&gt; [[1]]
+#&gt; [1] 12
+#&gt; [[2]]
+#&gt; [1] 15
+#&gt; [[3]]
+#&gt; [1] 18
+
+pmap_dbl(list(1:3, 4:6, 7:9), ~ ..1 + ..2 + ..3)
+#&gt; [1] 12 15 18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for a <code>pmap_*()</code> variant whenever you know the output type.</strong> <code>pmap_dbl()</code> returns a numeric vector and errors if any call returns a non-numeric value, which catches bugs early. Use plain <code>pmap()</code> only when results are mixed types or genuinely need to stay a list.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Plain pmap (list output)</h3>
+
+<p><strong><code>pmap()</code> with no suffix always returns a list, one element per position.</strong> Use it when each call produces something that does not flatten cleanly, such as a vector or a model object.</p>
+
+<div class="webr-container" data-block-title="Combine three inputs into vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine three inputs into vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pmap(list(c(1, 2), c(10, 20), c(100, 200)), ~ c(..1, ..2, ..3))
+#&gt; [[1]]
+#&gt; [1]   1  10 100
+#&gt; [[2]]
+#&gt; [1]   2  20 200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each call returns a length-3 vector, so a list is the only sensible container.</p>
+
+<h3>2. Type-safe numeric output</h3>
+
+<p><strong><code>pmap_dbl()</code> combines several numeric inputs into one clean numeric vector.</strong> Declaring the output type up front turns a wrong return value into an immediate error instead of a silent list.</p>
+
+<div class="webr-container" data-block-title="Weighted sum of three inputs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weighted sum of three inputs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">base   &lt;- c(2, 4, 6)
+bonus  &lt;- c(1, 1, 1)
+weight &lt;- c(0.5, 0.25, 0.1)
+
+pmap_dbl(list(base, bonus, weight), ~ (..1 + ..2) * ..3)
+#&gt; [1] 1.50 1.25 0.70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>..1</code> is each base value, <code>..2</code> each bonus, and <code>..3</code> each weight, so element <code>i</code> is <code>(base[i] + bonus[i]) * weight[i]</code>.</p>
+
+<h3>3. Iterate over data frame rows</h3>
+
+<p><strong>Pass a data frame as <code>.l</code> and <code>pmap()</code> walks it one row at a time.</strong> Each column becomes an argument, matched by name to your function's parameters.</p>
+
+<div class="webr-container" data-block-title="Iterate over data frame rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iterate over data frame rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  amount = c(10, 20, 30),
+  rate   = c(0.1, 0.2, 0.3)
+)
+
+pmap_dbl(df, function(amount, rate) amount * (1 + rate))
+#&gt; [1] 11 24 39</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The argument names <code>amount</code> and <code>rate</code> match the column names, so purrr passes each row's values into the right slots.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A data frame is a list of equal-length columns, so <code>pmap()</code> over a data frame is row-wise iteration for free.</strong> This is the cleanest base-tidyverse answer to "apply a function to every row." No <code>apply()</code>, no <code>rowwise()</code>, no manual indexing: name your function's arguments after the columns and let purrr do the matching.</div></div>
+
+<h3>4. Build strings from several columns</h3>
+
+<p><strong><code>pmap_chr()</code> glues one value from each input into a single string per position.</strong> It is the multi-input version of pasting columns together.</p>
+
+<div class="webr-container" data-block-title="Build a label per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a label per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people &lt;- data.frame(
+  name = c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;),
+  age  = c(30, 25, 41)
+)
+
+pmap_chr(people, function(name, age) paste0(name, &quot; is &quot;, age))
+#&gt; [1] &quot;Alice is 30&quot; &quot;Bob is 25&quot;   &quot;Carol is 41&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Combine results into a data frame</h3>
+
+<p><strong><code>pmap_dfr()</code> calls a function that returns a data frame, then row-binds every result.</strong> This builds one tidy table from several parallel inputs.</p>
+
+<div class="webr-container" data-block-title="Row-bind a data frame per call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row-bind a data frame per call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_row &lt;- function(id, n) {
+  data.frame(group = id, total = n * 100)
+}
+
+pmap_dfr(list(c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;), c(1, 2, 3)), make_row)
+#&gt;   group total
+#&gt; 1     x   100
+#&gt; 2     y   200
+#&gt; 3     z   300</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>pmap() vs map2() vs mapply()</h2>
+
+<p><strong>Three families iterate over several inputs in parallel, with different input limits and output guarantees.</strong> <code>pmap()</code> is the only one with no cap on input count.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Package</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map2()</code></td>
+<td>Exactly 2</td>
+<td>purrr</td>
+<td>List</td>
+</tr>
+<tr>
+<td><code>pmap()</code></td>
+<td>Any number (a list)</td>
+<td>purrr</td>
+<td>List</td>
+</tr>
+<tr>
+<td><code>pmap_dbl()</code> and friends</td>
+<td>Any number</td>
+<td>purrr</td>
+<td>Type-strict atomic vector</td>
+</tr>
+<tr>
+<td><code>mapply()</code> and <code>Map()</code></td>
+<td>Any number</td>
+<td>base</td>
+<td>Vector or matrix or list (auto)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>map2()</code> when you have exactly two inputs and <code>pmap()</code> once you reach three or more, or whenever the inputs already live together in a list or data frame. The typed <code>pmap_*()</code> family adds the safety net: you declare the output type, and a wrong return value raises an error instead of simplifying unpredictably the way <code>mapply()</code> does.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> The closest equivalent of <code>pmap(list(a, b, c), f)</code> is <code>[f(x, y, z) for x, y, z in zip(a, b, c)]</code> or <code>list(map(f, a, b, c))</code>. Iterating a data frame with <code>pmap(df, f)</code> is like pandas <code>df.apply(f, axis=1)</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to wrap inputs in <code>list()</code>.</strong> <code>pmap()</code> takes a single argument <code>.l</code>. Writing <code>pmap(a, b, c, fn)</code> is wrong because <code>b</code> and <code>c</code> get treated as <code>.f</code> and <code>...</code>. Always group the inputs: <code>pmap(list(a, b, c), fn)</code>.</p>
+
+<p><strong>Pitfall 2: a data frame with extra columns.</strong> When you pass a data frame, every column becomes an argument. If the data frame has more columns than your function accepts, the call errors. Select the needed columns first, or add <code>...</code> to the function signature to absorb the rest.</p>
+
+<p><strong>Pitfall 3: reaching for <code>.x</code> and <code>.y</code>.</strong> Inside a <code>pmap()</code> lambda there is no <code>.x</code> or <code>.y</code>. Use the numbered pronouns <code>..1</code>, <code>..2</code>, <code>..3</code>, or name the <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function arguments</a> to match the list element names.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>pmap_dbl</code> to iterate over a data frame. Build <code>mtcars[1:4, c(&quot;hp&quot;, &quot;wt&quot;)]</code> and compute <code>hp / wt</code> for each row. Save the result to <code>ex_ratio</code>.</p>
+<div class="webr-container" data-block-title="Your turn: power-to-weight with pmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: power-to-weight with pmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: pmap_dbl over a two-column data frame
+ex_data &lt;- mtcars[1:4, c(&quot;hp&quot;, &quot;wt&quot;)]
+ex_ratio &lt;- # your code here
+
+ex_ratio
+#&gt; Expected: 4 numbers, horsepower divided by weight</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_data &lt;- mtcars[1:4, c(&quot;hp&quot;, &quot;wt&quot;)]
+ex_ratio &lt;- pmap_dbl(ex_data, function(hp, wt) hp / wt)
+ex_ratio
+#&gt; [1] 41.98473 38.26087 40.08621 34.21462</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pmap_dbl()</code> walks the data frame one row at a time. The function arguments <code>hp</code> and <code>wt</code> are matched to the columns by name, and the <code>_dbl</code> suffix returns a numeric vector instead of a list.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>After pmap, these functions cover the rest of multi-input iteration:</p>
+
+<ul>
+
+<li><code>pmap_dbl()</code>, <code>pmap_chr()</code>, <code>pmap_lgl()</code>, <code>pmap_int()</code>: type-safe variants</li>
+
+<li><code>pmap_dfr()</code>, <code>pmap_dfc()</code>: combine results into a data frame by row or column</li>
+
+<li><code>map()</code> and <code>map2()</code>: iterate over one or exactly two inputs</li>
+
+<li><code>pwalk()</code>: run a multi-input function for side effects, returning the input invisibly</li>
+
+<li><code>imap()</code>: iterate over one input plus its index or names</li>
+
+</ul>
+
+<p>The base R counterparts are <code>Map()</code> and <code>mapply()</code> for projects that avoid the tidyverse. The official argument reference lives in the <a href="https://purrr.tidyverse.org/reference/pmap.html">purrr pmap documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map2 and pmap in purrr?</strong></p>
+
+<p><code>map2()</code> iterates over exactly two inputs, exposed inside a lambda as <code>.x</code> and <code>.y</code>. <code>pmap()</code> iterates over any number of inputs, passed as a single list and referred to as <code>..1</code>, <code>..2</code>, <code>..3</code>, and so on. Use <code>map2()</code> for two inputs and <code>pmap()</code> once you reach three or more, or whenever the inputs already sit together in a list or data frame.</p>
+
+<p><strong>How do I use pmap with a data frame?</strong></p>
+
+<p>Pass the data frame directly as the first argument: <code>pmap(df, fn)</code>. A data frame is a list of equal-length columns, so <code>pmap()</code> walks it one row at a time. Give your function argument names that match the column names, and purrr matches each row's values to the right parameters automatically.</p>
+
+<p><strong>What do ..1 and ..2 mean in pmap?</strong></p>
+
+<p><code>..1</code>, <code>..2</code>, and <code>..3</code> are positional pronouns inside a <code>pmap()</code> lambda. <code>..1</code> is the current element of the first list in <code>.l</code>, <code>..2</code> the second, and so on. They let you write a compact formula such as <code>~ ..1 + ..2</code> without naming a full function. For named lists, you can use the names instead.</p>
+
+<p><strong>Can pmap return a data frame?</strong></p>
+
+<p>Yes. Use <code>pmap_dfr()</code> when your function returns a data frame per call; it row-binds every result into one table. Use <code>pmap_dfc()</code> to column-bind instead. Both require the dplyr or vctrs binding rules, so each per-call result should have a consistent set of columns.</p>
+
+<p><strong>How do I run pmap for side effects only?</strong></p>
+
+<p>Use <code>pwalk()</code> instead of <code>pmap()</code>. It calls the function once per position for its side effect, such as writing a file or printing, then returns the input list invisibly. <code>pwalk(list(paths, datasets), write.csv)</code> writes each dataset to its matching path without building a result list.</p>
+
+</content>
+
+</invoke>
