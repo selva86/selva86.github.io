@@ -1,0 +1,346 @@
+---
+title: "purrr map_dbl() in R: Return a Numeric Vector"
+description: "Use purrr map_dbl() in R to apply a function across a list or vector and return a type-stable numeric (double) vector. Worked examples, pitfalls, and FAQ."
+keywords: "purrr map_dbl, map_dbl function R, purrr map_dbl examples, R map_dbl numeric vector, map_dbl vs map, map_dbl vs sapply"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "map_dbl()|purrr map_dbl|purrr::map_dbl()|map_dbl function|map_dbl variant"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr map_dbl() in R: Return a Numeric Vector</h1>
+
+<p class="lead">The <code>map_dbl()</code> function in purrr applies a function to each element of a list or vector and returns a flat numeric (double) vector. It is the type-stable variant of <code>map()</code>: if the function returns anything other than a length-1 double, <code>map_dbl()</code> errors instead of failing silently.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_dbl(x, mean)<span class="qa-cmt">                    # apply, return doubles</span>
+map_dbl(x, ~ .x ^ 2)<span class="qa-cmt">                # lambda formula</span>
+map_dbl(x, \(v) v ^ 2)<span class="qa-cmt">              # native anonymous function</span>
+map_dbl(x, mean, na.rm = TRUE)<span class="qa-cmt">      # pass extra arguments</span>
+map_dbl(records, &quot;score&quot;)<span class="qa-cmt">           # pluck a numeric element</span>
+map_dbl(x, length)<span class="qa-cmt">                  # numeric summary per element</span>
+map_dbl(df, ~ sum(.x &gt; 0))<span class="qa-cmt">          # count matches per column</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need a numeric vector out</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map_dbl(x, mean)</text><text x="125" y="126" class="branch-label">need text out instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map_chr(x, format)</text><text x="125" y="182" class="branch-label">need whole integers out</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map_int(x, length)</text><text x="125" y="238" class="branch-label">need TRUE or FALSE out</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map_lgl(x, is.numeric)</text><text x="125" y="294" class="branch-label">output length varies per element</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">map(x, range)</text><text x="125" y="350" class="branch-label">building a data frame row by row</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">map_dfr</a>(x, summary_fn)</text><text x="125" y="406" class="branch-label">only running side effects, no output</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">walk(x, print)</text></svg></div>
+
+<h2>What map_dbl() does in one sentence</h2>
+
+<p><strong><code>map_dbl(x, fn)</code> applies <code>fn</code> to every element of <code>x</code> and returns a numeric vector.</strong> Each call to <code>fn</code> must produce a single double value, so the result is always a flat, predictable atomic vector rather than a list.</p>
+
+<p>This type guarantee is the whole point. Plain <code>map()</code> always returns a list, and base R's <code>sapply()</code> <em>guesses</em> the output type, which can silently hand you a list, a matrix, or a vector depending on the data. <code>map_dbl()</code> removes the guessing.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>map_dbl(.x, .f, ...)</code> takes three things: input, function, and pass-through arguments.</strong> <code>.x</code> is a list or atomic vector, <code>.f</code> is the function or lambda to apply, and <code>...</code> are extra arguments forwarded to <code>.f</code>.</p>
+
+<div class="webr-container" data-block-title="Three ways to write the function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three ways to write the function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Named function
+map_dbl(1:5, sqrt)
+#&gt; [1] 1.000000 1.414214 1.732051 2.000000 2.236068
+
+# Lambda formula: .x is the placeholder for each element
+map_dbl(1:5, ~ .x ^ 2)
+#&gt; [1]  1  4  9 16 25
+
+# Native R anonymous function (R 4.1+)
+map_dbl(1:5, \(v) v ^ 2)
+#&gt; [1]  1  4  9 16 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three styles are equivalent. The <code>~ .x</code> lambda is purrr shorthand; the <code>\(v)</code> form is base <a class="auto-link" href="R-Syntax-101.html" title="R Syntax 101: Write Your First Working Script in 10 Minutes">R syntax</a> and works anywhere.</p>
+
+<h2>Worked examples</h2>
+
+<p><strong>Each example below uses a different input shape.</strong> Together they cover the four situations where <code>map_dbl()</code> shows up most: summarising columns, measuring list elements, extracting a value, and handling missing data.</p>
+
+<p><strong>1. <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">Summarise</a> every column of a data frame.</strong> A data frame is a list of columns, so <code>map_dbl()</code> iterates column by column.</p>
+
+<div class="webr-container" data-block-title="Column means of mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Column means of mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dbl(mtcars, mean)
+#&gt;        mpg        cyl       disp         hp       drat         wt
+#&gt;  20.090625   6.187500 230.721875 146.687500   3.596563   3.217250
+#&gt;       qsec         vs         am       gear       carb
+#&gt;  17.848750   0.437500   0.406250   3.687500   2.812500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>2. Measure each element of a list.</strong> When list elements have different lengths, <code>length()</code> reduces each to a single number.</p>
+
+<div class="webr-container" data-block-title="Length of each list element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length of each list element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lst &lt;- list(a = 1:3, b = 1:7, c = 1:2)
+map_dbl(lst, length)
+#&gt; a b c
+#&gt; 3 7 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>3. Pluck a numeric field from nested records.</strong> Passing a string as <code>.f</code> extracts that element from each item, like a vectorised <code>$</code>.</p>
+
+<div class="webr-container" data-block-title="Extract a field by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract a field by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- list(
+  list(id = 1, score = 88),
+  list(id = 2, score = 92),
+  list(id = 3, score = 75)
+)
+map_dbl(records, &quot;score&quot;)
+#&gt; [1] 88 92 75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>4. Forward extra arguments with <code>...</code>.</strong> Anything after <code>.f</code> is passed straight to the function on every call.</p>
+
+<div class="webr-container" data-block-title="Handle NA values per element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handle NA values per element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vals &lt;- list(c(1, 2, NA), c(4, NA, 6))
+map_dbl(vals, mean, na.rm = TRUE)
+#&gt; [1] 1.5 5.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for the lambda when you need an expression, not a bare function.</strong> <code>map_dbl(x, mean)</code> is cleanest for a single named function, but <code>map_dbl(df, ~ sum(.x &gt; 0))</code> lets you compute something inline without defining a helper.</div></div>
+
+<h2>map_dbl() vs map() and the other variants</h2>
+
+<p><strong>Pick the variant that matches the type you expect back.</strong> All <code>map_*</code> functions iterate the same way; they differ only in what they return and how strictly they enforce it.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Errors if element is not...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map()</code></td>
+<td>list</td>
+<td>never errors (any type allowed)</td>
+</tr>
+<tr>
+<td><code>map_dbl()</code></td>
+<td>double vector</td>
+<td>a length-1 double</td>
+</tr>
+<tr>
+<td><code>map_int()</code></td>
+<td>integer vector</td>
+<td>a length-1 integer</td>
+</tr>
+<tr>
+<td><code>map_chr()</code></td>
+<td>character vector</td>
+<td>a length-1 string</td>
+</tr>
+<tr>
+<td><code>map_lgl()</code></td>
+<td>logical vector</td>
+<td>a length-1 TRUE/FALSE</td>
+</tr>
+<tr>
+<td><code>sapply()</code></td>
+<td>guessed (base R)</td>
+<td>does not error, simplifies inconsistently</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: if you know the output is numeric, use <code>map_dbl()</code>. If the per-element result is a count of whole numbers, <code>map_int()</code> is stricter. When the shape is unpredictable, fall back to <a href="purrr-map-in-R.html">map()</a>, which never simplifies.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Type-stable functions make bugs loud instead of silent.</strong> With <code>sapply()</code>, one odd element can change the return type and break code three steps later. <code>map_dbl()</code> fails at the exact line where the assumption broke, which makes debugging far faster.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most <code>map_dbl()</code> errors trace back to the function returning the wrong thing.</strong> The fix is almost always to switch variants or reshape the per-element result.</p>
+
+<p><strong>Pitfall 1: the function returns more than one value.</strong> <code>map_dbl()</code> demands exactly length 1 per call.</p>
+
+<div class="webr-container" data-block-title="Length-1 rule violation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length-1 rule violation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dbl(1:3, ~ c(.x, .x))
+#&gt; Error in `map_dbl()`:
+#&gt; i In index: 1.
+#&gt; Caused by error:
+#&gt; ! Result must be length 1, not 2.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fix: use <code>map()</code> if you genuinely need multiple values per element, or summarise inside the lambda (<code>~ sum(c(.x, .x))</code>).</p>
+
+<p><strong>Pitfall 2: the function returns text.</strong> A character result cannot be coerced to a double.</p>
+
+<div class="webr-container" data-block-title="Wrong variant for text output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong variant for text output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dbl(c(&quot;apple&quot;, &quot;kiwi&quot;), nchar)   # ok: nchar returns numbers
+#&gt; [1] 5 4
+map_dbl(c(&quot;apple&quot;, &quot;kiwi&quot;), toupper) # toupper returns strings
+#&gt; Error in `map_dbl()`:
+#&gt; ! Can't coerce from a string to a double.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fix: use <code>map_chr()</code> when the result is text.</p>
+
+<p><strong>Pitfall 3: <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> silently propagate.</strong> If an element contains <code>NA</code> and your function does not drop it, you get <code>NA</code> back, not an error.</p>
+
+<div class="webr-container" data-block-title="NA leaks through without na.rm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA leaks through without na.rm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dbl(list(c(1, NA), c(3, 4)), mean)
+#&gt; [1] NA  3.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fix: pass <code>na.rm = TRUE</code> through <code>...</code> so every call drops missing values.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_dbl()</code> to get the maximum value of each numeric column in <code>iris[1:4]</code>. Save the result to <code>ex_maxes</code>.</p>
+<div class="webr-container" data-block-title="Your turn: column maxima">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: column maxima</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: max of each iris numeric column
+ex_maxes &lt;- # your code here
+
+ex_maxes
+#&gt; Expected: 4 named values</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_maxes &lt;- map_dbl(iris[1:4], max)
+ex_maxes
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;          7.9          4.4          6.9          2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>iris[1:4]</code> drops the non-numeric <code>Species</code> column, leaving a list of four numeric columns. <code>map_dbl()</code> applies <code>max()</code> to each and returns a named double vector.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong><code>map_dbl()</code> is one node in the <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">purrr map</a> family.</strong> These siblings cover the cases it cannot:</p>
+
+<ul>
+
+<li><a href="purrr-map-in-R.html">map()</a>: returns a list when the per-element output is not a scalar.</li>
+
+<li><a href="purrr-map2-in-R.html">map2()</a>: iterates over two vectors in lockstep.</li>
+
+<li><a href="purrr-pmap-in-R.html">pmap()</a>: iterates over any number of inputs, including data frame rows.</li>
+
+<li><a href="purrr-imap-in-R.html">imap()</a>: iterates with an index or name available as <code>.y</code>.</li>
+
+<li><a href="purrr-reduce-in-R.html">reduce()</a>: collapses a list to a single value instead of one-per-element.</li>
+
+</ul>
+
+<p>For the base R equivalents, see <a href="base-lapply-in-R.html">lapply() and the apply family</a> and the broader <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map_dbl() and map() in R?</strong></p>
+
+<p><code>map()</code> always returns a list, regardless of what the applied function produces. <code>map_dbl()</code> returns a flat numeric vector and enforces that every per-element result is a single double. Use <code>map()</code> when results vary in length or type, and <code>map_dbl()</code> when you know each call yields one number and want a clean atomic vector to compute on directly.</p>
+
+<p><strong>Is map_dbl() faster than <a class="auto-link" href="base-sapply-in-R.html" title="sapply() in R: Apply a Function and Simplify the Result">sapply()</a>?</strong></p>
+
+<p>Speed is roughly comparable for typical workloads; both loop in R. The real advantage of <code>map_dbl()</code> is predictability, not raw speed. <code>sapply()</code> infers the return type and can hand back a list, vector, or matrix depending on the data, while <code>map_dbl()</code> always returns a double vector or errors clearly.</p>
+
+<p><strong>Why does map_dbl() say "Result must be length 1"?</strong></p>
+
+<p>The function you passed returned a vector with more than one element for at least one input. <code>map_dbl()</code> requires exactly one double per element so it can build a flat result. Either summarise the result inside the function, for example <code>~ sum(.x)</code>, or switch to <code>map()</code> if you actually need multiple values per element.</p>
+
+<p><strong>Can map_dbl() return integers?</strong></p>
+
+<p>It returns doubles even when every value is a whole number, because the output type is fixed as double. If you specifically need an integer vector, use <code>map_int()</code> instead. It applies the same type check but stores the result as integers, which is stricter and slightly more memory efficient.</p>
+
+<p><strong>How do I pass extra arguments to the function in map_dbl()?</strong></p>
+
+<p>Add them after the function in the <code>...</code> slot. For example, <code>map_dbl(x, mean, na.rm = TRUE)</code> forwards <code>na.rm = TRUE</code> to every <code>mean()</code> call. This works for any named argument the applied function accepts, and is cleaner than wrapping the function in a lambda just to set one option.</p>
