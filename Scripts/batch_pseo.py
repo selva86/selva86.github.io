@@ -219,6 +219,7 @@ def run_validator(slug: str, target_keyword: str, dry_run: bool) -> tuple[str, s
            "--slug", slug, "--json"]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace",
                            cwd=str(REPO_ROOT), timeout=120)
     except subprocess.TimeoutExpired:
         return ("WARN", "validator timeout (proceeding)")
@@ -228,15 +229,27 @@ def run_validator(slug: str, target_keyword: str, dry_run: bool) -> tuple[str, s
         data = json.loads(raw) if raw else {}
     except Exception:
         data = {}
-    # validate_pseo.py uses key "overall" (PASS / WARN / FAIL)
-    verdict = data.get("overall") or data.get("verdict") or \
-              ("PASS" if r.returncode == 0 else "FAIL")
-    reason_bits = []
-    for g in data.get("gates", []):
-        if isinstance(g, dict) and g.get("verdict") in ("WARN", "FAIL"):
-            reason_bits.append(f"{g.get('gate','?')}={g.get('verdict')}")
-    reason = "; ".join(reason_bits) or data.get("reason") or "ok"
-    return (verdict, reason)
+
+    # Real validator output always carries an "overall" key, plus per-gate
+    # sub-dicts "slug" and "competitors" each with a "status"/"message".
+    if isinstance(data, dict) and "overall" in data:
+        verdict = data["overall"]
+        bits = []
+        for name in ("slug", "competitors"):
+            gate = data.get(name)
+            if isinstance(gate, dict) and gate.get("status") in ("WARN", "FAIL"):
+                bits.append(f"{name}={gate['status']}: {gate.get('message', '')}")
+        return (verdict, "; ".join(bits) or "ok")
+
+    # No parseable "overall". A clean exit means stdout was merely unexpected;
+    # a non-zero exit means validate_pseo.py crashed (uncaught exception, no
+    # JSON). A crash is NOT a demand FAIL -- return WARN so the slot proceeds
+    # to write rather than being terminally marked demand_failed.
+    if r.returncode == 0:
+        return ("PASS", "ok")
+    stderr_tail = (r.stderr or "").strip()[-200:]
+    return ("WARN",
+            f"validator crashed (exit {r.returncode}); stderr: {stderr_tail}")
 
 
 def run_write_skill(claude: str, slug: str, regenerate: bool, dry_run: bool) -> int:

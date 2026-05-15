@@ -176,7 +176,11 @@ def main():
     }
 
     if args.json:
-        print(json.dumps(report, indent=2, ensure_ascii=False))
+        # ensure_ascii=True (default): escape non-ASCII as \uXXXX so stdout is
+        # pure ASCII. The batch orchestrator captures this via subprocess on a
+        # Windows cp1252 console; raw non-ASCII from SerpAPI titles/snippets
+        # would otherwise raise UnicodeEncodeError and crash the validator.
+        print(json.dumps(report, indent=2))
     else:
         print(render_text(report))
 
