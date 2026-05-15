@@ -1,0 +1,319 @@
+---
+title: "purrr imap() in R: Map Over Values and Their Names"
+description: "Use purrr imap() to iterate over a list or vector and its names or index together in R. Covers imap_chr, imap_dbl, imap_dfr, iwalk, and 5 worked examples."
+keywords: "purrr imap, imap function R, purrr imap examples, imap_chr, imap with index, imap vs map2, iwalk"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr imap|imap()|imap_chr()|imap_dbl()|iterate with index"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr imap() in R: Map Over Values and Their Names</h1>
+
+<p class="lead">The <code>purrr</code> <code>imap()</code> function iterates over a list or vector and its names or index at the same time, exposing each value as <code>.x</code> and each name as <code>.y</code>. Type-safe variants (<code>imap_chr</code>, <code>imap_dbl</code>, <code>imap_dfr</code>) return an atomic vector or data frame instead of a list.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>imap(x, ~ paste(.y, .x))<span class="qa-cmt">             # list; .y = name or index</span>
+imap_chr(x, ~ paste0(.y, &quot;: &quot;, .x))<span class="qa-cmt">  # character vector</span>
+imap_dbl(x, ~ .x * .y)<span class="qa-cmt">               # numeric vector</span>
+imap_int(x, ~ .y)<span class="qa-cmt">                    # integer index per element</span>
+imap_dfr(x, ~ data.frame(id = .y))<span class="qa-cmt">   # row-bind to a data frame</span>
+iwalk(x, ~ cat(.y, .x, &quot;\n&quot;))<span class="qa-cmt">        # side effects, no return</span>
+imap(unnamed, ~ .y)<span class="qa-cmt">                  # .y is 1, 2, 3, ...</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">imap()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need value plus its name or index</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">imap(x, ~ paste(.y, .x))</text><text x="125" y="126" class="branch-label">value only, no index needed</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map(x, ~ .x * 2)</text><text x="125" y="182" class="branch-label">two separate inputs in lockstep</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map2(a, b, ~ .x + .y)</text><text x="125" y="238" class="branch-label">index plus side effects only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">iwalk(x, ~ cat(.y))</text><text x="125" y="294" class="branch-label">three or more inputs</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pmap(list(a, b, c), sum)</text><text x="125" y="350" class="branch-label">running total across elements</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">reduce(x, `+`)</text></svg></div>
+
+<h2>What imap() does in one sentence</h2>
+
+<p><strong><code>imap(.x, .f)</code> calls <code>.f</code> once per element of <code>.x</code>, passing the element as <code>.x</code> and its name or integer position as <code>.y</code>.</strong> It is exactly <code>map2(.x, names(.x) %||% seq_along(.x), .f)</code>, with the second input filled in for you.</p>
+
+<p>When <code>.x</code> has names, <code>.y</code> is the name string. When <code>.x</code> is unnamed, <code>.y</code> is the integer index <code>1, 2, 3, ...</code>. That makes <code>imap()</code> the tool for any task where each result depends on both a value and where that value sits.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>imap(.x, .f, ...)</code>. <code>.x</code> is the list or vector; <code>.f</code> is the function or lambda; <code>...</code> holds extra arguments passed to <code>.f</code>.</strong></p>
+
+<p>Inside a purrr lambda, <code>.x</code> is the current element and <code>.y</code> is its name or index. There is no separate names argument, because <code>imap()</code> derives <code>.y</code> from <code>.x</code> itself. A two-argument function works too, with the value first and the name second.</p>
+
+<div class="webr-container" data-block-title="imap exposes value and name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">imap exposes value and name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+imap(c(a = 1, b = 2), ~ paste0(.y, &quot; -&gt; &quot;, .x))
+#&gt; $a
+#&gt; [1] &quot;a -&gt; 1&quot;
+#&gt; 
+#&gt; $b
+#&gt; [1] &quot;b -&gt; 2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the typed variant whenever the output type is known.</strong> <code>imap_chr()</code> returns a character vector and errors if any call returns something else, catching bugs at the call site. Reserve bare <code>imap()</code> for results that are genuinely mixed types or must stay a list.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Plain imap (list output)</h3>
+
+<p><strong><code>imap()</code> with no suffix returns a list the same length and names as <code>.x</code>.</strong> Use it when each call produces something that should not be flattened, such as a vector, a model, or a nested list.</p>
+
+<div class="webr-container" data-block-title="Prefix each score with its subject">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prefix each score with its subject</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- list(math = 90, science = 85, art = 78)
+
+imap(scores, ~ paste(.y, &quot;scored&quot;, .x))
+#&gt; $math
+#&gt; [1] &quot;math scored 90&quot;
+#&gt; 
+#&gt; $science
+#&gt; [1] &quot;science scored 85&quot;
+#&gt; 
+#&gt; $art
+#&gt; [1] &quot;art scored 78&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each call sees the value as <code>.x</code> and the list name as <code>.y</code>, so the result keeps the original names.</p>
+
+<h3>2. Type-safe character output</h3>
+
+<p><strong><code>imap_chr()</code> collapses the result into a named character vector.</strong> It is the variant to reach for when every call returns a single string.</p>
+
+<div class="webr-container" data-block-title="Type-safe character output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type-safe character output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">imap_chr(scores, ~ paste0(.y, &quot;: &quot;, .x))
+#&gt;          math       science           art 
+#&gt;    &quot;math: 90&quot; &quot;science: 85&quot;     &quot;art: 78&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The names of <code>scores</code> carry through to the names of the returned vector.</p>
+
+<h3>3. imap over an unnamed vector</h3>
+
+<p><strong>On an unnamed input, <code>.y</code> is the integer position, not a name.</strong> This turns <code>imap()</code> into a clean way to number elements without writing a <code>seq_along()</code> loop.</p>
+
+<div class="webr-container" data-block-title="Number elements of an unnamed vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Number elements of an unnamed vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fruits &lt;- c(&quot;apple&quot;, &quot;banana&quot;, &quot;cherry&quot;)
+
+imap_chr(fruits, ~ paste0(.y, &quot;. &quot;, .x))
+#&gt; [1] &quot;1. apple&quot;  &quot;2. banana&quot; &quot;3. cherry&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>.y</code> takes the values <code>1</code>, <code>2</code>, and <code>3</code> because <code>fruits</code> has no names.</p>
+
+<h3>4. Combine results into a data frame</h3>
+
+<p><strong><code>imap_dfr()</code> calls a function that returns a data frame, then row-binds every result.</strong> It builds one tidy table from a list and its names.</p>
+
+<div class="webr-container" data-block-title="Build a data frame, one row per element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a data frame, one row per element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">imap_dfr(scores, ~ data.frame(subject = .y, score = .x))
+#&gt;   subject score
+#&gt; 1    math    90
+#&gt; 2 science    85
+#&gt; 3     art    78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The list name becomes a column value, which is the usual reason to switch from a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> to a data frame.</p>
+
+<h3>5. iwalk for side effects</h3>
+
+<p><strong><code>iwalk()</code> is the side-effect version of <code>imap()</code>.</strong> It runs an index-aware function for printing, plotting, or writing files, and returns the input invisibly.</p>
+
+<div class="webr-container" data-block-title="Print each item for its side effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print each item for its side effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iwalk(scores, ~ cat(.y, &quot;=&quot;, .x, &quot;\n&quot;))
+#&gt; math = 90 
+#&gt; science = 85 
+#&gt; art = 78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>iwalk()</code> instead of <code>imap()</code> when you do not need the return value, only the action it performs.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>imap(x, f)</code> is just <code>map2(x, names(x) %||% seq_along(x), f)</code>.</strong> purrr fills the second input for you: names when <code>x</code> has them, integer positions when it does not. That single rule explains every <code>imap()</code> result. If <code>.y</code> shows up as <code>1, 2, 3</code> when you expected text, your input has no names.</div></div>
+
+<h2>imap() vs map2() vs map()</h2>
+
+<p><strong>Three purrr functions cover index-aware iteration, differing in where the index comes from.</strong> <code>imap()</code> derives it automatically, while <code>map2()</code> needs it spelled out.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Second input</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map(x, .f)</code></td>
+<td>none</td>
+<td>the result needs only the value</td>
+</tr>
+<tr>
+<td><code>imap(x, .f)</code></td>
+<td><code>names(x)</code> or <code>seq_along(x)</code>, automatic</td>
+<td>the result needs the value and its label</td>
+</tr>
+<tr>
+<td><code>map2(x, names(x), .f)</code></td>
+<td>explicit, you supply it</td>
+<td>the labels come from somewhere other than <code>x</code></td>
+</tr>
+<tr>
+<td><code>Map(f, x, names(x))</code></td>
+<td>explicit, base R</td>
+<td>no tidyverse dependency wanted</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>imap()</code> when the index you want is the one already attached to <code>.x</code>. Reach for <code>map2()</code> when the second input is a separate object, such as a vector of file paths or a lookup table.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> <code>imap(x, f)</code> on an unnamed input behaves like <code>enumerate(x)</code>, and on a named list like iterating <code>dict.items()</code>. In both cases you get the value and its position or key together in one pass.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: assuming <code>.y</code> is always a name.</strong> On an unnamed vector, <code>.y</code> is the integer index, not a string. Code like <code>imap_chr(unnamed, ~ toupper(.y))</code> fails because <code>toupper()</code> cannot uppercase a number. Check whether the input is named before relying on <code>.y</code>.</p>
+
+<p><strong>Pitfall 2: confusing <code>.y</code> with a second value.</strong> In <code>map2()</code>, <code>.y</code> is the matching element of a second input. In <code>imap()</code>, <code>.y</code> is the name or index of the same element. Carrying a <code>map2()</code> mental model into <code>imap()</code> leads to treating a label as data.</p>
+
+<p><strong>Pitfall 3: partially named lists.</strong> <code>imap()</code> only falls back to integer positions when <code>names(.x)</code> is entirely missing. If a list has names on some elements and not others, the unnamed ones give <code>.y</code> as <code>&quot;&quot;</code>, an empty string, not an index. Name every element or none.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>imap_chr</code> to turn the named vector <code>c(a = 5, b = 10, c = 15)</code> into strings like <code>&quot;a = 5&quot;</code>. Save the result to <code>ex_tagged</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tag values with imap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tag values with imap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: imap_chr over a named numeric vector
+ex_tagged &lt;- # your code here
+
+ex_tagged
+#&gt; Expected: 3 strings pairing each name with its value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tagged &lt;- imap_chr(c(a = 5, b = 10, c = 15), ~ paste0(.y, &quot; = &quot;, .x))
+ex_tagged
+#&gt;       a       b       c 
+#&gt; &quot;a = 5&quot; &quot;b = 10&quot; &quot;c = 15&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>imap_chr()</code> walks the vector, exposing each value as <code>.x</code> and each name as <code>.y</code>. The lambda pastes them into one string per element, and the <code>_chr</code> suffix returns a character vector instead of a list.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>After imap, these functions round out index-aware and multi-input iteration:</p>
+
+<ul>
+
+<li><code>imap_chr()</code>, <code>imap_dbl()</code>, <code>imap_int()</code>, <code>imap_lgl()</code>: type-safe variants returning <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a></li>
+
+<li><code>imap_dfr()</code>, <code>imap_dfc()</code>: combine results by row or column into a data frame</li>
+
+<li><code>iwalk()</code>: run an index-aware function for side effects, returning the input invisibly</li>
+
+<li><code>map2()</code>: iterate over two inputs when the second is a separate object, not names</li>
+
+<li><code>map()</code>: single-input iteration when no index is needed</li>
+
+<li><code>pmap()</code>: iterate over three or more inputs supplied as a list</li>
+
+</ul>
+
+<p>The official argument reference lives in the <a href="https://purrr.tidyverse.org/reference/imap.html">purrr imap documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map and imap in purrr?</strong></p>
+
+<p><code>map()</code> iterates over a single input and exposes each element as <code>.x</code>, with no access to position. <code>imap()</code> iterates over the same input but also exposes each element's name or integer index as <code>.y</code>. Use <code>map()</code> when the result depends only on the value, and <code>imap()</code> when it also depends on the label, such as numbering items or prefixing each value with its key.</p>
+
+<p><strong>What is .y in imap?</strong></p>
+
+<p><code>.y</code> is the index of the current element. When the input has names, <code>.y</code> is the name string. When the input is unnamed, <code>.y</code> is the integer position: <code>1</code> for the first element, <code>2</code> for the second, and so on. This is the difference from <code>map2()</code>, where <code>.y</code> is an element of a separate second input rather than a label.</p>
+
+<p><strong>Does imap work on unnamed lists and vectors?</strong></p>
+
+<p>Yes. On an unnamed input, <code>imap()</code> uses <code>seq_along()</code> to supply integer positions as <code>.y</code>. So <code>imap_chr(c(&quot;a&quot;, &quot;b&quot;), ~ paste0(.y, .x))</code> returns <code>&quot;1a&quot;</code> and <code>&quot;2b&quot;</code>. This makes <code>imap()</code> a clean replacement for manual <code>seq_along()</code> loops when you need both the value and its index.</p>
+
+<p><strong>What is the difference between imap and map2?</strong></p>
+
+<p><code>imap(x, f)</code> is shorthand for <code>map2(x, names(x) %||% seq_along(x), f)</code>. Both expose <code>.x</code> and <code>.y</code>, but <code>imap()</code> derives <code>.y</code> from the input itself, while <code>map2()</code> takes it as an explicit second argument. Use <code>imap()</code> when the second input is the names or index of the first, and <code>map2()</code> when it is a separate object.</p>
+
+<p><strong>How do I use imap to write multiple files?</strong></p>
+
+<p>Use <code>iwalk()</code>, the side-effect version of <code>imap()</code>. With a named list of data frames, <code>iwalk(dfs, ~ write.csv(.x, paste0(.y, &quot;.csv&quot;)))</code> writes one file per element, naming each file after the list name. <code>iwalk()</code> returns the input invisibly, so it chains cleanly inside a pipeline.</p>
