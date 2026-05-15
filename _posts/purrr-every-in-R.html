@@ -1,0 +1,374 @@
+---
+title: "purrr every() in R: Test If All Elements Pass"
+description: "Learn purrr every() in R to test whether all elements of a list or vector pass a predicate. Covers syntax, some() and none(), NA handling, and pitfalls."
+keywords: "purrr every, every function R, purrr every examples, R check all elements, purrr every some none, every predicate R, purrr all elements pass"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "every()|purrr every|purrr::every()|every predicate|purrr every function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr every() in R: Test If All Elements Pass</h1>
+
+<p class="lead">The purrr every() function tests whether every element of a list or vector satisfies a predicate, returning a single TRUE or FALSE. It is the tidyverse way to ask "do all of these pass?" in one call.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>every(x, is.numeric)<span class="qa-cmt">              # are all elements numeric?</span>
+every(x, \(v) v &gt; 0)<span class="qa-cmt">              # all match a lambda predicate</span>
+every(x, ~ .x &gt; 0)<span class="qa-cmt">                # formula shorthand predicate</span>
+every(list(), is.numeric)<span class="qa-cmt">         # TRUE (empty input, vacuous truth)</span>
+every(x, \(v) !is.na(v))<span class="qa-cmt">          # are all elements non-missing?</span>
+some(x, is.numeric)<span class="qa-cmt">               # are any elements numeric?</span>
+none(x, is.numeric)<span class="qa-cmt">               # are no elements numeric?</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is every() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">test that all elements pass</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">every(x, is.numeric)</text><text x="125" y="126" class="branch-label">test that any element passes</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">some(x, is.numeric)</text><text x="125" y="182" class="branch-label">test that no element passes</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">none(x, is.numeric)</text><text x="125" y="238" class="branch-label">keep only the matching elements</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">keep(x, is.numeric)</text><text x="125" y="294" class="branch-label">find the first matching element</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">detect(x, is.numeric)</text><text x="125" y="350" class="branch-label">test a plain logical vector</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">all(x &gt; 0)</text></svg></div>
+
+<h2>What purrr every() does</h2>
+
+<p><strong>every() reduces a whole collection to one TRUE or FALSE.</strong> It applies a predicate to each top-level element of a list or vector and returns <code>TRUE</code> only when the predicate holds for all of them. As soon as it meets an element that fails, it stops and returns <code>FALSE</code>, so it never tests elements past the first failure.</p>
+
+<p>The function ships with the purrr package, part of the tidyverse. It is the all-pass counterpart to <code>some()</code>, which asks whether at least one element matches, and <code>none()</code>, which asks whether zero elements match. Together the three cover every yes/no question you can ask about a collection.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>every() is <code>all()</code> with a predicate built in.</strong> Base R's <code>all()</code> needs a logical vector you already computed. every() takes the raw collection plus a test function and does the per-element work for you, which is why it reads cleanly inside a tidyverse pipeline.</div></div>
+
+<h2>every() syntax and arguments</h2>
+
+<p><strong>every() takes a collection and a predicate.</strong> The signature is <code>every(.x, .p, ...)</code>.</p>
+
+<ul>
+
+<li><code>.x</code>: a list or atomic vector to test.</li>
+
+<li><code>.p</code>: a predicate function returning a single <code>TRUE</code> or <code>FALSE</code> per element. Pass a named function (<code>is.numeric</code>), an anonymous function (<code>\(x) x &gt; 0</code>), or a purrr formula (<code>~ .x &gt; 0</code>).</li>
+
+<li><code>...</code>: extra arguments passed on to <code>.p</code>.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Load purrr and test all elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and test all elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- list(4, 11, 8, 2, 15)
+every(nums, \(x) x &gt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicate <code>\(x) x &gt; 0</code> is applied to each element. Every value is positive, so every() returns a single <code>TRUE</code>. The result is one scalar, not a vector of per-element answers.</p>
+
+<h2>every() examples by use case</h2>
+
+<p><strong>Most every() jobs fall into a few shapes.</strong> These four examples cover the common ones.</p>
+
+<h3>Check every element is a given type</h3>
+
+<p><strong>Pass a type-checking function as the predicate.</strong> Functions like <code>is.numeric</code> or <code>is.character</code> confirm a list holds only one kind of value.</p>
+
+<div class="webr-container" data-block-title="Check every element is numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check every element is numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(nums, is.numeric)
+#&gt; [1] TRUE
+
+mixed &lt;- list(1, 2.5, &quot;Toyota&quot;)
+every(mixed, is.numeric)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call passes because <code>nums</code> is all numbers. The second returns <code>FALSE</code> the moment it reaches <code>&quot;Toyota&quot;</code>, without inspecting anything after it.</p>
+
+<h3>Validate every column of a data frame</h3>
+
+<p><strong>A data frame is a list of columns, so every() tests columns.</strong> This is a quick guard before a numeric model or summary.</p>
+
+<div class="webr-container" data-block-title="Check every column of a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check every column of a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(mtcars, is.numeric)
+#&gt; [1] TRUE
+
+every(iris, is.numeric)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mtcars</code> is fully numeric, so the check passes. <code>iris</code> includes the <code>Species</code> factor column, so every() returns <code>FALSE</code>.</p>
+
+<h3>Test a numeric condition on every element</h3>
+
+<p><strong>The predicate can be any test that returns one logical value.</strong> Here it checks that all values are even.</p>
+
+<div class="webr-container" data-block-title="Test a numeric condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test a numeric condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(c(2, 4, 6, 8), \(x) x %% 2 == 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each value divides evenly by 2, so the predicate is <code>TRUE</code> everywhere and every() returns <code>TRUE</code>.</p>
+
+<h3>Use the formula shorthand</h3>
+
+<p><strong>purrr formulas give a compact predicate for one-liners.</strong> Write <code>~</code> then refer to the element as <code>.x</code>.</p>
+
+<div class="webr-container" data-block-title="Use formula shorthand for the predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use formula shorthand for the predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(1:10, ~ .x &gt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula <code>~ .x &gt; 0</code> behaves like <code>\(x) x &gt; 0</code>. Both styles are valid; the lambda form is clearer when the predicate grows past a single expression.</p>
+
+<h2>every() vs some(), none(), and all()</h2>
+
+<p><strong>every() has three close relatives, and picking the wrong one is a common mistake.</strong> <code>some()</code> asks whether any element passes, <code>none()</code> asks whether none pass, and base R's <code>all()</code> works on a logical vector you already built rather than a raw collection.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Question answered</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>every()</code></td>
+<td>Do all elements pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>you need every element to match</td>
+</tr>
+<tr>
+<td><code>some()</code></td>
+<td>Does any element pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>one match is enough</td>
+</tr>
+<tr>
+<td><code>none()</code></td>
+<td>Do zero elements pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>you need to confirm absence</td>
+</tr>
+<tr>
+<td><code>all()</code></td>
+<td>Are all values <code>TRUE</code>?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>you already have a logical vector</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="every, some, and none compared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">every, some, and none compared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- list(2, 4, 6, 8)
+every(v, \(x) x %% 2 == 0)   # all even?
+#&gt; [1] TRUE
+some(v, \(x) x &gt; 5)          # any over 5?
+#&gt; [1] TRUE
+none(v, \(x) x &gt; 100)        # none over 100?
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three read like plain English, which is the point: reach for the verb that matches the question instead of hand-rolling a loop.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>every(x, p)</code> is equivalent to <code>all(sapply(x, p))</code>, and <code>some(x, p)</code> is <code>any(sapply(x, p))</code>. The purrr versions short-circuit and skip the intermediate vector, so they are both faster and easier to read in a pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most every() surprises trace back to the predicate or to <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</strong> Three mistakes account for nearly all of them.</p>
+
+<p>The first is a predicate that returns more than one value. every() needs exactly one <code>TRUE</code> or <code>FALSE</code> per element, so a vector-valued element with a naive comparison errors.</p>
+
+<div class="webr-container" data-block-title="Predicate must return one TRUE or FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicate must return one TRUE or FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vals &lt;- list(c(1, 2), c(8, 9))
+every(vals, \(x) x &gt; 0)
+#&gt; Error in `every()`:
+#&gt; ! `.p()` must return a single `TRUE` or `FALSE`, not a logical vector.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrap the comparison in <code>all()</code> so each element collapses to one logical value.</p>
+
+<div class="webr-container" data-block-title="Collapse the predicate with all">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse the predicate with all</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(vals, \(x) all(x &gt; 0))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is missing values. When the predicate returns <code>NA</code> for an element and no element returns <code>FALSE</code>, every() returns <code>NA</code> rather than <code>TRUE</code>, exactly as <code>all()</code> does.</p>
+
+<div class="webr-container" data-block-title="A predicate returning NA yields NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A predicate returning NA yields NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">has_na &lt;- list(2, 4, NA, 8)
+every(has_na, \(x) x &gt; 0)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An NA result is not a pass.</strong> Code that branches on <code>if (every(x, pred))</code> will error when every() returns <code>NA</code>. Guard the predicate with <code>!is.na(v) &amp; v &gt; 0</code> when missing data should count as a failure rather than an unknown.</div></div>
+
+<p>The third pitfall is the empty collection. <code>every()</code> on an empty list returns <code>TRUE</code> because there is no element that fails. This is vacuous truth, and it can mask a data problem upstream.</p>
+
+<div class="webr-container" data-block-title="An empty collection returns TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An empty collection returns TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">every(list(), \(x) x &gt; 100)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If an empty input should be treated as a failure, check <code>length(x) &gt; 0</code> before calling every().</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use every() to test whether all numbers from 2 to 20 are greater than 1. Save the result to ex_all.</p>
+<div class="webr-container" data-block-title="Your turn: test all elements">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test all elements</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: are all values greater than 1?
+ex_all &lt;- # your code here
+
+ex_all
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_all &lt;- every(2:20, \(x) x &gt; 1)
+ex_all
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicate <code>\(x) x &gt; 1</code> is TRUE for every integer from 2 to 20, so every() returns a single <code>TRUE</code>. If any value failed, every() would stop at it and return <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>every() is one of several purrr predicate tools.</strong> Reach for these when every() is not the exact fit.</p>
+
+<ul>
+
+<li><code>some()</code>: tests whether at least one element passes the predicate.</li>
+
+<li><code>none()</code>: tests whether zero elements pass the predicate.</li>
+
+<li><code>keep()</code> and <code>discard()</code>: return the matching or non-matching elements instead of a logical.</li>
+
+<li><code>detect()</code> and <code>detect_index()</code>: return the first matching element or its position.</li>
+
+<li><code>map_lgl()</code>: returns the full vector of per-element <code>TRUE</code>/<code>FALSE</code> answers.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/every.html">official purrr every() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does every() return if the list is empty?</strong> every() returns <code>TRUE</code> for an empty list or vector. This is vacuous truth: there is no element that fails the predicate, so the "all pass" condition holds trivially. The behaviour matches base R's <code>all(logical(0))</code>. If an empty input should count as a failure in your code, test <code>length(x) &gt; 0</code> before calling every() and handle the empty case explicitly.</p>
+
+<p><strong>What is the difference between every() and all() in R?</strong> <code>all()</code> takes a logical vector that you have already computed and returns <code>TRUE</code> if every value is <code>TRUE</code>. every() takes a raw list or vector plus a predicate function, applies the predicate to each element, and then performs the same all-<code>TRUE</code> test. In short, <code>every(x, p)</code> is <code>all(sapply(x, p))</code> written in one short, pipe-friendly call that also short-circuits on the first failure.</p>
+
+<p><strong>How does every() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong> If the predicate returns <code>NA</code> for an element and no other element returns <code>FALSE</code>, every() returns <code>NA</code> rather than <code>TRUE</code>. This mirrors <code>all()</code>. If any element returns <code>FALSE</code>, every() returns <code>FALSE</code> even when <code>NA</code> values are present, because a single failure already settles the answer. Guard the predicate with <code>!is.na(v)</code> when missing data should be treated as a definite failure.</p>
+
+<p><strong>What is the difference between every(), some(), and none()?</strong> All three reduce a collection to one logical value, but they ask different questions. every() returns <code>TRUE</code> only when all elements pass the predicate. some() returns <code>TRUE</code> when at least one element passes. none() returns <code>TRUE</code> when no element passes. Pick the verb that matches your question so the code reads like the requirement it checks.</p>
+
+<p><strong>Can every() be used on a data frame?</strong> Yes. A data frame is a list of columns, so every() applies the predicate to each column and returns one logical value. <code>every(mtcars, is.numeric)</code> returns <code>TRUE</code> because all columns are numeric, while <code>every(iris, is.numeric)</code> returns <code>FALSE</code> because of the <code>Species</code> factor. every() never inspects individual rows; use <code>dplyr::filter()</code> for row-level conditions.</p>
