@@ -1,0 +1,372 @@
+---
+title: "purrr none() in R: Test If No Element Matches"
+description: "Learn purrr none() in R to test whether no element of a list or vector matches a predicate. Covers syntax, every() and some(), NA handling, and pitfalls."
+keywords: "purrr none, none function R, purrr none examples, R none predicate, purrr none every some, none predicate R, check no elements match R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "none()|purrr none|purrr::none()|none predicate|purrr none function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr none() in R: Test If No Element Matches</h1>
+
+<p class="lead">The purrr none() function tests whether no element of a list or vector matches a predicate, returning a single TRUE or FALSE. It is the tidyverse way to ask "are none of these a problem?" in one call.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>none(x, is.character)<span class="qa-cmt">             # are no elements character?</span>
+none(x, \(v) v &lt; 0)<span class="qa-cmt">               # none match a lambda predicate</span>
+none(x, ~ .x &lt; 0)<span class="qa-cmt">                 # formula shorthand predicate</span>
+none(list(), is.numeric)<span class="qa-cmt">          # TRUE (empty input, vacuous truth)</span>
+none(x, is.na)<span class="qa-cmt">                    # are there zero missing values?</span>
+every(x, is.numeric)<span class="qa-cmt">              # are all elements numeric?</span>
+some(x, is.numeric)<span class="qa-cmt">               # are any elements numeric?</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is none() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">confirm no element passes</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">none(x, is.character)</text><text x="125" y="126" class="branch-label">confirm every element passes</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">every(x, is.numeric)</text><text x="125" y="182" class="branch-label">confirm at least one passes</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">some(x, is.numeric)</text><text x="125" y="238" class="branch-label">drop the matching elements</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">discard(x, is.character)</text><text x="125" y="294" class="branch-label">find the first match instead</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">detect(x, is.character)</text><text x="125" y="350" class="branch-label">test a plain logical vector</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">!any(x &gt; 0)</text></svg></div>
+
+<h2>What purrr none() does</h2>
+
+<p><strong>none() asks whether a collection is completely free of matches.</strong> It applies a predicate to each top-level element of a list or vector and returns <code>TRUE</code> only when the predicate fails for every one of them. The moment it meets an element that passes, it stops and returns <code>FALSE</code>, so it never tests elements past the first match.</p>
+
+<p>The function ships with the purrr package, part of the tidyverse. It is the zero-match counterpart to <code>every()</code>, which asks whether all elements match, and <code>some()</code>, which asks whether at least one element matches. none() is the verb you reach for when an element passing the predicate is the bad outcome you want to rule out.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>none() states the guarantee instead of negating the failure.</strong> Rather than writing <code>!any(map_lgl(x, is.na))</code>, you write <code>none(x, is.na)</code>. The negation moves into the function name, so the code reads as the assurance you want rather than a flipped result the reader has to decode.</div></div>
+
+<h2>none() syntax and arguments</h2>
+
+<p><strong>none() takes a collection and a predicate.</strong> The signature is <code>none(.x, .p, ...)</code>.</p>
+
+<ul>
+
+<li><code>.x</code>: a list or atomic vector to test.</li>
+
+<li><code>.p</code>: a predicate function returning a single <code>TRUE</code> or <code>FALSE</code> per element. Pass a named function (<code>is.na</code>), an anonymous function (<code>\(x) x &lt; 0</code>), or a purrr formula (<code>~ .x &lt; 0</code>).</li>
+
+<li><code>...</code>: extra arguments passed on to <code>.p</code>.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Load purrr and test for no match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and test for no match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- list(4, 11, 8, 2, 15)
+none(nums, \(x) x &lt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicate <code>\(x) x &lt; 0</code> is applied to each element. No value is negative, so none() returns a single <code>TRUE</code>. The result is one scalar, not a vector of per-element answers.</p>
+
+<h2>none() examples by use case</h2>
+
+<p><strong>Most none() jobs are guard checks.</strong> These four examples cover the common shapes.</p>
+
+<h3>Confirm no element is a given type</h3>
+
+<p><strong>Pass a type-checking function as the predicate.</strong> This confirms a list is free of an unwanted value type before a numeric step.</p>
+
+<div class="webr-container" data-block-title="Confirm no element is character">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm no element is character</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">none(nums, is.character)
+#&gt; [1] TRUE
+
+mixed &lt;- list(1, 2.5, &quot;Toyota&quot;)
+none(mixed, is.character)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call passes because <code>nums</code> holds only numbers. The second returns <code>FALSE</code> as soon as it reaches <code>&quot;Toyota&quot;</code>, without inspecting anything after it.</p>
+
+<h3>Confirm a list has no missing values</h3>
+
+<p><strong>Pass <code>is.na</code> to verify a collection is complete.</strong> This is a fast guard before a calculation that cannot tolerate <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="Confirm there are no missing values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm there are no missing values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean &lt;- list(3, 7, 1, 9)
+none(clean, is.na)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every element is a real value, so <code>is.na</code> is <code>FALSE</code> throughout and none() returns <code>TRUE</code>.</p>
+
+<h3>Confirm a numeric bound holds nowhere</h3>
+
+<p><strong>The predicate can be any test that returns one logical value.</strong> Here it checks that no value exceeds a ceiling.</p>
+
+<div class="webr-container" data-block-title="Confirm no value exceeds a limit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm no value exceeds a limit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">none(c(2, 4, 6, 8), \(x) x &gt; 100)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No element is greater than 100, so the predicate is <code>FALSE</code> everywhere and none() returns <code>TRUE</code>.</p>
+
+<h3>Use the formula shorthand</h3>
+
+<p><strong>purrr formulas give a compact predicate for one-liners.</strong> Write <code>~</code> then refer to the element as <code>.x</code>.</p>
+
+<div class="webr-container" data-block-title="Use formula shorthand for the predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use formula shorthand for the predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">none(1:10, ~ .x &lt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula <code>~ .x &lt; 0</code> behaves like <code>\(x) x &lt; 0</code>. Both styles are valid; the lambda form reads better once the predicate grows past a single expression.</p>
+
+<h2>none() vs every(), some(), and negate()</h2>
+
+<p><strong>none() has two sibling verbs and one negation-based alternative.</strong> <code>every()</code> asks whether all elements pass, <code>some()</code> asks whether any element passes, and <code>none()</code> is logically <code>every()</code> run on the negated predicate.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Question answered</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>none()</code></td>
+<td>Do zero elements pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>a match is the bad outcome</td>
+</tr>
+<tr>
+<td><code>every()</code></td>
+<td>Do all elements pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>every element must match</td>
+</tr>
+<tr>
+<td><code>some()</code></td>
+<td>Does any element pass?</td>
+<td>one <code>TRUE</code>/<code>FALSE</code></td>
+<td>one match is enough</td>
+</tr>
+<tr>
+<td><code>negate()</code></td>
+<td>flips a predicate</td>
+<td>a new function</td>
+<td>you need the opposite test</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="none, every, and some compared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">none, every, and some compared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- list(2, 4, 6, 8)
+none(v, \(x) x &gt; 100)       # nothing over 100?
+#&gt; [1] TRUE
+every(v, \(x) x %% 2 == 0)  # all even?
+#&gt; [1] TRUE
+some(v, \(x) x &gt; 5)         # any over 5?
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>none(x, p)</code> always equals <code>every(x, negate(p))</code>: "no element passes p" is the same statement as "every element fails p". Pick <code>none()</code> when that phrasing reads more naturally than a negated <code>every()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>none(x, p)</code> is equivalent to <code>!any(sapply(x, p))</code>. The purrr version short-circuits on the first match and skips the intermediate logical vector, so it is both faster and easier to read inside a pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most none() surprises trace back to the predicate or to <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</strong> Three mistakes account for nearly all of them.</p>
+
+<p>The first is a predicate that returns more than one value. none() needs exactly one <code>TRUE</code> or <code>FALSE</code> per element, so a vector-valued element with a naive comparison errors.</p>
+
+<div class="webr-container" data-block-title="Predicate must return one TRUE or FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicate must return one TRUE or FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vals &lt;- list(c(1, 2), c(8, 9))
+none(vals, \(x) x &lt; 0)
+#&gt; Error in `none()`:
+#&gt; ! `.p()` must return a single `TRUE` or `FALSE`, not a logical vector.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrap the comparison in <code>any()</code> or <code>all()</code> so each element collapses to one logical value.</p>
+
+<div class="webr-container" data-block-title="Collapse the predicate with any">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse the predicate with any</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">none(vals, \(x) any(x &lt; 0))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is missing values. When the predicate returns <code>NA</code> for an element and no element returns <code>TRUE</code>, none() returns <code>NA</code> rather than <code>TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="A predicate returning NA yields NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A predicate returning NA yields NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">has_na &lt;- list(2, 4, NA, 8)
+none(has_na, \(x) x &gt; 100)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An NA result is not a pass.</strong> Code that branches on <code>if (none(x, pred))</code> will error when none() returns <code>NA</code>. Guard the predicate with <code>!is.na(v) &amp; v &gt; 100</code> when missing data should count as a definite non-match rather than an unknown.</div></div>
+
+<p>The third pitfall is the empty collection. <code>none()</code> on an empty list returns <code>TRUE</code> because there is no element that passes. This is vacuous truth, and it can hide a data problem upstream.</p>
+
+<div class="webr-container" data-block-title="An empty collection returns TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An empty collection returns TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">none(list(), \(x) x &gt; 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If an empty input should be treated as a failure, check <code>length(x) &gt; 0</code> before calling none().</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use none() to test whether none of the numbers from 2 to 20 are negative. Save the result to ex_none.</p>
+<div class="webr-container" data-block-title="Your turn: test for no match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: test for no match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: are none of the values negative?
+ex_none &lt;- # your code here
+
+ex_none
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_none &lt;- none(2:20, \(x) x &lt; 0)
+ex_none
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicate <code>\(x) x &lt; 0</code> is FALSE for every integer from 2 to 20, so none() returns a single <code>TRUE</code>. If any value matched, none() would stop at it and return <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>none() is one of several purrr predicate tools.</strong> Reach for these when none() is not the exact fit.</p>
+
+<ul>
+
+<li><code>every()</code>: tests whether all elements pass the predicate.</li>
+
+<li><code>some()</code>: tests whether at least one element passes the predicate.</li>
+
+<li><code>discard()</code> and <code>keep()</code>: return the non-matching or matching elements instead of a logical.</li>
+
+<li><code>detect()</code> and <code>detect_index()</code>: return the first matching element or its position.</li>
+
+<li><code>map_lgl()</code>: returns the full vector of per-element <code>TRUE</code>/<code>FALSE</code> answers.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/every.html">official purrr none() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does none() return if the list is empty?</strong> none() returns <code>TRUE</code> for an empty list or vector. This is vacuous truth: there is no element that passes the predicate, so the "zero matches" condition holds trivially. The behaviour mirrors <code>!any(logical(0))</code>. If an empty input should count as a failure in your code, test <code>length(x) &gt; 0</code> before calling none() and handle the empty case explicitly.</p>
+
+<p><strong>What is the difference between none() and every()?</strong> Both reduce a collection to one logical value, but they ask opposite-leaning questions. every() returns <code>TRUE</code> when all elements pass the predicate. none() returns <code>TRUE</code> when zero elements pass it. They are linked by negation: <code>none(x, p)</code> always equals <code>every(x, negate(p))</code>. Choose the verb whose phrasing matches the requirement you are checking so the code reads like its intent.</p>
+
+<p><strong>How does none() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong> If the predicate returns <code>NA</code> for an element and no element returns <code>TRUE</code>, none() returns <code>NA</code> rather than <code>TRUE</code>. If any element returns <code>TRUE</code>, none() returns <code>FALSE</code> even when <code>NA</code> values are present, because a single match already settles the answer. Guard the predicate with <code>!is.na(v)</code> when missing data should be treated as a definite non-match.</p>
+
+<p><strong>Is none() the same as !some()?</strong> For a clean <code>TRUE</code>/<code>FALSE</code> result they agree: <code>none(x, p)</code> returns the logical opposite of <code>some(x, p)</code>. The difference shows up with missing values, where both can return <code>NA</code>, and in readability. <code>none(x, is.na)</code> states the guarantee directly, while <code>!some(x, is.na)</code> makes the reader mentally flip a result. Prefer none() when the absence of a match is what you want to assert.</p>
+
+<p><strong>Can none() be used on a data frame?</strong> Yes. A data frame is a list of columns, so none() applies the predicate to each column and returns one logical value. <code>none(iris, is.list)</code> returns <code>TRUE</code> because no column is a list column. none() never inspects individual rows; use <code>dplyr::filter()</code> for row-level conditions.</p>
