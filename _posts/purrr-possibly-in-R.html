@@ -1,0 +1,297 @@
+---
+title: "purrr possibly() in R: Return a Default on Error"
+description: "Use purrr possibly() in R to wrap risky functions so failures return a fallback value instead of an error. Examples with map_dbl, otherwise, and safely."
+keywords: "purrr possibly, possibly function R, purrr possibly examples, R possibly error handling, possibly vs safely R, possibly otherwise"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "possibly()|purrr possibly|purrr::possibly()|possibly() function|purrr possibly function|possibly adverb"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr possibly() in R: Return a Default on Error</h1>
+
+<p class="lead">purrr possibly() wraps a function so a failure returns a fallback value instead of stopping your code. Unlike safely(), it hands back the plain value directly, which keeps <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl()</a> and <a class="auto-link" href="purrr-map-in-R.html" title="purrr map() in R: Apply a Function (Tidyverse Style)">map_chr()</a> type-stable.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>possibly(log)<span class="qa-cmt">                          # wrap a function, NULL on error</span>
+possibly(log, otherwise = NA)<span class="qa-cmt">          # wrap with a fallback value</span>
+possibly(log)(10)<span class="qa-cmt">                      # call the wrapped function</span>
+possibly(log, otherwise = NA)(&quot;x&quot;)<span class="qa-cmt">     # failed call returns NA</span>
+map_dbl(x, possibly(log, otherwise = NA_real_))<span class="qa-cmt">  # type-stable iteration</span>
+possibly(f, otherwise = 0, quiet = FALSE)<span class="qa-cmt">        # also print the error</span>
+mtcars |&gt; map(possibly(risky))<span class="qa-cmt">         # finish a loop despite failures</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is possibly() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">want a clean value, drop errors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">possibly(f, otherwise = NA)</text><text x="125" y="126" class="branch-label">need the error message too</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">safely(f)</text><text x="125" y="182" class="branch-label">capture warnings and messages</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">quietly(f)</text><text x="125" y="238" class="branch-label">retry a flaky network call</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">insistently(f)</text><text x="125" y="294" class="branch-label">stop on the first error instead</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">map(x, f)</text><text x="125" y="350" class="branch-label">custom handling per error type</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="R-Conditions-System.html" title="R Conditions System: message(), warning(), stop() & Custom Conditions">tryCatch</a>(expr, error = h)</text></svg></div>
+
+<h2>What possibly() does</h2>
+
+<p><strong>possibly() turns a risky function into one that cannot fail.</strong> It takes a function and returns a new function. The new function runs the original code, and if that code throws an error, it quietly returns a fallback value you chose instead. You never see the error, only the result or the default.</p>
+
+<p>The contrast with <code>safely()</code> is the whole point. <code>safely()</code> returns a two-element <code>list(result, error)</code> so you can inspect failures. <code>possibly()</code> throws the error away and returns just the value. That makes it the lighter choice when you only want a loop to finish and a clean value is enough.</p>
+
+<h2>possibly() syntax and arguments</h2>
+
+<p><strong>possibly() takes three arguments, and only the first is required.</strong></p>
+
+<div class="webr-container" data-block-title="The possibly function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The possibly function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# possibly(.f, otherwise = NULL, quiet = TRUE)
+safe_log &lt;- possibly(log, otherwise = NA_real_)
+safe_log(100)
+#&gt; [1] 4.60517</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>.f</code> is the function to wrap. Pass it bare (<code>log</code>), as a string (<code>&quot;log&quot;</code>), or as a lambda (<code>\(x) log(x)</code>).</li>
+
+<li><code>otherwise</code> is the value returned when the call fails. The default is <code>NULL</code>.</li>
+
+<li><code>quiet</code> controls whether the error is also printed. The default <code>TRUE</code> stays silent; set <code>FALSE</code> while debugging.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>possibly() changed in purrr 1.0.0.</strong> Older versions required the <code>otherwise</code> argument; modern purrr defaults it to <code>NULL</code>. The <code>quiet</code> argument arrived in the same release, so upgrade the package if <code>possibly(f, quiet = FALSE)</code> raises an unused-argument error.</div></div>
+
+<h2>possibly() examples</h2>
+
+<p><strong>Start with a single wrapped call.</strong> The wrapped function returns the real value on success and the fallback on failure.</p>
+
+<div class="webr-container" data-block-title="A single call with a fallback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A single call with a fallback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_log &lt;- possibly(log, otherwise = NA_real_)
+
+safe_log(100)
+#&gt; [1] 4.60517
+safe_log(&quot;not a number&quot;)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call succeeds and returns the logarithm. The second would normally error, but <code>possibly()</code> swaps in <code>NA_real_</code> so the call still returns cleanly.</p>
+
+<p><strong>Iterate with map_dbl() and stay type-stable.</strong> This is where <code>possibly()</code> beats <code>safely()</code>. Because it returns a bare value, the output drops straight into a typed vector.</p>
+
+<div class="webr-container" data-block-title="Type-stable iteration with map_dbl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type-stable iteration with map_dbl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inputs &lt;- list(1, 10, &quot;bad&quot;, 100)
+
+map_dbl(inputs, possibly(log, otherwise = NA_real_))
+#&gt; [1] 0.000000 2.302585       NA 4.605170</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every input ran. The third element failed and became <code>NA</code>, while <code>map_dbl()</code> still returned a plain numeric vector you can sum, plot, or filter.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>possibly() is the type-stable error adverb.</strong> Because it returns a plain value rather than a list, <code>map_dbl()</code>, <code>map_int()</code>, and <code>map_chr()</code> accept its output directly. <code>safely()</code> cannot do this: its list-of-pairs output forces you back to <code>map()</code> plus a separate cleanup step.</div></div>
+
+<p><strong>Guard a custom function that calls stop().</strong> Any function of your own that raises an error can be wrapped the same way.</p>
+
+<div class="webr-container" data-block-title="Wrap a custom risky function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap a custom risky function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">risky_divide &lt;- function(x) {
+  if (x == 0) stop(&quot;cannot divide by zero&quot;)
+  10 / x
+}
+
+map_dbl(c(2, 5, 0, 10), possibly(risky_divide, otherwise = Inf))
+#&gt; [1] 5.0 2.0 Inf 1.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zero input triggers <code>stop()</code>, and <code>possibly()</code> returns the <code>Inf</code> fallback for that position. The fallback does not have to be <code>NA</code>; pick whatever value downstream code expects.</p>
+
+<p><strong>Apply a fallback inside a data pipeline.</strong> A realistic case is a lookup that fails for unknown keys.</p>
+
+<div class="webr-container" data-block-title="possibly inside a map pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">possibly inside a map pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rates &lt;- c(USD = 1, EUR = 0.92, GBP = 0.79)
+
+to_usd &lt;- function(code) {
+  if (!code %in% names(rates)) stop(&quot;unknown currency&quot;)
+  1 / rates[[code]]
+}
+
+map_dbl(c(&quot;EUR&quot;, &quot;GBP&quot;, &quot;JPY&quot;, &quot;USD&quot;), possibly(to_usd, otherwise = NA_real_))
+#&gt; [1] 1.086957 1.265823       NA 1.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>JPY</code> is missing from the lookup table, so its call errors and becomes <code>NA</code>. The other three convert normally, and the result stays a clean numeric vector.</p>
+
+<h2>When to use possibly() instead of safely()</h2>
+
+<p><strong>Choose possibly() when you want output, not diagnostics.</strong> Both adverbs stop a single failure from killing a loop, but they hand back different things.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>possibly()</th>
+<th>safely()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Return on success</td>
+<td>the value itself</td>
+<td><code>list(result = value, error = NULL)</code></td>
+</tr>
+<tr>
+<td>Return on failure</td>
+<td>the <code>otherwise</code> fallback</td>
+<td><code>list(result = NULL, error = &lt;error&gt;)</code></td>
+</tr>
+<tr>
+<td>Tells you which input failed</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Works with <code>map_dbl()</code> / <code>map_chr()</code></td>
+<td>Yes, type-stable</td>
+<td>No, returns lists</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>clean output, discard failures</td>
+<td>logging and debugging failures</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. If your next step is arithmetic, a typed vector, or a plot, <code>possibly()</code> gives you usable output immediately. If your next step is a report on what broke, <code>safely()</code> keeps the error objects you need. When unsure, start with <code>possibly()</code>; it is the simpler tool, and you can swap in <code>safely()</code> later.</p>
+
+<h2>Common mistakes with possibly()</h2>
+
+<p><strong>possibly() returns a function, not a result.</strong> Writing <code>possibly(log, 100)</code> does not compute the log of 100. The <code>100</code> is passed to the <code>otherwise</code> argument. You must capture the wrapped function first, then call it: <code>possibly(log)(100)</code>.</p>
+
+<p><strong>The fallback should match the success type.</strong> If a successful call returns a number, set <code>otherwise</code> to a number such as <code>NA_real_</code>, not a string. A mismatched fallback breaks <code>map_dbl()</code>, because the output vector cannot mix a numeric result with a character default.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>possibly() hides which inputs failed.</strong> It discards the error object entirely, so after a run you cannot tell a genuine <code>NA</code> from a failed call that returned <code>NA</code>. When you need that distinction for logging or a report, use <code>safely()</code> instead and inspect its <code>error</code> slot.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap sqrt() with possibly() so a non-numeric input returns NA, then map_dbl it over list(4, "x", 9, 16). Save the result to ex_roots.</p>
+<div class="webr-container" data-block-title="Your turn: possibly wrap sqrt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: possibly wrap sqrt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: possibly + map_dbl
+ex_roots &lt;- # your code here
+
+ex_roots
+#&gt; Expected: 2, NA, 3, 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_roots &lt;- map_dbl(list(4, &quot;x&quot;, 9, 16), possibly(sqrt, otherwise = NA_real_))
+ex_roots
+#&gt; [1]  2 NA  3  4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> possibly() turns sqrt() into a function that returns NA_real_ when it errors on the string input. map_dbl() then collects every call into one clean numeric vector.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>possibly() is one of purrr's error-handling adverbs.</strong> Switch to a sibling when your need is slightly different.</p>
+
+<ul>
+
+<li><code>safely()</code> returns a <code>result</code>/<code>error</code> list so you can inspect every failure.</li>
+
+<li><code>quietly()</code> captures printed output, warnings, and messages instead of errors.</li>
+
+<li><code>insistently()</code> retries a failing call on a schedule before giving up.</li>
+
+<li><code>map_dbl()</code> is the typed iteration verb <code>possibly()</code> pairs with most often.</li>
+
+<li><code>compose()</code> chains several functions into a single new function.</li>
+
+</ul>
+
+<p>For the wider picture of adverbs and <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">function operators</a>, see the <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide. The official <a href="https://purrr.tidyverse.org/reference/possibly.html">purrr adverbs reference</a> documents every argument.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between possibly() and safely() in R?</strong></p>
+
+<p><code>possibly()</code> returns the plain value on success and a fallback you choose on failure, discarding the error. <code>safely()</code> returns a two-element list with both a <code>result</code> and an <code>error</code> slot, so you can see which inputs failed and why. Use <code>possibly()</code> when a clean value is all you need and you can ignore failures. Use <code>safely()</code> when you must log or report the errors that occurred.</p>
+
+<p><strong>What does the otherwise argument do in possibly()?</strong></p>
+
+<p><code>otherwise</code> sets the value returned whenever the wrapped function throws an error. It defaults to <code>NULL</code>. Set it to a type-stable sentinel that matches your successful output, such as <code>NA_real_</code> for numbers or <code>&quot;&lt;missing&gt;&quot;</code> for strings. A matching type lets <code>map_dbl()</code> or <code>map_chr()</code> collect the results into a clean atomic vector without a type error.</p>
+
+<p><strong>Does possibly() catch warnings in R?</strong></p>
+
+<p>No. <code>possibly()</code> only intercepts errors, the conditions that halt execution. Warnings and messages pass through untouched, so a call that emits a warning still counts as a success and returns its value. <code>sqrt(-1)</code>, for example, returns <code>NaN</code> with a warning, not the <code>otherwise</code> fallback. To capture warnings and messages, wrap the function with <code>quietly()</code> instead.</p>
+
+<p><strong>Can I use possibly() with map_dbl()?</strong></p>
+
+<p>Yes, and this is its main advantage over <code>safely()</code>. Because <code>possibly()</code> returns a bare value rather than a list, <code>map_dbl()</code>, <code>map_int()</code>, and <code>map_chr()</code> accept its output directly. Set <code>otherwise</code> to a fallback of the matching type, such as <code>NA_real_</code> for <code>map_dbl()</code>, so the result vector stays type-stable.</p>
+
+{% endraw %}
