@@ -1,0 +1,327 @@
+---
+title: "purrr pwalk() in R: Side Effects Over Parallel Lists"
+description: "Learn purrr pwalk() in R to run side effects over three or more parallel lists. Examples cover data frame rows, file writing, and pwalk vs pmap differences."
+keywords: "purrr pwalk, pwalk function R, purrr pwalk examples, R pwalk parallel, pwalk vs pmap, purrr pwalk data frame"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pwalk()|purrr pwalk|purrr::pwalk()|pwalk function|pwalk in R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr pwalk() in R: Side Effects Over Parallel Lists</h1>
+
+<p class="lead">purrr pwalk() in R applies a function to three or more parallel lists for their side effects, then returns the input list invisibly. It is the side-effect cousin of pmap().</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pwalk(list(x, y, z), f)<span class="qa-cmt">               # 3+ parallel inputs</span>
+pwalk(df, f)<span class="qa-cmt">                          # iterate data frame rows</span>
+pwalk(list(a, b), ~ cat(..1, ..2))<span class="qa-cmt">    # formula shorthand</span>
+pwalk(list(base = b, exp = e), fun)<span class="qa-cmt">   # named list, matched by arg name</span>
+pwalk(args, f, sep = &quot;, &quot;)<span class="qa-cmt">            # extra args after .f</span>
+walk2(x, y, f)<span class="qa-cmt">                        # exactly two inputs</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pwalk() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">run side effects over 3+ parallel inputs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pwalk(list(a, b, c), f)</text><text x="125" y="126" class="branch-label">need a return value, not side effects</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pmap(list(a, b, c), f)</text><text x="125" y="182" class="branch-label">exactly two parallel inputs</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">walk2(x, y, f)</text><text x="125" y="238" class="branch-label">a single input vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">walk(x, f)</text><text x="125" y="294" class="branch-label">side effects with the element index</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">iwalk(x, ~ ...)</text><text x="125" y="350" class="branch-label">combine results into a data frame</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pmap_dfr(df, f)</text></svg></div>
+
+<h2>What pwalk() does in one sentence</h2>
+
+<p><strong>pwalk() runs a function for its side effects across any number of parallel inputs.</strong> You hand it a list of equal-length vectors (or a data frame), and it calls the function once per position, drawing one value from each vector. Side effects mean printing, plotting, writing files, or logging: actions whose value is the action itself, not a returned object. Unlike <a href="purrr-pmap-in-R.html">pmap()</a>, which collects results into a list, pwalk() throws the <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a> away and hands back the original input invisibly so it slots cleanly into a pipeline.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature has two required arguments plus a passthrough.</strong> The <code>p</code> prefix stands for parallel, and <code>walk</code> marks it as a side-effect function.</p>
+
+<div class="webr-container" data-block-title="The pwalk function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The pwalk function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pwalk(.l, .f, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>.l</code> is a list of vectors, or a data frame. Every element must be the same length. Each element supplies one argument to <code>.f</code>.</li>
+
+<li><code>.f</code> is the function to call. It accepts a plain function, an anonymous function, or a purrr formula using <code>..1</code>, <code>..2</code>, <code>..3</code> for the positional inputs.</li>
+
+<li><code>...</code> holds extra named arguments. They are passed unchanged to every call of <code>.f</code>.</li>
+
+</ul>
+
+<p><strong>The length of <code>.l</code> decides how many arguments <code>.f</code> receives.</strong> A list of three vectors calls a three-argument function. If <code>.l</code> is named, the names are matched to the function's argument names, so order does not matter.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A data frame is already a list of equal-length columns.</strong> That is why <code>pwalk(df, f)</code> iterates over rows for free: each column becomes one argument, and each row supplies one set of values.</div></div>
+
+<h2>Common use cases</h2>
+
+<p><strong>The four patterns below cover most real uses of pwalk().</strong> Each runs on built-in data so you can execute it as is.</p>
+
+<h3>1. Iterate over data frame rows</h3>
+
+<p><strong>Pass a data frame straight to pwalk() to walk its rows.</strong> Column names line up with the function's argument names.</p>
+
+<div class="webr-container" data-block-title="Iterate over data frame rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iterate over data frame rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+cars &lt;- data.frame(
+  model = c(&quot;Mazda RX4&quot;, &quot;Datsun 710&quot;, &quot;Valiant&quot;),
+  mpg   = c(21.0, 22.8, 18.1),
+  cyl   = c(6, 4, 6)
+)
+
+pwalk(cars, function(model, mpg, cyl) {
+  cat(model, &quot;-&gt;&quot;, mpg, &quot;mpg,&quot;, cyl, &quot;cylinders\n&quot;)
+})
+#&gt; Mazda RX4 -&gt; 21 mpg, 6 cylinders
+#&gt; Datsun 710 -&gt; 22.8 mpg, 4 cylinders
+#&gt; Valiant -&gt; 18.1 mpg, 6 cylinders</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function ran once per row and printed a formatted line. Nothing was returned because printing is a side effect.</p>
+
+<h3>2. Three parallel vectors with formula shorthand</h3>
+
+<p><strong>Wrap loose vectors in <code>list()</code> when they are not already a data frame.</strong> The formula form uses <code>..1</code>, <code>..2</code>, <code>..3</code> to reach each input.</p>
+
+<div class="webr-container" data-block-title="Three parallel vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three parallel vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">product  &lt;- c(&quot;Pencil&quot;, &quot;Notebook&quot;, &quot;Eraser&quot;)
+price    &lt;- c(0.50, 2.75, 0.30)
+quantity &lt;- c(12, 4, 8)
+
+pwalk(list(product, price, quantity),
+      ~ cat(sprintf(&quot;%-9s %2d x $%.2f = $%.2f\n&quot;, ..1, ..3, ..2, ..2 * ..3)))
+#&gt; Pencil    12 x $0.50 = $6.00
+#&gt; Notebook   4 x $2.75 = $11.00
+#&gt; Eraser     8 x $0.30 = $2.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Pass extra arguments after the function</h3>
+
+<p><strong>Anything after <code>.f</code> is forwarded to every call.</strong> Here a shared output folder is constant across all three writes.</p>
+
+<div class="webr-container" data-block-title="Write files with extra arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write files with extra arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dir   &lt;- tempdir()
+names &lt;- c(&quot;alpha&quot;, &quot;beta&quot;, &quot;gamma&quot;)
+lines &lt;- c(&quot;first file&quot;, &quot;second file&quot;, &quot;third file&quot;)
+
+pwalk(list(names, lines), function(name, line, folder) {
+  writeLines(line, file.path(folder, paste0(name, &quot;.txt&quot;)))
+}, folder = dir)
+
+list.files(dir, pattern = &quot;\\.txt$&quot;)
+#&gt; [1] &quot;alpha.txt&quot; &quot;beta.txt&quot;  &quot;gamma.txt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>folder</code> argument was supplied once through <code>...</code> and reused for every file.</p>
+
+<h3>4. Match arguments with a named list</h3>
+
+<p><strong>Name the elements of <code>.l</code> and pwalk() matches them to argument names.</strong> Order in the list no longer matters.</p>
+
+<div class="webr-container" data-block-title="Named list matches arguments by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Named list matches arguments by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inputs &lt;- list(
+  exponent = c(2, 3, 4),
+  base     = c(10, 2, 3)
+)
+
+pwalk(inputs, function(base, exponent) {
+  cat(base, &quot;^&quot;, exponent, &quot;=&quot;, base ^ exponent, &quot;\n&quot;)
+})
+#&gt; 10 ^ 2 = 100
+#&gt; 2 ^ 3 = 8
+#&gt; 3 ^ 4 = 81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>pwalk() vs pmap() vs walk2()</h2>
+
+<p><strong>Pick the function by input count and whether you need a return value.</strong> All three iterate in parallel; they differ in arity and output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pwalk()</code></td>
+<td>3 or more (a list)</td>
+<td><code>.l</code> invisibly</td>
+<td>Side effects over many parallel inputs</td>
+</tr>
+<tr>
+<td><code>pmap()</code></td>
+<td>3 or more (a list)</td>
+<td>A list of results</td>
+<td>You need the computed values back</td>
+</tr>
+<tr>
+<td><code>walk2()</code></td>
+<td>Exactly 2</td>
+<td><code>.x</code> invisibly</td>
+<td>Side effects over two inputs only</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Decision rule:</strong> if you want the results, use <a href="purrr-pmap-in-R.html">pmap()</a>. If you only want the side effect and you have three or more inputs, use pwalk(). With exactly two inputs, <a href="purrr-walk2-in-R.html">walk2()</a> reads more clearly than wrapping them in a list.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>pwalk() generalizes walk2().</strong> <code>walk2(x, y, f)</code> is equivalent to <code>pwalk(list(x, y), f)</code>. Reach for pwalk() the moment a third input appears.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most pwalk() errors trace back to mismatched lengths or names.</strong> Three mistakes account for nearly all of them.</p>
+
+<div class="webr-container" data-block-title="Pitfall: unequal input lengths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: unequal input lengths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pwalk(list(c(1, 2, 3), c(10, 20)), ~ cat(..1 + ..2, &quot;&quot;))
+#&gt; Error in `pwalk()`:
+#&gt; ! Element 2 of `.l` must have the same length as element 1.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every vector in <code>.l</code> must share one length (or be length 1, which recycles). Trim or pad inputs before the call.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">Named list</a> elements must match the function's argument names exactly.</strong> If you write <code>pwalk(list(a = x, b = y), function(p, q) ...)</code>, R cannot match <code>a</code> to <code>p</code> and the call fails. Either drop the names for positional matching or align them.</div></div>
+
+<p>The third trap is expecting output. <code>result &lt;- pwalk(...)</code> gives you back <code>.l</code>, not the values your function computed. Switch to <code>pmap()</code> when you need results collected.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use pwalk() to print one line per row of a small data frame holding three fruit names and three prices. Save the data frame to <code>ex_fruit</code> first.</p>
+<div class="webr-container" data-block-title="Your turn: pwalk over a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pwalk over a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build the data frame, then pwalk over it
+ex_fruit &lt;- # your code here
+
+ex_fruit
+#&gt; Expected: 3 printed lines, one per fruit</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fruit &lt;- data.frame(
+  fruit = c(&quot;Apple&quot;, &quot;Banana&quot;, &quot;Cherry&quot;),
+  price = c(0.40, 0.25, 0.80)
+)
+
+pwalk(ex_fruit, function(fruit, price) {
+  cat(fruit, &quot;costs $&quot;, price, &quot;\n&quot;)
+})
+#&gt; Apple costs $ 0.4
+#&gt; Banana costs $ 0.25
+#&gt; Cherry costs $ 0.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The data frame is a list of two equal-length columns, so pwalk() calls the function once per row with <code>fruit</code> and <code>price</code> matched by name.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<ul>
+
+<li><a href="purrr-pmap-in-R.html">pmap()</a> returns a list of results from parallel inputs.</li>
+
+<li><a href="purrr-walk2-in-R.html">walk2()</a> runs side effects over exactly two inputs.</li>
+
+<li><a href="purrr-walk-in-R.html">walk()</a> handles the single-input side-effect case.</li>
+
+<li><a href="purrr-iwalk-in-R.html">iwalk()</a> walks one input with access to its index or names.</li>
+
+<li><a href="purrr-imap-in-R.html">imap()</a> maps over an input and its index together.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between pwalk() and pmap()?</strong></p>
+
+<p>Both iterate over a list of parallel inputs. <code>pmap()</code> collects what the function returns into a result list, so you use it for transformations. <code>pwalk()</code> discards return values and hands back the input list invisibly, so you use it for side effects like printing or writing files. If you find yourself ignoring the output of <code>pmap()</code>, switch to <code>pwalk()</code> to signal intent.</p>
+
+<p><strong>How does pwalk() handle a data frame?</strong></p>
+
+<p>A data frame is internally a list of equal-length columns. When you pass one to <code>pwalk()</code>, each column becomes one argument and each row supplies one set of values. The column names are matched to your function's argument names, which makes <code>pwalk(df, f)</code> a clean way to iterate over rows without <code>apply()</code> or an explicit loop.</p>
+
+<p><strong>Can pwalk() pass extra arguments to the function?</strong></p>
+
+<p>Yes. Any named argument placed after <code>.f</code> is forwarded through <code>...</code> to every call. This is useful for values that stay constant across iterations, such as an output directory, a separator, or a connection. The constant argument is not part of <code>.l</code>, so it is not iterated.</p>
+
+<p><strong>Why does pwalk() return nothing visible?</strong></p>
+
+<p><code>pwalk()</code> returns its input <code>.l</code> invisibly by design. Side-effect functions should not clutter the console with output, and returning <code>.l</code> lets pwalk() sit inside a pipe without breaking the chain. Wrap the call in <code>invisible()</code>-aware code or assign the result if you genuinely need the original list back.</p>
