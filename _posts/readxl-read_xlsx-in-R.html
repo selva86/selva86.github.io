@@ -1,0 +1,315 @@
+---
+title: "readxl read_xlsx() in R: Read Modern .xlsx Files"
+description: "Learn readxl read_xlsx() in R to import modern .xlsx Excel files into tibbles. Covers syntax, sheet selection, cell ranges, column types, and common errors."
+keywords: "readxl read_xlsx, read_xlsx function R, readxl read_xlsx examples, read xlsx file R, import Excel file in R, read_xlsx vs read_excel, read xlsx into R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "read_xlsx()|readxl read_xlsx|readxl::read_xlsx()|read xlsx file in R|read Excel files in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>readxl read_xlsx() in R: Read Modern .xlsx Files</h1>
+
+<p class="lead">The readxl read_xlsx() function reads a modern .xlsx Excel workbook into a tibble. It targets the post-2007 XML format only, so it fails fast on a legacy binary .xls file instead of guessing.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_xlsx(&quot;data.xlsx&quot;)<span class="qa-cmt">                      # read the first sheet</span>
+read_xlsx(&quot;data.xlsx&quot;, sheet = &quot;Q1&quot;)<span class="qa-cmt">        # read a sheet by name</span>
+read_xlsx(&quot;data.xlsx&quot;, sheet = 3)<span class="qa-cmt">           # read a sheet by position</span>
+read_xlsx(&quot;data.xlsx&quot;, range = &quot;B2:F50&quot;)<span class="qa-cmt">    # read an exact cell range</span>
+read_xlsx(&quot;data.xlsx&quot;, skip = 3)<span class="qa-cmt">            # skip title rows above header</span>
+read_xlsx(&quot;data.xlsx&quot;, na = c(&quot;&quot;, &quot;NA&quot;))<span class="qa-cmt">    # map blanks and NA to missing</span>
+read_xlsx(&quot;data.xlsx&quot;, col_types = &quot;text&quot;)<span class="qa-cmt">  # force all columns to text</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is read_xlsx() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">file is a modern .xlsx workbook</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_xlsx(&quot;data.xlsx&quot;)</text><text x="125" y="126" class="branch-label">file is a legacy binary .xls file</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_xls(&quot;old.xls&quot;)</text><text x="125" y="182" class="branch-label">unsure which Excel format you have</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_excel(&quot;data.xlsx&quot;)</text><text x="125" y="238" class="branch-label">list sheet names before reading</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">excel_sheets(&quot;data.xlsx&quot;)</text><text x="125" y="294" class="branch-label">file is plain comma-separated text</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_csv(&quot;data.csv&quot;)</text><text x="125" y="350" class="branch-label">file is SPSS, SAS or Stata</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_sav(&quot;data.sav&quot;)</text></svg></div>
+
+<h2>What read_xlsx() does</h2>
+
+<p><strong>read_xlsx() imports one sheet of a modern .xlsx workbook as a tibble.</strong> You pass a file path and, optionally, which sheet and which cells to read. It returns a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame with one column per field and a guessed type for each column.</p>
+
+<p>The <code>.xlsx</code> format is the zipped XML package Excel has used since 2007. <code>read_xlsx()</code> unpacks it with a bundled C++ parser, so it needs no Java, no Perl, and no Excel install on the machine that runs your code.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>read_xlsx() is the format-specific engine; <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel()</a> is the dispatcher.</strong> <code>read_excel()</code> inspects the file, then hands off to <code>read_xlsx()</code> or <code>read_xls()</code> for you. Call <code>read_xlsx()</code> directly when you know the file is the modern format and want a hard error if it is not.</div></div>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>Most calls need only the <code>path</code> argument; the rest control which cells to read and how to parse them.</strong> A workbook can hold dozens of sheets, so the arguments below tell <code>read_xlsx()</code> exactly what to extract.</p>
+
+<div class="webr-container" data-block-title="The read_xlsx signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The read_xlsx signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_xlsx(
+  path,                  # path to the .xlsx file
+  sheet = NULL,          # sheet name or position; NULL reads the first
+  range = NULL,          # cell range like &quot;B2:F50&quot;; overrides sheet and skip
+  col_names = TRUE,      # TRUE, FALSE, or a character vector of names
+  col_types = NULL,      # NULL guesses; or &quot;text&quot;, &quot;numeric&quot;, &quot;date&quot;, ...
+  na = &quot;&quot;,               # strings to treat as missing
+  trim_ws = TRUE,        # strip leading and trailing whitespace
+  skip = 0,              # rows to skip before the header
+  n_max = Inf,           # maximum number of data rows to read
+  guess_max = 1000       # rows scanned when guessing column types
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you reach for most are <code>sheet</code> (pick the tab you want), <code>range</code> (read a precise block of cells), <code>skip</code> (jump past export junk), and <code>col_types</code> (stop the type guessing when you already know the schema). The full list is in the <a href="https://readxl.tidyverse.org/reference/read_excel.html">readxl reference</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>read_xlsx(&quot;data.xlsx&quot;)</code> is <code>pandas.read_excel(&quot;data.xlsx&quot;)</code>. The argument names differ: pandas uses <code>sheet_name</code> where readxl uses <code>sheet</code>, and <code>nrows</code> where readxl uses <code>n_max</code>.</div></div>
+
+<h2>read_xlsx() examples</h2>
+
+<p><strong>readxl ships an example .xlsx workbook, so every example below runs without a file of your own.</strong> The helper <code>readxl_example()</code> returns the path to a bundled file.</p>
+
+<div class="webr-container" data-block-title="Read the first sheet of an xlsx file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the first sheet of an xlsx file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+
+path &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+read_xlsx(path)
+#&gt; # A tibble: 150 x 5
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1          5.1         3.5          1.4         0.2 setosa
+#&gt; 2          4.9         3            1.4         0.2 setosa
+#&gt; 3          4.7         3.2          1.3         0.2 setosa
+#&gt; # i 147 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When a workbook has more than one tab, list the sheet names first, then read the one you want by name.</p>
+
+<div class="webr-container" data-block-title="List sheets then read one by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List sheets then read one by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">excel_sheets(path)
+#&gt; [1] &quot;iris&quot;     &quot;mtcars&quot;   &quot;chickwts&quot; &quot;quakes&quot;
+
+read_xlsx(path, sheet = &quot;mtcars&quot;)
+#&gt; # A tibble: 32 x 11
+#&gt;     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#&gt; 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#&gt; 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1
+#&gt; # i 29 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>range</code> argument reads an exact block of cells in A1 notation. It overrides both <code>sheet</code> position logic and <code>skip</code>, so use it when an export buries the table inside a larger layout.</p>
+
+<div class="webr-container" data-block-title="Read an exact block of cells">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read an exact block of cells</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_xlsx(path, sheet = &quot;mtcars&quot;, range = &quot;A1:D6&quot;)
+#&gt; # A tibble: 5 x 4
+#&gt;     mpg   cyl  disp    hp
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21       6   160   110
+#&gt; 2  21       6   160   110
+#&gt; 3  22.8     4   108    93
+#&gt; 4  21.4     6   258   110
+#&gt; 5  18.7     8   360   175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Copy the range straight from Excel.</strong> Highlight a block in the spreadsheet, read the address shown in the Name Box, and paste it into <code>range</code>. A sheet-qualified range like <code>&quot;mtcars!A1:D6&quot;</code> is also valid and makes the call self-documenting.</div></div>
+
+<p>Pass <code>col_types</code> a character vector to lock each column to a type. This stops readxl guessing from a sample and silences surprises when later rows hold unexpected values.</p>
+
+<div class="webr-container" data-block-title="Force column types when reading">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Force column types when reading</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_xlsx(path, sheet = &quot;chickwts&quot;, col_types = c(&quot;numeric&quot;, &quot;text&quot;))
+#&gt; # A tibble: 71 x 2
+#&gt;   weight feed
+#&gt;    &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    179 horsebean
+#&gt; 2    160 horsebean
+#&gt; 3    136 horsebean
+#&gt; # i 68 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>read_xlsx() vs read_excel() and read_xls()</h2>
+
+<p><strong>Pick read_xlsx() when the file is definitely .xlsx; pick read_excel() when the format is uncertain.</strong> All three return the same kind of tibble, so the choice is only about how strict you want the format check to be.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Reads</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_xlsx()</code></td>
+<td>.xlsx only</td>
+<td>You know the file is modern Excel</td>
+</tr>
+<tr>
+<td><code>read_xls()</code></td>
+<td>.xls only</td>
+<td>You know the file is the legacy binary format</td>
+</tr>
+<tr>
+<td><code>read_excel()</code></td>
+<td>.xls and .xlsx</td>
+<td>Format is unknown or varies across files</td>
+</tr>
+<tr>
+<td><code>read_csv()</code></td>
+<td>.csv text</td>
+<td>File is plain comma-delimited text</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. In a script that always receives the same modern export, name the format explicitly with <code>read_xlsx()</code> so a wrong-format file fails loudly. In an interactive session where files arrive in mixed formats, <code>read_excel()</code> saves you from checking extensions by hand.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>read_xlsx() will not open a legacy .xls file.</strong> The binary <code>.xls</code> format is not zipped XML, so the parser rejects it rather than misreading it.</p>
+
+<div class="webr-container" data-block-title="read_xlsx only opens xlsx files">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">read_xlsx only opens xlsx files</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_xlsx(readxl_example(&quot;datasets.xls&quot;))
+#&gt; Error: Can't establish that the input is either xls or xlsx.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to call <code>read_xls()</code> for that file, or <code>read_excel()</code> if you do not know the format ahead of time.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A <a class="auto-link" href="readr-Exercises-in-R.html" title="readr Exercises in R: 30 Real Practice Problems">col_types</a> vector must have one entry per column.</strong> If its length does not match the sheet width, readxl aborts. The <code>mtcars</code> sheet has 11 columns, so <code>read_xlsx(path, sheet = &quot;mtcars&quot;, col_types = c(&quot;numeric&quot;, &quot;text&quot;))</code> raises <code>Error: Sheet 1 has 11 columns, but col_types has length 2</code>. Supply all 11 types, or pass a single value like <code>&quot;numeric&quot;</code> to apply it to every column.</div></div>
+
+<p>A third trap is blank header cells. When the first row has empty cells, or you set <code>col_names = FALSE</code>, readxl auto-names columns <code>...1</code>, <code>...2</code>, and so on. Pass an explicit character vector to <code>col_names</code> to give the columns meaningful names instead.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the <code>quakes</code> sheet from the bundled <code>datasets.xlsx</code> workbook, keeping only the first 10 rows. Save the result to <code>ex_quakes</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read the quakes sheet">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read the quakes sheet</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read 10 rows of the quakes sheet
+library(readxl)
+path &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+ex_quakes &lt;- # your code here
+
+ex_quakes
+#&gt; Expected: 10 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_quakes &lt;- read_xlsx(path, sheet = &quot;quakes&quot;, n_max = 10)
+nrow(ex_quakes)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>sheet</code> argument picks the tab by name and <code>n_max</code> caps how many data rows readxl reads. Capping rows is handy for previewing the shape of a large workbook before loading all of it.</p>
+
+</details>
+</section>
+
+<h2>Related readxl functions</h2>
+
+<ul>
+
+<li><code>read_excel()</code> reads either Excel format and auto-detects which one a file uses.</li>
+
+<li><code>read_xls()</code> reads the legacy binary <code>.xls</code> format from pre-2007 Excel.</li>
+
+<li><code>excel_sheets()</code> lists every sheet name in a workbook before you read.</li>
+
+<li><code>readxl_example()</code> returns file paths to the practice workbooks bundled with readxl.</li>
+
+<li><code>read_csv()</code> from readr reads plain delimited text when the data is not an Excel file.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between read_xlsx() and read_excel() in R?</strong></p>
+
+<p><code>read_xlsx()</code> reads only the modern <code>.xlsx</code> format and errors on anything else. <code>read_excel()</code> is a wrapper that inspects the file, then calls <code>read_xlsx()</code> or <code>read_xls()</code> for you. Use <code>read_xlsx()</code> in a pipeline where the input format is fixed and a wrong file should fail loudly. Use <code>read_excel()</code> in interactive work where files arrive in both old and new Excel formats.</p>
+
+<p><strong>How do I read a specific sheet with read_xlsx()?</strong></p>
+
+<p>Pass the <code>sheet</code> argument either a sheet name as a string, like <code>sheet = &quot;Q1&quot;</code>, or a position number, like <code>sheet = 2</code>. Run <code>excel_sheets(path)</code> first to see the exact names. With no <code>sheet</code> argument, <code>read_xlsx()</code> reads the first sheet in the workbook.</p>
+
+<p><strong>Why does read_xlsx() fail on my .xls file?</strong></p>
+
+<p>The <code>.xls</code> format is a binary file, while <code>.xlsx</code> is zipped XML. <code>read_xlsx()</code> only understands the zipped XML structure, so it rejects a legacy file rather than misreading it. Call <code>read_xls()</code> for that file, or use <code>read_excel()</code>, which detects the format and dispatches to the correct reader automatically.</p>
+
+<p><strong>How do I read only some rows or columns with read_xlsx()?</strong></p>
+
+<p>Use <code>range</code> to read an exact cell block in A1 notation, such as <code>range = &quot;A1:D50&quot;</code>. Use <code>n_max</code> to cap the number of data rows and <code>skip</code> to drop rows above the header. The <code>range</code> argument is the most precise option because it pins both the rows and the columns at once.</p>
+
+<p><strong>Does read_xlsx() need Excel or Java installed?</strong></p>
+
+<p>No. <code>read_xlsx()</code> parses the workbook with a C++ library bundled inside the readxl package. It needs no copy of Microsoft Excel, no Java runtime, and no Perl. That makes it safe to run on servers and in continuous integration jobs where no office software is installed.</p>
+
+{% endraw %}
