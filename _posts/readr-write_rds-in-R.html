@@ -1,0 +1,347 @@
+---
+title: "readr write_rds() in R: Save Objects to .rds Files"
+description: "Use readr write_rds() in R to save an R object to a compact .rds file with optional gz compression. Covers syntax, examples, write_rds vs saveRDS, and pitfalls."
+keywords: "readr write_rds, write_rds function R, readr write_rds examples, write_rds vs saveRDS, save R object to file, write rds file R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "write_rds()|write_rds|readr write_rds|readr::write_rds()|write RDS file"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readr write_rds() in R: Save Objects to .rds Files</h1>
+
+<p class="lead"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">readr</a> write_rds() saves a single R object to a compact <code>.rds</code> file on disk, preserving its exact structure so you can read it back later with <code>read_rds()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>write_rds(x, &quot;x.rds&quot;)<span class="qa-cmt">                   # save one object</span>
+write_rds(x, &quot;x.rds&quot;, compress = &quot;gz&quot;)<span class="qa-cmt">  # compressed file</span>
+write_rds(x, &quot;x.rds&quot;, version = 3)<span class="qa-cmt">      # newer serialization format</span>
+df |&gt; write_rds(&quot;df.rds&quot;)<span class="qa-cmt">               # pipe-friendly, returns df</span>
+read_rds(&quot;x.rds&quot;)<span class="qa-cmt">                       # read the object back</span>
+saveRDS(x, &quot;x.rds&quot;)<span class="qa-cmt">                     # base R equivalent</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is write_rds() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">save one R object</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">write_rds(model, &quot;model.rds&quot;)</text><text x="125" y="126" class="branch-label">save many objects together</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">save(a, b, file = &quot;all.RData&quot;)</text><text x="125" y="182" class="branch-label">save a data frame as CSV</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">write_csv(df, &quot;df.csv&quot;)</text><text x="125" y="238" class="branch-label">save a fast columnar file</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">arrow::write_parquet(df, &quot;df.<a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">parquet</a>&quot;)</text><text x="125" y="294" class="branch-label">read an .rds file back</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_rds(&quot;model.rds&quot;)</text><text x="125" y="350" class="branch-label">write a text representation</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">write_rds(x, &quot;x.rds&quot;, text = TRUE)</text></svg></div>
+
+<h2>What write_rds() does</h2>
+
+<p><strong>write_rds() serializes one R object to a binary file.</strong> It takes any R object, a fitted model, a data frame, a list, or a vector, and writes it to disk in R's native <code>.rds</code> format. The saved file keeps the object's class, attributes, and types intact, so what you read back is identical to what you saved.</p>
+
+<p>It is the writing half of a pair: <code>write_rds()</code> saves, and <code>read_rds()</code> restores. Both come from the readr package, which gives them consistent argument names and pipe-friendly behavior compared with the base <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> they wrap.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>The signature centers on the object and the destination file.</strong> You pass the object first and the file path second; every other argument has a sensible default.</p>
+
+<div class="webr-container" data-block-title="Load readr and save an object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load readr and save an object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+model &lt;- lm(mpg ~ wt + hp, data = mtcars)
+write_rds(model, &quot;model.rds&quot;)
+
+file.exists(&quot;model.rds&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full call is <code>write_rds(x, file, compress = c(&quot;none&quot;, &quot;gz&quot;, &quot;bz2&quot;, &quot;xz&quot;), version = 2, ...)</code>.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>required</td>
+<td>The single R object to save</td>
+</tr>
+<tr>
+<td><code>file</code></td>
+<td>required</td>
+<td>Destination path, conventionally ending in <code>.rds</code></td>
+</tr>
+<tr>
+<td><code>compress</code></td>
+<td><code>&quot;none&quot;</code></td>
+<td>Compression algorithm: <code>none</code>, <code>gz</code>, <code>bz2</code>, or <code>xz</code></td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td><code>2</code></td>
+<td>Serialization format; <code>3</code> is smaller but needs R 3.5+</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td><code>FALSE</code></td>
+<td>Write an ASCII representation instead of binary</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>file</code> argument was once called <code>path</code>.</strong> readr 1.4.0 renamed it for consistency with the rest of the package. On readr 1.4.0 and later, always use <code>file =</code> if you name the argument.</div></div>
+
+<h2>write_rds() examples</h2>
+
+<p><strong>Each example below targets a different real task.</strong> They build on one shared session, so objects created in one block are available in the next.</p>
+
+<h3>Compress the output file</h3>
+
+<p><strong><code>write_rds()</code> skips compression by default.</strong> That keeps saves fast but produces larger files. Switch on <code>gz</code> compression when disk space or transfer size matters.</p>
+
+<div class="webr-container" data-block-title="Compare compressed and uncompressed size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare compressed and uncompressed size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_rds(mtcars, &quot;cars_none.rds&quot;)
+write_rds(mtcars, &quot;cars_gz.rds&quot;, compress = &quot;gz&quot;)
+
+file.size(&quot;cars_none.rds&quot;)
+#&gt; [1] 1903
+file.size(&quot;cars_gz.rds&quot;)
+#&gt; [1] 1267</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Save inside a pipe</h3>
+
+<p><strong><code>write_rds()</code> returns its input invisibly.</strong> That lets it slot into a pipeline without breaking the chain, so you can save an intermediate result and keep working.</p>
+
+<div class="webr-container" data-block-title="Save a result mid-pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save a result mid-pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  write_rds(&quot;efficient_cars.rds&quot;) |&gt;
+  nrow()
+#&gt; [1] 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Read the object back</h3>
+
+<p><strong>A saved object is restored with <code>read_rds()</code>.</strong> The round trip is lossless: the model below returns the same coefficients it had before saving.</p>
+
+<div class="webr-container" data-block-title="Restore the saved model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restore the saved model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">saved &lt;- read_rds(&quot;model.rds&quot;)
+coef(saved)
+#&gt; (Intercept)          wt          hp 
+#&gt; 37.22727012 -3.87783074 -0.03177295</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Use the newer format version</h3>
+
+<p><strong>Setting <code>version = 3</code> uses R's modern serialization.</strong> It produces a smaller file. Use it only when every machine that reads the file runs R 3.5.0 or newer.</p>
+
+<div class="webr-container" data-block-title="Write with serialization version 3">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write with serialization version 3</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_rds(mtcars, &quot;cars_v3.rds&quot;, version = 3)
+file.exists(&quot;cars_v3.rds&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>write_rds() vs saveRDS() and alternatives</h2>
+
+<p><strong><code>write_rds()</code> is a thin wrapper around base R's <code>saveRDS()</code>.</strong> It serializes identically, so a file written by one can be read by the other. The differences are ergonomic, not structural.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>write_rds()</code></th>
+<th><code>saveRDS()</code></th>
+<th><code>save()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Objects per file</td>
+<td>one</td>
+<td>one</td>
+<td>many</td>
+</tr>
+<tr>
+<td>Default compression</td>
+<td><code>&quot;none&quot;</code></td>
+<td><code>TRUE</code> (gzip)</td>
+<td><code>TRUE</code></td>
+</tr>
+<tr>
+<td>Returns input</td>
+<td>yes, invisibly</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Restores with</td>
+<td><code>read_rds()</code></td>
+<td><code>readRDS()</code></td>
+<td><code>load()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>write_rds()</code> inside tidyverse pipelines where the invisible return value keeps a chain flowing. Reach for <code>save()</code> only when you must bundle several named objects into one file. For large data frames you query repeatedly, a columnar format such as Parquet will out-read any <code>.rds</code> file.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match <code>write_rds()</code> with <code>read_rds()</code>, not <code>load()</code>.</strong> The <code>load()</code> function is for <code>.RData</code> archives written by <code>save()</code>. Pointing it at an <code>.rds</code> file fails because the formats differ.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most write_rds() mistakes trace back to three assumptions.</strong> Each one has a quick fix.</p>
+
+<p>The first is expecting compression. Because <code>compress = &quot;none&quot;</code> is the default, an <code>.rds</code> file from <code>write_rds()</code> is larger than the same object saved with <code>saveRDS()</code>. Add <code>compress = &quot;gz&quot;</code> to match base R's behavior.</p>
+
+<p>The second is trying to save several objects at once. <code>write_rds()</code> accepts exactly one object; extra arguments are interpreted as other parameters, not data.</p>
+
+<div class="webr-container" data-block-title="Saving multiple objects needs a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Saving multiple objects needs a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: only the first object is saved
+# write_rds(mtcars, iris, &quot;two.rds&quot;)
+
+# Right: bundle them in a single list
+write_rds(list(cars = mtcars, flowers = iris), &quot;two.rds&quot;)
+names(read_rds(&quot;two.rds&quot;))
+#&gt; [1] &quot;cars&quot;    &quot;flowers&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third is a version mismatch: a file written with <code>version = 3</code> will not open in R older than 3.5.0. Keep the default <code>version = 2</code> when you need wide compatibility.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>write_rds()</code> overwrites silently.</strong> If the target file already exists, it is replaced with no prompt and no warning. Check with <code>file.exists()</code> first when an accidental overwrite would lose work.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Save the first 10 rows of <code>mtcars</code> to a compressed <code>.rds</code> file named <code>ex_cars.rds</code>, then confirm the file was created.</p>
+<div class="webr-container" data-block-title="Your turn: save with write_rds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: save with write_rds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write a compressed .rds file
+ex_cars &lt;- head(mtcars, 10)
+# your code here
+
+file.exists(&quot;ex_cars.rds&quot;)
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cars &lt;- head(mtcars, 10)
+write_rds(ex_cars, &quot;ex_cars.rds&quot;, compress = &quot;gz&quot;)
+file.exists(&quot;ex_cars.rds&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>write_rds()</code> takes the object first and the path second. Adding <code>compress = &quot;gz&quot;</code> shrinks the file, and <code>file.exists()</code> confirms the write succeeded.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p><strong><code>write_rds()</code> belongs to readr's file output family.</strong> These functions cover the other formats you are likely to need:</p>
+
+<ul>
+
+<li><code>read_rds()</code> reads an <code>.rds</code> file back into R.</li>
+
+<li><code>write_csv()</code> saves a data frame as comma-separated text.</li>
+
+<li><code>write_tsv()</code> saves a data frame as tab-separated text.</li>
+
+<li><code>write_lines()</code> writes a character vector one element per line.</li>
+
+<li><code>write_delim()</code> saves a data frame with any custom delimiter.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between write_rds() and saveRDS()?</strong></p>
+
+<p><code>write_rds()</code> is a readr wrapper around base R's <code>saveRDS()</code>. They write the same binary format, so files are interchangeable. The practical differences: <code>write_rds()</code> defaults to no compression while <code>saveRDS()</code> compresses, and <code>write_rds()</code> returns its input invisibly so it works inside a pipe. Choose <code>write_rds()</code> for tidyverse code and <code>saveRDS()</code> if you want compression without naming the argument.</p>
+
+<p><strong>Does write_rds() compress files by default?</strong></p>
+
+<p>No. <code>write_rds()</code> uses <code>compress = &quot;none&quot;</code>, which makes writes fast but produces larger files than <code>saveRDS()</code>, which compresses by default. To compress, pass <code>compress = &quot;gz&quot;</code> for a good speed-and-size balance, or <code>compress = &quot;xz&quot;</code> for the smallest file at the cost of slower writes. The compression choice does not affect reading: <code>read_rds()</code> detects the algorithm automatically.</p>
+
+<p><strong>Can write_rds() save multiple objects at once?</strong></p>
+
+<p>No. <code>write_rds()</code> saves exactly one object per file. To store several objects, wrap them in a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> and save that list, then unpack it after reading. If you specifically need separate named objects restored into the environment, use base R's <code>save()</code> with <code>load()</code> instead, which writes <code>.RData</code> archives.</p>
+
+<p><strong>What file extension should I use with write_rds()?</strong></p>
+
+<p>Use <code>.rds</code>. The extension is a convention rather than a requirement, since <code>write_rds()</code> writes the same content regardless of the name, but <code>.rds</code> signals the format to collaborators and tools. Avoid <code>.RData</code>, which implies a multi-object archive written by <code>save()</code>.</p>
+
+<p><strong>Is write_rds() faster than write_csv()?</strong></p>
+
+<p>Usually yes for both writing and reading, because <code>.rds</code> is a binary format that skips text parsing and preserves types directly. An <code>.rds</code> file also keeps factors, dates, and classes exactly, while a CSV stores everything as text and needs re-parsing on import. Use CSV only when a human or a non-R program must read the file.</p>
