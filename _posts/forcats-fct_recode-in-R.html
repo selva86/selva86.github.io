@@ -1,0 +1,363 @@
+---
+title: "forcats fct_recode() in R: Rename Factor Levels"
+description: "forcats fct_recode() renames factor levels by hand in R. Learn the new = old syntax, merge levels, fix typos, and silence the unknown-level warning fast."
+keywords: "forcats fct_recode, fct_recode function R, forcats fct_recode examples, rename factor levels R, recode factor levels R, fct_recode tidyverse"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fct_recode()|forcats fct_recode|forcats::fct_recode()|rename factor levels|recode factor levels"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>forcats fct_recode() in R: Rename Factor Levels</h1>
+
+<p class="lead">forcats fct_recode() renames the levels of a factor by hand, one mapping at a time. You name each new label and point it at an existing level, leaving every other level untouched.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fct_recode(f, New = &quot;old&quot;)<span class="qa-cmt">               # rename one level</span>
+fct_recode(f, A = &quot;x&quot;, B = &quot;y&quot;)<span class="qa-cmt">          # rename several levels</span>
+fct_recode(f, Big = &quot;L&quot;, Big = &quot;XL&quot;)<span class="qa-cmt">     # merge many levels into one</span>
+fct_recode(f, &quot;Extra Large&quot; = &quot;XL&quot;)<span class="qa-cmt">      # quote names that have spaces</span>
+fct_recode(iris$Species, Iris = &quot;setosa&quot;)# works on any factor column
+suppressWarnings(fct_recode(f, X = &quot;z&quot;))<span class="qa-cmt"> # silence unknown-level warning</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fct_recode() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rename levels by hand</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fct_recode(f, New = &quot;old&quot;)</text><text x="125" y="126" class="branch-label">merge levels with a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a></text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fct_collapse(f, big = c(&quot;a&quot;, &quot;b&quot;))</text><text x="125" y="182" class="branch-label">lump rare levels automatically</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fct_lump(f, n = 5)</text><text x="125" y="238" class="branch-label">reorder levels, not rename them</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fct_relevel(f, &quot;first&quot;)</text><text x="125" y="294" class="branch-label">recode a plain (non-factor) vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dplyr::recode(x, a = &quot;A&quot;)</text><text x="125" y="350" class="branch-label">rename from a named vector</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fct_recode(f, !!!mapping)</text></svg></div>
+
+<h2>What fct_recode() does</h2>
+
+<p><strong>fct_recode() is a hand-operated level renamer.</strong> It belongs to the <a href="forcats-in-R.html">forcats</a> package and changes the <em>labels</em> of a factor without touching the underlying data order or the level order. You supply pairs in the form <code>new_label = &quot;old_level&quot;</code>, and every level you do not mention is carried through unchanged.</p>
+
+<p>Start with a small factor so the behavior is easy to see.</p>
+
+<div class="webr-container" data-block-title="Load forcats and build a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load forcats and build a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(forcats)
+
+size &lt;- factor(c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;, &quot;S&quot;, &quot;XL&quot;, &quot;M&quot;))
+levels(size)
+#&gt; [1] &quot;L&quot;  &quot;M&quot;  &quot;S&quot;  &quot;XL&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now rename every level with one call. The new label sits on the left of the <code>=</code>, the existing level (as a quoted string) sits on the right.</p>
+
+<div class="webr-container" data-block-title="Rename factor levels by hand">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename factor levels by hand</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">size_named &lt;- fct_recode(size,
+  Small         = &quot;S&quot;,
+  Medium        = &quot;M&quot;,
+  Large         = &quot;L&quot;,
+  &quot;Extra Large&quot; = &quot;XL&quot;
+)
+size_named
+#&gt; [1] Small       Medium      Large       Small       Extra Large Medium     
+#&gt; Levels: Large Medium Small Extra Large</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The values stayed in place and the level order is still <code>L, M, S, XL</code> order, just relabelled. <code>fct_recode()</code> never reorders.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fct_recode() renames, it does not reorder.</strong> The level order you see after recoding is the order the old levels had. If you need a different order, follow up with <code>fct_relevel()</code> or <code>fct_inorder()</code>.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature is <code>fct_recode(.f, ...)</code>.</strong> The first argument <code>.f</code> is the factor (or a character vector, which gets coerced to a factor). The <code>...</code> collects any number of <code>new_label = &quot;old_level&quot;</code> pairs.</p>
+
+<p>Three rules cover almost every use:</p>
+
+<ul>
+
+<li>The <strong>new label is on the left</strong>, unquoted unless it contains spaces or starts with a digit.</li>
+
+<li>The <strong>old level is on the right</strong>, always a single quoted string.</li>
+
+<li>Repeat a label to <strong>merge</strong> several old levels into one (shown below).</li>
+
+</ul>
+
+<p>When the mapping lives in a named vector, splice it into <code>...</code> with the <code>!!!</code> operator. This is the pattern for programmatic renaming, where labels come from a lookup table rather than being typed by hand.</p>
+
+<div class="webr-container" data-block-title="Recode from a named vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recode from a named vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mapping &lt;- c(Small = &quot;S&quot;, Medium = &quot;M&quot;, Large = &quot;L&quot;, &quot;Extra Large&quot; = &quot;XL&quot;)
+fct_recode(size, !!!mapping)
+#&gt; [1] Small       Medium      Large       Small       Extra Large Medium     
+#&gt; Levels: Large Medium Small Extra Large</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Each example below solves a different real task.</strong> They use built-in R data so you can run them as is.</p>
+
+<h3>Rename levels for display</h3>
+
+<p><strong>Recode terse codes into readable labels.</strong> <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">Tidy data</a> often stores levels in lowercase or with terse codes. Recode them to presentation-ready labels right before plotting or printing a table.</p>
+
+<div class="webr-container" data-block-title="Capitalize iris species labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Capitalize iris species labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">species_display &lt;- fct_recode(iris$Species,
+  Setosa     = &quot;setosa&quot;,
+  Versicolor = &quot;versicolor&quot;,
+  Virginica  = &quot;virginica&quot;
+)
+levels(species_display)
+#&gt; [1] &quot;Setosa&quot;     &quot;Versicolor&quot; &quot;Virginica&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Merge several levels into one</h3>
+
+<p><strong>Repeat a label to merge levels.</strong> Repeat a label on the left and <code>fct_recode()</code> collapses all those old levels into a single new one. Here five letter grades become a Pass/Fail factor.</p>
+
+<div class="webr-container" data-block-title="Collapse grades into pass and fail">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse grades into pass and fail</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grade &lt;- factor(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;, &quot;D&quot;, &quot;F&quot;))
+
+fct_recode(grade,
+  Pass = &quot;A&quot;,
+  Pass = &quot;B&quot;,
+  Pass = &quot;C&quot;,
+  Fail = &quot;D&quot;,
+  Fail = &quot;F&quot;
+)
+#&gt; [1] Pass Pass Pass Fail Fail
+#&gt; Levels: Pass Fail</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Standardize inconsistent labels</h3>
+
+<p><strong>Map every spelling to one clean level.</strong> Survey exports frequently mix <code>yes</code>, <code>Yes</code>, and <code>Y</code> for the same answer. Map each spelling to one clean level so counts are correct.</p>
+
+<div class="webr-container" data-block-title="Clean inconsistent survey answers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean inconsistent survey answers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw &lt;- factor(c(&quot;yes&quot;, &quot;Yes&quot;, &quot;Y&quot;, &quot;no&quot;, &quot;No&quot;, &quot;N&quot;),
+              levels = c(&quot;yes&quot;, &quot;Yes&quot;, &quot;Y&quot;, &quot;no&quot;, &quot;No&quot;, &quot;N&quot;))
+
+clean &lt;- fct_recode(raw,
+  Yes = &quot;yes&quot;, Yes = &quot;Yes&quot;, Yes = &quot;Y&quot;,
+  No  = &quot;no&quot;,  No  = &quot;No&quot;,  No  = &quot;N&quot;
+)
+clean
+#&gt; [1] Yes Yes Yes No  No  No 
+#&gt; Levels: Yes No</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>fct_recode() vs other forcats renamers</h2>
+
+<p><strong>Pick the tool by how the mapping is defined.</strong> <code>fct_recode()</code> is best when you type the mapping by hand. For rule-based or automatic merging, reach for a sibling function.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Use it when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fct_recode()</code></td>
+<td>You rename levels by hand, one pair at a time</td>
+<td><code>fct_recode(f, New = &quot;old&quot;)</code></td>
+</tr>
+<tr>
+<td><code>fct_collapse()</code></td>
+<td>You merge groups of levels with named vectors</td>
+<td><code>fct_collapse(f, big = c(&quot;a&quot;, &quot;b&quot;))</code></td>
+</tr>
+<tr>
+<td><code>fct_lump()</code></td>
+<td>You merge rare levels into "Other" automatically</td>
+<td><code>fct_lump(f, n = 3)</code></td>
+</tr>
+<tr>
+<td><code>fct_relevel()</code></td>
+<td>You change level order, not their names</td>
+<td><code>fct_relevel(f, &quot;b&quot;)</code></td>
+</tr>
+<tr>
+<td><code>dplyr::recode()</code></td>
+<td>You recode a plain vector that is not a factor</td>
+<td><code>recode(x, a = &quot;A&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: if you can list every old level explicitly, use <code>fct_recode()</code>. If the levels to merge are defined by a count or a group, use <code>fct_collapse()</code> or <code>fct_lump()</code> instead.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> The classic way to rename levels is <code>levels(f) &lt;- c(...)</code>, which forces you to supply every level in exact order. <code>fct_recode()</code> is safer because you name each pair, so a reordered factor cannot silently scramble your labels.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Two mistakes cause almost every fct_recode() problem.</strong> Both produce a warning rather than an error, so they are easy to miss.</p>
+
+<p>The first is getting the direction backwards. The new label goes on the left, the existing level on the right. Swap them and <code>fct_recode()</code> cannot find the level you named.</p>
+
+<div class="webr-container" data-block-title="Direction matters: new equals old">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Direction matters: new equals old</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: the existing level is on the left
+fct_recode(grade, &quot;A&quot; = &quot;Top&quot;)
+#&gt; Warning: Unknown levels in `f`: Top
+
+# Right: new label left, existing level (quoted) right
+fct_recode(grade, Top = &quot;A&quot;)
+#&gt; [1] Top B   C   D   F  
+#&gt; Levels: Top B C D F</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is naming a level that does not exist, often a typo. <code>fct_recode()</code> warns with <code>Unknown levels in f</code> and leaves the factor unchanged.</p>
+
+<div class="webr-container" data-block-title="Unknown level triggers a warning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unknown level triggers a warning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fct_recode(grade, Excellent = &quot;A+&quot;)
+#&gt; Warning: Unknown levels in `f`: A+
+#&gt; [1] A B C D F
+#&gt; Levels: A B C D F</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An unknown level is a silent no-op.</strong> <code>fct_recode()</code> does not stop on a misspelled level, it only warns. Always check <code>levels()</code> after recoding, or the typo ships unnoticed.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Recode the iris <code>Species</code> factor so <code>&quot;setosa&quot;</code> becomes <code>&quot;Iris setosa&quot;</code> while the other two levels stay unchanged. Save the result to <code>ex_species</code>.</p>
+<div class="webr-container" data-block-title="Your turn: recode one iris level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: recode one iris level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rename a single level
+ex_species &lt;- # your code here
+
+levels(ex_species)
+#&gt; Expected: &quot;Iris setosa&quot; &quot;versicolor&quot; &quot;virginica&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_species &lt;- fct_recode(iris$Species, &quot;Iris setosa&quot; = &quot;setosa&quot;)
+levels(ex_species)
+#&gt; [1] &quot;Iris setosa&quot; &quot;versicolor&quot;  &quot;virginica&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Levels you do not mention pass through untouched, so only <code>&quot;setosa&quot;</code> changes. The new label needs quotes because it contains a space.</p>
+
+</details>
+</section>
+
+<h2>Related forcats functions</h2>
+
+<p><strong>fct_recode() is one of several forcats level editors.</strong> Explore these when hand-renaming is not the right fit:</p>
+
+<ul>
+
+<li><a href="forcats-fct_collapse-in-R.html">fct_collapse()</a> merges groups of levels using named vectors.</li>
+
+<li><a href="forcats-fct_lump-in-R.html">fct_lump()</a> bundles the least common levels into "Other".</li>
+
+<li><a href="forcats-fct_relevel-in-R.html">fct_relevel()</a> changes the order of levels without renaming.</li>
+
+<li><a href="forcats-fct_other-in-R.html">fct_other()</a> keeps or drops named levels, sending the rest to "Other".</li>
+
+<li><a href="forcats-fct_drop-in-R.html">fct_drop()</a> removes unused levels after subsetting.</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://forcats.tidyverse.org/reference/fct_recode.html">forcats fct_recode documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fct_recode() and <a class="auto-link" href="dplyr-recode-in-R.html" title="dplyr recode() in R: Map Old Values to New (Superseded)">dplyr recode</a>()?</strong></p>
+
+<p><code>fct_recode()</code> works on a factor and preserves its level structure and order, returning a factor. <code>dplyr::recode()</code> works on any atomic vector and returns the same type it received. Use <code>fct_recode()</code> when the column is already a factor and you want to keep factor semantics. Use <code>recode()</code> for character or <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> that are not factors.</p>
+
+<p><strong>Why does fct_recode() put the new name on the left?</strong></p>
+
+<p>The pattern <code>new = &quot;old&quot;</code> mirrors normal <a class="auto-link" href="R-Assignment-Operators-in-R.html" title="R Assignment Operators: <- vs = vs <<- (Complete Guide)">R assignment</a>, where the target is on the left. It also lets you reuse a name to merge levels: writing <code>Pass = &quot;A&quot;, Pass = &quot;B&quot;</code> reads naturally as "both map to Pass". A left-side old level could not express that merge cleanly.</p>
+
+<p><strong>Can fct_recode() combine multiple factor levels?</strong></p>
+
+<p>Yes. Assign the same new label to several old levels and they collapse into one. For example, <code>fct_recode(f, Big = &quot;L&quot;, Big = &quot;XL&quot;)</code> merges <code>L</code> and <code>XL</code> into <code>Big</code>. If the levels to merge are defined by a rule or count rather than an explicit list, <code>fct_collapse()</code> or <code>fct_lump()</code> is a better fit.</p>
+
+<p><strong>How do I fix the "Unknown levels in f" warning?</strong></p>
+
+<p>That warning means a level you named on the right side of <code>=</code> does not exist in the factor. Run <code>levels(f)</code> to see the exact spelling, including capitalization, and correct your mapping. If you know the level is genuinely optional, wrap the call in <code>suppressWarnings()</code> to silence it deliberately.</p>
