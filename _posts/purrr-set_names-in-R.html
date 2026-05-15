@@ -1,0 +1,346 @@
+---
+title: "purrr set_names() in R: Name Vector and List Elements"
+description: "Learn purrr set_names() in R to name vector, list, and data frame elements. Covers the syntax, self-naming, name transformations, and common length pitfalls."
+keywords: "purrr set_names, set_names function R, purrr set_names examples, R set_names vector, name list elements R, rename vector elements R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "set_names()|purrr set_names|purrr::set_names()|set_names|rlang set_names"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr set_names() in R: Name Vector and List Elements</h1>
+
+<p class="lead">purrr set_names() assigns names to the elements of a vector, list, or data frame and returns the object, so it slots cleanly into a pipeline. It can take an explicit name vector, reuse the values as their own names, or transform existing names with a function.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>set_names(x, c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))<span class="qa-cmt">     # name from a vector</span>
+set_names(x)<span class="qa-cmt">                       # self-name: values become names</span>
+set_names(x, toupper)<span class="qa-cmt">              # transform existing names</span>
+set_names(x, ~ paste0(&quot;v&quot;, .x))<span class="qa-cmt">    # transform with a formula</span>
+set_names(x, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;)<span class="qa-cmt">        # name from separate arguments</span>
+set_names(df, c(&quot;height&quot;, &quot;wt&quot;))<span class="qa-cmt">   # rename data frame columns</span>
+set_names(x, NULL)<span class="qa-cmt">                 # strip all names</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is set_names() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">name a vector or list inside a pipe</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">set_names(x, nm)</text><text x="125" y="126" class="branch-label">name elements from their own values</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">set_names(x)</text><text x="125" y="182" class="branch-label">rename <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> by old name</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rename(df, new = old)</text><text x="125" y="238" class="branch-label">clean messy column names in bulk</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">clean_names(df)</text><text x="125" y="294" class="branch-label">bind a list to rows keeping the id</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_rbind(x, <a class="auto-link" href="tidyr-Pivot-Exercises-in-R.html" title="tidyr Pivot Exercises in R: 25 Practice Problems">names_to</a> = &quot;id&quot;)</text><text x="125" y="350" class="branch-label">extract one named element</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pluck(x, &quot;key&quot;)</text></svg></div>
+
+<h2>What set_names does</h2>
+
+<p><strong>The set_names function is a pipe-friendly way to attach names.</strong> Base R already lets you set names with <code>names(x) &lt;- value</code>, but that statement does not return the object, so it cannot sit in the middle of a pipeline. set_names takes the object, applies the names, and hands the object back, which keeps a chain of transformations unbroken.</p>
+
+<p>It accepts the names in three forms. You can pass an explicit character vector, you can pass nothing and let the values of the object become their own names, or you can pass a function that rewrites the names already in place. That flexibility is why the tidyverse leans on set_names instead of the base assignment form.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Naming is a step in the data flow, not a side statement.</strong> Because set_names returns its input, you can name a vector, map over it, and bind the result without ever breaking the pipe or creating a throwaway variable.</div></div>
+
+<h2>set_names syntax</h2>
+
+<p><strong>The signature is set_names(x, nm = x, ...).</strong> You pass the object to name, then the names themselves, supplied either as the <code>nm</code> argument or as several arguments spread across the dots.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>The vector, list, or data frame to name</td>
+</tr>
+<tr>
+<td><code>nm</code></td>
+<td>A character vector of names, or a function applied to current names. Defaults to <code>x</code> itself</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra name pieces; all arguments are concatenated into one name vector</td>
+</tr>
+</tbody>
+</table>
+
+<p>The length of <code>nm</code> must match the length of <code>x</code>. When <code>nm</code> is a function or a formula, set_names calls it on the current names and uses the result. Passing <code>NULL</code> removes every name.</p>
+
+<div class="webr-container" data-block-title="Load purrr and name a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and name a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+scores &lt;- c(88, 72, 95)
+set_names(scores, c(&quot;math&quot;, &quot;reading&quot;, &quot;science&quot;))
+#&gt;    math reading science 
+#&gt;      88      72      95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Name elements from their own values</h2>
+
+<p><strong>Calling set_names with no name argument turns the values into names.</strong> This is the single most common use in tidyverse code. When you map over a character vector, the output list is unnamed unless the input was named, so self-naming the input first carries labels through to the result.</p>
+
+<div class="webr-container" data-block-title="Self-name a character vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Self-name a character vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- c(&quot;engine&quot;, &quot;wheels&quot;, &quot;frame&quot;)
+set_names(parts)
+#&gt;   engine   wheels    frame 
+#&gt; &quot;engine&quot; &quot;wheels&quot;  &quot;frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Chained before a map call, self-naming produces a list whose element names match the original strings. Those names then survive into data frames, plots, and the <code>.id</code> column of binding functions.</p>
+
+<div class="webr-container" data-block-title="Named output from a map loop">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Named output from a map loop</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;) |&gt;
+  set_names() |&gt;
+  map(toupper)
+#&gt; $a
+#&gt; [1] &quot;A&quot;
+#&gt; 
+#&gt; $b
+#&gt; [1] &quot;B&quot;
+#&gt; 
+#&gt; $c
+#&gt; [1] &quot;C&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Self-name inputs before mapping over files or groups.</strong> Running <code>list.files() |&gt; set_names() |&gt; map(read.csv)</code> gives a list keyed by file name, so <code>list_rbind(.id = &quot;file&quot;)</code> can record which row came from which source.</div></div>
+
+<h2>Transform names with a function or formula</h2>
+
+<p><strong>Pass a function as nm to rewrite the names already on the object.</strong> set_names calls that function on the current name vector and uses whatever it returns. A formula with <code>.x</code> works as a compact anonymous function, the same shorthand purrr uses elsewhere.</p>
+
+<div class="webr-container" data-block-title="Transform existing names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transform existing names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(a = 1, b = 2, c = 3)
+set_names(v, toupper)
+#&gt; A B C 
+#&gt; 1 2 3
+
+set_names(v, ~ paste0(&quot;col_&quot;, .x))
+#&gt; col_a col_b col_c 
+#&gt;     1     2     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This keeps a renaming rule in one place instead of typing out a full name vector. It is handy for adding a shared prefix, fixing capitalization, or stripping a suffix from many names at once.</p>
+
+<h2>Rename data frame columns and use the dots</h2>
+
+<p><strong>A data frame is a list of columns, so set_names renames its columns.</strong> Pass a character vector the same length as the number of columns and each column receives the matching name in order.</p>
+
+<div class="webr-container" data-block-title="Rename data frame columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename data frame columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:2, y = 3:4)
+set_names(df, c(&quot;height&quot;, &quot;weight&quot;))
+#&gt;   height weight
+#&gt; 1      1      3
+#&gt; 2      2      4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When names arrive as several pieces, you do not need to wrap them in <code>c()</code> yourself. Every argument after <code>x</code> is concatenated, so the dots accept loose strings or several short vectors.</p>
+
+<div class="webr-container" data-block-title="Build names from separate arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build names from separate arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set_names(1:3, &quot;a&quot;, &quot;b&quot;, &quot;c&quot;)
+#&gt; a b c 
+#&gt; 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>set_names()</code> is the tidyverse counterpart of <code>setNames()</code>. The base function recycles or silently mismatches a wrong-length name vector, while set_names is strict and errors, which catches bugs earlier.</div></div>
+
+<h2>set_names vs setNames and the names assignment</h2>
+
+<p><strong>Choose the naming tool that matches where the code lives.</strong> All three approaches attach names, but they differ on pipe support, strictness, and the ability to transform.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns object?</th>
+<th>Wrong length</th>
+<th>Accepts a function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set_names(x, nm)</code></td>
+<td>Yes</td>
+<td>Errors</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>setNames(x, nm)</code></td>
+<td>Yes</td>
+<td>Recycles or mismatches</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>names(x) &lt;- nm</code></td>
+<td>No</td>
+<td>Errors</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. Inside a pipeline, use set_names, since it returns the object and fails loudly on a length error. For a quick one-off outside a pipe, the base assignment form is fine. Reach for setNames only in base-only code where you cannot add a tidyverse dependency.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The name vector must match the length of the object.</strong> set_names does not recycle a short name vector the way <code>setNames()</code> sometimes does. A mismatch stops with an error, which is the safer behavior but surprises people moving over from base R.</p>
+
+<div class="webr-container" data-block-title="Length mismatch raises an error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length mismatch raises an error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set_names(1:3, c(&quot;a&quot;, &quot;b&quot;))
+#&gt; Error in `set_names()`:
+#&gt; ! The size of `nm` (2) must be compatible with the size of `x` (3).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Self-naming a numeric vector gives numeric strings as names.</strong> <code>set_names(1:3)</code> produces names <code>&quot;1&quot;</code>, <code>&quot;2&quot;</code>, <code>&quot;3&quot;</code>, which is rarely what you want. Self-naming is meant for <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> whose values are already meaningful labels.</p>
+
+<p><strong>To strip names, pass NULL explicitly.</strong> Because <code>nm</code> defaults to <code>x</code>, calling <code>set_names(x)</code> self-names rather than clears. Use <code>set_names(x, NULL)</code> to remove every name.</p>
+
+<div class="webr-container" data-block-title="Strip all names with NULL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip all names with NULL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">named &lt;- c(a = 1, b = 2)
+set_names(named, NULL)
+#&gt; [1] 1 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Name the vector <code>1:4</code> with the labels q1 through q4. Save the result to <code>ex_named</code>.</p>
+<div class="webr-container" data-block-title="Your turn: name a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: name a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: name 1:4 as q1..q4
+ex_named &lt;- # your code here
+
+ex_named
+#&gt; Expected: names q1 q2 q3 q4 over values 1 2 3 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_named &lt;- set_names(1:4, paste0(&quot;q&quot;, 1:4))
+ex_named
+#&gt; q1 q2 q3 q4 
+#&gt;  1  2  3  4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>paste0(&quot;q&quot;, 1:4)</code> builds the character vector <code>c(&quot;q1&quot;, &quot;q2&quot;, &quot;q3&quot;, &quot;q4&quot;)</code>, and set_names attaches it because its length matches the four values being named.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions work well alongside set_names when you handle named data:</p>
+
+<ul>
+
+<li>The <a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">map function</a> preserves input names, so a self-named vector yields a named output list.</li>
+
+<li>The <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">imap</a> function iterates over values and their names together, which pairs with names you just set.</li>
+
+<li>The <a class="auto-link" href="purrr-pluck-in-R.html" title="purrr pluck() in R: Extract Nested List Elements">pluck function</a> extracts a single element by the names set_names assigned.</li>
+
+<li>The list_rbind function turns a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> into rows and records the names in an id column.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/set_names.html">purrr reference</a> for the full argument specification.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between set_names and setNames?</strong> Both attach names and return the object, but set_names comes from the tidyverse and setNames is base R. The key difference is strictness: set_names errors when the name vector length does not match the object, while setNames may recycle or produce a silent mismatch. set_names also accepts a function or formula to transform existing names, which setNames cannot do. In pipelines, prefer set_names for its clearer failures.</p>
+
+<p><strong>How do I name list elements with set_names?</strong> Pass the list as the first argument and a character vector of names as the second, with one name per element. If the list already holds character values that make good labels, call <code>set_names()</code> with no second argument so the values become the names. This self-naming form is common right before a map call, because map carries the names through to its output list.</p>
+
+<p><strong>Can set_names rename data frame columns?</strong> Yes. A data frame is internally a list of columns, so set_names treats the column vector as the thing to name. Supply a character vector the same length as the number of columns and each column is renamed in order. For renaming specific columns by their old name rather than position, the <a class="auto-link" href="dplyr-rename-in-R.html" title="dplyr rename() in R: Rename Columns Without Dropping">dplyr rename</a> function is usually a better fit.</p>
+
+<p><strong>Why does set_names give an error about size?</strong> That error means the name vector you passed has a different length than the object. set_names requires exactly one name per element and does not recycle a shorter vector. Count the elements, count the names, and make them equal. If you only meant to relabel some names, pass a function instead, since a function rewrites whatever names already exist without changing their count.</p>
+
+{% endraw %}
