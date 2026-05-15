@@ -1,0 +1,293 @@
+---
+title: "purrr iwalk() in R: Walk a List With Its Names"
+description: "Use purrr iwalk() in R to run a function over each value and its name or index for side effects. Covers syntax, examples, iwalk vs walk2 vs imap, and pitfalls."
+keywords: "purrr iwalk, iwalk function R, purrr iwalk example, iwalk vs walk2, R iwalk index, imap walk, iwalk write files"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr iwalk|iwalk()|purrr::iwalk()|indexed walk|iwalk function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr iwalk() in R: Walk a List With Its Names</h1>
+
+<p class="lead">The <code>iwalk()</code> function in purrr applies a function to each element of a list or vector together with its name or index, purely for side effects like printing or saving files. It returns the original input invisibly, so it stays pipe-friendly.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>iwalk(x, ~ cat(.y, .x, &quot;\n&quot;))<span class="qa-cmt">         # .x is value, .y is name/index</span>
+iwalk(named_vec, ~ print(.y))<span class="qa-cmt">         # .y is the element name</span>
+iwalk(unnamed_vec, ~ print(.y))<span class="qa-cmt">       # .y is the integer index</span>
+iwalk(dfs, ~ write.csv(.x, .y))<span class="qa-cmt">       # save each, name as path</span>
+iwalk(x, function(val, nm) ...)<span class="qa-cmt">       # full anonymous function form</span>
+iwalk(x, ~ message(.y))<span class="qa-cmt">               # returns x invisibly</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is iwalk() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">side effect that needs the name</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">iwalk(x, ~ cat(.y, .x))</text><text x="125" y="126" class="branch-label">side effect, name not needed</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">walk(x, print)</text><text x="125" y="182" class="branch-label">two parallel lists, side effect</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">walk2(x, y, ~ ...)</text><text x="125" y="238" class="branch-label">transform values, keep the name</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">imap(x, ~ ...)</text><text x="125" y="294" class="branch-label">transform values, return a list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">map(x, ~ ...)</text><text x="125" y="350" class="branch-label">many parallel lists, side effect</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pwalk(list(a, b, c), ...)</text></svg></div>
+
+<h2>What iwalk() does in one sentence</h2>
+
+<p><strong>iwalk() walks a list alongside its names.</strong> It calls your function once per element, passing the value as <code>.x</code> and the name as <code>.y</code>, and runs entirely for the side effect. The "i" stands for indexed: when the input has no names, <code>.y</code> becomes the integer position instead. It is the side-effect counterpart of <a href="purrr-imap-in-R.html">imap()</a>, which keeps <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>iwalk(x, f) is shorthand for walk2(x, names(x), f).</strong> When <code>x</code> has no names, purrr substitutes <code>seq_along(x)</code>. Knowing this equivalence makes every <code>iwalk()</code> call predictable: <code>.x</code> is always the value and <code>.y</code> is always the label.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>iwalk() takes one input, one function, and nothing else.</strong> The signature is short because indexing is automatic.</p>
+
+<div class="webr-container" data-block-title="iwalk function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">iwalk function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# iwalk(.x, .f, ...)
+#   .x  a list or atomic vector
+#   .f  a function of two arguments: value, then name/index
+#   ... extra arguments passed on to .f</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside a formula-style function, <code>.x</code> is the current value and <code>.y</code> is its name or index. With a full anonymous function, the first argument receives the value and the second receives the name. The return value of <code>.f</code> is discarded; <code>iwalk()</code> always hands back <code>.x</code> invisibly.</p>
+
+<h2>Common use cases</h2>
+
+<p><strong>iwalk() shines whenever the name carries meaning.</strong> Here are the patterns that come up most often.</p>
+
+<p>Printing each element next to its label is the simplest case. The named vector supplies both halves of the message.</p>
+
+<div class="webr-container" data-block-title="Print each value with its name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print each value with its name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- c(apple = 3, banana = 1, cherry = 8)
+iwalk(prices, ~ cat(.y, &quot;costs $&quot;, .x, &quot;\n&quot;))
+#&gt; apple costs $ 3 
+#&gt; banana costs $ 1 
+#&gt; cherry costs $ 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Splitting a data frame produces a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>, which <code>iwalk()</code> reports on cleanly. The split names (<code>4</code>, <code>6</code>, <code>8</code>) arrive as <code>.y</code>.</p>
+
+<div class="webr-container" data-block-title="Summarise split groups by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarise split groups by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_cyl &lt;- split(mtcars, mtcars$cyl)
+iwalk(by_cyl, ~ cat(&quot;cyl&quot;, .y, &quot;-&gt;&quot;, nrow(.x), &quot;cars\n&quot;))
+#&gt; cyl 4 -&gt; 11 cars
+#&gt; cyl 6 -&gt; 7 cars
+#&gt; cyl 8 -&gt; 14 cars</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Saving each group to its own file is the headline use case. The name becomes part of the file path, so one call writes a tidy set of outputs.</p>
+
+<div class="webr-container" data-block-title="Write each group to its own CSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write each group to its own CSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_cyl &lt;- split(mtcars, mtcars$cyl)
+iwalk(by_cyl, ~ write.csv(.x, file.path(tempdir(), paste0(&quot;cyl_&quot;, .y, &quot;.csv&quot;))))
+list.files(tempdir(), pattern = &quot;^cyl_&quot;)
+#&gt; [1] &quot;cyl_4.csv&quot; &quot;cyl_6.csv&quot; &quot;cyl_8.csv&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the input has no names, <code>.y</code> falls back to the position. This is handy for numbered logging or progress messages.</p>
+
+<div class="webr-container" data-block-title="Use the index on an unnamed vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the index on an unnamed vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iwalk(c(10, 20, 30), ~ cat(&quot;position&quot;, .y, &quot;-&gt;&quot;, .x, &quot;\n&quot;))
+#&gt; position 1 -&gt; 10 
+#&gt; position 2 -&gt; 20 
+#&gt; position 3 -&gt; 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>iwalk() returns its input invisibly, so it drops into pipes.</strong> Write <code>data |&gt; iwalk(log_fn) |&gt; map(transform_fn)</code> to log every element and keep processing without breaking the chain.</div></div>
+
+<h2>iwalk() vs walk2() vs imap()</h2>
+
+<p><strong>iwalk() is the indexed, side-effect member of the walk family.</strong> The three functions differ on two axes: how many inputs they take and whether they return a usable value.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th><code>.f</code> receives</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iwalk()</code></td>
+<td>one list/vector</td>
+<td>value <code>.x</code>, name/index <code>.y</code></td>
+<td>input, invisibly</td>
+</tr>
+<tr>
+<td><code>walk2()</code></td>
+<td>two parallel lists</td>
+<td>element of each</td>
+<td>first input, invisibly</td>
+</tr>
+<tr>
+<td><code>imap()</code></td>
+<td>one list/vector</td>
+<td>value <code>.x</code>, name/index <code>.y</code></td>
+<td>a new list</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>iwalk()</code> when one input already holds the labels you need. Use <a href="purrr-walk2-in-R.html">walk2()</a> when the second value is genuinely separate data, not a name. Use <code>imap()</code> when you want the transformed result back instead of just a side effect.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>iwalk() pitfalls cluster around the .x and .y order.</strong> Three mistakes cause most confusion.</p>
+
+<p>Swapping the arguments is the classic error. The value is always <code>.x</code> and the name is always <code>.y</code>, even though "name first" feels natural when reading.</p>
+
+<div class="webr-container" data-block-title="Wrong and right argument order">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong and right argument order</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- c(math = 90, art = 75)
+# WRONG: treats the name as a number
+# iwalk(scores, ~ cat(.x, &quot;scored&quot;, .y, &quot;\n&quot;))
+# RIGHT
+iwalk(scores, ~ cat(.y, &quot;scored&quot;, .x, &quot;\n&quot;))
+#&gt; math scored 90 
+#&gt; art scored 75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Expecting names from an unnamed input is the second trap. If <code>.x</code> has no names, <code>.y</code> is a position integer, not a label, so messages may read <code>1</code>, <code>2</code>, <code>3</code> unexpectedly.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>iwalk() discards the return value of .f.</strong> If you actually need the results, switch to <code>imap()</code>. Capturing <code>out &lt;- iwalk(...)</code> gives you back the original input, not the computed values, which silently breaks code that expects transformed output.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>iwalk()</code> on the named vector <code>caps</code> to print each line as <code>&quot;&lt;name&gt; is the capital&quot;</code>. The value <code>.x</code> is the country and <code>.y</code> is the city name.</p>
+<div class="webr-container" data-block-title="Your turn: iwalk over a named vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iwalk over a named vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">caps &lt;- c(Paris = &quot;France&quot;, Tokyo = &quot;Japan&quot;)
+# Try it: print &quot;&lt;city&gt; is the capital of &lt;country&gt;&quot;
+ex_out &lt;- # your code here
+
+ex_out
+#&gt; Expected: two printed lines</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">caps &lt;- c(Paris = &quot;France&quot;, Tokyo = &quot;Japan&quot;)
+ex_out &lt;- iwalk(caps, ~ cat(.y, &quot;is the capital of&quot;, .x, &quot;\n&quot;))
+#&gt; Paris is the capital of France 
+#&gt; Tokyo is the capital of Japan</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.y</code> holds the name (<code>Paris</code>, <code>Tokyo</code>) and <code>.x</code> holds the value (<code>France</code>, <code>Japan</code>). <code>iwalk()</code> runs <code>cat()</code> for its side effect and returns <code>caps</code> invisibly, so <code>ex_out</code> is the original vector.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>iwalk() rarely works alone.</strong> These functions cover the rest of the iterate-with-index toolkit.</p>
+
+<ul>
+
+<li><a href="purrr-imap-in-R.html">imap()</a>: the value-returning version of <code>iwalk()</code>.</li>
+
+<li><a href="purrr-walk-in-R.html">walk()</a>: side effects over one input, no name needed.</li>
+
+<li><a href="purrr-walk2-in-R.html">walk2()</a>: side effects over two parallel lists.</li>
+
+<li><a href="purrr-pwalk-in-R.html">pwalk()</a>: side effects over many parallel lists.</li>
+
+<li><a href="purrr-map-in-R.html">map()</a>: the foundational transform-and-return iterator.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between iwalk() and walk() in R?</strong></p>
+
+<p><code>walk()</code> passes only the value to your function, while <code>iwalk()</code> passes both the value and its name or index. Choose <code>iwalk()</code> when the name matters, for example when the list name should become a file name or a label in printed output. Both run purely for side effects and both return their input invisibly, so the only practical difference is whether <code>.f</code> can see the name.</p>
+
+<p><strong>What does the .y argument mean in iwalk()?</strong></p>
+
+<p>In <code>iwalk()</code>, <code>.y</code> is the name of the current element. If the input vector or list has no names, <code>.y</code> becomes the integer index instead, starting at 1. The value itself is always <code>.x</code>. With a full anonymous function the same rule applies: the first argument is the value and the second is the name or index.</p>
+
+<p><strong>Does iwalk() return anything?</strong></p>
+
+<p><code>iwalk()</code> returns its first argument <code>.x</code> invisibly. It is designed for side effects such as printing, plotting, or writing files, so the return value of your function is thrown away. If you assign the result, you get back the original input unchanged, which makes <code>iwalk()</code> safe to use in the middle of a pipe.</p>
+
+<p><strong>When should I use imap() instead of iwalk()?</strong></p>
+
+<p>Use <code>imap()</code> when you need the computed results, because it returns a new list of whatever <code>.f</code> produces. Use <code>iwalk()</code> when you only care about the side effect and want to keep the original data flowing through a pipe. The two share an identical calling convention, so switching between them is just a function-name change.</p>
+
+<p><strong>Can iwalk() loop over an unnamed list?</strong></p>
+
+<p>Yes. When the list or vector has no names, <code>iwalk()</code> uses <code>seq_along()</code> to supply integer indices as <code>.y</code>. This makes it a clean replacement for a <code>for</code> loop that needs a counter, without the manual index bookkeeping. The side effect runs once per element in order.</p>
+
+<p>For the official argument reference, see the <a href="https://purrr.tidyverse.org/reference/imap.html">purrr iwalk documentation</a>.</p>
+
+{% endraw %}
