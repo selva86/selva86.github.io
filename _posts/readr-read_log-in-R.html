@@ -1,0 +1,321 @@
+---
+title: "readr read_log() in R: Read Web Server Log Files"
+description: "readr read_log() in R reads Common Log Format web server logs into a tibble. Learn the syntax, column types, how to name fields, and parse the log date."
+keywords: "readr read_log, read_log function R, readr read_log examples, R read log file, read Apache log R, parse web server log R, Common Log Format R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "read_log()|readr read_log|readr::read_log()|Common Log Format|web server log"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>readr read_log() in R: Read Web Server Log Files</h1>
+
+<p class="lead">The readr read_log() function reads a web server log written in the Common Log Format into a tibble. It tokenizes each line so that bracketed timestamps and quoted request strings stay in one piece, giving you one column per log field instead of one messy string.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_log(&quot;access.log&quot;)<span class="qa-cmt">                       # parse a Common Log Format file</span>
+read_log(&quot;https://site.com/access.log&quot;)<span class="qa-cmt">      # read a log straight from a URL</span>
+read_log(I(one_line))<span class="qa-cmt">                        # parse literal log text</span>
+read_log(&quot;access.log&quot;, skip = 2)<span class="qa-cmt">             # skip comment lines at the top</span>
+read_log(&quot;access.log&quot;, n_max = 1000)<span class="qa-cmt">         # read only the first 1000 requests</span>
+read_log(&quot;access.log&quot;, col_names = my_names)<span class="qa-cmt"> # supply your own column names</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is read_log() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">web server log in Common Log Format</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_log(&quot;access.log&quot;)</text><text x="125" y="126" class="branch-label">plain log, one message per line</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_lines(&quot;app.log&quot;)</text><text x="125" y="182" class="branch-label">comma-separated export</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a>(&quot;data.csv&quot;)</text><text x="125" y="238" class="branch-label">custom single-character delimiter</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">read_delim(&quot;d.txt&quot;, delim = &quot;|&quot;)</text><text x="125" y="294" class="branch-label">columns fixed by character position</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_fwf(&quot;d.txt&quot;, fwf_widths(w))</text><text x="125" y="350" class="branch-label">ragged whitespace-separated columns</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_table(&quot;d.txt&quot;)</text></svg></div>
+
+<h2>What read_log() does</h2>
+
+<p><strong>read_log() reads a Common Log Format file into a tibble.</strong> Web servers such as Apache and nginx record every request as one line of text. That line packs together the client IP, the user, a bracketed timestamp, the quoted request, the status code, and the response size. read_log() splits each line into those fields and returns a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame.</p>
+
+<p>The clever part is the tokenizer. A naive whitespace split would shatter <code>[10/Oct/2000:13:55:36 -0700]</code> and <code>&quot;GET /index.html HTTP/1.0&quot;</code> into pieces. read_log() instead treats anything inside <code>[ ]</code> or <code>&quot; &quot;</code> as a single token, strips the delimiters, and keeps the field whole.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>read_log() takes a file plus a handful of optional controls.</strong> Only the <code>file</code> argument is required; the rest tune naming, type guessing, and how much of the file to read.</p>
+
+<div class="webr-container" data-block-title="The read_log signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The read_log signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_log(
+  file,                 # path, URL, or I() literal text
+  col_names = FALSE,    # FALSE gives X1, X2...; pass a character vector to name
+  col_types = NULL,     # NULL guesses; cols() sets types explicitly
+  trim_ws = TRUE,       # strip surrounding whitespace from each field
+  skip = 0,             # number of lines to skip before the data
+  n_max = Inf           # maximum number of lines to read
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Unlike <code>read_csv()</code>, a log file has no header row, so <code>col_names</code> defaults to <code>FALSE</code> and every column comes back as <code>X1</code>, <code>X2</code>, and so on. Pass a character vector to <code>col_names</code> to label the fields yourself. The <code>skip</code>, <code>n_max</code>, and <code>col_types</code> arguments behave exactly as they do in the delimited readers.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>No separate combined-format reader.</strong> The same <code>read_log()</code> handles both the Common Log Format (7 fields) and the Combined Log Format (9 fields, adding referer and user agent). The tokenizer simply returns as many columns as the line contains, so a combined log yields <code>X1</code> through <code>X9</code>.</div></div>
+
+<h2>read_log() examples</h2>
+
+<p><strong>Start with a small log you can see in full.</strong> Wrapping the text in <code>I()</code> tells read_log() the value is data, not a file path. This three-line sample is standard Common Log Format.</p>
+
+<div class="webr-container" data-block-title="Parse a Common Log Format string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse a Common Log Format string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+log_text &lt;- '127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] &quot;GET /index.html HTTP/1.0&quot; 200 2326
+192.168.1.5 - - [10/Oct/2000:13:56:12 -0700] &quot;GET /style.css HTTP/1.0&quot; 200 891
+10.0.0.8 - mary [10/Oct/2000:13:57:01 -0700] &quot;POST /login HTTP/1.0&quot; 302 0'
+
+read_log(I(log_text))
+#&gt; Rows: 3 Columns: 7
+#&gt; -- Column specification ----------------------------------
+#&gt; chr (5): X1, X2, X3, X4, X5
+#&gt; dbl (2): X6, X7
+#&gt; # A tibble: 3 x 7
+#&gt;   X1          X2    X3    X4                         X5                       X6    X7
+#&gt;   &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;                      &lt;chr&gt;                 &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 127.0.0.1   -     frank 10/Oct/2000:13:55:36 -0700 GET /index.html HTTP~   200  2326
+#&gt; 2 192.168.1.5 -     -     10/Oct/2000:13:56:12 -0700 GET /style.css HTTP/~   200   891
+#&gt; 3 10.0.0.8    -     mary  10/Oct/2000:13:57:01 -0700 POST /login HTTP/1.0    302     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The brackets and quotes are gone, the timestamp survived as one column, and the status and size parsed as numbers.</p>
+
+<p><strong>Name the columns so the tibble is readable.</strong> Pass a character vector to <code>col_names</code> with one label per field. This is the single most useful argument, because <code>X1</code> through <code>X7</code> tell you nothing.</p>
+
+<div class="webr-container" data-block-title="Give the log columns meaningful names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Give the log columns meaningful names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fields &lt;- c(&quot;ip&quot;, &quot;ident&quot;, &quot;user&quot;, &quot;time&quot;, &quot;request&quot;, &quot;status&quot;, &quot;size&quot;)
+logs &lt;- read_log(I(log_text), col_names = fields)
+logs
+#&gt; # A tibble: 3 x 7
+#&gt;   ip          ident user  time                       request               status  size
+#&gt;   &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;                      &lt;chr&gt;                  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 127.0.0.1   -     frank 10/Oct/2000:13:55:36 -0700 GET /index.html HTTP~    200  2326
+#&gt; 2 192.168.1.5 -     -     10/Oct/2000:13:56:12 -0700 GET /style.css HTTP/~    200   891
+#&gt; 3 10.0.0.8    -     mary  10/Oct/2000:13:57:01 -0700 POST /login HTTP/1.0     302     0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Read only the start of a huge log.</strong> Production access logs run to millions of lines. Use <code>n_max</code> to sample the first few while you work out the column layout.</p>
+
+<div class="webr-container" data-block-title="Read just the first rows of a log">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read just the first rows of a log</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_log(I(log_text), col_names = fields, n_max = 2)
+#&gt; # A tibble: 2 x 7
+#&gt;   ip          ident user  time                       request              status  size
+#&gt;   &lt;chr&gt;       &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;                      &lt;chr&gt;                 &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 127.0.0.1   -     frank 10/Oct/2000:13:55:36 -0700 GET /index.html HTTP~   200  2326
+#&gt; 2 192.168.1.5 -     -     10/Oct/2000:13:56:12 -0700 GET /style.css HTTP/~   200   891</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">Summarise</a> traffic once the log is a tibble.</strong> With named columns the log behaves like any other data frame, so a status-code count is one <code>dplyr</code> call.</p>
+
+<div class="webr-container" data-block-title="Count requests by status code">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count requests by status code</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+logs |&gt; count(status)
+#&gt; # A tibble: 2 x 2
+#&gt;   status     n
+#&gt;    &lt;dbl&gt; &lt;int&gt;
+#&gt; 1    200     2
+#&gt; 2    302     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>read_log() vs other readers</h2>
+
+<p><strong>read_log() is the only readr function that understands the Common Log Format.</strong> The delimited readers would mangle the bracketed date and quoted request. Reach for a sibling only when the file is not a web server log.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Reads</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_log()</code></td>
+<td>Common or Combined Log Format</td>
+<td>tibble, one column per log field</td>
+</tr>
+<tr>
+<td><code>read_lines()</code></td>
+<td>any text file</td>
+<td>character vector, one element per line</td>
+</tr>
+<tr>
+<td><code>read_delim()</code></td>
+<td>delimited text</td>
+<td>tibble, columns split by a delimiter</td>
+</tr>
+<tr>
+<td><code>read_table()</code></td>
+<td>whitespace-separated text</td>
+<td>tibble, columns split by runs of spaces</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If the file is an Apache or nginx access log, use <code>read_log()</code>. If it is an application log with one free-form message per line, use <code>read_lines()</code> and parse with regular expressions afterwards.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The tokenizer is the whole point.</strong> read_log() is not a fixed seven-column parser. It is a whitespace tokenizer that protects <code>[ ]</code> and <code>&quot; &quot;</code> groups. That is why it copes with both the 7-field common format and the 9-field combined format without any extra arguments.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The timestamp comes back as text.</strong> read_log() never parses the date; the <code>time</code> column is a plain string like <code>10/Oct/2000:13:55:36 -0700</code>. Convert it with <code>parse_datetime()</code> and the Apache date format.</p>
+
+<div class="webr-container" data-block-title="Parse the log timestamp into a datetime">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse the log timestamp into a datetime</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parse_datetime(logs$time, format = &quot;%d/%b/%Y:%H:%M:%S %z&quot;)
+#&gt; [1] &quot;2000-10-10 20:55:36 UTC&quot; &quot;2000-10-10 20:56:12 UTC&quot;
+#&gt; [3] &quot;2000-10-10 20:57:01 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Mixed formats produce ragged columns.</strong> If a file mixes common and combined lines, or a request string itself contains an unescaped quote, the column count varies row to row. readr fills the gaps with <code>NA</code> and records the trouble. Call <code>problems()</code> on the result to inspect every flagged row.</p>
+
+<p><strong>Any whitespace text will tokenize.</strong> read_log() does not validate that the input is really a log. Hand it an unrelated text file and it returns nonsense columns with no error. Confirm the file is Common Log Format before trusting the output.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the four-line Common Log Format string below with <code>read_log()</code>, name the seven columns, then save to <code>ex_n</code> the number of requests that returned status <code>200</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count successful requests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count successful requests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">traffic &lt;- '10.0.0.1 - - [12/Jan/2024:08:01:00 +0000] &quot;GET /home HTTP/1.1&quot; 200 540
+10.0.0.2 - - [12/Jan/2024:08:01:05 +0000] &quot;GET /about HTTP/1.1&quot; 200 310
+10.0.0.3 - - [12/Jan/2024:08:01:09 +0000] &quot;GET /missing HTTP/1.1&quot; 404 0
+10.0.0.4 - - [12/Jan/2024:08:01:12 +0000] &quot;GET /home HTTP/1.1&quot; 200 540'
+
+ex_n &lt;- # your code here
+ex_n
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fields &lt;- c(&quot;ip&quot;, &quot;ident&quot;, &quot;user&quot;, &quot;time&quot;, &quot;request&quot;, &quot;status&quot;, &quot;size&quot;)
+ex_log &lt;- read_log(I(traffic), col_names = fields)
+ex_n &lt;- sum(ex_log$status == 200)
+ex_n
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Naming the columns turns the sixth field into <code>status</code>, a numeric column. <code>sum(ex_log$status == 200)</code> counts the <code>TRUE</code> values, which is the number of successful requests.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p><strong>read_log() handles the structured web server log; reach for a sibling when the text has a different shape.</strong></p>
+
+<ul>
+
+<li><code>read_lines()</code>: read a file as a character vector, one string per line.</li>
+
+<li><code>read_delim()</code>: read text split by any single-character delimiter.</li>
+
+<li><code>read_table()</code>: read whitespace-separated files with ragged columns.</li>
+
+<li><code>read_fwf()</code>: read files where columns sit at fixed character positions.</li>
+
+<li><code>parse_datetime()</code>: convert the log timestamp string into a real datetime.</li>
+
+</ul>
+
+<p>For the full argument reference, see the <a href="https://readr.tidyverse.org/reference/read_log.html">readr read_log documentation</a> on tidyverse.org.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the Common Log Format?</strong></p>
+
+<p>The Common Log Format is a standardized text layout that web servers use to record requests. Each line holds the client IP, an identity field, the user, a bracketed timestamp, the quoted request line, the HTTP status code, and the response size in bytes. Apache and nginx both write it by default. read_log() knows this layout, so it can split each line into the correct columns.</p>
+
+<p><strong>How do I read an Apache access log in R?</strong></p>
+
+<p>Call <code>read_log()</code> with the path to the access log: <code>read_log(&quot;access.log&quot;)</code>. The function tokenizes every line and returns a tibble with one column per field. Because access logs have no header, pass a character vector to <code>col_names</code> to label the columns, then convert the timestamp column with <code>parse_datetime()</code>.</p>
+
+<p><strong>Does read_log() work with the Combined Log Format?</strong></p>
+
+<p>Yes. The Combined Log Format adds two quoted fields, the referer and the user agent, to the standard seven. read_log() uses the same tokenizer for both, so a combined log simply returns nine columns instead of seven. You do not need a different function or any extra argument.</p>
+
+<p><strong>Why are my log columns named X1, X2, X3?</strong></p>
+
+<p>Log files have no header row, so read_log() cannot guess field names and defaults to <code>X1</code>, <code>X2</code>, and onward. Supply your own names by passing a character vector to <code>col_names</code>, for example <code>read_log(file, col_names = c(&quot;ip&quot;, &quot;ident&quot;, &quot;user&quot;, &quot;time&quot;, &quot;request&quot;, &quot;status&quot;, &quot;size&quot;))</code>.</p>
+
+<p><strong>How do I parse the date in a web server log?</strong></p>
+
+<p>read_log() leaves the timestamp as text. Convert it with <code>parse_datetime()</code> and the Apache date format string: <code>parse_datetime(logs$time, format = &quot;%d/%b/%Y:%H:%M:%S %z&quot;)</code>. The <code>%z</code> token reads the timezone offset, so the result is a proper POSIXct column you can filter and aggregate by time.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
