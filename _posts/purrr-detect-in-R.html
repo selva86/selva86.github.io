@@ -1,0 +1,368 @@
+---
+title: "purrr detect() in R: Find the First Matching Element"
+description: "Learn purrr detect() in R to find the first list or vector element matching a predicate. Covers detect_index(), .dir, .default, examples, and pitfalls."
+keywords: "purrr detect, detect function R, purrr detect examples, R detect first match, find first element R, purrr detect_index, purrr find element"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "detect()|purrr detect|purrr::detect()|detect_index()|find first match"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr detect() in R: Find the First Matching Element</h1>
+
+<p class="lead">The purrr detect() function searches a list or vector and returns the first element for which a predicate is TRUE. It is the tidyverse way to find a single match instead of filtering every one.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>detect(x, is.character)<span class="qa-cmt">            # first character element</span>
+detect(x, \(v) v &gt; 5)<span class="qa-cmt">              # first element matching a lambda</span>
+detect(x, ~ .x &gt; 5)<span class="qa-cmt">                # formula shorthand predicate</span>
+detect(x, pred, .dir = &quot;backward&quot;)<span class="qa-cmt"> # search from the end</span>
+detect(x, pred, .default = NA)<span class="qa-cmt">     # value when nothing matches</span>
+detect_index(x, pred)<span class="qa-cmt">              # position of the first match</span>
+detect_index(x, pred) == 0L<span class="qa-cmt">        # TRUE when no element matches</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is detect() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">find the first matching element</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">detect(x, is.numeric)</text><text x="125" y="126" class="branch-label">find the position of that element</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">detect_index(x, is.numeric)</text><text x="125" y="182" class="branch-label">keep every matching element</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">keep(x, is.numeric)</text><text x="125" y="238" class="branch-label">test if any element matches</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">some(x, is.numeric)</text><text x="125" y="294" class="branch-label">test if all elements match</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">every(x, is.numeric)</text><text x="125" y="350" class="branch-label">find a row in a data frame</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dplyr::filter(df, x &gt; 5)</text></svg></div>
+
+<h2>What purrr detect() does</h2>
+
+<p><strong>detect() returns the first match, not all of them.</strong> It walks the top-level elements of a list or vector in order, applies a predicate to each one, and stops at the first element where the predicate returns <code>TRUE</code>. That element is returned as-is. If no element matches, detect() returns <code>NULL</code> by default.</p>
+
+<p>The function ships with the purrr package, part of the tidyverse. It is the find-one counterpart to <code>keep()</code>, which returns every matching element. Where <code>keep()</code> filters, detect() searches and short-circuits, so it never examines elements after the first hit.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>detect() returns a value; detect_index() returns a position.</strong> This pairing mirrors base R's distinction between an element and its index. When you need the matching element use detect(); when you need where it sits use detect_index().</div></div>
+
+<h2>detect() syntax and arguments</h2>
+
+<p><strong>detect() takes a collection, a predicate, and a search direction.</strong> The signature is <code>detect(.x, .f, ..., .dir = c(&quot;forward&quot;, &quot;backward&quot;), .default = NULL)</code>.</p>
+
+<ul>
+
+<li><code>.x</code>: a list or atomic vector to search.</li>
+
+<li><code>.f</code>: a predicate function returning a single <code>TRUE</code> or <code>FALSE</code> per element. Pass a named function (<code>is.numeric</code>), an anonymous function (<code>\(x) x &gt; 5</code>), or a purrr formula (<code>~ .x &gt; 5</code>).</li>
+
+<li><code>.dir</code>: <code>&quot;forward&quot;</code> (the default) searches from the first element; <code>&quot;backward&quot;</code> searches from the last.</li>
+
+<li><code>.default</code>: the value returned when no element matches. Defaults to <code>NULL</code>.</li>
+
+<li><code>...</code>: extra arguments passed on to <code>.f</code>.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Load purrr and find first match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and find first match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+nums &lt;- list(4, 11, 8, 2, 15)
+detect(nums, \(x) x &gt; 7)
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predicate <code>\(x) x &gt; 7</code> is tested against each element. Element 4 fails, 11 passes, so detect() stops and returns 11. Note the result is the bare value, not a one-element list.</p>
+
+<h2>detect() examples by use case</h2>
+
+<p><strong>Most detect() jobs fall into a few shapes.</strong> These four examples cover the common ones.</p>
+
+<h3>Find the first element of a type</h3>
+
+<p><strong>Pass a type-checking function as the predicate.</strong> Functions like <code>is.character</code> or <code>is.numeric</code> find the first element of that type.</p>
+
+<div class="webr-container" data-block-title="Find the first character element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the first character element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(1, 2.5, &quot;Toyota&quot;, TRUE, &quot;Honda&quot;)
+detect(mixed, is.character)
+#&gt; [1] &quot;Toyota&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>is.character</code> is passed by name. The first two elements are numeric, so detect() skips them and returns <code>&quot;Toyota&quot;</code>, ignoring <code>&quot;Honda&quot;</code> entirely.</p>
+
+<h3>Search from the end with .dir</h3>
+
+<p><strong>Set <code>.dir = &quot;backward&quot;</code> to find the last match.</strong> detect() then walks elements in reverse and returns the first hit it meets.</p>
+
+<div class="webr-container" data-block-title="Search from the end with .dir">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Search from the end with .dir</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detect(1:10, \(x) x %% 3 == 0, .dir = &quot;backward&quot;)
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The multiples of 3 are 3, 6, and 9. A forward search returns 3; the backward search returns 9, the last matching value.</p>
+
+<h3>Return a default when nothing matches</h3>
+
+<p><strong>Use <code>.default</code> to avoid a silent <code>NULL</code>.</strong> Supplying a fallback makes a no-match outcome explicit and pipe-safe.</p>
+
+<div class="webr-container" data-block-title="Return a default when nothing matches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return a default when nothing matches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detect(1:5, \(x) x &gt; 100, .default = NA)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No element exceeds 100, so detect() returns the <code>.default</code> value <code>NA</code> instead of <code>NULL</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>.default</code> inside a pipe.</strong> A <code>NULL</code> from an unmatched detect() can break a downstream step that expects a scalar. A sentinel like <code>NA</code> or <code>-1</code> keeps the chain running and signals "not found" clearly.</div></div>
+
+<h3>Get the position with detect_index()</h3>
+
+<p><strong>detect_index() returns the index of the first match.</strong> It accepts the same arguments as detect() and returns <code>0</code> when nothing matches.</p>
+
+<div class="webr-container" data-block-title="detect_index returns the position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">detect_index returns the position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detect_index(nums, \(x) x &gt; 7)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Element 11 sits at position 2, so detect_index() returns <code>2L</code>. Use it when you need to slice or modify the collection at that spot.</p>
+
+<h2>detect() vs detect_index, keep, and Find</h2>
+
+<p><strong>detect() has close relatives, and picking the wrong one is a common mistake.</strong> <code>detect_index()</code> returns a position rather than a value. <code>keep()</code> returns every match instead of just the first. Base R's <code>Find()</code> does the same job as detect() but with the arguments reversed and no <code>.dir</code> or <code>.default</code> support.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Stops at first match</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>detect()</code></td>
+<td>the matching element</td>
+<td>yes</td>
+<td>you need the first matching value</td>
+</tr>
+<tr>
+<td><code>detect_index()</code></td>
+<td>the position (0 if none)</td>
+<td>yes</td>
+<td>you need where the match sits</td>
+</tr>
+<tr>
+<td><code>keep()</code></td>
+<td>all matching elements</td>
+<td>no</td>
+<td>you need every match, not one</td>
+</tr>
+<tr>
+<td><code>Find()</code></td>
+<td>the matching element</td>
+<td>yes</td>
+<td>you cannot add a purrr dependency</td>
+</tr>
+<tr>
+<td><code>some()</code></td>
+<td>a single <code>TRUE</code>/<code>FALSE</code></td>
+<td>yes</td>
+<td>you only need to know if a match exists</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="detect stops while keep collects">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">detect stops while keep collects</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">keep(nums, \(x) x &gt; 7)
+#&gt; [[1]]
+#&gt; [1] 11
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 8
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>keep()</code> returns all three values above 7; detect() returned only the first, 11. Reach for detect() when one match is enough and scanning the rest is wasted work.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Find() is the base R equivalent.</strong> <code>Find(\(x) x &gt; 7, nums)</code> gives the same result as <code>detect(nums, \(x) x &gt; 7)</code>. The argument order is flipped and there is no backward search, so detect() is usually the cleaner choice inside a tidyverse pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most detect() surprises trace back to the predicate or the no-match case.</strong> Three mistakes account for nearly all of them.</p>
+
+<p>The first is forgetting that an unmatched detect() returns <code>NULL</code>, not <code>NA</code>. A <code>NULL</code> is easy to miss because it prints as nothing and has length zero.</p>
+
+<div class="webr-container" data-block-title="No match returns NULL silently">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">No match returns NULL silently</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- detect(1:5, \(x) x &gt; 100)
+is.null(result)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to pass <code>.default</code> so the outcome is an explicit <a class="auto-link" href="dplyr-na_if-in-R.html" title="dplyr na_if() in R: Convert a Specific Value to NA">sentinel value</a>.</p>
+
+<p>The second pitfall is a predicate that returns more than one value. detect() needs exactly one <code>TRUE</code> or <code>FALSE</code> per element, so a vector-valued element with a naive comparison errors.</p>
+
+<div class="webr-container" data-block-title="Predicate must return one TRUE or FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicate must return one TRUE or FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vals &lt;- list(c(1, 2), c(8, 9))
+detect(vals, \(x) x &gt; 5)
+#&gt; Error in `detect()`:
+#&gt; ! `.p()` must return a single `TRUE` or `FALSE`, not a logical vector.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrap the comparison in <code>any()</code> or <code>all()</code> to collapse it to a scalar.</p>
+
+<div class="webr-container" data-block-title="Collapse the predicate with any">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collapse the predicate with any</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detect(vals, \(x) any(x &gt; 5))
+#&gt; [1] 8 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A predicate that returns NA is treated as FALSE.</strong> If your data has <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, <code>detect(x, \(v) v &gt; 5)</code> skips <code>NA</code> elements rather than matching them. Guard with <code>!is.na(v) &amp; v &gt; 5</code> when an <code>NA</code> element should still be considered.</div></div>
+
+<p>The third pitfall is using detect() when you wanted the index. detect() gives you the value; if you then call <code>which()</code> or <code>match()</code> on it you are doing detect_index()'s job by hand.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use detect() to find the first number from 1 to 30 that is divisible by 7. Save the result to ex_found.</p>
+<div class="webr-container" data-block-title="Your turn: find first multiple of 7">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find first multiple of 7</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find the first multiple of 7
+ex_found &lt;- # your code here
+
+ex_found
+#&gt; Expected: 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_found &lt;- detect(1:30, \(x) x %% 7 == 0)
+ex_found
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicate <code>\(x) x %% 7 == 0</code> is TRUE when x divides evenly by 7. detect() stops at the first such value, 7, and returns it without scanning 14, 21, or 28.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>detect() is one of several purrr search tools.</strong> Reach for these when detect() is not the exact fit.</p>
+
+<ul>
+
+<li><code>detect_index()</code>: returns the position of the first match instead of the value.</li>
+
+<li><code>keep()</code> and <code>discard()</code>: return every matching or non-matching element.</li>
+
+<li><code>some()</code>, <code>every()</code>, and <code>none()</code>: test whether any, all, or no elements match.</li>
+
+<li><code>head_while()</code>: returns the leading run of elements that all match.</li>
+
+<li><code>map()</code> and <code>map_dbl()</code>: transform every element rather than searching.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/detect.html">official purrr detect() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does detect() return if nothing matches?</strong> By default detect() returns <code>NULL</code> when no element satisfies the predicate. <code>NULL</code> has length zero and prints as nothing, so an unmatched result is easy to overlook. Pass the <code>.default</code> argument to return an explicit sentinel instead, for example <code>detect(x, pred, .default = NA)</code>. Inside a pipe, a sentinel value keeps downstream steps from failing on an unexpected <code>NULL</code>.</p>
+
+<p><strong>What is the difference between detect() and detect_index() in purrr?</strong> detect() returns the first element for which the predicate is TRUE, while detect_index() returns that element's integer position. They accept the same arguments and search in the same order. detect_index() returns <code>0</code> when no element matches, whereas detect() returns <code>NULL</code>. Use detect() when you want the value and detect_index() when you need to slice or update the collection at the matching spot.</p>
+
+<p><strong>How do I find the last matching element with detect()?</strong> Set the <code>.dir</code> argument to <code>&quot;backward&quot;</code>. detect() then walks the elements in reverse and returns the first match it meets, which is the last match in normal order. For example, <code>detect(1:10, \(x) x %% 3 == 0, .dir = &quot;backward&quot;)</code> returns <code>9</code> rather than <code>3</code>. The same <code>.dir</code> option works on detect_index() to get the last matching position.</p>
+
+<p><strong>Can detect() be used on a data frame?</strong> Yes, because a data frame is a list of columns. detect() applies the predicate to each column and returns the first column that matches, as a vector. <code>detect(iris, is.numeric)</code> returns the <code>Sepal.Length</code> column. detect() never inspects rows; to find a row that meets a condition, use <code>dplyr::filter()</code> and take the first result.</p>
+
+<p><strong>How is purrr detect() different from base R Find()?</strong> Both return the first element matching a predicate, but the argument order differs. <code>Find()</code> takes the function first, as <code>Find(predicate, x)</code>, while detect() takes the collection first, as <code>detect(x, predicate)</code>. detect() also supports <code>.dir</code> for backward search and <code>.default</code> for a custom no-match value, neither of which <code>Find()</code> offers. detect() reads more naturally inside a tidyverse pipe.</p>
