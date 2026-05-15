@@ -1,0 +1,338 @@
+---
+title: "readr locale() in R: Control Date and Number Parsing"
+description: "Use readr locale() in R to control how dates, numbers, encoding and time zones are parsed. Covers decimal commas, foreign month names and read_csv examples."
+keywords: "readr locale, locale function R, readr locale examples, R locale parsing, readr decimal comma, readr date names locale"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "locale()|readr locale|readr::locale()|default_locale()|locale parsing in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readr locale() in R: Control Date and Number Parsing</h1>
+
+<p class="lead">The readr <code>locale()</code> function bundles the regional parsing rules readr uses when it reads a file, so settings like a comma decimal mark, French month names, a non-UTF-8 encoding, or a time zone are passed as one object to <code>read_csv()</code> and the <code>parse_*()</code> functions.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;)<span class="qa-cmt">     # European numbers</span>
+locale(date_names = &quot;fr&quot;)<span class="qa-cmt">                            # French month/day names</span>
+locale(encoding = &quot;Latin1&quot;)<span class="qa-cmt">                          # non-UTF-8 files</span>
+locale(tz = &quot;America/New_York&quot;)<span class="qa-cmt">                      # set the time zone</span>
+locale(date_format = &quot;%d/%m/%Y&quot;)<span class="qa-cmt">                     # default date layout</span>
+read_csv(f, locale = locale(decimal_mark = &quot;,&quot;))<span class="qa-cmt">     # apply during import</span>
+default_locale()<span class="qa-cmt">                                     # inspect current settings</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is locale() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">numbers use comma decimals</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">locale(decimal_mark = &quot;,&quot;)</text><text x="125" y="126" class="branch-label">dates in another language</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">locale(date_names = &quot;de&quot;)</text><text x="125" y="182" class="branch-label">file is not UTF-8 encoded</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">locale(encoding = &quot;Latin1&quot;)</text><text x="125" y="238" class="branch-label">parse one <a class="auto-link" href="lubridate-ymd-in-R.html" title="lubridate ymd() in R: Parse Dates From Strings">date string</a></text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">parse_date(x, &quot;%d/%m/%Y&quot;)</text><text x="125" y="294" class="branch-label">set column types on import</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_csv(f, <a class="auto-link" href="readr-Exercises-in-R.html" title="readr Exercises in R: 30 Real Practice Problems">col_types</a> = cols())</text><text x="125" y="350" class="branch-label">shift time zones after import</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">lubridate::with_tz(x, &quot;UTC&quot;)</text></svg></div>
+
+<h2>What locale() does</h2>
+
+<p><strong>locale() collects regional parsing settings into one object.</strong> It does not read or parse anything by itself. Instead it returns a <code>locale</code> object that you hand to <code>read_csv()</code>, <code>read_delim()</code>, or any <code>parse_*()</code> function through their <code>locale</code> argument. That object answers every regional question readr might have: which character is the decimal point, what language the month names are in, how the file is encoded, and which time zone bare times belong to.</p>
+
+<p>The default settings assume a US English file: a period decimal mark, English month names, UTF-8 encoding, and the UTC time zone. Those defaults are wrong for a large share of real-world data. A spreadsheet exported in Germany writes <code>1.234,56</code>, a French system writes dates as <code>15 mars 2024</code>, and an older Windows export is often Latin-1, not UTF-8. The <code>locale()</code> function is how you tell readr about all of that at once.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A locale is configuration, not an action.</strong> You build the object once with <code>locale()</code> and reuse it across every import in a script. Keeping one locale variable means a file's regional rules live in a single place instead of being scattered across many <code>parse_*()</code> calls.</div></div>
+
+<h2>locale() syntax and arguments</h2>
+
+<p><strong>Every argument has a sensible default, so you only set what differs from US English.</strong> A call with no arguments returns the same object as <code>default_locale()</code>.</p>
+
+<div class="webr-container" data-block-title="locale function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">locale function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+locale(
+  date_names = &quot;en&quot;,        # language for month and day names
+  date_format = &quot;%AD&quot;,      # default format for dates
+  time_format = &quot;%AT&quot;,      # default format for times
+  decimal_mark = &quot;.&quot;,       # character separating whole and fraction
+  grouping_mark = &quot;,&quot;,      # thousands separator
+  tz = &quot;UTC&quot;,               # time zone for parsed times
+  encoding = &quot;UTF-8&quot;,       # file character encoding
+  asciify = FALSE           # transliterate date names to ASCII
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date_names</code></td>
+<td>Language code (<code>&quot;fr&quot;</code>, <code>&quot;de&quot;</code>) or a <code>date_names()</code> object for month and weekday names.</td>
+</tr>
+<tr>
+<td><code>date_format</code>, <code>time_format</code></td>
+<td>Default layouts used when a column is guessed as a date or time.</td>
+</tr>
+<tr>
+<td><code>decimal_mark</code></td>
+<td>The character between the integer and fractional part of a number.</td>
+</tr>
+<tr>
+<td><code>grouping_mark</code></td>
+<td>The thousands separator readr strips before parsing a number.</td>
+</tr>
+<tr>
+<td><code>tz</code></td>
+<td>Time zone applied to parsed date-times that carry no offset.</td>
+</tr>
+<tr>
+<td><code>encoding</code></td>
+<td>Character encoding of the source file.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>decimal_mark</code> and <code>grouping_mark</code> must be different characters. Setting both to a comma raises an error, because readr could not tell a decimal point from a thousands separator.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Call default_locale() to see the starting point.</strong> Printing a locale object shows the number format, the date and time formats, the time zone, the encoding, and the full list of month and day names.</p>
+
+<div class="webr-container" data-block-title="Inspect the default locale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the default locale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+default_locale()
+#&gt; &lt;locale&gt;
+#&gt; Numbers:  -123,456.78
+#&gt; Formats:  %AD / %AT
+#&gt; Timezone: UTC
+#&gt; Encoding: UTF-8
+#&gt; &lt;date_names&gt;
+#&gt; Days:   Sunday (Sun), Monday (Mon), Tuesday (Tue), Wednesday (Wed),
+#&gt;         Thursday (Thu), Friday (Fri), Saturday (Sat)
+#&gt; Months: January (Jan), February (Feb), March (Mar), April (Apr), ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Set a comma decimal mark for European numbers.</strong> A value like <code>1.234,56</code> means "one thousand two hundred thirty-four point five six" in much of Europe. Swap the two marks so readr reads it correctly.</p>
+
+<div class="webr-container" data-block-title="Parse numbers with a comma decimal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse numbers with a comma decimal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eu &lt;- locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;)
+parse_double(c(&quot;1.234,56&quot;, &quot;9.876,00&quot;), locale = eu)
+#&gt; [1] 1234.56 9876.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pass a language code to parse foreign month names.</strong> With <code>date_names = &quot;fr&quot;</code>, the <code>%B</code> and <code>%b</code> codes match names like <code>mars</code> and <code>janvier</code> instead of failing.</p>
+
+<div class="webr-container" data-block-title="Parse French dates with a locale">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse French dates with a locale</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fr &lt;- locale(date_names = &quot;fr&quot;)
+parse_date(&quot;15 mars 2024&quot;, format = &quot;%d %B %Y&quot;, locale = fr)
+#&gt; [1] &quot;2024-03-15&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Apply a locale to a whole file with <a class="auto-link" href="readr-read_delim-in-R.html" title="readr read_delim() in R: Read Any Delimited Text File">read_delim()</a>.</strong> The <code>locale</code> argument flows down to every column readr parses, so one object fixes the numbers in an entire import.</p>
+
+<div class="webr-container" data-block-title="Use a locale during file import">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a locale during file import</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">txt &lt;- &quot;amount;label\n1.234,56;rent\n9.876,00;salary&quot;
+read_delim(txt, delim = &quot;;&quot;,
+           locale = locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;),
+           show_col_types = FALSE)
+#&gt; # A tibble: 2 x 2
+#&gt;   amount label
+#&gt;    &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1  1235. rent
+#&gt; 2  9876  salary</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>locale() vs default_locale() and Sys.setlocale()</h2>
+
+<p><strong>These three tools sound similar but operate at different levels.</strong> <code>locale()</code> builds a readr-only configuration object. <code>default_locale()</code> returns readr's current default object. <code>Sys.setlocale()</code> changes the entire R session's regional settings and affects base functions, not readr.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Scope</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>locale()</code></td>
+<td>One readr import or parse call</td>
+<td>Per-file regional rules without side effects</td>
+</tr>
+<tr>
+<td><code>default_locale()</code></td>
+<td>readr session default</td>
+<td>Inspecting or reusing the global readr default</td>
+</tr>
+<tr>
+<td><code>Sys.setlocale()</code></td>
+<td>Whole R session, base R</td>
+<td>Changing <code>as.Date()</code> or <code>format()</code> behavior</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer <code>locale()</code> over <code>Sys.setlocale()</code> for imports.</strong> A <code>locale()</code> object is explicit and local: the regional rule travels with the import that needs it and never leaks into other code. <code>Sys.setlocale()</code> is a global switch that is easy to forget and hard to reproduce on another machine.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The decimal and grouping marks cannot match.</strong> Passing the same character for both is the most common <code>locale()</code> error, because readr cannot disambiguate the two roles.</p>
+
+<div class="webr-container" data-block-title="Decimal and grouping marks must differ">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decimal and grouping marks must differ</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;,&quot;)
+#&gt; Error: `decimal_mark` and `grouping_mark` must be different</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>A locale object does nothing on its own.</strong> Building <code>locale(decimal_mark = &quot;,&quot;)</code> and then calling <code>parse_double()</code> without passing it changes nothing. The object must reach a <code>parse_*()</code> or <code>read_*()</code> call through its <code>locale</code> argument.</p>
+
+<p><strong>An unsupported language code fails.</strong> <code>date_names</code> accepts the codes listed by <code>date_names_langs()</code>. A made-up code like <code>&quot;xx&quot;</code> raises an error rather than silently falling back to English.</p>
+
+<div class="webr-container" data-block-title="Check which language codes exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check which language codes exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(date_names_langs(), 8)
+#&gt; [1] &quot;af&quot; &quot;am&quot; &quot;ar&quot; &quot;as&quot; &quot;az&quot; &quot;be&quot; &quot;bg&quot; &quot;bn&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a locale for German numbers (comma decimal, period grouping) and use it to parse the string <code>&quot;2.000,50&quot;</code>. Save the result to <code>ex_num</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parse a German number">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parse a German number</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: parse &quot;2.000,50&quot; with a German locale
+ex_num &lt;- # your code here
+
+ex_num
+#&gt; Expected: 2000.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">de &lt;- locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;)
+ex_num &lt;- parse_double(&quot;2.000,50&quot;, locale = de)
+ex_num
+#&gt; [1] 2000.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The German locale tells <code>parse_double()</code> that the comma is the decimal point and the period groups thousands. readr strips the grouping period and reads the comma as the fraction separator.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p>These functions work alongside <code>locale()</code> when importing and parsing data:</p>
+
+<ul>
+
+<li><code>default_locale()</code> returns readr's current default locale object.</li>
+
+<li><code>date_names_lang()</code> builds a <code>date_names</code> set from a single language code.</li>
+
+<li><code>parse_date()</code> converts character strings to <code>Date</code> objects and accepts a <code>locale</code>.</li>
+
+<li><code>parse_number()</code> extracts numbers from messy text using the locale's marks.</li>
+
+<li><code>read_csv()</code> reads a delimited file and forwards <code>locale</code> to every column.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does the locale argument do in <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv()</a>?</strong></p>
+
+<p>The <code>locale</code> argument tells <code>read_csv()</code> how to interpret region-specific values in the file. It controls the decimal and grouping marks for numeric columns, the language for month and weekday names in date columns, the character encoding of the file, and the time zone for parsed times. You build the object with <code>locale()</code> and pass it once; readr then applies those rules to every column it parses during that single import.</p>
+
+<p><strong>How do I read a file with comma decimal separators in R?</strong></p>
+
+<p>Build a locale with <code>locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;)</code> and pass it to the reader. For a semicolon-delimited European file you can also use <code>read_csv2()</code>, which already assumes a comma decimal and semicolon delimiter. For other delimiters, use <code>read_delim()</code> with an explicit <code>delim</code> and the custom <code>locale</code>. The marks must be different characters or readr raises an error.</p>
+
+<p><strong>How do I parse non-English dates with readr?</strong></p>
+
+<p>Set the <code>date_names</code> argument of <code>locale()</code> to a language code, such as <code>locale(date_names = &quot;de&quot;)</code> for German. Then the <code>%B</code> and <code>%b</code> format codes match that language's month names. Pass the locale to <code>parse_date()</code> or to <code>read_csv()</code> through its <code>locale</code> argument. Run <code>date_names_langs()</code> to see every supported code.</p>
+
+<p><strong>What is the difference between locale() and default_locale()?</strong></p>
+
+<p><code>locale()</code> is a constructor: you call it with the arguments you want to change and it returns a new locale object. <code>default_locale()</code> takes no arguments and returns the locale readr uses when you do not supply one, which assumes US English conventions. In practice you call <code>default_locale()</code> to inspect the baseline and <code>locale()</code> to build a customized object for a specific file.</p>
+
+<h2>Conclusion</h2>
+
+<p><strong>locale() is how you make readr respect regional data conventions.</strong> Build one <code>locale()</code> object with the decimal mark, date language, encoding, and time zone your file uses, then pass it to <code>read_csv()</code> or any <code>parse_*()</code> function. Keeping the regional rules in a single object makes imports predictable and easy to reuse. For the broader workflow of bringing external files into R, see the guide on <a href="Importing-Data-in-R.html">importing data in R</a>.</p>
