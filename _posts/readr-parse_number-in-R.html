@@ -1,0 +1,312 @@
+---
+title: "readr parse_number() in R: Extract Numbers From Text"
+description: "The readr parse_number() function extracts numbers from messy text, stripping currency symbols, commas, and percent signs. Learn its syntax with examples."
+keywords: "readr parse_number, parse_number function R, readr parse_number examples, R parse_number string to number, extract numbers from string R, remove commas from numbers R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "parse_number()|parse_number|readr parse_number|readr::parse_number()|extract numbers from text"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>readr parse_number() in R: Extract Numbers From Text</h1>
+
+<p class="lead">The readr <code>parse_number()</code> function extracts the first number from messy text, dropping currency symbols, thousands separators, percent signs, and surrounding words so a column like <code>"$1,234.56"</code> becomes the numeric value <code>1234.56</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>parse_number(&quot;$1,234.56&quot;)<span class="qa-cmt">                       # strips $ and , -&gt; 1234.56</span>
+parse_number(&quot;45%&quot;)<span class="qa-cmt">                              # strips % -&gt; 45</span>
+parse_number(&quot;approx 3,500 units&quot;)<span class="qa-cmt">               # pulls embedded number -&gt; 3500</span>
+parse_number(c(&quot;12.5kg&quot;, &quot;8kg&quot;))<span class="qa-cmt">                 # vectorised -&gt; 12.5, 8</span>
+parse_number(&quot;-19.90 USD&quot;)<span class="qa-cmt">                       # keeps the sign -&gt; -19.9</span>
+parse_number(&quot;1.234,56&quot;, locale = locale(<span class="qa-cmt">        # European format</span>
+  decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;))<span class="qa-cmt">      #   -&gt; 1234.56</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="readr-Exercises-in-R.html" title="readr Exercises in R: 30 Real Practice Problems">parse_number</a>() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pull a number out of messy text</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">parse_number(&quot;$1,234&quot;)</text><text x="125" y="126" class="branch-label">convert an already-clean numeric string</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">parse_double(&quot;12.5&quot;)</text><text x="125" y="182" class="branch-label">parse a date out of text</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">parse_date(x, &quot;%Y-%m-%d&quot;)</text><text x="125" y="238" class="branch-label">set a column type on import</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">read_csv(f, col_types = &quot;n&quot;)</text><text x="125" y="294" class="branch-label">fix every column after import</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">type_convert(df)</text><text x="125" y="350" class="branch-label">extract a custom pattern, not a number</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">str_extract(x, &quot;[A-Z]+&quot;)</text></svg></div>
+
+<h2>What parse_number() does</h2>
+
+<p><strong>parse_number() turns text that contains a number into a number.</strong> You give it a character vector, and it scans each value, ignores any non-numeric characters around the number, and returns a numeric vector. This is what makes it the readr tool of choice for prices, percentages, and figures pasted in with their units still attached.</p>
+
+<div class="webr-container" data-block-title="parse_number strips non-numeric characters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">parse_number strips non-numeric characters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+parse_number(&quot;$1,234.56&quot;)
+#&gt; [1] 1234.56
+
+parse_number(c(&quot;45%&quot;, &quot;8.2%&quot;, &quot;100%&quot;))
+#&gt; [1]  45.0   8.2 100.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dollar sign, the comma, and the percent sign all disappear, leaving clean numeric values you can do arithmetic on. Base R's <code>as.numeric()</code> would return <code>NA</code> for every one of these strings, because it refuses any input that is not already a bare number.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>parse_number() extracts, it does not validate.</strong> It finds the first run of digits, signs, and number marks in a string and discards everything else. That tolerance is its strength for messy data and its risk for ambiguous data, so pair it with a quick sanity check on the result.</div></div>
+
+<h2>parse_number() syntax and arguments</h2>
+
+<p><strong>The function signature is short and most calls use only the first argument.</strong> The full form is <code>parse_number(x, na = c(&quot;&quot;, &quot;NA&quot;), locale = default_locale(), trim_ws = TRUE)</code>. Each argument controls one part of how text becomes a number.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>The character vector to parse</td>
+<td>(required)</td>
+</tr>
+<tr>
+<td><code>na</code></td>
+<td>Strings to treat as missing rather than parse</td>
+<td><code>c(&quot;&quot;, &quot;NA&quot;)</code></td>
+</tr>
+<tr>
+<td><code>locale</code></td>
+<td>The decimal mark and grouping mark to expect</td>
+<td><code>default_locale()</code></td>
+</tr>
+<tr>
+<td><code>trim_ws</code></td>
+<td>Whether to trim surrounding whitespace first</td>
+<td><code>TRUE</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>locale</code> argument is the one that changes results most. A US locale reads <code>,</code> as a thousands separator and <code>.</code> as the decimal point; a European locale swaps them. Set it explicitly whenever your data does not use the US convention.</p>
+
+<div class="webr-container" data-block-title="parse_number with European number formats">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">parse_number with European number formats</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parse_number(&quot;1.234,56&quot;,
+  locale = locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;))
+#&gt; [1] 1234.56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the period groups thousands and the comma marks the decimal, so <code>&quot;1.234,56&quot;</code> correctly parses to <code>1234.56</code> instead of the wrong <code>1.234</code>.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>parse_number() solves the same problem in several disguises.</strong> Whether the number is wrapped in currency, buried in a sentence, or carries a unit suffix, the call is the same. It also reads a leading minus sign, so negative figures survive.</p>
+
+<div class="webr-container" data-block-title="parse_number pulls a number from a sentence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">parse_number pulls a number from a sentence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parse_number(&quot;about 3,500 units shipped&quot;)
+#&gt; [1] 3500
+
+parse_number(&quot;Total: USD 1,299 (tax included)&quot;)
+#&gt; [1] 1299
+
+parse_number(c(&quot;-19.90 owed&quot;, &quot;+42 credit&quot;))
+#&gt; [1] -19.9  42.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most common real use is cleaning a column right after import. Read the file, then pass the messy column through <code>parse_number()</code> to get a numeric column you can sum, average, or plot.</p>
+
+<div class="webr-container" data-block-title="Clean a price column after import">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean a price column after import</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">csv &lt;- &quot;item,price
+Mouse,$24.99
+Keyboard,$1,099.00
+Cable,$8.50&quot;
+
+df &lt;- read_csv(I(csv), show_col_types = FALSE)
+df$price_num &lt;- parse_number(df$price)
+sum(df$price_num)
+#&gt; [1] 1132.49</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Skip the cleanup step with col_types = "n".</strong> Inside any readr reader, the compact type letter <code>n</code> runs <code>parse_number()</code> on a column as it loads. <code>read_csv(file, col_types = &quot;cn&quot;)</code> reads the second column straight to a clean number, with no separate <code>parse_number()</code> call afterward.</div></div>
+
+<h2>parse_number() vs as.numeric() and parse_double()</h2>
+
+<p><strong>Pick the converter that matches how clean your data already is.</strong> All three turn text into numbers, but they tolerate very different amounts of mess. <code>parse_number()</code> extracts, <code>parse_double()</code> and <code>as.numeric()</code> demand a clean string.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Strips symbols and text</th>
+<th>Result for <code>&quot;$1,234&quot;</code></th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>parse_number()</code></td>
+<td>Yes</td>
+<td><code>1234</code></td>
+<td>Numbers wrapped in currency, commas, or units</td>
+</tr>
+<tr>
+<td><code>parse_double()</code></td>
+<td>No</td>
+<td><code>NA</code> plus a parsing problem</td>
+<td>The string is already a clean number</td>
+</tr>
+<tr>
+<td><code>as.numeric()</code></td>
+<td>No</td>
+<td><code>NA</code> plus a warning</td>
+<td>Base R, clean numeric strings only</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If the text contains anything other than a number, reach for <code>parse_number()</code>. If the text is already a tidy numeric string and you want a strict check that catches bad values, use <code>parse_double()</code> so problems surface instead of being silently extracted away.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> There is no single pandas equivalent. You would typically chain <code>Series.str.replace()</code> to strip symbols and then <code>pd.to_numeric()</code> to convert. The readr <code>parse_number()</code> function folds both steps into one call.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three parse_number() surprises catch new users.</strong> The first is that it reads only the <em>first</em> number in a string. A value that contains two numbers loses the second one without any warning.</p>
+
+<div class="webr-container" data-block-title="parse_number reads only the first number">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">parse_number reads only the first number</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parse_number(&quot;buy 2 get 1 free&quot;)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is <code>2</code>, and the <code>1</code> is gone. When a column might hold more than one number per cell, use <code>stringr::str_extract_all()</code> to pull every match instead.</p>
+
+<p>The second pitfall is a wrong <code>locale</code>. If your data writes thousands as <code>1.234</code> but you parse with the default US locale, <code>parse_number()</code> treats the period as a decimal point and returns <code>1.234</code>, a thousand times too small. The result looks valid, so this error hides easily.</p>
+
+<p>The third pitfall is a string with no number at all. <code>parse_number()</code> returns <code>NA</code> and records a parsing problem you can inspect, rather than stopping the script.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A silent locale mismatch produces plausible wrong numbers.</strong> Unlike a missing number, a misread grouping mark gives a value that is the right shape but the wrong magnitude. Always set <code>locale</code> explicitly for non-US data and spot-check the parsed range against what you expect.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>parse_number()</code> to convert the vector <code>c(&quot;£250.00&quot;, &quot;£1,499.99&quot;, &quot;£12.50&quot;)</code> into numbers and save the result to <code>ex_prices</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parse currency strings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parse currency strings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: parse the price strings to numbers
+ex_prices &lt;- # your code here
+
+ex_prices
+#&gt; Expected: 250.00 1499.99 12.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_prices &lt;- parse_number(c(&quot;£250.00&quot;, &quot;£1,499.99&quot;, &quot;£12.50&quot;))
+ex_prices
+#&gt; [1]  250.00 1499.99   12.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>parse_number()</code> discards the pound sign and the thousands comma, keeping only the digits and the decimal point. The result is a numeric vector ready for arithmetic.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p>The <code>parse_number()</code> function belongs to readr's family of vector parsers, each tuned to a different kind of text:</p>
+
+<ul>
+
+<li><a href="readr-parse_double-in-R.html">parse_double()</a>: strict numeric parser for strings that are already clean numbers.</li>
+
+<li><a href="readr-parse_date-in-R.html">parse_date()</a>: turns date text into proper <code>Date</code> values.</li>
+
+<li><a href="readr-parse_factor-in-R.html">parse_factor()</a>: converts text to a factor with a known set of levels.</li>
+
+<li><a href="readr-read_csv-in-R.html">read_csv()</a>: the reader where <code>col_types = &quot;n&quot;</code> applies <code>parse_number()</code> during import.</li>
+
+<li><a href="readr-col_types-in-R.html">col_types</a>: the argument that assigns parsers, including the number parser, per column.</li>
+
+</ul>
+
+<p>The official <a href="https://readr.tidyverse.org/articles/readr.html">readr parsing vignette</a> documents every <code>parse_*()</code> function and the locale system in full.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does parse_number() do in R?</strong></p>
+
+<p><code>parse_number()</code> is a readr function that extracts a number from a character string. It scans the text, ignores currency symbols, thousands separators, percent signs, and surrounding words, and returns a numeric vector. For example, <code>parse_number(&quot;$1,234.56&quot;)</code> returns <code>1234.56</code>. It is the standard way to clean a column of prices or percentages so the values can be used in calculations.</p>
+
+<p><strong>What is the difference between parse_number() and <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">as.numeric()</a>?</strong></p>
+
+<p><code>as.numeric()</code> only converts strings that are already clean numbers; anything else becomes <code>NA</code> with a warning. <code>parse_number()</code> is far more tolerant: it strips symbols and text and pulls out the embedded number. So <code>as.numeric(&quot;$50&quot;)</code> gives <code>NA</code>, while <code>parse_number(&quot;$50&quot;)</code> gives <code>50</code>. Use <code>as.numeric()</code> for <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> and <code>parse_number()</code> for messy, real-world text.</p>
+
+<p><strong>How do I remove commas and dollar signs from numbers in R?</strong></p>
+
+<p>Pass the column to <code>parse_number()</code>. It removes the dollar sign and treats the comma as a thousands separator, returning a clean numeric value. For instance, <code>parse_number(&quot;$1,099.00&quot;)</code> returns <code>1099</code>. Inside a <code>read_csv()</code> call you can also set <code>col_types = &quot;n&quot;</code> for that column, which runs the same parser automatically as the file loads.</p>
+
+<p><strong>Why does parse_number() return NA?</strong></p>
+
+<p><code>parse_number()</code> returns <code>NA</code> when a string contains no number it can recognise, such as <code>&quot;none&quot;</code> or an empty value. It also returns <code>NA</code> for strings listed in the <code>na</code> argument. When this happens, readr records a parsing problem; call <code>problems()</code> on the result to see which values failed and why.</p>
+
+<p><strong>Can parse_number() handle European number formats?</strong></p>
+
+<p>Yes. Pass a <code>locale</code> that describes the format, for example <code>locale(decimal_mark = &quot;,&quot;, grouping_mark = &quot;.&quot;)</code>. With that locale, <code>parse_number(&quot;1.234,56&quot;)</code> correctly returns <code>1234.56</code>. Without it, the default US locale would misread the period as a decimal point, so always set the locale explicitly for non-US data.</p>
+
+{% endraw %}
