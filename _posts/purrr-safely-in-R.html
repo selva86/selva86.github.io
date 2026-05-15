@@ -1,0 +1,296 @@
+---
+title: "purrr safely() in R: Catch Errors Without Stopping Code"
+description: "Use purrr safely() in R to wrap risky functions so errors are captured as values, not crashes. Examples with map(), transpose(), otherwise, and possibly()."
+keywords: "purrr safely, safely function R, purrr safely examples, R safely error handling, safely possibly R, purrr capture errors, safely map R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "safely()|purrr safely|purrr::safely()|safely() function|purrr safely function|safely adverb"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr safely() in R: Catch Errors Without Stopping Code</h1>
+
+<p class="lead"><a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">purrr safely</a>() wraps a function so errors become values instead of crashes. The wrapped function always returns a list with two slots, <code>result</code> and <code>error</code>, so a single bad input never halts a loop.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>safely(log)<span class="qa-cmt">                          # wrap a function</span>
+safely(log)(10)$result<span class="qa-cmt">               # get the value</span>
+safely(log)(&quot;a&quot;)$error<span class="qa-cmt">               # get the error</span>
+safely(log, otherwise = NA)<span class="qa-cmt">          # default value on failure</span>
+map(x, safely(log))<span class="qa-cmt">                  # safe iteration</span>
+map(x, safely(log)) |&gt; transpose()<span class="qa-cmt">   # split results from errors</span>
+safely(log, quiet = FALSE)<span class="qa-cmt">           # also print the error</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is safely() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">keep both value and error</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">safely(f)</text><text x="125" y="126" class="branch-label">want only a fallback value</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">possibly(f, otherwise = NA)</text><text x="125" y="182" class="branch-label">capture warnings and messages</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">quietly(f)</text><text x="125" y="238" class="branch-label">stop on the first error instead</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map(x, f)</text><text x="125" y="294" class="branch-label">retry a flaky network call</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">insistently(f)</text><text x="125" y="350" class="branch-label">debug interactively on error</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">auto_browse(f)</text></svg></div>
+
+<h2>What safely() does in one sentence</h2>
+
+<p><strong>safely() converts a risky function into a safe one.</strong> It takes a function as input and returns a new function. That new function never throws an error: it runs the original code, and whatever happens, hands you back a two-element list. One element holds the successful value, the other holds the error object. Exactly one of them is <code>NULL</code>.</p>
+
+<p>This pattern matters most when you iterate. A normal <code>map()</code> over ten inputs stops dead on the first failure, and you lose the nine results that worked. Wrapping the function with <code>safely()</code> lets every input run to completion so you can inspect failures afterward.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>safely() has three arguments.</strong> Only the first is required.</p>
+
+<div class="webr-container" data-block-title="The safely function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The safely function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# safely(.f, otherwise = NULL, quiet = TRUE)
+safe_log &lt;- safely(log)
+safe_log
+#&gt; function (...)
+#&gt; capture_error(.f(...), otherwise, quiet)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>.f</code> is the function to wrap. Pass it bare (<code>log</code>), as a string (<code>&quot;log&quot;</code>), or as a lambda (<code>\(x) log(x)</code>).</li>
+
+<li><code>otherwise</code> is the value placed in the <code>result</code> slot when the call fails. The default is <code>NULL</code>.</li>
+
+<li><code>quiet</code> controls whether the error is also printed to the console. The default <code>TRUE</code> stays silent; set <code>FALSE</code> while debugging.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>safely() is a function operator.</strong> It belongs to the same purrr family as <code>possibly()</code>, <code>quietly()</code>, and <code>compose()</code>: functions that take a function and return a modified function. The R community calls these "adverbs" because they modify how a verb behaves.</div></div>
+
+<h2>Four worked examples</h2>
+
+<p><strong>Start with a single safe call.</strong> The wrapped function returns a list every time, success or failure.</p>
+
+<div class="webr-container" data-block-title="A safe call returns result and error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A safe call returns result and error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_log &lt;- safely(log)
+
+safe_log(100)
+#&gt; $result
+#&gt; [1] 4.60517
+#&gt; $error
+#&gt; NULL
+
+safe_log(&quot;not a number&quot;)
+#&gt; $result
+#&gt; NULL
+#&gt; $error
+#&gt; &lt;simpleError in .Primitive(&quot;log&quot;)(&quot;not a number&quot;): non-numeric argument to mathematical function&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On success, <code>result</code> holds the value and <code>error</code> is <code>NULL</code>. On failure, the two swap. You test which case you got by checking <code>is.null(out$error)</code>.</p>
+
+<p><strong>Supply a fallback with <code>otherwise</code>.</strong> Instead of <code>NULL</code>, the <code>result</code> slot can carry a <a class="auto-link" href="dplyr-na_if-in-R.html" title="dplyr na_if() in R: Convert a Specific Value to NA">sentinel value</a> you choose.</p>
+
+<div class="webr-container" data-block-title="Set a fallback value with otherwise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a fallback value with otherwise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_log &lt;- safely(log, otherwise = NA_real_)
+
+safe_log(&quot;bad&quot;)$result
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This keeps <code>result</code> type-stable. Every call now yields a number, so downstream code that expects numeric input never sees a <code>NULL</code>.</p>
+
+<p><strong>Iterate safely over a messy list.</strong> This is the core use case. One bad element no longer kills the whole run.</p>
+
+<div class="webr-container" data-block-title="Map safely over mixed inputs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map safely over mixed inputs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inputs &lt;- list(1, 10, &quot;oops&quot;, 100)
+
+out &lt;- map(inputs, safely(log))
+out[[3]]$error
+#&gt; &lt;simpleError in .Primitive(&quot;log&quot;)(&quot;oops&quot;): non-numeric argument to mathematical function&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every input ran. <code>out</code> is a list of four result/error pairs, and only the third one failed.</p>
+
+<p><strong>Split results from errors with <code>transpose()</code>.</strong> A list of pairs is awkward to use. <code>transpose()</code> flips it into two parallel lists.</p>
+
+<div class="webr-container" data-block-title="Transpose then keep only successes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Transpose then keep only successes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">out &lt;- map(inputs, safely(log)) |&gt; transpose()
+
+ok &lt;- out$result |&gt; compact()
+ok
+#&gt; [[1]]
+#&gt; [1] 0
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 2.302585
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 4.60517</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>transpose()</code> gives you <code>out$result</code> and <code>out$error</code> as separate lists. <code>compact()</code> drops the <code>NULL</code> entries, leaving the three values that succeeded.</p>
+
+<h2>safely() vs possibly() vs quietly()</h2>
+
+<p><strong>Pick the adverb that matches what you need back.</strong> All three wrap a function, but they return different things.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Adverb</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>safely()</code></td>
+<td><code>list(result, error)</code></td>
+<td>You need to inspect <em>which</em> inputs failed and why</td>
+</tr>
+<tr>
+<td><code>possibly()</code></td>
+<td>the value, or <code>otherwise</code></td>
+<td>You only want a clean value and can discard failures</td>
+</tr>
+<tr>
+<td><code>quietly()</code></td>
+<td><code>list(result, output, warnings, messages)</code></td>
+<td>The function prints warnings or messages, not errors</td>
+</tr>
+<tr>
+<td><code>tryCatch()</code></td>
+<td>whatever your handler returns</td>
+<td>You need custom base-<a class="auto-link" href="R-Control-Flow.html" title="R Control Flow: if/else, for, and while — Stop Avoiding Loops">R control flow</a> per error type</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Need the error object for logging or a report? Use <code>safely()</code>. Just want the loop to finish and do not care about the failures? <code>possibly()</code> is lighter. Chasing a warning rather than an error? <code>safely()</code> will not help, because warnings are not errors; reach for <code>quietly()</code>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>safely() returns a function, not a result.</strong> A frequent mistake is calling it like <code>safely(log, 100)</code>, expecting the log of 100. That passes <code>100</code> to the <code>otherwise</code> argument. You must capture the wrapped function first, then call it: <code>safely(log)(100)</code>.</p>
+
+<p><strong>The result slot is NULL on failure.</strong> Code that pipes <code>out$result</code> straight into arithmetic will break on a <code>NULL</code>. Either set <code>otherwise</code> to a type-stable sentinel, or call <code>compact()</code> to drop the empty slots before you continue.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>safely() does not catch warnings.</strong> <code>sqrt(-1)</code> returns <code>NaN</code> with a warning, not an error, so a safely-wrapped <code>sqrt</code> reports success and a <code>NaN</code> result. If you need to trap warnings, wrap with <code>quietly()</code> instead and read its <code>warnings</code> slot.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap log() with safely() and map it over list(1, "two", 3). Save the captured output to ex_safe and pull out the error from element 2.</p>
+<div class="webr-container" data-block-title="Your turn: safely wrap log">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: safely wrap log</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: safely + map + transpose
+ex_safe &lt;- # your code here
+
+ex_safe$error[[2]]
+#&gt; Expected: a simpleError about a non-numeric argument</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_safe &lt;- map(list(1, &quot;two&quot;, 3), safely(log)) |&gt; transpose()
+ex_safe$error[[2]]
+#&gt; &lt;simpleError in .Primitive(&quot;log&quot;)(&quot;two&quot;): non-numeric argument to mathematical function&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> safely() turns each call into a result/error pair, and transpose() regroups the list of pairs into two parallel lists. That lets you index <code>ex_safe$error</code> to inspect every failure at once.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>safely() sits in a small family of error-handling adverbs.</strong> Reach for a sibling when your need is slightly different.</p>
+
+<ul>
+
+<li><code>possibly()</code> returns a plain value or a default, with no error object.</li>
+
+<li><code>quietly()</code> captures printed output, warnings, and messages.</li>
+
+<li><code>map()</code> is the iteration verb safely() is most often paired with.</li>
+
+<li><code>transpose()</code> reshapes the list of result/error pairs.</li>
+
+<li><code>compact()</code> removes <code>NULL</code> entries after a safe run.</li>
+
+</ul>
+
+<p>For the bigger picture of adverbs and <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">function operators</a>, see the <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide. The official <a href="https://purrr.tidyverse.org/reference/safely.html">purrr adverbs reference</a> documents every argument.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between safely() and possibly() in R?</strong></p>
+
+<p><code>safely()</code> returns a list with both a <code>result</code> and an <code>error</code> slot, so you can see exactly which inputs failed and read the error message. <code>possibly()</code> returns only the value, or a fallback you specify, and discards the error entirely. Use <code>safely()</code> when you need to report or log failures; use <code>possibly()</code> when you just want the loop to finish and a clean value is enough.</p>
+
+<p><strong>Does safely() catch warnings?</strong></p>
+
+<p>No. <code>safely()</code> only intercepts errors, the conditions that would normally stop execution. Warnings and messages pass through untouched, so a function that emits a warning still counts as a success and its <code>error</code> slot stays <code>NULL</code>. To capture warnings and messages, wrap the function with <code>quietly()</code> instead, which returns dedicated <code>warnings</code> and <code>messages</code> slots.</p>
+
+<p><strong>How do I get just the successful results from a safely() run?</strong></p>
+
+<p>After mapping <code>safely(f)</code> over your inputs, pipe the list into <code>transpose()</code> to split it into <code>$result</code> and <code>$error</code>. Then call <code>compact()</code> on <code>$result</code> to drop the <code>NULL</code> entries left by failed calls. The remaining list holds only the values that succeeded, ready for further processing.</p>
+
+<p><strong>Is safely() part of base R or a package?</strong></p>
+
+<p><code>safely()</code> comes from the purrr package, part of the tidyverse. Load it with <code>library(purrr)</code>. The base-R equivalents are <code>tryCatch()</code> and <code>try()</code>, which give you more manual control but require more boilerplate. <code>safely()</code> is a thin, consistent wrapper designed to compose cleanly with <code>map()</code>.</p>
