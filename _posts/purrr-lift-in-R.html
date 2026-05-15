@@ -1,0 +1,302 @@
+---
+title: "purrr lift() in R: Change Function Argument Style"
+description: "purrr lift() in R converts a function between dots, list, and vector argument styles. Learn lift_dl, lift_dv, lift_ld with examples and modern alternatives."
+keywords: "purrr lift, lift function R, purrr lift examples, lift_dl R, lift_dv purrr, do.call alternative R, convert function arguments R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "lift()|purrr lift|purrr::lift()|lift_dl()|lift_dv()"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr lift() in R: Change Function Argument Style</h1>
+
+<p class="lead">The purrr lift() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> adapts a function so it accepts its arguments in a different shape: as a single list, a single vector, or individual dots. It is a thin wrapper around <code>do.call()</code> for functional pipelines.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>lift(sum)(list(1, 2, 3))<span class="qa-cmt">             # alias of lift_dl</span>
+lift_dl(sum)(list(1, 2, 3))<span class="qa-cmt">          # dots-fn  -&gt; takes a list</span>
+lift_dv(paste)(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))<span class="qa-cmt">     # dots-fn  -&gt; takes a vector</span>
+lift_ld(concat)(1, 2, 3)<span class="qa-cmt">             # list-fn  -&gt; takes dots</span>
+lift_vd(g_vec)(1, 2, 3)<span class="qa-cmt">              # vector-fn -&gt; takes dots</span>
+map_dbl(params, lift_dl(sum))<span class="qa-cmt">        # apply across a list of arg-lists</span>
+do.call(sum, list(1, 2, 3))<span class="qa-cmt">          # base R equivalent</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is lift() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">change a function's argument interface</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">lift_dl(sum)</text><text x="125" y="126" class="branch-label">call a function once with a list</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">do.call(f, args)</text><text x="125" y="182" class="branch-label">apply a function over aligned columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">pmap</a>(df, f)</text><text x="125" y="238" class="branch-label">pre-fill some arguments of a function</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">partial(f, n = 1)</text><text x="125" y="294" class="branch-label">chain several functions together</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a>(sqrt, abs)</text><text x="125" y="350" class="branch-label">run a function over each list element</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">map(x, f)</text></svg></div>
+
+<h2>What purrr lift() does</h2>
+
+<p><strong>lift() converts the argument interface of a function.</strong> Some R functions take their inputs as loose dots, like <code>sum(1, 2, 3)</code>. Others want a single list or vector, like <code>mean(c(1, 2, 3))</code>. The <code>lift()</code> family rewrites a function so the calling style matches whatever your data already looks like.</p>
+
+<p>This matters inside functional pipelines. When you carry parameters around as lists, a dots-based function will not accept them directly. <code>lift()</code> bridges that gap so the function slots into <code>map()</code>, <code>reduce()</code>, or a <code>%&gt;%</code> chain without a manual wrapper.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The lift() family is deprecated as of purrr 1.0.0.</strong> It still runs and emits a deprecation warning. For new code, use an anonymous function around <code>do.call()</code> instead. The examples below explain the behaviour you will still meet in older codebases and show the modern replacement.</div></div>
+
+<h2>The lift() function family and syntax</h2>
+
+<p><strong>Each lift variant is named for a direction.</strong> The pattern is <code>lift_&lt;from&gt;&lt;to&gt;</code>, where <code>d</code> means dots, <code>l</code> means list, and <code>v</code> means vector. <code>lift_dl()</code> takes a function whose original interface is dots and returns one that takes a list.</p>
+
+<div class="webr-container" data-block-title="The lift family at a glance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The lift family at a glance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# lift(..f)      alias of lift_dl()
+# lift_dl(..f)   dots   -&gt; list
+# lift_dv(..f)   dots   -&gt; vector
+# lift_ld(..f)   list   -&gt; dots
+# lift_vd(..f)   vector -&gt; dots
+# lift_lv(..f)   list   -&gt; vector
+# lift_vl(..f)   vector -&gt; list</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every variant returns a <strong>new function</strong>. You call <code>lift_dl(sum)</code> once to build the adapter, then call that adapter with your data. Reading the suffix tells you the call style before and after: the first letter is what <code>..f</code> already expects, the second is what the lifted function will expect.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Read the suffix as "from-to".</strong> <code>lift_dl</code> lifts a dots function so it reads from a list. <code>lift_ld</code> does the reverse. Get the direction wrong and the adapter calls your function with the wrong argument shape, which usually fails silently rather than erroring.</div></div>
+
+<h2>lift() examples by use case</h2>
+
+<p><strong>Start with lift_dl(), the most common variant.</strong> <code>sum()</code> accepts dots, so wrapping it with <code>lift_dl()</code> produces a function that sums the contents of a list in one call.</p>
+
+<div class="webr-container" data-block-title="Lift a dots function to take a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lift a dots function to take a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum_list &lt;- lift_dl(sum)
+sum_list(list(1, 2, 3, 4))
+#&gt; [1] 10
+
+# lift() with no suffix is the same thing
+lift(sum)(list(5, 10, 15))
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lift_dv()</code> does the same job for a vector instead of a list. The difference is visible with <code>paste()</code>, which behaves differently when fed dots versus a single vector.</p>
+
+<div class="webr-container" data-block-title="Lift to take a vector with lift_dv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lift to take a vector with lift_dv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">paste(c(&quot;R&quot;, &quot;is&quot;, &quot;great&quot;))
+#&gt; [1] &quot;R&quot;     &quot;is&quot;    &quot;great&quot;
+
+lift_dv(paste)(c(&quot;R&quot;, &quot;is&quot;, &quot;great&quot;))
+#&gt; [1] &quot;R is great&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plain call vectorises over the input, while <code>lift_dv()</code> spreads each element into a separate argument, so <code>paste()</code> joins them. <code>lift_ld()</code> runs the opposite conversion: it takes a function that wants a list and lets you call it with loose arguments.</p>
+
+<div class="webr-container" data-block-title="Lift a list function to take dots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lift a list function to take dots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">concat &lt;- function(parts) paste(parts, collapse = &quot;-&quot;)
+concat(list(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+#&gt; [1] &quot;a-b-c&quot;
+
+lift_ld(concat)(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)
+#&gt; [1] &quot;a-b-c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The real payoff arrives with <code>map()</code>. When each element of a list is itself a bundle of arguments, a lifted function applies cleanly across all of them.</p>
+
+<div class="webr-container" data-block-title="Apply a lifted function with map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply a lifted function with map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- list(list(1, 2, 3), list(10, 20, 30))
+map_dbl(params, lift_dl(sum))
+#&gt; [1]  6 60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>lift() vs do.call() vs pmap()</h2>
+
+<p><strong>lift() is do.call() reshaped for pipelines.</strong> <code>do.call()</code> invokes a function once with an argument list. <code>lift()</code> returns a reusable function you can pass around. <code>pmap()</code> is the modern tool when your arguments line up as parallel columns.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>do.call(f, args)</code></td>
+<td>The result, immediately</td>
+<td>You call <code>f</code> once with a known list</td>
+</tr>
+<tr>
+<td><code>lift_dl(f)</code></td>
+<td>A new function</td>
+<td>You need a reusable adapter</td>
+</tr>
+<tr>
+<td><code>pmap(list, f)</code></td>
+<td>A list of results</td>
+<td>Arguments are aligned vectors or columns</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The modern replacement is a one-line anonymous function.</strong> Instead of <code>lift_dl(sum)</code>, write <code>\(args) do.call(sum, args)</code>. It is explicit, has no dependency on a deprecated API, and reads clearly to anyone who knows base R.</div></div>
+
+<div class="webr-container" data-block-title="Modern replacement without lift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Modern replacement without lift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lift_modern &lt;- function(f) function(args) do.call(f, args)
+lift_modern(sum)(list(1, 2, 3, 4))
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Mistake 1: lifting a function that does not take dots.</strong> <code>mean()</code> expects a single argument <code>x</code>. Lifting it and passing several values silently drops the extras.</p>
+
+<div class="webr-container" data-block-title="Lifting a non-dots function misfires">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lifting a non-dots function misfires</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lift_dl(mean)(list(1, 2, 3))
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>do.call(mean, list(1, 2, 3))</code> matches <code>1</code> to <code>x</code> and ignores the rest, so the result is <code>mean(1)</code>. Only lift functions whose signature genuinely accepts <code>...</code>.</p>
+
+<p><strong>Mistake 2: confusing the suffix direction.</strong> <code>lift_dl()</code> and <code>lift_ld()</code> are not interchangeable. Pick the variant whose first letter matches the function you already have.</p>
+
+<p><strong>Mistake 3: assuming lift() is current.</strong> On purrr 1.0.0 and later, every <code>lift_*</code> call prints a deprecation warning. In a clean codebase, migrate to <code>do.call()</code> or <code>pmap()</code> before the family is removed.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use a lift variant to find the maximum value stored inside a list. Save the result to <code>ex_max</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lift max over a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lift max over a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: lift max() to accept a list
+ex_max &lt;- # your code here
+
+ex_max
+#&gt; Expected: 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_max &lt;- lift_dl(max)(list(4, 9, 2, 7))
+ex_max
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>max()</code> accepts dots, so <code>lift_dl()</code> builds an adapter that reads the values from a list and calls <code>max(4, 9, 2, 7)</code>.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>lift() sits among purrr's function adapters.</strong> These tools all transform functions rather than data:</p>
+
+<ul>
+
+<li><code>partial()</code> pre-fills some arguments of a function and returns a simpler one.</li>
+
+<li><code>compose()</code> chains several functions into a single pipeline function.</li>
+
+<li><code>negate()</code> flips the result of a TRUE/FALSE predicate.</li>
+
+<li><code>pmap()</code> maps a function over parallel lists or <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a>.</li>
+
+<li><code>exec()</code> calls a function by name with arguments supplied as dots or a list.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does purrr lift() do?</strong></p>
+
+<p><code>lift()</code> takes a function and returns a new function that accepts its arguments in a different shape. By default it behaves like <code>lift_dl()</code>: a function that originally took loose dots becomes one that takes a single list. Internally it is a wrapper around <code>do.call()</code>, so the lifted function unpacks the list and passes each element as a separate argument to the original function.</p>
+
+<p><strong>Is lift() deprecated in purrr?</strong></p>
+
+<p>Yes. The entire <code>lift_*</code> family was deprecated in purrr 1.0.0, released in late 2022. The functions still work but print a deprecation warning each time you call them. The maintainers recommend replacing them with an explicit anonymous function around <code>do.call()</code>, such as <code>\(args) do.call(f, args)</code>, which has the same effect with no deprecated dependency.</p>
+
+<p><strong>What is the difference between lift_dl and lift_dv?</strong></p>
+
+<p>Both lift a dots-based function, but they differ in what the new function accepts. <code>lift_dl()</code> produces a function that takes a single list, while <code>lift_dv()</code> produces one that takes a single vector. Use <code>lift_dl()</code> when your data is a list and <code>lift_dv()</code> when it is an atomic vector. The conversion direction in both cases is dots to a single container.</p>
+
+<p><strong>How is lift() different from do.call()?</strong></p>
+
+<p><code>do.call()</code> invokes a function immediately with one argument list and returns the result. <code>lift()</code> does not call anything right away. It returns a reusable function that you can name, store, or pass into <code>map()</code> and <code>reduce()</code>. Think of <code>lift()</code> as <code>do.call()</code> packaged as a function operator, suited to functional pipelines rather than one-off calls.</p>
+
+<h2>Related Reading</h2>
+
+<p>For the broader picture, see the <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide.</p>
+
+{% endraw %}
