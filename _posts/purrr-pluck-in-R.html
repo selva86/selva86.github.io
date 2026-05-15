@@ -1,0 +1,291 @@
+---
+title: "purrr pluck() in R: Extract Nested List Elements"
+description: "Learn purrr pluck() in R to safely extract elements from nested lists and data frames. Covers syntax, the .default fallback, chuck(), and common pitfalls."
+keywords: "purrr pluck, pluck function R, purrr pluck examples, R pluck nested list, extract list element R, pluck default value"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pluck()|purrr pluck|purrr::pluck()|extract nested list element|pluck function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr pluck() in R: Extract Nested List Elements</h1>
+
+<p class="lead">purrr pluck extracts a single element from a deeply nested list or data frame by following a sequence of names, positions, or accessor functions. It returns an empty value instead of an error when the path is missing, which makes nested access both safe and readable.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pluck(x, &quot;a&quot;)<span class="qa-cmt">                     # extract by name</span>
+pluck(x, 1)<span class="qa-cmt">                       # extract by position</span>
+pluck(x, &quot;a&quot;, &quot;b&quot;, 2)<span class="qa-cmt">             # follow a nested path</span>
+pluck(x, &quot;z&quot;, .default = NA)<span class="qa-cmt">      # fallback when missing</span>
+pluck(x, attr_getter(&quot;class&quot;))<span class="qa-cmt">    # extract an attribute</span>
+chuck(x, &quot;a&quot;, &quot;b&quot;)<span class="qa-cmt">                # strict: error if missing</span>
+assign_in(x, &quot;a&quot;, 99)<span class="qa-cmt">             # set a nested value (copy)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pluck() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">extract one nested element</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pluck(x, &quot;a&quot;, &quot;b&quot;)</text><text x="125" y="126" class="branch-label">extract the same key from a list of lists</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map(x, &quot;key&quot;)</text><text x="125" y="182" class="branch-label">error instead of NULL when missing</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">chuck(x, &quot;a&quot;)</text><text x="125" y="238" class="branch-label">modify a nested element in place</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">modify_in(x, list(&quot;a&quot;), toupper)</text><text x="125" y="294" class="branch-label">flatten one level of nesting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_flatten(x)</text><text x="125" y="350" class="branch-label">keep elements that pass a test</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">keep(x, is.numeric)</text></svg></div>
+
+<h2>What pluck does</h2>
+
+<p><strong>The pluck function is a safe nested accessor.</strong> It walks an indexing path one step at a time, where each argument after the data is one level deeper into the structure. The call reads from left to right the way you would describe the path out loud, so the intent stays clear even to someone who has never seen the data.</p>
+
+<p>This matters most when the data did not originate in R. Responses from web services, parsed JSON, and configuration files arrive as lists nested several layers deep, and reaching into them with the base <a class="auto-link" href="R-Subsetting.html" title="R Subsetting: One Definitive Rule for [], [[]], $, and @ — No More Guessing">double bracket</a> operator produces unreadable chains. The other defining trait is failure behavior: a missing step makes the base operator stop with a <a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">subscript out of bounds</a> error, while pluck simply returns an empty value or your chosen default.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of pluck as a file path for data.</strong> Each accessor is one folder in the path, and the function either reaches the target or comes back empty handed without crashing the program around it.</div></div>
+
+<h2>pluck syntax</h2>
+
+<p><strong>The signature is <code>pluck(.x, ..., .default = NULL)</code>.</strong> You pass the object to index into, then one or more accessors that describe the route to the value you want.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.x</code></td>
+<td>The list, vector, or data frame to index into</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Accessors: a string name, a positive integer position, or an accessor function</td>
+</tr>
+<tr>
+<td><code>.default</code></td>
+<td>Value returned when the targeted element is missing or empty</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each accessor consumes exactly one level of nesting. A string matches a named element, a positive integer matches a position counting from one, and a function lets you compute the next step. The helper <code>attr_getter(&quot;class&quot;)</code> returns an accessor that pulls an attribute rather than a list member.</p>
+
+<div class="webr-container" data-block-title="Load purrr and pluck one level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and pluck one level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+scores &lt;- list(math = 88, reading = 72)
+pluck(scores, &quot;math&quot;)
+#&gt; [1] 88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Extract elements by name and position</h2>
+
+<p><strong>The pluck function shines when the structure has several layers.</strong> The example below builds a small list of user records, then reaches in. You never have to confirm an intermediate level exists, because the function checks each step for you.</p>
+
+<div class="webr-container" data-block-title="Pluck from a nested list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pluck from a nested list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">users &lt;- list(
+  alice = list(age = 30, roles = c(&quot;admin&quot;, &quot;editor&quot;)),
+  bob   = list(age = 25, roles = c(&quot;viewer&quot;))
+)
+
+pluck(users, &quot;alice&quot;, &quot;age&quot;)
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Names and integer positions combine freely in one call. The next example reads as the first user, then their roles, then the second role. Switching between names and positions mid path is useful, since real data often has named levels near the top and plain vectors near the bottom.</p>
+
+<div class="webr-container" data-block-title="Mix names and positions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mix names and positions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pluck(users, 1, &quot;roles&quot;, 2)
+#&gt; [1] &quot;editor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because a data frame is internally a list of columns, pluck works on data frames too. A column name returns the whole column, and an integer accessor drills down to a single value.</p>
+
+<div class="webr-container" data-block-title="Pluck a data frame value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pluck a data frame value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pluck(mtcars, &quot;mpg&quot;, 1)
+#&gt; [1] 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Supply a fallback with .default</h2>
+
+<p><strong>Use the default argument to control what a missing path returns.</strong> Without it, an absent element yields an empty value, which often breaks code further down that expects a real number or string. A default substitutes a sensible placeholder right at the point of extraction.</p>
+
+<div class="webr-container" data-block-title="Fallback for a missing element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fallback for a missing element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pluck(users, &quot;carol&quot;, &quot;age&quot;)
+#&gt; NULL
+
+pluck(users, &quot;carol&quot;, &quot;age&quot;, .default = NA)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A common pattern is to give every optional field the same default, so the results of many calls assemble into a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame without ragged gaps. Match the default type to the column you are building.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The default does not distinguish a missing key from a stored empty value.</strong> If an element genuinely exists but holds an empty value, the function still returns your default. When that difference matters, check membership with <code>has_element()</code> before plucking.</div></div>
+
+<h2>pluck vs the double bracket operator and map</h2>
+
+<p><strong>Pick the accessor that matches your task and your tolerance for errors.</strong> All three tools reach into structures, but they differ in how they fail and whether they touch one object or many.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Missing path</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pluck(x, ...)</code></td>
+<td>Returns empty value or <code>.default</code></td>
+<td>Safe single element access</td>
+</tr>
+<tr>
+<td><code>x[[&quot;a&quot;]][[&quot;b&quot;]]</code></td>
+<td>Throws an error</td>
+<td>Quick access when the path is guaranteed</td>
+</tr>
+<tr>
+<td><code>map(x, &quot;key&quot;)</code></td>
+<td>Empty value per element</td>
+<td>The same key from a list of lists</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. Reach into one object safely, use pluck. Reach into one object and want a loud failure on a typo, use the strict variant or the base operator. Reach into many objects at once, use map with a string or integer shortcut, since map accepts the same accessor style that pluck understands.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>The <a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">map function</a> accepts pluck style accessors.</strong> Writing <code>map(users, &quot;age&quot;)</code> extracts the age field from every user in one call, so you rarely need a manual loop over records.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A wrong path fails silently.</strong> Because the function returns an empty value for any missing accessor, a typo produces no error and no warning, and the bug can travel far before anyone notices. When a missing element should stop execution, reach for the strict twin called chuck, which raises a clear error instead.</p>
+
+<div class="webr-container" data-block-title="chuck() errors on a bad path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">chuck() errors on a bad path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">chuck(users, &quot;carol&quot;, &quot;age&quot;)
+#&gt; Error in `chuck()`:
+#&gt; ! Can't find name `carol` in vector.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Positions are one based and positive.</strong> Asking for position zero is invalid, and negative indices are not supported as accessors the way they are with base subsetting. Always pass the actual position, starting the count at one.</p>
+
+<p><strong>Each accessor must be a separate argument.</strong> Passing a single character vector that bundles two names treats the whole vector as one accessor and fails to descend. Spell the path out so each level is its own argument.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the <code>users</code> list, extract Bob's first role and save it to <code>ex_role</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pluck a nested value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pluck a nested value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: reach bob -&gt; roles -&gt; position 1
+ex_role &lt;- # your code here
+
+ex_role
+#&gt; Expected: &quot;viewer&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_role &lt;- pluck(users, &quot;bob&quot;, &quot;roles&quot;, 1)
+ex_role
+#&gt; [1] &quot;viewer&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each accessor descends one level: the name for Bob selects the record, roles selects the character vector inside it, and the number one selects that vector's first position.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions pair naturally with pluck when you work with nested data:</p>
+
+<ul>
+
+<li>The chuck function plucks but errors instead of returning an empty value on a missing path.</li>
+
+<li>The map function applies a pluck style accessor across every element of a list.</li>
+
+<li>The modify_in function updates a nested element identified by a pluck style location.</li>
+
+<li>The list_flatten function removes one level of nesting before you index.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/pluck.html">purrr reference</a> for the full accessor specification.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between pluck and chuck?</strong> Both functions follow the same accessor path, but they differ on missing elements. The pluck function returns an empty value or your default when a step does not exist, so it never raises an error. The chuck function is the strict version and throws an informative error the moment an accessor fails to match. Use pluck for optional fields where absence is expected, and chuck when a missing element signals a real bug you want surfaced immediately.</p>
+
+<p><strong>Does pluck work on data frames?</strong> Yes. A data frame is internally a list of columns, so passing a column name returns that column as a vector. Adding an integer accessor drills into a single cell. This makes the function a tidy alternative to the dollar sign or double bracket operators inside pipelines, with the benefit that a misspelled column name returns an empty value instead of crashing the pipeline partway through.</p>
+
+<p><strong>How is pluck different from the double bracket operator?</strong> The double bracket operator extracts one level and throws a subscript <a class="auto-link" href="R-Error-Subscript-Out-of-Bounds.html" title="R Error: subscript out of bounds — What It Means & How to Solve It">out of bounds error</a> when the index is invalid. The pluck function chains many accessors in a single flat call and degrades gracefully to an empty value instead. For a guaranteed path the base operator is fine and slightly faster, but for deep or uncertain structures pluck is shorter to read and safer to run.</p>
+
+<p><strong>Can pluck modify a list element?</strong> Yes. The function has an assignment form that writes into a nested location and creates intermediate levels if they do not exist. For a version that returns a modified copy rather than changing the object in place, use the assign_in or modify_in helpers, both of which fit cleanly into a pipeline and leave the original untouched.</p>
