@@ -1,0 +1,322 @@
+---
+title: "purrr walk2() in R: Side Effects Over Two Inputs"
+description: "Use purrr walk2() in R to run a function over two inputs in parallel for side effects, like saving files. Covers syntax, examples, walk2 vs map2, and pitfalls."
+keywords: "purrr walk2, walk2 function R, purrr walk2 examples, R walk2 two inputs, walk2 vs map2, iterate two lists R, walk2 side effects"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr walk2|walk2()|purrr::walk2()|iterate over two inputs|walk2 function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr walk2() in R: Side Effects Over Two Inputs</h1>
+
+<p class="lead">The purrr <code>walk2()</code> function applies a function over two inputs in parallel for their side effects, such as saving each object to its own file path. It discards <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a> and hands back the first input invisibly, so it stays pipe-friendly.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>walk2(x, y, fn)<span class="qa-cmt">                        # run fn over two inputs, no output</span>
+walk2(objs, paths, ~ saveRDS(.x, .y))<span class="qa-cmt">  # save each object to its path</span>
+walk2(labels, vals, ~ cat(.x, .y))<span class="qa-cmt">     # print paired label and value</span>
+walk2(x, y, fn, digits = 2)<span class="qa-cmt">            # extra args go after fn</span>
+walk2(seq, paths, write.csv)<span class="qa-cmt">           # pass a bare function name</span>
+pwalk(list(a, b, c), fn)<span class="qa-cmt">               # three or more inputs in parallel</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is walk2() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">side effects over two inputs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">walk2(x, y, fn)</text><text x="125" y="126" class="branch-label">collect results from two inputs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map2(x, y, fn)</text><text x="125" y="182" class="branch-label">side effects over one input</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">walk(x, fn)</text><text x="125" y="238" class="branch-label">three or more inputs in parallel</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pwalk(list(...), fn)</text><text x="125" y="294" class="branch-label">need each element's name or index</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">iwalk(x, fn)</text><text x="125" y="350" class="branch-label">transform two inputs into a vector</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">map2_chr(x, y, fn)</text></svg></div>
+
+<h2>What walk2() does in one sentence</h2>
+
+<p><strong><code>walk2(.x, .y, .f)</code> calls <code>.f</code> on each matching pair from <code>.x</code> and <code>.y</code> purely for the side effect, then returns <code>.x</code> invisibly.</strong> It is the two-input member of the <code>walk()</code> family: the same parallel iteration as <code>map2()</code>, but the results are thrown away instead of collected.</p>
+
+<p>You reach for <code>walk2()</code> when an action needs two pieces of information at once. Saving a list of objects needs both the objects and their file paths. Printing a labelled report needs both the labels and the values. A single <code>walk2()</code> call walks the two inputs in lockstep so pair one meets pair one, pair two meets pair two, and so on.</p>
+
+<p>Choosing <code>walk2()</code> over <code>map2()</code> also documents intent. A reader sees <code>walk2()</code> and knows the loop body does something to the outside world rather than computing a value worth keeping.</p>
+
+<p>The "in lockstep" detail matters. <code>walk2()</code> does not pair every element of the first input with every element of the second. It advances both inputs by one position per iteration, so the two vectors must list the same items in the same order. Getting that order right in the source vectors is the only real work; the iteration itself is automatic.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>walk2(.x, .y, .f, ...)</code>. <code>.x</code> and <code>.y</code> are the two inputs, <code>.f</code> is the function or lambda, and <code>...</code> passes extra arguments to <code>.f</code>.</strong> Inside a lambda, <code>.x</code> refers to the current element of the first input and <code>.y</code> to the current element of the second.</p>
+
+<div class="webr-container" data-block-title="Iterate over two inputs in parallel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iterate over two inputs in parallel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+prefixes &lt;- c(&quot;Mr&quot;, &quot;Ms&quot;, &quot;Dr&quot;)
+surnames &lt;- c(&quot;Smith&quot;, &quot;Jones&quot;, &quot;Lee&quot;)
+walk2(prefixes, surnames, ~ cat(.x, .y, &quot;\n&quot;))
+#&gt; Mr Smith 
+#&gt; Ms Jones 
+#&gt; Dr Lee </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The return value is the part that separates <code>walk2()</code> from a <code>for</code> loop. It hands back the first input, <code>.x</code>, and does so invisibly.</p>
+
+<div class="webr-container" data-block-title="walk2 returns its first input invisibly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">walk2 returns its first input invisibly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- walk2(1:3, 4:6, ~ cat(.x + .y, &quot;&quot;))
+#&gt; 5 7 9 
+
+result
+#&gt; [1] 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Invisible means the value is returned but not auto-printed at the console. You can still capture it with assignment, which is what lets <code>walk2()</code> sit inside a pipe without breaking the chain.</p>
+
+<p>The <code>.f</code> argument accepts two forms. A formula written with <code>~</code> is the compact lambda shorthand, where <code>.x</code> and <code>.y</code> stand for the current pair. An ordinary function works too, and its first two parameters receive <code>.x</code> and <code>.y</code> in order regardless of their names. Reach for the formula when the body is a single short expression, and for a named function when the logic spans several lines or you want to reuse it elsewhere.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>walk2()</code> returns the first input, never the results of <code>.f</code>.</strong> That is the whole design point: <code>map2()</code> ends a transformation by returning results, while <code>walk2()</code> returns the input so data keeps flowing down a pipeline untouched.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Save each object to its own file</h3>
+
+<div class="webr-container" data-block-title="Save data frames to matching paths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save data frames to matching paths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tables &lt;- list(cars = head(mtcars, 2), flowers = head(iris, 2))
+paths  &lt;- c(&quot;cars.csv&quot;, &quot;flowers.csv&quot;)
+walk2(tables, paths, ~ write.csv(.x, .y))
+list.files(pattern = &quot;csv$&quot;)
+#&gt; [1] &quot;cars.csv&quot;    &quot;flowers.csv&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical use of <code>walk2()</code>. The objects and the file names live in two separate vectors, and <code>walk2()</code> pairs them so each table lands at its intended path. It replaces a hand-written loop with one clear line, and because the iteration is index-free there is no off-by-one mistake to make. The same shape covers saving plots with <code>ggsave()</code> or writing <code>.rds</code> snapshots.</p>
+
+<h3>2. Print paired labels and values</h3>
+
+<div class="webr-container" data-block-title="Print a labelled report">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Print a labelled report</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students &lt;- c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;)
+scores   &lt;- c(88, 72, 95)
+walk2(students, scores, ~ cat(.x, &quot;scored&quot;, .y, &quot;\n&quot;))
+#&gt; Alice scored 88 
+#&gt; Bob scored 72 
+#&gt; Carol scored 95 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the side effect is console output. Each student name meets its matching score, and <code>cat()</code> formats the pair into a readable line. This pattern scales to any reporting task where two parallel vectors hold the label and the measurement: test names and pass counts, regions and totals, or column names and missing-value counts.</p>
+
+<h3>3. Pass extra arguments after the function</h3>
+
+<div class="webr-container" data-block-title="Forward extra arguments through walk2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forward extra arguments through walk2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_row &lt;- function(label, value, unit) {
+  cat(label, &quot;=&quot;, value, unit, &quot;\n&quot;)
+}
+walk2(c(&quot;speed&quot;, &quot;weight&quot;), c(60, 1500), log_row, unit = &quot;units&quot;)
+#&gt; speed = 60 units 
+#&gt; weight = 1500 units </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Anything after <code>.f</code> is forwarded to every call. The <code>unit = &quot;units&quot;</code> argument is constant across iterations, while <code>label</code> and <code>value</code> vary with <code>.x</code> and <code>.y</code>.</p>
+
+<h3>4. Log progress inside a pipeline</h3>
+
+<div class="webr-container" data-block-title="walk2 keeps the pipe flowing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">walk2 keeps the pipe flowing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c(2, 4, 6) |&gt;
+  walk2(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), ~ cat(.y, &quot;=&quot;, .x, &quot;\n&quot;)) |&gt;
+  sum()
+#&gt; a = 2 
+#&gt; b = 4 
+#&gt; c = 6 
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>walk2()</code> passes its first input straight through, you can drop it mid-pipe to log progress. Here <code>sum()</code> still receives <code>c(2, 4, 6)</code> and returns 12.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build the path vector with <code>paste0()</code> before calling <code>walk2()</code>.</strong> A line like <code>paths &lt;- paste0(&quot;out/&quot;, names(tables), &quot;.csv&quot;)</code> keeps file naming logic separate from the iteration, so <code>walk2(tables, paths, ~ saveRDS(.x, .y))</code> reads as a single clear intention.</div></div>
+
+<h2>walk2() vs map2()</h2>
+
+<p><strong>Both functions iterate two inputs the same way; they differ only in what they return.</strong> Picking the wrong one rarely breaks code, but it muddies intent and clutters the console.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>map2()</code></th>
+<th><code>walk2()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returns</td>
+<td>List of results</td>
+<td>First input, invisibly</td>
+</tr>
+<tr>
+<td>Use for</td>
+<td>Transforming data</td>
+<td>Side effects (save, print, plot)</td>
+</tr>
+<tr>
+<td>Console output</td>
+<td>Prints the result list</td>
+<td>Prints nothing extra</td>
+</tr>
+<tr>
+<td>Pipe position</td>
+<td>Ends a transformation</td>
+<td>Sits mid-pipe</td>
+</tr>
+<tr>
+<td>Typed variants</td>
+<td><code>map2_chr()</code>, <code>map2_dbl()</code></td>
+<td>none needed</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule of thumb: if you want the value the function produces, use <code>map2()</code>; if you want what it <em>does</em>, use <code>walk2()</code>. They often appear together, where <code>map2()</code> builds a list of plots and <code>walk2()</code> saves each one to disk.</p>
+
+<p>There is no typed <code>walk2()</code> variant such as <code>walk2_dbl()</code>, and that absence is correct. Typed <code>map2()</code> variants guarantee the shape of a returned vector, but <code>walk2()</code> returns no results, so there is nothing to type.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: expecting results back.</strong> <code>out &lt;- walk2(1:3, 4:6, ~ .x + .y)</code> sets <code>out</code> to <code>1:3</code>, not <code>c(5, 7, 9)</code>. The sums are computed and discarded. Use <code>map2_dbl()</code> when you need the numbers.</p>
+
+<p><strong>Pitfall 2: nothing prints.</strong> <code>walk2(1:3, 4:6, ~ .x + .y)</code> produces no output, because arithmetic is not a side effect. You must call <code>cat()</code> or <code>print()</code> explicitly inside the function for anything to appear.</p>
+
+<p><strong>Pitfall 3: mismatched lengths.</strong> <code>walk2(x, y, fn)</code> requires <code>x</code> and <code>y</code> to be the same length, or one of them to have length 1. Unequal lengths raise an error rather than silently recycling.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>walk2()</code> does not recycle two short vectors against each other.</strong> Unlike base <code>mapply()</code>, passing inputs of length 3 and length 2 throws an error. This strictness is deliberate: it catches the off-by-one bugs that silent recycling would hide.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>walk2()</code> to print each car name from <code>head(rownames(mtcars), 3)</code> alongside its cylinder count from <code>head(mtcars$cyl, 3)</code>, in the format <code>name: cyl</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pair names and cylinders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pair names and cylinders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: walk2 over names and cylinders
+ex_names &lt;- head(rownames(mtcars), 3)
+ex_cyl   &lt;- head(mtcars$cyl, 3)
+walk2(ex_names, ex_cyl, ~ # your code here)
+
+#&gt; Expected: three lines like &quot;Mazda RX4: 6&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_names &lt;- head(rownames(mtcars), 3)
+ex_cyl   &lt;- head(mtcars$cyl, 3)
+walk2(ex_names, ex_cyl, ~ cat(.x, &quot;: &quot;, .y, &quot;\n&quot;, sep = &quot;&quot;))
+#&gt; Mazda RX4: 6
+#&gt; Mazda RX4 Wag: 6
+#&gt; Datsun 710: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>walk2()</code> passes the car name as <code>.x</code> and the cylinder count as <code>.y</code>. The <code>cat()</code> call with <code>sep = &quot;&quot;</code> joins them into the <code>name: cyl</code> format. <code>walk2()</code> returns <code>ex_names</code> invisibly, so nothing extra prints afterward.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>Once <code>walk2()</code> is familiar, the rest of the side-effect family follows the same logic and reuses the <code>.x</code> and <code>.y</code> placeholders:</p>
+
+<ul>
+
+<li><code>walk()</code>: iterate over a single input for side effects</li>
+
+<li><code>pwalk()</code>: iterate over three or more inputs supplied as a list</li>
+
+<li><code>iwalk()</code>: iterate with access to each element's name or index</li>
+
+<li><code>map2()</code>: the transforming twin that collects return values</li>
+
+<li><code>map2_chr()</code>, <code>map2_dbl()</code>: type-safe variants when you need typed results</li>
+
+</ul>
+
+<p>For iteration that collects results from two inputs, <code>purrr map2</code> is the starting point. For the broader picture of applying functions across data structures, see <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">functional programming in R</a>. The official reference lives at <a href="https://purrr.tidyverse.org/reference/map2.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between walk2 and map2 in purrr?</strong></p>
+
+<p><code>map2()</code> applies a function to each pair from two inputs and returns a list of the results, so you use it to transform data. <code>walk2()</code> applies a function to each pair for its side effects, such as saving files or printing, and discards the return values. <code>walk2()</code> returns its first input invisibly, which lets it sit inside a pipe without ending the chain.</p>
+
+<p><strong>Does purrr walk2 return anything?</strong></p>
+
+<p>Yes. <code>walk2()</code> returns its first argument, <code>.x</code>, invisibly. It does not return the values produced by the function you applied. Assigning <code>out &lt;- walk2(x, y, fn)</code> gives <code>out</code> the original <code>x</code>. That invisible passthrough is what makes <code>walk2()</code> safe to place in the middle of a pipeline.</p>
+
+<p><strong>How do I save multiple files with walk2 in R?</strong></p>
+
+<p>Pair <code>walk2()</code> with a vector of objects and a matching vector of file paths. For example, <code>walk2(tables, paths, ~ write.csv(.x, .y))</code> writes each data frame to its own file. <code>.x</code> is the object and <code>.y</code> is the path. Both vectors must have the same length, or the call raises an error.</p>
+
+<p><strong>Can walk2 take more than two inputs?</strong></p>
+
+<p>No. <code>walk2()</code> handles exactly two inputs. For three or more, use <code>pwalk()</code>, which takes a single list of input vectors and passes one element from each to the function. <code>pwalk(list(a, b, c), fn)</code> iterates over three inputs in parallel for side effects.</p>
+
+<p><strong>What happens if the two inputs have different lengths?</strong></p>
+
+<p><code>walk2()</code> throws an error unless one input has length 1, in which case that value is reused for every iteration. It does not recycle two short vectors against each other the way base <code>mapply()</code> can. The strict check is intentional and catches alignment bugs early.</p>
