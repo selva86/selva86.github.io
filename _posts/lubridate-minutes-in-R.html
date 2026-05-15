@@ -1,0 +1,454 @@
+---
+title: "lubridate minutes() in R: Create Minute-Based Time Periods"
+description: "Use lubridate minutes() in R to build minute-based periods. Add or subtract minutes from datetimes and write clean time-interval arithmetic with examples now."
+keywords: "lubridate minutes, minutes function R, lubridate minutes examples, R minutes period, add minutes to datetime R, lubridate minute vs minutes, create minutes R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "minutes()|lubridate minutes|lubridate::minutes()|minutes period|minute-based period"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate minutes() in R: Create Minute-Based Time Periods</h1>
+
+<p class="lead">The <code>minutes()</code> function in lubridate builds a minute-based <code>Period</code> object you can add to or subtract from a datetime. It is vectorised, calendar-aware, and lets you shift timestamps by N minutes without hand-rolling seconds arithmetic.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>ymd_hms(&quot;2024-07-15 09:00:00&quot;) + minutes(30)<span class="qa-cmt">     # add 30 minutes</span>
+ymd_hms(&quot;2024-07-15 09:00:00&quot;) - minutes(15)<span class="qa-cmt">     # subtract 15 minutes</span>
+now() + minutes(c(5, 15, 60))<span class="qa-cmt">                    # vectorised shifts</span>
+hours(1) + minutes(30)<span class="qa-cmt">                           # combine components</span>
+class(minutes(5))<span class="qa-cmt">                                # &quot;Period&quot; object</span>
+as.numeric(minutes(90), &quot;seconds&quot;)<span class="qa-cmt">               # 5400 seconds</span>
+ymd_hms(&quot;2024-07-15 23:50:00&quot;) + minutes(20)<span class="qa-cmt">     # cross-hour shift</span>
+df %&gt;% mutate(eta = start + minutes(wait_min))<span class="qa-cmt">   # use in dplyr</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is minutes() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 517" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="482"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">shift a datetime by N minutes</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">ts + minutes(N)</text><text x="125" y="126" class="branch-label">extract the minute-of-hour from a timestamp</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">minute(ts)</text><text x="125" y="182" class="branch-label">shift by exact 60-second steps across DST</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ts + dminutes(N)</text><text x="125" y="238" class="branch-label">build a multi-component period</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">hours(1) + minutes(30)</text><text x="125" y="294" class="branch-label">find minutes between two datetimes</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as.numeric(b - a, units = &quot;mins&quot;)</text><text x="125" y="350" class="branch-label">round timestamps to 5-minute boundary</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">floor_date(ts, &quot;5 mins&quot;)</text><text x="125" y="406" class="branch-label">generate per-minute sequences</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">seq(ts, by = &quot;1 min&quot;, length.out = 60)</text><text x="125" y="462" class="branch-label">parse &quot;MM</text><line class="branch" x1="100" y1="482" x2="200" y2="482" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="469" width="490" height="28" rx="5"/><text x="222" y="487" class="code">SS&quot; or &quot;HH:MM&quot; strings: ms(&quot;05:30&quot;) or hm(&quot;14:30&quot;)</text></svg></div>
+
+<h2>What minutes() does in one sentence</h2>
+
+<p><strong><code>minutes(n)</code> returns a <code>Period</code> object representing <code>n</code> minutes of clock time.</strong> Pass an integer or numeric vector and you get a period whose minute slot equals the input, ready to add to a <code>POSIXct</code> or <code>Date</code> value.</p>
+
+<p>This is a constructor, not an accessor. It builds time spans you can do arithmetic with. If you want to read the minute component out of an existing datetime, you want <code>minute()</code> (singular), covered in <a href="lubridate-minute-in-R.html">lubridate minute() in R</a>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>minutes(x = 1)</code> takes a numeric vector and returns a <code>Period</code> of the same length.</strong> There is one argument and one return type. The output prints as <code>&quot;30M 0S&quot;</code> and behaves like a clock offset in datetime arithmetic.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and inspect minutes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and inspect minutes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+minutes(30)
+#&gt; [1] &quot;30M 0S&quot;
+
+class(minutes(30))
+#&gt; [1] &quot;Period&quot;
+#&gt; attr(,&quot;package&quot;)
+#&gt; [1] &quot;lubridate&quot;
+
+minutes(c(5, 15, 45))
+#&gt; [1] &quot;5M 0S&quot;  &quot;15M 0S&quot; &quot;45M 0S&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The period prints with the minute and second components populated and the larger units hidden. You can mix it with other constructors like <code>hours()</code> and <code>seconds()</code> to build richer spans.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>Period</code> is calendar-aware.</strong> A <code>Period</code> from <code>minutes()</code> adds wall-clock minutes, whereas a <code>Duration</code> from <code>dminutes()</code> adds physical seconds. The two agree except across daylight-saving transitions where their hour boundaries diverge.</div></div>
+
+<h2>Six common patterns with minutes()</h2>
+
+<h3>1. Add minutes to a single datetime</h3>
+
+<p><strong>Use <code>+ minutes(n)</code> to push a timestamp forward by <code>n</code> minutes.</strong> The result is a <code>POSIXct</code> value with the same timezone as the input.</p>
+
+<div class="webr-container" data-block-title="Shift a datetime forward">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shift a datetime forward</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd_hms(&quot;2024-07-15 09:00:00&quot;)
+
+start + minutes(30)
+#&gt; [1] &quot;2024-07-15 09:30:00 UTC&quot;
+
+start + minutes(90)
+#&gt; [1] &quot;2024-07-15 10:30:00 UTC&quot;
+
+start - minutes(15)
+#&gt; [1] &quot;2024-07-15 08:45:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Negative inputs work too: <code>minutes(-10)</code> is equivalent to <code>-minutes(10)</code>. The arithmetic is exact because <code>Period</code> carries minutes as a separate slot rather than reducing them to seconds.</p>
+
+<h3>2. Vectorised minute arithmetic</h3>
+
+<p><strong>Both sides of the <code>+</code> operator can be vectors.</strong> This makes batch reminder offsets a single expression.</p>
+
+<div class="webr-container" data-block-title="Vectorised period addition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vectorised period addition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd_hms(&quot;2024-07-15 09:00:00&quot;)
+offsets &lt;- c(5, 15, 30, 60)
+
+start + minutes(offsets)
+#&gt; [1] &quot;2024-07-15 09:05:00 UTC&quot; &quot;2024-07-15 09:15:00 UTC&quot;
+#&gt; [3] &quot;2024-07-15 09:30:00 UTC&quot; &quot;2024-07-15 10:00:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is the same length as the longer of the two operands. R recycles the shorter vector when their lengths are compatible.</p>
+
+<h3>3. Cross-hour shifts</h3>
+
+<p><strong><code>minutes()</code> rolls into the next hour cleanly.</strong> You do not need a separate <code>hours()</code> call for shifts of 60 or more minutes.</p>
+
+<div class="webr-container" data-block-title="Shifts that cross the hour boundary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shifts that cross the hour boundary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd_hms(&quot;2024-07-15 09:50:00&quot;)
+
+start + minutes(20)
+#&gt; [1] &quot;2024-07-15 10:10:00 UTC&quot;
+
+start + minutes(75)
+#&gt; [1] &quot;2024-07-15 11:05:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Large minute counts (<code>minutes(180)</code>) work as well, though <code>hours(3)</code> reads more clearly for human consumers. Pick the unit that matches how the input is stored.</p>
+
+<h3>4. Build multi-component periods</h3>
+
+<p><strong>Add period constructors together to express compound spans.</strong> <code>hours(1) + minutes(30)</code> reads like English and prints as <code>&quot;1H 30M 0S&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Combine hours minutes and seconds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine hours minutes and seconds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">total &lt;- hours(1) + minutes(30) + seconds(45)
+total
+#&gt; [1] &quot;1H 30M 45S&quot;
+
+ymd_hms(&quot;2024-07-15 09:00:00&quot;) + total
+#&gt; [1] &quot;2024-07-15 10:30:45 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This composes well when the offset comes from a schedule string or user form that supplies hours and minutes separately.</p>
+
+<h3>5. Use minutes() inside dplyr pipelines</h3>
+
+<p><strong><code>minutes()</code> plugs into <code>mutate()</code> for row-wise schedule arithmetic.</strong> Pair it with a numeric wait-time column to compute reminder or ETA timestamps.</p>
+
+<div class="webr-container" data-block-title="Compute reminders in a dplyr pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute reminders in a dplyr pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+bookings &lt;- tibble(
+  client = c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;),
+  start = ymd_hms(c(&quot;2024-07-15 09:00:00&quot;,
+                    &quot;2024-07-15 09:30:00&quot;,
+                    &quot;2024-07-15 10:15:00&quot;)),
+  wait_min = c(10, 25, 5)
+)
+
+bookings %&gt;% mutate(reminder = start + minutes(wait_min))
+#&gt; # A tibble: 3 x 4
+#&gt;   client start               wait_min reminder
+#&gt;   &lt;chr&gt;  &lt;dttm&gt;                 &lt;dbl&gt; &lt;dttm&gt;
+#&gt; 1 A      2024-07-15 09:00:00       10 2024-07-15 09:10:00
+#&gt; 2 B      2024-07-15 09:30:00       25 2024-07-15 09:55:00
+#&gt; 3 C      2024-07-15 10:15:00        5 2024-07-15 10:20:00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Integer inputs are preferred. Lubridate treats fractional minutes as exact when stored in the period but some downstream printers may round, so for sub-minute precision combine <code>minutes()</code> with <code>seconds()</code> explicitly.</p>
+
+<h3>6. Convert minutes() to other units</h3>
+
+<p><strong>Coerce a period to seconds with <code>as.numeric(period, &quot;seconds&quot;)</code> when an API expects raw seconds.</strong> This is the standard bridge between lubridate periods and base R offsets.</p>
+
+<div class="webr-container" data-block-title="Convert periods to seconds and hours">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert periods to seconds and hours</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.numeric(minutes(90), &quot;seconds&quot;)
+#&gt; [1] 5400
+
+as.numeric(minutes(120), &quot;hours&quot;)
+#&gt; [1] 2
+
+period_to_seconds(minutes(45))
+#&gt; [1] 2700</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>period_to_seconds()</code> is the explicit helper if you prefer named verbs over <code>as.numeric()</code> coercion. Both return the same value.</p>
+
+<h2>minutes() vs dminutes(): period vs duration</h2>
+
+<p><strong><code>minutes()</code> adds clock-time minutes; <code>dminutes()</code> adds exactly 60 seconds per unit.</strong> The two functions agree almost everywhere and diverge only across daylight-saving transitions when a minute window straddles the jump.</p>
+
+<div class="webr-container" data-block-title="Period vs duration semantics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Period vs duration semantics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- ymd_hms(&quot;2024-07-15 09:00:00&quot;)
+
+ts + minutes(90)            # period: 90 wall-clock minutes
+#&gt; [1] &quot;2024-07-15 10:30:00 UTC&quot;
+
+ts + dminutes(90)           # duration: 5400 seconds
+#&gt; [1] &quot;2024-07-15 10:30:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Outside DST the two are identical. Inside a spring-forward hour, <code>dminutes()</code> keeps elapsed seconds exact while <code>minutes()</code> keeps the wall clock honest. Pick the one that matches your mental model.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>minutes()</code> (Period)</th>
+<th><code>dminutes()</code> (Duration)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unit</td>
+<td>Clock minutes</td>
+<td>Physical seconds</td>
+</tr>
+<tr>
+<td>DST behaviour</td>
+<td>Adds wall minutes</td>
+<td>Adds exactly 60 s per unit</td>
+</tr>
+<tr>
+<td>Print form</td>
+<td><code>&quot;30M 0S&quot;</code></td>
+<td><code>&quot;1800s (~30 minutes)&quot;</code></td>
+</tr>
+<tr>
+<td>Use when</td>
+<td>Human schedules, reminders</td>
+<td>Elapsed timing, stopwatch math</td>
+</tr>
+<tr>
+<td>Class</td>
+<td><code>Period</code></td>
+<td><code>Duration</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick <code>minutes()</code> for human reminders, <code>dminutes()</code> for stopwatch math.</strong> A reminder set "30 minutes from now" should use <code>minutes(30)</code> so it fires at the same wall-clock minute after a DST flip. A reactor that ran "90 minutes" should use <code>dminutes(90)</code> so the elapsed seconds match the physical clock.</div></div>
+
+<h2>minutes() vs minute(): constructor vs accessor</h2>
+
+<p><strong><code>minutes()</code> builds a span; <code>minute()</code> reads a component.</strong> They are independent functions and a frequent source of confusion for newcomers.</p>
+
+<div class="webr-container" data-block-title="Different functions for different jobs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Different functions for different jobs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- ymd_hms(&quot;2024-07-15 14:30:00&quot;)
+
+minute(ts)        # read: returns 30
+#&gt; [1] 30
+
+minutes(15)       # build: returns a Period
+#&gt; [1] &quot;15M 0S&quot;
+
+ts + minutes(15)  # use the builder
+#&gt; [1] &quot;2024-07-15 14:45:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If you write <code>ts + minute(15)</code> (singular) you almost certainly meant <code>ts + minutes(15)</code>. The singular form returns an integer, not a period, and the addition silently treats it as seconds.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three patterns trip up most users.</strong> Knowing them up front saves debugging later.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Adding a bare integer treats it as seconds, not minutes.</strong> <code>start + 30</code> advances by 30 seconds, not 30 minutes. Always wrap the number in <code>minutes()</code> to get the unit you expect.</div></div>
+
+<div class="webr-container" data-block-title="The seconds vs minutes trap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The seconds vs minutes trap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">start &lt;- ymd_hms(&quot;2024-07-15 09:00:00&quot;)
+
+start + 30              # wrong: adds 30 seconds
+#&gt; [1] &quot;2024-07-15 09:00:30 UTC&quot;
+
+start + minutes(30)     # right: adds 30 minutes
+#&gt; [1] &quot;2024-07-15 09:30:00 UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is mixing periods and durations in one expression. <code>minutes(1) + dminutes(1)</code> works but the result coerces the duration into a period. Stick to one family per calculation to avoid surprises around DST.</p>
+
+<p>The third pitfall is naive timezones. If your input has no <code>tz</code>, lubridate assumes UTC and your "9 AM" may print as 4 AM after a <code>with_tz()</code> conversion. Set <code>tz = &quot;America/New_York&quot;</code> (or your locale) at parse time so the minute arithmetic lands where you expect.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tibble of three meeting start times. Add a <code>wait_min</code> column with values <code>10</code>, <code>15</code>, and <code>45</code>. Compute the reminder timestamp for each meeting using <code>minutes()</code>. Save the tibble to <code>ex_reminders</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compute meeting reminders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compute meeting reminders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(lubridate)
+
+ex_reminders &lt;- tibble(
+  meeting = c(&quot;X&quot;, &quot;Y&quot;, &quot;Z&quot;),
+  start = ymd_hms(c(&quot;2024-07-15 10:00:00&quot;,
+                    &quot;2024-07-15 11:30:00&quot;,
+                    &quot;2024-07-15 14:00:00&quot;)),
+  wait_min = c(10, 15, 45)
+)
+
+ex_reminders &lt;- ex_reminders %&gt;% # your code here
+
+ex_reminders
+#&gt; Expected: a tibble with a reminder column showing 10:10, 11:45, 14:45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_reminders &lt;- ex_reminders %&gt;% mutate(reminder = start + minutes(wait_min))
+ex_reminders
+#&gt; # A tibble: 3 x 4
+#&gt;   meeting start               wait_min reminder
+#&gt;   &lt;chr&gt;   &lt;dttm&gt;                 &lt;dbl&gt; &lt;dttm&gt;
+#&gt; 1 X       2024-07-15 10:00:00       10 2024-07-15 10:10:00
+#&gt; 2 Y       2024-07-15 11:30:00       15 2024-07-15 11:45:00
+#&gt; 3 Z       2024-07-15 14:00:00       45 2024-07-15 14:45:00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mutate()</code> evaluates <code>start + minutes(wait_min)</code> row-wise, building a <code>Period</code> from each numeric wait time and adding it to the matching start timestamp.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<p><strong>A handful of neighbouring constructors round out minute arithmetic.</strong> Reach for these when <code>minutes()</code> is not the right shape.</p>
+
+<ul>
+
+<li><a href="lubridate-hours-in-R.html">hours()</a> and <code>seconds()</code>: larger and smaller period constructors. Combine with <code>minutes()</code> for compound spans.</li>
+
+<li><code>days()</code>, <code>weeks()</code>, <code>months()</code>, <code>years()</code>: calendar-grain period constructors. Same arithmetic model.</li>
+
+<li><code>dminutes()</code>, <code>dhours()</code>, <code>dseconds()</code>: duration siblings. Use when you need exact second counts across DST.</li>
+
+<li><a href="lubridate-minute-in-R.html">minute()</a>: the accessor that reads the minute-of-hour from a datetime.</li>
+
+<li><code>hms()</code>, <code>hm()</code>, and <code>ms()</code>: parse <code>&quot;HH:MM:SS&quot;</code>, <code>&quot;HH:MM&quot;</code>, and <code>&quot;MM:SS&quot;</code> strings into <code>Period</code> objects.</li>
+
+<li><code>period()</code>: generic period constructor with named arguments, e.g., <code>period(30, &quot;minutes&quot;)</code>.</li>
+
+</ul>
+
+<p>For the full <a class="auto-link" href="lubridate-Cheat-Sheet-R.html" title="lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates">lubridate reference</a>, see the <a href="https://lubridate.tidyverse.org/reference/index.html">official lubridate docs</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does <code>minutes()</code> do in R?</strong></p>
+
+<p><code>minutes(n)</code> from the lubridate package returns a <code>Period</code> object representing <code>n</code> minutes of clock time. You add or subtract it from a <code>POSIXct</code> or <code>Date</code> value to shift the timestamp by that many minutes. The result respects daylight-saving boundaries because periods track wall-clock minutes rather than raw elapsed seconds.</p>
+
+<p><strong>What is the difference between <code>minute()</code> and <code>minutes()</code> in lubridate?</strong></p>
+
+<p><code>minute()</code> is an accessor: it reads the minute-of-hour (0 to 59) out of a datetime and returns an integer. <code>minutes()</code> is a constructor: it builds a <code>Period</code> you can add to a datetime to shift it forward or backward. The plural form is for arithmetic; the singular form is for inspection.</p>
+
+<p><strong>How do I add minutes to a datetime in R?</strong></p>
+
+<p>Use <code>your_datetime + minutes(n)</code>. For example, <code>ymd_hms(&quot;2024-07-15 09:00:00&quot;) + minutes(30)</code> returns <code>&quot;2024-07-15 09:30:00 UTC&quot;</code>. The <code>+</code> operator is overloaded to recognise lubridate <code>Period</code> objects, so the arithmetic reads like plain math without manual second conversion.</p>
+
+<p><strong>What is the difference between Period and Duration in lubridate?</strong></p>
+
+<p>A <code>Period</code> (from <code>minutes()</code>, <code>hours()</code>, <code>days()</code>) tracks clock units and preserves wall-clock time across daylight-saving transitions. A <code>Duration</code> (from <code>dminutes()</code>, <code>dhours()</code>, <code>ddays()</code>) tracks physical seconds and stays exact across DST. Use periods for human schedules and durations for elapsed-time calculations.</p>
+
+<p><strong>Can I use fractional minutes with <code>minutes()</code>?</strong></p>
+
+<p>Fractional inputs like <code>minutes(2.5)</code> are accepted but for sub-minute precision the readable pattern is <code>minutes(2) + seconds(30)</code>. Splitting the components keeps the period's printed form predictable and avoids edge cases where downstream code rounds fractional minute slots.</p>
