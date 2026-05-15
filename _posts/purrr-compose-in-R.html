@@ -1,0 +1,289 @@
+---
+title: "purrr compose() in R: Combine Functions Into One"
+description: "Learn purrr compose() in R to combine multiple functions into a single reusable function. Covers the .dir argument, execution order, and three common pitfalls."
+keywords: "purrr compose, compose function R, purrr compose examples, R compose functions, function composition R, compose two functions R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "compose()|purrr compose|purrr::compose()|function composition|composed function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr compose() in R: Combine Functions Into One</h1>
+
+<p class="lead">purrr compose() in R takes two or more functions and returns a single new function that runs them in sequence, feeding each result into the next. It turns a repeated chain of steps into one named, reusable function you can pass around like any other.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>compose(toupper, trimws)<span class="qa-cmt">                   # right-to-left: trim, then upper</span>
+compose(trimws, toupper, .dir = &quot;forward&quot;)<span class="qa-cmt"> # left-to-right order</span>
+compose(round, \(x) x / 10)<span class="qa-cmt">                # mix named and anonymous</span>
+clean &lt;- compose(toupper, trimws)<span class="qa-cmt">          # save the composed function</span>
+map_chr(words, compose(toupper, trimws))<span class="qa-cmt">   # use one inline, inside map</span>
+do.call(compose, fn_list)<span class="qa-cmt">                  # compose a list of functions</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is compose() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">build one reusable function from several</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">compose(f, g)</text><text x="125" y="126" class="branch-label">transform a value through steps once</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">x |&gt; f() |&gt; g()</text><text x="125" y="182" class="branch-label">pre-set some arguments of a function</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">partial(fn, digits = 2)</text><text x="125" y="238" class="branch-label">flip a predicate's TRUE/FALSE result</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">negate(is.null)</text><text x="125" y="294" class="branch-label">apply one function across a list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">map(x, fn)</text><text x="125" y="350" class="branch-label">collapse a list of functions onto a value</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">reduce(fns, op)</text></svg></div>
+
+<h2>What compose does</h2>
+
+<p><strong>compose() bundles a pipeline into a function.</strong> You hand it the functions you would otherwise call one after another, and it returns a <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a> that performs the whole sequence on whatever input you give it later. The functions are not run when you call compose(); nothing happens until you call the function it returns.</p>
+
+<p>The default direction is the part that surprises newcomers. With <code>compose(f, g)</code>, the rightmost function <code>g</code> runs first and <code>f</code> runs on its output, matching the mathematical reading of "f after g". This is the opposite of a left-to-right pipe, and you can switch to pipe order with the <code>.dir</code> argument.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A composed function is a value, not a result.</strong> compose() hands back a function object, so you store it in a variable and reuse it everywhere a function is expected, including inside map(), as an argument to apply(), or passed to another function.</div></div>
+
+<h2>compose syntax</h2>
+
+<p><strong>The signature is <code>compose(..., .dir = c(&quot;backward&quot;, &quot;forward&quot;))</code>.</strong> Every argument before <code>.dir</code> is a function to include in the chain.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td>Two or more functions to compose. Named functions, anonymous <code>\(x)</code> functions, and purrr <code>~</code> formulas all work.</td>
+</tr>
+<tr>
+<td><code>.dir</code></td>
+<td>Direction of application. <code>&quot;backward&quot;</code> (default) runs the last function first; <code>&quot;forward&quot;</code> runs the first function first.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each function should accept the output of the previous one. Only the function that runs first receives the arguments you pass to the composed function. Every later function gets a single value, the running result.</p>
+
+<div class="webr-container" data-block-title="Load purrr and compose two functions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and compose two functions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+clean &lt;- compose(toupper, trimws)
+clean(&quot;  some text  &quot;)
+#&gt; [1] &quot;SOME TEXT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call <code>compose(toupper, trimws)</code> reads as "uppercase after trim". trimws() runs first because it sits on the right, then toupper() works on the trimmed string.</p>
+
+<h2>Compose functions and set the order</h2>
+
+<p><strong>Saved once, a composed function works anywhere.</strong> The example below builds a text-cleaning function from three steps and applies it across a vector with <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_chr()</a>. The composition itself is defined a single time, then reused for every element.</p>
+
+<div class="webr-container" data-block-title="Compose three steps and map over a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compose three steps and map over a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slugify &lt;- compose(\(s) gsub(&quot; &quot;, &quot;-&quot;, s), tolower, trimws)
+
+words &lt;- c(&quot;  Hello World &quot;, &quot; Data Science &quot;)
+map_chr(words, slugify)
+#&gt; [1] &quot;hello-world&quot;   &quot;data-science&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading right to left: trimws() strips the padding, tolower() lowercases the text, and the anonymous function swaps spaces for hyphens. The whole transform now has a name, so it stays readable wherever it appears.</p>
+
+<h3>Control direction with .dir</h3>
+
+<p><strong>Order matters whenever the functions do not commute.</strong> Numeric steps make the difference visible. The same two functions produce different results depending on <code>.dir</code>.</p>
+
+<div class="webr-container" data-block-title="Backward vs forward direction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Backward vs forward direction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">add1   &lt;- function(x) x + 1
+double &lt;- function(x) x * 2
+
+compose(add1, double)(5)
+#&gt; [1] 11
+compose(add1, double, .dir = &quot;forward&quot;)(5)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In the backward (default) call, double() runs first: <code>5 * 2</code> then <code>+ 1</code> gives 11. In the forward call, add1() runs first: <code>5 + 1</code> then <code>* 2</code> gives 12. Choose <code>&quot;forward&quot;</code> when you want the call to read in the same order the data flows through it.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>.dir = &quot;forward&quot;</code> to match pipe order.</strong> If your team reads code as a top-to-bottom pipeline, forward composition keeps <code>compose(step1, step2, step3)</code> in the same order as <code>x |&gt; step1() |&gt; step2() |&gt; step3()</code>.</div></div>
+
+<h2>compose vs the pipe and partial</h2>
+
+<p><strong>compose() builds a function; the pipe transforms a value.</strong> They solve related problems but are not interchangeable. Reach for the tool that matches whether you need a reusable function or a one-time result.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Produces</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compose(f, g)</code></td>
+<td>A new reusable function</td>
+<td>A multi-step transform you apply many times</td>
+</tr>
+<tr>
+<td>`x \</td>
+<td>> f() \</td>
+<td>> g()`</td>
+<td>A value</td>
+<td>Transforming one value once, inline</td>
+</tr>
+<tr>
+<td><code>partial(f, n = 2)</code></td>
+<td>A function with arguments fixed</td>
+<td>Pre-filling arguments, not chaining steps</td>
+</tr>
+<tr>
+<td><code>reduce(fns, op)</code></td>
+<td>A value</td>
+<td>Applying a list of functions decided at runtime</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. If you would copy the same chain of calls into three places, name it once with compose(). If the chain runs in exactly one spot, the pipe is clearer. compose() and <a class="auto-link" href="R-Currying-and-Partial-Application.html" title="R Currying & Partial Application: purrr::partial() & rlang">partial()</a> pair well, since partial() adapts a function's signature and compose() strings the adapted functions together.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> There is no built-in compose, but <code>toolz.compose</code> behaves like the default backward direction, and <code>functools.reduce</code> can chain functions manually. purrr's <code>.dir</code> argument gives you both orders without extra code.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The default order runs right to left.</strong> Reading <code>compose(a, b)</code> as "a then b" is the most common mistake. The rightmost function always runs first under the default <code>&quot;backward&quot;</code> direction. When in doubt, pass <code>.dir = &quot;forward&quot;</code> and list the functions in execution order.</p>
+
+<p><strong>Only the first-applied function takes multiple arguments.</strong> Every later function receives a single value. A multi-argument function placed anywhere but the first-applied slot fails.</p>
+
+<div class="webr-container" data-block-title="Multi-argument function in the wrong slot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-argument function in the wrong slot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- compose(sqrt, \(x, y) x / y, .dir = &quot;forward&quot;)
+g(8, 2)
+#&gt; Error in sqrt(8, 2): 2 arguments passed to 'sqrt' which requires 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>.dir = &quot;forward&quot;</code> makes sqrt() run first, so it receives both <code>8</code> and <code>2</code>. Put the multi-argument function in the first-applied slot instead.</p>
+
+<p><strong>compose() captures functions by value.</strong> The composed function stores the function objects as they were at creation. Redefining a source function afterward does not change the composition.</p>
+
+<div class="webr-container" data-block-title="Redefining a source function has no effect">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Redefining a source function has no effect</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step &lt;- function(x) x + 1
+bump &lt;- compose(step, step)
+
+step &lt;- function(x) x * 100
+bump(1)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>bump() still adds one twice, because compose() captured the original <code>step</code> before it was redefined.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a function called <code>ex_norm</code> that trims whitespace and then lowercases a string, using compose(). Apply it to <code>&quot;  MixedCase  &quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compose trim and lowercase">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compose trim and lowercase</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compose tolower after trimws
+ex_norm &lt;- # your code here
+
+ex_norm(&quot;  MixedCase  &quot;)
+#&gt; Expected: &quot;mixedcase&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_norm &lt;- compose(tolower, trimws)
+ex_norm(&quot;  MixedCase  &quot;)
+#&gt; [1] &quot;mixedcase&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Under the default backward direction, trimws() runs first because it sits on the right, then tolower() lowercases the trimmed result.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions pair naturally with compose() when you build small function toolkits:</p>
+
+<ul>
+
+<li>The partial function fixes some of a function's arguments, producing a simpler signature that composes cleanly.</li>
+
+<li>The negate function returns a predicate that flips TRUE and FALSE, handy as one stage of a composition.</li>
+
+<li>The <a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">map function</a> applies a composed function across every element of a list or vector.</li>
+
+<li>The reduce function folds a list of functions onto a value when the steps are decided at runtime.</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/compose.html">purrr compose reference</a> for the full specification.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does compose() do in purrr?</strong> compose() takes two or more functions and returns a single new function that runs them in sequence. Calling the returned function feeds your input through each stage, passing every result to the next function. It lets you name a repeated chain of steps once and reuse it as an ordinary function, including inside map() or as an argument to other functions.</p>
+
+<p><strong>Does purrr compose run functions left to right or right to left?</strong> By default, right to left. With <code>compose(f, g)</code> the rightmost function <code>g</code> runs first, then <code>f</code> works on its output, which matches the mathematical phrase "f after g". To run functions in the order you wrote them, pass <code>.dir = &quot;forward&quot;</code>. Forward composition reads like a pipeline and is usually easier for teammates to follow.</p>
+
+<p><strong>What is the difference between compose() and the <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">pipe operator</a>?</strong> The pipe <code>|&gt;</code> sends one value through a series of calls and produces a value immediately. compose() produces a function instead, with no value computed until you call it. Use the pipe for a transformation that happens once, inline. Use compose() when you want to name the chain and reuse it in several places, or pass it where a function is expected.</p>
+
+<p><strong>Can I <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose functions</a> that take multiple arguments?</strong> Yes, but only the first-applied function receives more than one argument. Every later stage gets a single value, the running result. Place a multi-argument function in the first-applied slot: the rightmost position under the default direction, or the leftmost position with <code>.dir = &quot;forward&quot;</code>. Functions after the first must accept exactly one input.</p>
+
+<p><strong>Is there a base R equivalent of purrr compose()?</strong> Base R has no dedicated compose function. You can nest calls directly, as in <code>toupper(trimws(x))</code>, or build a composer with <code>Reduce()</code>. purrr's compose() is shorter, accepts anonymous and formula functions, and offers the <code>.dir</code> argument so you control execution order without rewriting the chain.</p>
