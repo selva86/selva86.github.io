@@ -1,0 +1,365 @@
+---
+title: "readxl skip vs range in R: Which One to Use"
+description: "Compare the skip and range arguments of readxl read_excel() in R. Learn when to drop header rows with skip and when to read an exact cell block of data."
+keywords: "readxl skip vs range, read_excel skip argument, read_excel range argument, skip rows in read_excel, readxl range vs skip, read Excel range R, readxl skip rows"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "read_excel()|readxl skip|readxl range|skip argument|range argument"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readxl skip vs range in R: Which One to Use</h1>
+
+<p class="lead">In readxl, <code>skip</code> drops a fixed number of rows from the top of a sheet before reading, while <code>range</code> reads an exact rectangular block of cells. Use <code>skip</code> for stray title rows, and use <code>range</code> when you need precise control over both <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_excel(&quot;f.xlsx&quot;, skip = 3)<span class="qa-cmt">                       # drop the first 3 rows</span>
+read_excel(&quot;f.xlsx&quot;, skip = 3, n_max = 100)<span class="qa-cmt">          # skip, then cap rows</span>
+read_excel(&quot;f.xlsx&quot;, range = &quot;B3:D90&quot;)<span class="qa-cmt">               # exact A1 cell block</span>
+read_excel(&quot;f.xlsx&quot;, range = &quot;Data!B3:D90&quot;)<span class="qa-cmt">          # range with a sheet name</span>
+read_excel(&quot;f.xlsx&quot;, range = cell_rows(3:90))<span class="qa-cmt">        # rows only, all columns</span>
+read_excel(&quot;f.xlsx&quot;, range = cell_cols(&quot;B:D&quot;))<span class="qa-cmt">       # columns only, all rows</span>
+read_excel(&quot;f.xlsx&quot;, range = anchored(&quot;B4&quot;, c(10,3)))# anchored 10x3 block</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Which read_excel control do I need?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop N junk rows at the top</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_excel(f, skip = N)</text><text x="125" y="126" class="branch-label">read an exact A1 cell block</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_excel(f, range = &quot;B3:D90&quot;)</text><text x="125" y="182" class="branch-label">limit only the row count</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_excel(f, n_max = 100)</text><text x="125" y="238" class="branch-label">choose a sheet by name</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">read_excel(f, sheet = &quot;Data&quot;)</text><text x="125" y="294" class="branch-label">list sheet names first</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">excel_sheets(f)</text><text x="125" y="350" class="branch-label">read rows only, any width</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_excel(f, range = cell_rows(3:90))</text></svg></div>
+
+<h2>skip and range in one sentence</h2>
+
+<p><strong><code>skip</code> and <code>range</code> both control which part of a sheet <code>read_excel()</code> imports, but they work at different scales.</strong> The <code>skip</code> argument counts rows from the top and discards them. The <code>range</code> argument names an absolute rectangle of cells, so it controls rows <em>and</em> columns at once.</p>
+
+<p>To see the difference, build a messy spreadsheet with two title rows above the real data. The <code>writexl</code> package writes the file so you can read it straight back.</p>
+
+<div class="webr-container" data-block-title="Create a sample Excel file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a sample Excel file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+library(writexl)
+
+# A messy sheet: 2 title rows, a header row, then 3 data rows
+messy &lt;- data.frame(
+  product = c(&quot;Quarterly Sales Report&quot;, &quot;Generated Q1 2024&quot;, &quot;product&quot;,
+              &quot;Apples&quot;, &quot;Pears&quot;, &quot;Plums&quot;),
+  units   = c(&quot;&quot;, &quot;&quot;, &quot;units&quot;, &quot;120&quot;, &quot;90&quot;, &quot;75&quot;),
+  revenue = c(&quot;&quot;, &quot;&quot;, &quot;revenue&quot;, &quot;480&quot;, &quot;270&quot;, &quot;300&quot;)
+)
+write_xlsx(messy, &quot;sales.xlsx&quot;, col_names = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the file with no arguments and the two title rows leak in as data, while the first title becomes a column name.</p>
+
+<div class="webr-container" data-block-title="Reading without skip or range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading without skip or range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;)
+#&gt; # A tibble: 5 x 3
+#&gt;   `Quarterly Sales Report` ...2  ...3   
+#&gt;   &lt;chr&gt;                    &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Generated Q1 2024        NA    NA     
+#&gt; 2 product                  units revenue
+#&gt; 3 Apples                   120   480    
+#&gt; 4 Pears                    90    270    
+#&gt; 5 Plums                    75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Using skip to drop rows from the top</h2>
+
+<p><strong>The <code>skip</code> argument removes a set number of rows before readxl looks for a header.</strong> Pass <code>skip = 2</code> to discard both title rows. The next row (<code>product</code>, <code>units</code>, <code>revenue</code>) is then treated as the header, and the three fruit rows become the data.</p>
+
+<div class="webr-container" data-block-title="Using the skip argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Using the skip argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;, skip = 2)
+#&gt; # A tibble: 3 x 3
+#&gt;   product units revenue
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Apples  120   480    
+#&gt; 2 Pears   90    270    
+#&gt; 3 Plums   75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>skip</code> only affects rows. It keeps every column in the sheet, so it is the right tool when your data starts a few rows down but spans the full width. Combine it with <code>n_max</code> to also cap how many data rows you read.</p>
+
+<div class="webr-container" data-block-title="Combining skip with n_max">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combining skip with n_max</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;, skip = 2, n_max = 2)
+#&gt; # A tibble: 2 x 3
+#&gt;   product units revenue
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Apples  120   480    
+#&gt; 2 Pears   90    270    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>skip</code> is a relative count, <code>range</code> is an absolute address.</strong> Think of <code>skip</code> as "ignore the first N rows" and <code>range</code> as "go to this exact corner of the sheet." That mental model tells you which one to reach for.</div></div>
+
+<h2>Using range to read an exact cell block</h2>
+
+<p><strong>The <code>range</code> argument names a rectangle of cells in A1 notation, so it controls rows and columns together.</strong> Reading <code>range = &quot;A3:C6&quot;</code> starts at row 3 (the header), ends at row 6, and keeps columns A through C. The result matches the clean <code>skip</code> read above.</p>
+
+<div class="webr-container" data-block-title="Reading an A1 cell range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reading an A1 cell range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;, range = &quot;A3:C6&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   product units revenue
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Apples  120   480    
+#&gt; 2 Pears   90    270    
+#&gt; 3 Plums   75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>range</code> also picks columns, you can drop unwanted ones. Reading <code>range = &quot;B3:C6&quot;</code> keeps only <code>units</code> and <code>revenue</code> and ignores the <code>product</code> column entirely.</p>
+
+<div class="webr-container" data-block-title="Selecting columns with range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Selecting columns with range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;, range = &quot;B3:C6&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   units revenue
+#&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 120   480    
+#&gt; 2 90    270    
+#&gt; 3 75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you want a row range but every column, the <code>cell_rows()</code> helper avoids hard-coding a final column letter. It is the closest <code>range</code> equivalent to a pure <code>skip</code>.</p>
+
+<div class="webr-container" data-block-title="Row range with cell_rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row range with cell_rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_excel(&quot;sales.xlsx&quot;, range = cell_rows(3:6))
+#&gt; # A tibble: 3 x 3
+#&gt;   product units revenue
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Apples  120   480    
+#&gt; 2 Pears   90    270    
+#&gt; 3 Plums   75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>skip vs range: which should you use</h2>
+
+<p><strong>Reach for <code>skip</code> when only the row offset matters, and <code>range</code> when you need to box in a region.</strong> The table below sums up the trade-offs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>skip</code></th>
+<th><code>range</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Controls rows</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Controls columns</td>
+<td>No, keeps all</td>
+<td>Yes, exact block</td>
+</tr>
+<tr>
+<td>Has an end point</td>
+<td>No, reads to the last row</td>
+<td>Yes, fixed rectangle</td>
+</tr>
+<tr>
+<td>Notation</td>
+<td>Integer count</td>
+<td>A1 string or <code>cell_*()</code> helper</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Stray title rows above full-width data</td>
+<td>Pulling one table out of a busy sheet</td>
+</tr>
+</tbody>
+</table>
+
+<p>A simple rule: if your only problem is junk rows at the top, use <code>skip</code>. If the sheet holds several tables, notes, or extra columns and you want just one block, use <code>range</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>range</code> overrides <code>skip</code>.</strong> If you pass both, readxl ignores <code>skip</code> and <code>n_max</code> and honors <code>range</code> only. Setting both produces no error and no warning, so the silent override is easy to miss.</div></div>
+
+<div class="webr-container" data-block-title="range silently overrides skip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">range silently overrides skip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># skip = 5 is ignored because range is set
+read_excel(&quot;sales.xlsx&quot;, skip = 5, range = &quot;A3:C6&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   product units revenue
+#&gt;   &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;  
+#&gt; 1 Apples  120   480    
+#&gt; 2 Pears   90    270    
+#&gt; 3 Plums   75    300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Off-by-one errors are the most frequent <code>skip</code> mistake.</strong> To reach a header on Excel row 3, you skip the 2 rows above it, so <code>skip = 2</code>. The <code>skip</code> value is the count of rows discarded, not the row number where data begins.</p>
+
+<p><strong>Passing a numeric vector to <code>range</code> fails.</strong> The <code>range</code> argument expects an A1 string such as <code>&quot;A3:C6&quot;</code> or a <code>cell_*()</code> helper. A bare <code>range = 3:6</code> raises an error. Use <code>range = cell_rows(3:6)</code> for a row-only selection.</p>
+
+<p><strong>Skipping rows does not fix column types.</strong> Cells stored as text in Excel still read as <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>. After a clean <code>skip</code> or <code>range</code> read, apply <code>readr::type_convert()</code> or set <code>col_types</code> to get numeric columns.</p>
+
+<div class="webr-container" data-block-title="Converting types after a clean read">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Converting types after a clean read</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean &lt;- read_excel(&quot;sales.xlsx&quot;, range = &quot;A3:C6&quot;)
+clean$units &lt;- as.numeric(clean$units)
+clean$units
+#&gt; [1] 120  90  75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From <code>sales.xlsx</code>, read only the <code>revenue</code> column for all three products. Skip the title and header rows so the result has no column name from the file. Save it to <code>ex_revenue</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read one column with range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read one column with range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read just the revenue values
+ex_revenue &lt;- # your code here
+
+ex_revenue
+#&gt; Expected: a 3-row tibble with one column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_revenue &lt;- read_excel(&quot;sales.xlsx&quot;, range = &quot;C4:C6&quot;, col_names = &quot;revenue&quot;)
+ex_revenue
+#&gt; # A tibble: 3 x 1
+#&gt;   revenue
+#&gt;   &lt;chr&gt;  
+#&gt; 1 480    
+#&gt; 2 270    
+#&gt; 3 300    </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>range = &quot;C4:C6&quot;</code> boxes in column C, rows 4 to 6, so only the three revenue values load. Setting <code>col_names = &quot;revenue&quot;</code> supplies a name because the range skips the header row.</p>
+
+</details>
+</section>
+
+<h2>Related readxl functions</h2>
+
+<p><strong>These helpers extend the row and column control that <code>skip</code> and <code>range</code> give you.</strong></p>
+
+<ul>
+
+<li><a href="readxl-read_excel-in-R.html">read_excel()</a>: the main reader that accepts both <code>skip</code> and <code>range</code>.</li>
+
+<li><a href="readxl-cell_rows-in-R.html">cell_rows()</a>: build a <code>range</code> from row numbers only.</li>
+
+<li><a href="readxl-cell_cols-in-R.html">cell_cols()</a>: build a <code>range</code> from column letters only.</li>
+
+<li><a href="readxl-anchored-in-R.html">anchored()</a>: define a <code>range</code> by a corner cell plus a width and height.</li>
+
+<li><a href="readxl-excel_sheets-in-R.html">excel_sheets()</a>: list sheet names before deciding what to read.</li>
+
+</ul>
+
+<p>See the official <a href="https://readxl.tidyverse.org/reference/read_excel.html">readxl read_excel reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does range override skip in read_excel()?</strong></p>
+
+<p>Yes. When you supply <code>range</code>, readxl ignores both <code>skip</code> and <code>n_max</code>. The override is silent, with no error or warning, so passing both arguments is a common source of confusion. If you need a row offset, either use <code>skip</code> alone or express the offset inside the <code>range</code>, for example <code>cell_rows(3:90)</code>.</p>
+
+<p><strong>How do I skip rows but keep the header in readxl?</strong></p>
+
+<p>Set <code>skip</code> to the number of rows above the header. With two title rows, <code>skip = 2</code> discards them, and readxl then treats the next row as the header automatically. You do not need a separate header argument. If there is no header row at all, add <code>col_names = FALSE</code> or pass your own names.</p>
+
+<p><strong>Can range select specific columns only?</strong></p>
+
+<p>Yes, and this is the main reason to prefer <code>range</code> over <code>skip</code>. A range like <code>&quot;B3:D90&quot;</code> keeps only columns B through D. The <code>skip</code> argument cannot drop columns; it always reads the full width of the sheet. Use <code>cell_cols(&quot;B:D&quot;)</code> if you want those columns for every row.</p>
+
+<p><strong>What is the difference between skip and n_max?</strong></p>
+
+<p><code>skip</code> removes rows from the top before reading, while <code>n_max</code> caps how many data rows are read after the header. They work together: <code>skip = 2, n_max = 100</code> ignores two title rows and then reads at most 100 data rows. Both are ignored when <code>range</code> is set.</p>
