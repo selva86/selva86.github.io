@@ -1,0 +1,358 @@
+---
+title: "purrr map_dfr() in R: Map and Row-Bind to Data Frames"
+description: "purrr map_dfr() applies a function to each element and row-binds the results into one data frame. Learn its syntax, the .id key, map2_dfr, and list_rbind."
+keywords: "purrr map_dfr, map_dfr function R, purrr map_dfr examples, R map_dfr data frame, map_dfr vs map, map_dfr .id, map2_dfr"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "map_dfr()|purrr map_dfr|purrr::map_dfr()|row-bind data frames|map_dfr in R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr map_dfr() in R: Map and Row-Bind to Data Frames</h1>
+
+<p class="lead">purrr <code>map_dfr()</code> applies a function to each element of a list or vector and row-binds the results into a single data frame. The "r" stands for rows, so each call's output is stacked on top of the previous one.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_dfr(x, f)<span class="qa-cmt">                    # row-bind f(x) outputs</span>
+map_dfr(x, f, .id = &quot;key&quot;)<span class="qa-cmt">       # add a column of source keys</span>
+map2_dfr(x, y, f)<span class="qa-cmt">                # two inputs, then row-bind</span>
+imap_dfr(x, f)<span class="qa-cmt">                   # use name/index as the 2nd arg</span>
+pmap_dfr(list(a, b), f)<span class="qa-cmt">          # many inputs, then row-bind</span>
+map(x, f) |&gt; list_rbind()<span class="qa-cmt">        # purrr 1.0 replacement</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">map_dfr</a>() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">stack row-wise data frames</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map_dfr(x, f)</text><text x="125" y="126" class="branch-label">combine column-wise instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map_dfc(x, f)</text><text x="125" y="182" class="branch-label">modern purrr 1.0 row-bind</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map(x, f) |&gt; list_rbind()</text><text x="125" y="238" class="branch-label">keep results as a plain list</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map(x, f)</text><text x="125" y="294" class="branch-label">collapse to a numeric vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl</a>(x, f)</text><text x="125" y="350" class="branch-label">run for side effects only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">walk(x, f)</text></svg></div>
+
+<h2>What map_dfr() does in one sentence</h2>
+
+<p><strong>map_dfr() maps and row-binds in one step.</strong> It iterates over <code>.x</code>, calls <code>.f</code> on each element, and passes every result to <code>dplyr::bind_rows()</code>. The function expects each <code>.f</code> output to be a data frame or a named vector. The final return value is one combined data frame with as many rows as all the pieces put together.</p>
+
+<p>This makes <code>map_dfr()</code> the natural tool for <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">split-apply-combine</a> work: split data into groups, compute a per-group summary, and reassemble the summaries into a tidy table. It also shines when reading many files, where each file produces a data frame that you want stacked.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>map_dfr() was superseded in purrr 1.0.0.</strong> It still works and is not deprecated, but the tidyverse team now recommends <code>map()</code> followed by <code>list_rbind()</code>. The reasoning: the <code>_dfr</code> suffix wrongly suggests a length-1 constraint like <code>map_dbl()</code>, and it forces a hard dependency on dplyr. Existing code is safe to keep.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature is small but the arguments matter.</strong> Here is the full call shape:</p>
+
+<div class="webr-container" data-block-title="map_dfr function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">map_dfr function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dfr(.x, .f, ..., .id = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>.x</code>: a list or atomic vector to iterate over.</li>
+
+<li><code>.f</code>: a function, formula (<code>~ .x + 1</code>), or a string/integer for element extraction. Its output must be a data frame or named vector.</li>
+
+<li><code>...</code>: extra arguments passed on to every call of <code>.f</code>.</li>
+
+<li><code>.id</code>: optional string. When <code>.x</code> is named, it adds a column of that name holding each element's name; useful for tracking which group a row came from.</li>
+
+</ul>
+
+<p>Load purrr and prepare a grouped list to map over. Splitting <code>mtcars</code> by cylinder count gives a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of three data frames.</p>
+
+<div class="webr-container" data-block-title="Load purrr and split data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and split data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+library(dplyr)
+
+cyl_groups &lt;- split(mtcars, mtcars$cyl)
+length(cyl_groups)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Worked examples</h2>
+
+<p><strong>Each example returns a data frame from .f and lets map_dfr() stack them.</strong> Start with a one-row-per-group summary.</p>
+
+<div class="webr-container" data-block-title="Row-bind a summary per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row-bind a summary per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dfr(cyl_groups, function(df) {
+  data.frame(n = nrow(df), mean_mpg = round(mean(df$mpg), 1))
+})
+#&gt;    n mean_mpg
+#&gt; 1 11     26.7
+#&gt; 2  7     19.7
+#&gt; 3 14     15.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result has three rows, one per cylinder group. But you lost track of which row is which cylinder. The <code>.id</code> argument fixes that by promoting the list names to a column.</p>
+
+<div class="webr-container" data-block-title="Keep the source key with .id">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the source key with .id</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dfr(cyl_groups, function(df) {
+  data.frame(n = nrow(df), mean_mpg = round(mean(df$mpg), 1))
+}, .id = &quot;cyl&quot;)
+#&gt;   cyl  n mean_mpg
+#&gt; 1   4 11     26.7
+#&gt; 2   6  7     19.7
+#&gt; 3   8 14     15.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set .id when .x is named.</strong> Without it, the source key disappears and you cannot tell which group each row describes. The <code>.id</code> column is the cheapest insurance against an ambiguous output table.</div></div>
+
+<p>Each <code>.f</code> call can return more than one row. Here every group contributes a min and a max row, so the six pieces stack into a six-row frame.</p>
+
+<div class="webr-container" data-block-title="Return multiple rows per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return multiple rows per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map_dfr(cyl_groups, function(df) {
+  data.frame(stat = c(&quot;min&quot;, &quot;max&quot;),
+             mpg  = c(min(df$mpg), max(df$mpg)))
+}, .id = &quot;cyl&quot;)
+#&gt;   cyl stat  mpg
+#&gt; 1   4  min 21.4
+#&gt; 2   4  max 33.9
+#&gt; 3   6  min 17.8
+#&gt; 4   6  max 21.4
+#&gt; 5   8  min 10.4
+#&gt; 6   8  max 19.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the function needs two inputs that vary together, use <code>map2_dfr()</code>. It walks two vectors in parallel and row-binds the results.</p>
+
+<div class="webr-container" data-block-title="Map over two inputs with map2_dfr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map over two inputs with map2_dfr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sizes &lt;- c(small = 3, large = 8)
+map2_dfr(sizes, names(sizes), function(n, label) {
+  data.frame(label = label, total = sum(seq_len(n)))
+})
+#&gt;   label total
+#&gt; 1 small     6
+#&gt; 2 large    36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>map_dfr() vs list_rbind() and map_dfc()</h2>
+
+<p><strong>Pick the binder that matches your data shape.</strong> <code>map_dfr()</code> stacks rows, <code>map_dfc()</code> stacks columns, and <code>list_rbind()</code> is the modern row-stacking replacement.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Binds</th>
+<th>Needs dplyr</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map_dfr(x, f)</code></td>
+<td>rows</td>
+<td>yes</td>
+<td>superseded</td>
+</tr>
+<tr>
+<td><code>map_dfc(x, f)</code></td>
+<td>columns</td>
+<td>yes</td>
+<td>superseded</td>
+</tr>
+<tr>
+<td>`map(x, f) \</td>
+<td>> list_rbind()`</td>
+<td>rows</td>
+<td>no</td>
+<td>recommended</td>
+</tr>
+<tr>
+<td>`map(x, f) \</td>
+<td>> list_cbind()`</td>
+<td>columns</td>
+<td>no</td>
+<td>recommended</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If every <code>.f</code> call produces a slice of the same table and you want them stacked vertically, you need row-binding: either <code>map_dfr()</code> or the newer <code>list_rbind()</code>. If each call produces a new column for the same rows, use <code>map_dfc()</code> or <code>list_cbind()</code>. The modern pair drops the dplyr dependency and keeps the iteration step (<code>map()</code>) separate from the combining step.</p>
+
+<div class="webr-container" data-block-title="The purrr 1.0 replacement for map_dfr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The purrr 1.0 replacement for map_dfr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyl_groups |&gt;
+  map(function(df) data.frame(n = nrow(df))) |&gt;
+  list_rbind(names_to = &quot;cyl&quot;)
+#&gt;   cyl  n
+#&gt; 1   4 11
+#&gt; 2   6  7
+#&gt; 3   8 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of map_dfr() as map() plus a stack.</strong> The <code>_dfr</code> suffix is just <code>map()</code> with <code>bind_rows()</code> welded onto the end. Once you see it that way, <code>list_rbind()</code> is the same idea with the weld removed, which is why the tidyverse split them back apart in purrr 1.0.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most map_dfr() errors trace back to what .f returns.</strong> Three mistakes account for nearly all of them.</p>
+
+<p>The first is returning something that is not a data frame. If <code>.f</code> returns a bare numeric vector, <code>bind_rows()</code> cannot stack it cleanly. Wrap scalar results in <code>data.frame()</code> so each call produces a proper one-row frame.</p>
+
+<div class="webr-container" data-block-title="Pitfall: returning a bare value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: returning a bare value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Fails or warns: bind_rows() cannot stack unnamed scalars
+map_dfr(cyl_groups, function(df) nrow(df))
+
+# Fix: return a one-row data frame
+map_dfr(cyl_groups, function(df) data.frame(n = nrow(df)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is inconsistent columns across calls. If one call returns columns <code>a, b</code> and another returns <code>a, c</code>, <code>bind_rows()</code> keeps all three and fills the gaps with <code>NA</code>. That is sometimes intended, but it often signals a bug in <code>.f</code>. The third is forgetting that <code>map_dfr()</code> needs dplyr installed; on a minimal setup the call fails with a missing-package error, which is another reason to prefer <code>list_rbind()</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_dfr()</code> on <code>cyl_groups</code> to build a table with one row per cylinder group containing the group's <code>cyl</code> key and the maximum horsepower (<code>hp</code>). Save it to <code>ex_hp</code>.</p>
+<div class="webr-container" data-block-title="Your turn: max hp per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: max hp per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: row-bind a max-hp summary
+ex_hp &lt;- # your code here
+
+ex_hp
+#&gt; Expected: 3 rows, columns cyl and max_hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp &lt;- map_dfr(cyl_groups, function(df) {
+  data.frame(max_hp = max(df$hp))
+}, .id = &quot;cyl&quot;)
+ex_hp
+#&gt;   cyl max_hp
+#&gt; 1   4    113
+#&gt; 2   6    175
+#&gt; 3   8    335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each call returns a one-row <code>data.frame</code> with the group maximum, and <code>.id = &quot;cyl&quot;</code> promotes the list names into a labeling column so the three rows stay identifiable.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions sit next to <code>map_dfr()</code> in everyday purrr work:</p>
+
+<ul>
+
+<li><code>map()</code>: the base iterator; returns a list instead of a data frame.</li>
+
+<li><code>list_rbind()</code>: row-binds a list of data frames; the purrr 1.0 replacement.</li>
+
+<li><code>map_dfc()</code>: column-binds results instead of row-binding them.</li>
+
+<li><code>map2_dfr()</code>: iterates over two inputs in parallel, then row-binds.</li>
+
+<li><code>pmap_dfr()</code>: iterates over many inputs from a list, then row-binds.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does the "r" in map_dfr mean?</strong></p>
+
+<p>The "r" stands for rows. <code>map_dfr()</code> collects every result from <code>.f</code> and row-binds them, stacking each piece on top of the next. Its sibling <code>map_dfc()</code> uses a "c" for columns and binds side by side instead. Both return a single data frame, but the orientation of the combine step is the only difference between them.</p>
+
+<p><strong>Is map_dfr() deprecated?</strong></p>
+
+<p>No, <code>map_dfr()</code> is superseded, not deprecated. Superseded means the function still works, receives critical bug fixes, and will not be removed, but it is no longer recommended for new code. The tidyverse points new code toward <code>map()</code> plus <code>list_rbind()</code>. Existing scripts that use <code>map_dfr()</code> are safe and do not need an urgent rewrite.</p>
+
+<p><strong>What is the difference between map_dfr() and <a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_rows()</a>?</strong></p>
+
+<p><code>bind_rows()</code> only combines a list of data frames you already have. <code>map_dfr()</code> does two jobs: it first applies <code>.f</code> to every element of <code>.x</code> to create those data frames, then passes them to <code>bind_rows()</code> internally. So <code>map_dfr(x, f)</code> is equivalent to <code>bind_rows(map(x, f))</code> in a single call.</p>
+
+<p><strong>Why does map_dfr() return an error?</strong></p>
+
+<p>The most common cause is <code>.f</code> returning something that is not a data frame or named vector, such as a bare number or an unnamed list. <code>bind_rows()</code> cannot stack those, so the call fails. Wrap scalar outputs in <code>data.frame()</code>. A missing dplyr installation also triggers an error, since <code>map_dfr()</code> depends on it.</p>
+
+<p><strong>Can map_dfr() read multiple CSV files?</strong></p>
+
+<p>Yes, that is one of its most common uses. Pass a vector of file paths as <code>.x</code> and <code>readr::read_csv</code> as <code>.f</code>. Each file becomes a data frame, and <code>map_dfr()</code> stacks them into one combined table. Add <code>.id = &quot;file&quot;</code> to record which source file each row came from.</p>
+
+{% endraw %}
