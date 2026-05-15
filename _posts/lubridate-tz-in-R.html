@@ -1,0 +1,343 @@
+---
+title: "lubridate tz() in R: Get the Time Zone of a Date"
+description: "lubridate tz() returns the time zone string attached to a date-time in R. Examples cover reading the zone, the tz()<- setter, Date objects, and vectors."
+keywords: "lubridate tz, tz function R, lubridate tz examples, R get time zone, time zone of date R, tz vs with_tz, lubridate timezone"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tz()|lubridate tz|lubridate::tz()|get time zone|time zone attribute"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate tz() in R: Get the Time Zone of a Date</h1>
+
+<p class="lead">The lubridate <code>tz()</code> function returns the time zone string currently attached to a date-time in R. It reads the zone label without changing the value, so you can check what zone a timestamp carries before you parse, compare, or convert it.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tz(t)<span class="qa-cmt">                              # read the zone string</span>
+tz(now())<span class="qa-cmt">                          # zone of the current time</span>
+tz(ymd_hms(x, tz = &quot;Asia/Tokyo&quot;))<span class="qa-cmt">  # zone set at parse time</span>
+tz(as_date(&quot;2024-01-15&quot;))<span class="qa-cmt">          # a Date reports &quot;UTC&quot;</span>
+force_tz(t, &quot;America/New_York&quot;)<span class="qa-cmt">    # set zone, keep clock time</span>
+attr(t, &quot;tzone&quot;)<span class="qa-cmt">                   # the raw attribute tz() reads</span>
+OlsonNames()<span class="qa-cmt">                       # every valid zone name</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tz() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">read which zone a value carries</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tz(t)</text><text x="125" y="126" class="branch-label">show an instant in another zone</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">with_tz(t, &quot;Asia/Tokyo&quot;)</text><text x="125" y="182" class="branch-label">relabel zone, keep clock time</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">force_tz(t, &quot;Asia/Tokyo&quot;)</text><text x="125" y="238" class="branch-label">attach a zone while parsing</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">ymd_hms(x, tz = &quot;UTC&quot;)</text><text x="125" y="294" class="branch-label">get the current time as POSIXct</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">now()</text><text x="125" y="350" class="branch-label">list every valid zone name</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">OlsonNames()</text></svg></div>
+
+<h2>What tz() does in one sentence</h2>
+
+<p><strong><code>tz(x)</code> returns the Olson time zone name stored on a date-time as a single character string.</strong> It is a pure accessor: it inspects the <code>tzone</code> attribute and reports it, leaving the value itself untouched.</p>
+
+<p>Every POSIXct date-time in R can carry a time zone label, such as <code>&quot;Europe/Paris&quot;</code> or <code>&quot;UTC&quot;</code>. That label tells R how to print the value and how to interpret arithmetic across daylight saving boundaries. <code>tz()</code> is how you ask "which zone is this?" without guessing from the printed output.</p>
+
+<p>The printed zone abbreviation, like <code>CET</code> or <code>EST</code>, is not the stored label. R derives the abbreviation from the Olson name plus the date, since the same zone prints <code>CET</code> in winter and <code>CEST</code> in summer. <code>tz()</code> always returns the stable Olson name, which is the value you should rely on in code.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>tz()</code> reads, it never transforms.</strong> Unlike <code>with_tz()</code> and <code>force_tz()</code>, which return a new date-time, <code>tz()</code> returns a plain string. If you need to inspect a timestamp's zone in a condition or a message, <code>tz()</code> is the function you want.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tz(x)</code> takes a date-time and returns its zone; <code>tz(x) &lt;- value</code> is the replacement form that sets the zone.</strong> The getter accepts POSIXct, POSIXlt, Date, and interval objects.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and read a zone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and read a zone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+t &lt;- ymd_hms(&quot;2024-01-15 09:30:00&quot;, tz = &quot;Europe/Paris&quot;)
+t
+#&gt; [1] &quot;2024-01-15 09:30:00 CET&quot;
+
+tz(t)
+#&gt; [1] &quot;Europe/Paris&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The getter form returns one string regardless of how many elements <code>x</code> has, because a vector of date-times shares a single zone attribute. The setter form, <code>tz(x) &lt;- value</code>, changes that attribute and is covered below.</p>
+
+<p>Both forms accept the lubridate date-time classes and base R's <code>POSIXct</code>, <code>POSIXlt</code>, and <code>Date</code>. They do not work on a character string: if your data is still text, parse it with <code>ymd_hms()</code> first so the zone has somewhere to live.</p>
+
+<h2>Why the time zone label matters</h2>
+
+<p><strong>The zone attribute decides how R prints a value and how it does arithmetic.</strong> Two date-times holding the same number of seconds since the epoch can print as different clock times purely because they carry different zones.</p>
+
+<p>The label also drives daylight saving math. When you add a day across a spring-forward boundary, lubridate consults the zone to decide whether that day spans 23, 24, or 25 hours. A value tagged <code>&quot;UTC&quot;</code> has no daylight saving, so the identical arithmetic returns a different result. Reading <code>tz()</code> first tells you which rule set applies to the value in front of you.</p>
+
+<p>This is why <code>tz()</code> is more than a curiosity. Before you join two tables of timestamps, sort events, or compute a duration, a quick <code>tz()</code> check confirms both sides share a zone. Mismatched zones are a frequent source of bugs that raise no error and surface only as wrong numbers.</p>
+
+<h2>Read the time zone of a date-time</h2>
+
+<h3>1. Read the zone of a parsed value</h3>
+
+<div class="webr-container" data-block-title="Read the zone from a parsed date-time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the zone from a parsed date-time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-06-01 14:00:00&quot;, tz = &quot;America/New_York&quot;)
+
+tz(t)
+#&gt; [1] &quot;America/New_York&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you pass <code>tz =</code> to a parser like <code>ymd_hms()</code>, that zone is stored on the result. <code>tz()</code> reads it straight back, which makes it a quick way to confirm a parse used the zone you intended. This check is worth running whenever timestamps arrive from a file or API, because a parse that silently defaulted to UTC looks identical to a correct parse until you inspect the zone.</p>
+
+<h3>2. A Date object always reports UTC</h3>
+
+<div class="webr-container" data-block-title="Check the zone of a plain Date">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check the zone of a plain Date</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- as_date(&quot;2024-01-15&quot;)
+
+tz(d)
+#&gt; [1] &quot;UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A plain <code>Date</code> has no time component and no zone attribute, so <code>tz()</code> reports <code>&quot;UTC&quot;</code> by convention. The same fallback applies to a date-time parsed without <code>tz =</code>, which lubridate also treats as UTC.</p>
+
+<h3>3. tz() on a vector returns one string</h3>
+
+<div class="webr-container" data-block-title="Read the zone of a date-time vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the zone of a date-time vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">times &lt;- ymd_hms(c(&quot;2024-01-15 12:00:00&quot;,
+                   &quot;2024-07-15 12:00:00&quot;), tz = &quot;Asia/Tokyo&quot;)
+
+tz(times)
+#&gt; [1] &quot;Asia/Tokyo&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A POSIXct vector stores its zone once, as a shared attribute, not per element. So <code>tz()</code> returns a single string even for a long vector, and every element is interpreted under that one zone.</p>
+
+<h3>4. tz() versus the raw attribute</h3>
+
+<div class="webr-container" data-block-title="Compare tz() with attr()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare tz() with attr()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-03-10 08:00:00&quot;, tz = &quot;Europe/London&quot;)
+
+attr(t, &quot;tzone&quot;)
+#&gt; [1] &quot;Europe/London&quot;
+
+tz(t)
+#&gt; [1] &quot;Europe/London&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tz()</code> reads the same <code>tzone</code> attribute that <code>attr(t, &quot;tzone&quot;)</code> exposes. The difference is that <code>tz()</code> falls back to <code>&quot;UTC&quot;</code> when the attribute is missing or empty, while <code>attr()</code> would return <code>NULL</code> or <code>&quot;&quot;</code>. That fallback makes <code>tz()</code> safer in code, because a comparison like <code>tz(x) == &quot;UTC&quot;</code> never breaks on a <code>NULL</code>, whereas the raw <code>attr()</code> value can.</p>
+
+<h2>Set the time zone with tz()<-</h2>
+
+<p><strong>The replacement form <code>tz(x) &lt;- value</code> changes the zone label while keeping the clock reading fixed.</strong> It is identical to calling <code>force_tz()</code>, so the underlying instant moves.</p>
+
+<div class="webr-container" data-block-title="Set a zone with the replacement form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a zone with the replacement form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">t &lt;- ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;)
+t
+#&gt; [1] &quot;2024-01-15 12:00:00 UTC&quot;
+
+tz(t) &lt;- &quot;America/New_York&quot;
+t
+#&gt; [1] &quot;2024-01-15 12:00:00 EST&quot;
+
+tz(t)
+#&gt; [1] &quot;America/New_York&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The clock still reads 12:00:00, but the value now points to a different moment because noon in New York is not noon in UTC. Use the setter only when the original zone label was wrong, not when you want to view a correct timestamp elsewhere.</p>
+
+<p>A typical case for the setter is data exported as local time but parsed as UTC by mistake. The clock digits are right, the label is wrong, and <code>tz(x) &lt;-</code> fixes the label so the digits finally mean what they say. If the digits themselves are correct for UTC, leave the value alone and convert with <code>with_tz()</code> at display time instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>tz(x) &lt;- value</code> is <code>force_tz()</code>, not <code>with_tz()</code>.</strong> The setter keeps the clock reading and shifts the instant. If you instead want to display the same moment in another zone, use <code>with_tz()</code>, which keeps the instant and changes the clock.</div></div>
+
+<h2>tz() vs with_tz() vs force_tz()</h2>
+
+<p><strong>These three functions touch the same zone attribute but do different jobs.</strong> <code>tz()</code> reads it, <code>with_tz()</code> re-displays an instant, and <code>force_tz()</code> relabels an instant.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Clock reading</th>
+<th>Underlying instant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tz()</code></td>
+<td>a zone string</td>
+<td>n/a</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>with_tz()</code></td>
+<td>a date-time</td>
+<td>changes</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td><code>force_tz()</code></td>
+<td>a date-time</td>
+<td>unchanged</td>
+<td>changes</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Decision rule.</strong> Call <code>tz()</code> when you only need to know the current zone. Call <code>with_tz()</code> when the timestamp is correct and you want to read it in another city. Call <code>force_tz()</code>, or the equivalent <code>tz(x) &lt;-</code>, when the zone label itself is wrong. The getter is non-destructive and safe to call anywhere; the two transformers return new values and should be assigned, not called in passing.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> <code>tz()</code> is the rough equivalent of reading <code>Series.dt.tz</code>. The setter <code>tz(x) &lt;-</code> matches <code>Series.dt.tz_localize()</code>, while <code>with_tz()</code> matches <code>Series.dt.tz_convert()</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<div class="webr-container" data-block-title="Three traps with tz()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three traps with tz()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tz(ymd_hms(&quot;2024-01-15 12:00:00&quot;))
+#&gt; [1] &quot;UTC&quot;
+
+t &lt;- ymd_hms(&quot;2024-01-15 12:00:00&quot;, tz = &quot;UTC&quot;)
+tz(t) &lt;- &quot;Tokyo&quot;
+#&gt; Warning: Unrecognized time zone 'Tokyo'
+
+tz(as.POSIXct(&quot;2024-01-15 12:00:00&quot;))
+#&gt; [1] &quot;UTC&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three traps catch most users. First, a string parsed without <code>tz =</code> reports <code>&quot;UTC&quot;</code>, not your machine's zone, so never assume <code>tz()</code> reveals local time. Second, the setter rejects short or invalid names: pass full Olson names such as <code>&quot;Asia/Tokyo&quot;</code>, because <code>&quot;Tokyo&quot;</code> warns and leaves the value unchanged. Third, a base <code>POSIXct</code> built without a zone also reports <code>&quot;UTC&quot;</code> through lubridate's fallback, which can mask a missing zone you meant to set.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>tz()</code> in a guard before zone-sensitive work.</strong> A quick <code>if (tz(x) != &quot;UTC&quot;) x &lt;- with_tz(x, &quot;UTC&quot;)</code> normalizes inputs to a known zone before arithmetic or joins, which prevents silent hour shifts when data arrives from mixed sources.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Parse the string "2024-08-20 18:00:00" in the <code>&quot;Europe/London&quot;</code> zone, read its time zone with <code>tz()</code>, and save the resulting string to <code>ex_zone</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read a time zone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read a time zone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read the zone of a parsed date-time
+ex_zone &lt;- # your code here
+
+ex_zone
+#&gt; Expected: &quot;Europe/London&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_zone &lt;- tz(ymd_hms(&quot;2024-08-20 18:00:00&quot;, tz = &quot;Europe/London&quot;))
+ex_zone
+#&gt; [1] &quot;Europe/London&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ymd_hms()</code> stores the <code>tz =</code> argument on the parsed value, and <code>tz()</code> reads that attribute back as a plain string. The result is the exact Olson name you passed in.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<ul>
+
+<li><code>with_tz()</code>: shows the same instant displayed in a different time zone.</li>
+
+<li><code>force_tz()</code>: relabels the zone while keeping the clock reading, the same as <code>tz(x) &lt;-</code>.</li>
+
+<li><code>now()</code>: returns the current date-time as a POSIXct, ready to inspect with <code>tz()</code>.</li>
+
+<li><code>ymd_hms()</code>, <code>mdy_hms()</code>, <code>dmy_hms()</code>: <a class="auto-link" href="lubridate-ymd-in-R.html" title="lubridate ymd() in R: Parse Dates From Strings">parse date</a>-time strings and accept a <code>tz</code> argument.</li>
+
+<li><code>OlsonNames()</code>: lists every time zone name your <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> recognizes.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does tz() return in R?</strong></p>
+
+<p><code>tz()</code> returns the time zone of a date-time as a single character string, using the Olson naming scheme, for example <code>&quot;Europe/Paris&quot;</code> or <code>&quot;UTC&quot;</code>. It reads the <code>tzone</code> attribute of the object and reports it without modifying the value. If the object has no zone attribute, such as a plain <code>Date</code> or a date-time parsed without <code>tz =</code>, <code>tz()</code> falls back to <code>&quot;UTC&quot;</code> rather than returning an empty string.</p>
+
+<p><strong>What is the difference between tz() and with_tz()?</strong></p>
+
+<p><code>tz()</code> is a read-only accessor that returns a zone string. <code>with_tz()</code> returns a new date-time that shows the same instant in a different zone. In short, <code>tz()</code> answers "which zone is this?" while <code>with_tz()</code> answers "what does this moment look like over there?". <code>tz()</code> never changes the value; <code>with_tz()</code> always returns a transformed copy.</p>
+
+<p><strong>Why does tz() return UTC for my date-time?</strong></p>
+
+<p><code>tz()</code> returns <code>&quot;UTC&quot;</code> whenever the object carries no explicit zone attribute. This happens when you parse a string without the <code>tz =</code> argument, or build a value with base <code>as.POSIXct()</code> without a <code>tz</code>. lubridate treats such values as UTC by default. To attach the correct zone, pass <code>tz =</code> to the parser, or relabel an existing value with <code>tz(x) &lt;-</code> or <code>force_tz()</code>.</p>
+
+<p><strong>How do I change the time zone of a date-time in R?</strong></p>
+
+<p>It depends on your goal. To relabel the zone while keeping the clock reading, use <code>tz(x) &lt;- &quot;Asia/Tokyo&quot;</code> or <code>force_tz(x, &quot;Asia/Tokyo&quot;)</code>, which shifts the underlying instant. To keep the instant and only change the display, use <code>with_tz(x, &quot;Asia/Tokyo&quot;)</code>. Picking the wrong one moves your data by hours with no error, so decide whether the clock or the instant should stay fixed.</p>
+
+<p><strong>Can tz() return multiple time zones for a vector?</strong></p>
+
+<p>No. A POSIXct vector stores its zone once, as a single shared attribute, so <code>tz()</code> always returns one string no matter how many elements the vector holds. Every element is interpreted under that same zone. If you need different zones per element, you must split the data into separate vectors, one per zone, since R's date-time types do not support a per-element zone.</p>
+
+</content>
+
+</invoke>
