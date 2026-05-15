@@ -1,0 +1,383 @@
+---
+title: "lubridate am() in R: Test if a Datetime is Before Noon"
+description: "Use lubridate am() in R to test if a datetime falls before noon. Returns TRUE for AM, FALSE for PM. Vectorised across columns; pairs with pm() for splits."
+keywords: "lubridate am, am function R, lubridate am examples, R am pm check, before noon test R, lubridate am pm, is datetime AM"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "am()|lubridate am|lubridate::am()|AM PM check|before noon test"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate am() in R: Test if a Datetime is Before Noon</h1>
+
+<p class="lead">The <code>am()</code> function in lubridate returns <code>TRUE</code> when a datetime falls before noon and <code>FALSE</code> otherwise. It is fully vectorised, accepts POSIXct or POSIXlt values, and pairs with <code>pm()</code> to split timestamps into AM and PM buckets without parsing strings.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>am(ymd_hms(&quot;2024-07-15 09:00:00&quot;))<span class="qa-cmt">           # TRUE (before noon)</span>
+am(ymd_hms(&quot;2024-07-15 12:00:00&quot;))<span class="qa-cmt">           # FALSE (noon counts as PM)</span>
+am(c(ts1, ts2, ts3))<span class="qa-cmt">                         # vectorised over a column</span>
+df %&gt;% mutate(is_am = am(ts))<span class="qa-cmt">                # add a logical flag</span>
+df %&gt;% filter(am(ts))<span class="qa-cmt">                        # keep AM rows only</span>
+df %&gt;% group_by(period = if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;))<span class="qa-cmt">  # AM/PM bucket</span>
+table(am(events$ts))<span class="qa-cmt">                         # AM vs PM counts</span>
+pm(x)<span class="qa-cmt">                                        # the inverse of am(x)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is am() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">flag rows as before-noon or after-noon</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">am(x), pm(x)</text><text x="125" y="126" class="branch-label">get the actual hour 0 to 23 as an integer</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">hour(x)</text><text x="125" y="182" class="branch-label">check business hours 9 to 17</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">between(hour(x), 9, 16)</text><text x="125" y="238" class="branch-label">bucket morning vs afternoon vs evening</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">cut(hour(x), c(-Inf, 12, 17, Inf))</text><text x="125" y="294" class="branch-label">snap a timestamp to the start of an hour</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">floor_date(x, &quot;hour&quot;)</text><text x="125" y="350" class="branch-label">format the time with an &quot;AM&quot;/&quot;PM&quot; suffix string</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">format(x, &quot;%I:%M %p&quot;)</text><text x="125" y="406" class="branch-label">check if a date is a weekend</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">wday(x) %in% c(1, 7)</text></svg></div>
+
+<h2>What am() does in one sentence</h2>
+
+<p><strong><code>am()</code> returns <code>TRUE</code> when the hour component of a datetime is less than 12.</strong> Pass any POSIXct or POSIXlt vector and you receive a logical vector of the same length: <code>TRUE</code> for midnight through 11:59:59, <code>FALSE</code> from noon to 23:59:59.</p>
+
+<p>This is the lubridate counterpart to <code>hour(x) &lt; 12</code>. The <code>am()</code> version is shorter, expresses intent directly, and slots straight into <code>filter()</code>, <code>if_else()</code>, and <code>group_by()</code> without rewriting the comparison every time. Its partner <code>pm()</code> returns the negation, so the two together split any datetime column into mutually exclusive halves.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>am(x)</code> accepts a datetime vector and returns a logical vector of the same length.</strong> There are no optional arguments and no replacement form. The function is a thin predicate over the hour component, so behaviour is identical whether the input has a date component, a timezone, or sub-second precision.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and test a datetime">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and test a datetime</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+am(ymd_hms(&quot;2024-07-15 09:00:00&quot;))
+#&gt; [1] TRUE
+
+am(ymd_hms(&quot;2024-07-15 14:30:00&quot;))
+#&gt; [1] FALSE
+
+class(am(ymd_hms(&quot;2024-07-15 09:00:00&quot;)))
+#&gt; [1] &quot;logical&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The input must be a class lubridate recognises as a datetime: <code>POSIXct</code> or <code>POSIXlt</code>. Plain <code>Date</code> objects have no time component, so <code>am(as.Date(&quot;2024-07-15&quot;))</code> returns <code>TRUE</code> after <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">silent coercion</a> to midnight UTC. The result is technically correct but rarely informative; parse with <code>ymd_hms()</code> first so the time of day survives.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>am()</code> directly inside <code>filter()</code> and <code>if_else()</code>; never wrap it in <code>== TRUE</code>.</strong> Because the return is already logical, <code>filter(df, am(ts))</code> and <code>if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;)</code> work without further comparison. Wrapping it in <code>== TRUE</code> is redundant and trips lint warnings in production code.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Test a single datetime</h3>
+
+<div class="webr-container" data-block-title="Single AM check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Single AM check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- ymd_hms(&quot;2024-07-15 09:30:00&quot;)
+am(ts)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a single logical value. Use it in any <code>if (...)</code> branch the way you would use any boolean: <code>if (am(ts)) &quot;morning shift&quot; else &quot;afternoon shift&quot;</code>.</p>
+
+<h3>2. Handle the noon and midnight edges</h3>
+
+<div class="webr-container" data-block-title="Noon is PM, midnight is AM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Noon is PM, midnight is AM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">am(ymd_hms(&quot;2024-07-15 12:00:00&quot;))
+#&gt; [1] FALSE
+
+am(ymd_hms(&quot;2024-07-15 00:00:00&quot;))
+#&gt; [1] TRUE
+
+am(ymd_hms(&quot;2024-07-15 11:59:59&quot;))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 12:00:00 boundary belongs to PM. The 11:59:59 second is still AM. The 00:00:00 midnight value is AM. This convention follows ISO 8601 and matches base R's behaviour, so swapping between <code>am(x)</code> and <code>hour(x) &lt; 12</code> gives identical results.</p>
+
+<h3>3. Vectorise over a datetime column</h3>
+
+<div class="webr-container" data-block-title="Vectorised over a column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vectorised over a column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- ymd_hms(c(&quot;2024-07-15 06:30:00&quot;,
+                    &quot;2024-07-15 11:45:00&quot;,
+                    &quot;2024-07-15 12:00:00&quot;,
+                    &quot;2024-07-15 18:10:00&quot;))
+am(events)
+#&gt; [1]  TRUE  TRUE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>am()</code> is fully vectorised. A million-row timestamp column becomes a million-row logical vector in one call. No loop or <code>sapply()</code> needed.</p>
+
+<h3>4. Add an AM flag inside a dplyr pipeline</h3>
+
+<div class="webr-container" data-block-title="Mutate an AM flag column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mutate an AM flag column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+orders &lt;- tibble(
+  ts = ymd_hms(c(&quot;2024-07-15 08:12:00&quot;, &quot;2024-07-15 11:50:00&quot;,
+                 &quot;2024-07-15 13:04:00&quot;, &quot;2024-07-15 17:33:00&quot;,
+                 &quot;2024-07-15 21:01:00&quot;)),
+  amount = c(34.50, 12.10, 88.00, 22.40, 9.99)
+)
+
+orders %&gt;%
+  mutate(is_am = am(ts))
+#&gt; # A tibble: 5 x 3
+#&gt;   ts                  amount is_am
+#&gt;   &lt;dttm&gt;               &lt;dbl&gt; &lt;lgl&gt;
+#&gt; 1 2024-07-15 08:12:00  34.5  TRUE
+#&gt; 2 2024-07-15 11:50:00  12.1  TRUE
+#&gt; 3 2024-07-15 13:04:00  88.0  FALSE
+#&gt; 4 2024-07-15 17:33:00  22.4  FALSE
+#&gt; 5 2024-07-15 21:01:00   9.99 FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mutate(is_am = am(ts))</code> adds a logical flag column you can use downstream for filtering, faceted plots, or feature engineering. The column is <code>lgl</code>, not <code>int</code>, so summary functions like <code>sum(is_am)</code> count the <code>TRUE</code> rows directly.</p>
+
+<h3>5. Bucket rows into AM and PM groups</h3>
+
+<div class="webr-container" data-block-title="Compare AM and PM revenue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare AM and PM revenue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders %&gt;%
+  group_by(period = if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;)) %&gt;%
+  summarise(revenue = sum(amount),
+            orders  = n(),
+            .groups = &quot;drop&quot;)
+#&gt; # A tibble: 2 x 3
+#&gt;   period revenue orders
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;  &lt;int&gt;
+#&gt; 1 AM        46.6      2
+#&gt; 2 PM       120.       3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;)</code> produces a clean character bucket that groups intuitively. The <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> block reveals a real retail pattern: afternoon and evening tend to drive higher revenue, even when AM has comparable transaction counts.</p>
+
+<h3>6. Filter to morning-only rows</h3>
+
+<div class="webr-container" data-block-title="Keep AM rows only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep AM rows only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders %&gt;%
+  filter(am(ts))
+#&gt; # A tibble: 2 x 2
+#&gt;   ts                  amount
+#&gt;   &lt;dttm&gt;               &lt;dbl&gt;
+#&gt; 1 2024-07-15 08:12:00  34.5
+#&gt; 2 2024-07-15 11:50:00  12.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>filter(am(ts))</code> is the cleanest expression of "keep morning records". Reach for <code>filter(pm(ts))</code> for the inverse, or <code>filter(!am(ts))</code> if the negation reads better in context. Both compile to the same plan.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>am()</code> and <code>pm()</code> are exact opposites for any non-NA datetime: <code>pm(x) == !am(x)</code> always holds.</strong> They are not "before noon" vs "after noon"; the split is at noon, with noon belonging to PM. This makes them a partition rather than a fuzzy region, so <code>am(x) | pm(x)</code> is <code>TRUE</code> for every valid datetime and <code>am(x) &amp; pm(x)</code> is <code>FALSE</code>.</div></div>
+
+<h2>am() vs pm() vs hour() vs format()</h2>
+
+<p><strong>Four common ways to ask "is this datetime in the morning?", each with a different return type.</strong> Pick the one that matches your downstream use:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>am(x)</code></td>
+<td>Logical</td>
+<td>Filtering, grouping, <code>if_else()</code> flags</td>
+</tr>
+<tr>
+<td><code>pm(x)</code></td>
+<td>Logical</td>
+<td>Same as <code>am()</code>, negated; use when "PM" reads more naturally</td>
+</tr>
+<tr>
+<td><code>hour(x) &lt; 12</code></td>
+<td>Logical</td>
+<td>When you also need the actual hour later in the chain</td>
+</tr>
+<tr>
+<td><code>format(x, &quot;%p&quot;)</code></td>
+<td>"AM" / "PM" string</td>
+<td>Display in a printed report or chart label</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Four ways to express the same split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four ways to express the same split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ts &lt;- ymd_hms(c(&quot;2024-07-15 09:00:00&quot;, &quot;2024-07-15 14:30:00&quot;))
+am(ts)
+#&gt; [1]  TRUE FALSE
+pm(ts)
+#&gt; [1] FALSE  TRUE
+hour(ts) &lt; 12
+#&gt; [1]  TRUE FALSE
+format(ts, &quot;%p&quot;)
+#&gt; [1] &quot;AM&quot; &quot;PM&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three logical methods are interchangeable for filtering and grouping. Use <code>format(x, &quot;%p&quot;)</code> only when you need text for a label or a printed table; otherwise stay logical to keep downstream operations cheap.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing the noon edge.</strong> A timestamp recorded as <code>2024-07-15 12:00:00</code> returns <code>FALSE</code> from <code>am()</code>. If your team treats noon as "midday" rather than PM, document the convention; otherwise a meeting that starts at exactly 12:00 gets bucketed with afternoon meetings and the AM count comes up short by one.</p>
+
+<p><strong>Pitfall 2: passing a Date object.</strong> <code>am(as.Date(&quot;2024-07-15&quot;))</code> returns <code>TRUE</code> because Date has no time component and lubridate coerces to midnight UTC. The answer is correct but uninformative. If you need a real AM check, parse the source with <code>ymd_hms()</code> or <code>as.POSIXct()</code> so the time survives the conversion.</p>
+
+<p><strong>Pitfall 3: comparing strings instead of using the function.</strong> Some teams roll their own check with <code>substr(format(ts, &quot;%p&quot;), 1, 2) == &quot;AM&quot;</code>. This works but is fragile: locale changes flip the string to lowercase, and the cost is much higher than the predicate version. Stick with <code>am(ts)</code>; it is locale-independent, vectorised, and one third the keystrokes.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Timezone shifts the AM result silently.</strong> A timestamp stored as <code>2024-07-15 14:00:00 America/New_York</code> returns <code>FALSE</code> from <code>am()</code>, but the same instant viewed as <code>2024-07-15 18:00:00 UTC</code> also returns <code>FALSE</code>, while <code>2024-07-15 09:00:00 Asia/Kolkata</code> returns <code>TRUE</code>. The function reads the hour from whatever tzone the vector carries. Pin the timezone with <code>with_tz()</code> BEFORE calling <code>am()</code> if your data crosses zones.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>am(x)</code> is <code>s.dt.hour &lt; 12</code> on a datetime Series; pandas has no dedicated <code>am()</code> accessor. The <code>dplyr</code> pattern <code>mutate(is_am = am(ts))</code> maps to <code>df.assign(is_am=df.ts.dt.hour &lt; 12)</code>. The noon convention is the same in both languages.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the <code>orders</code> tibble above and compute the average order amount separately for AM and PM. Save the result to <code>ex_am_pm</code>.</p>
+<div class="webr-container" data-block-title="Your turn: average order by AM/PM">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: average order by AM/PM</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: average order amount by AM/PM
+ex_am_pm &lt;- # your code here
+
+ex_am_pm
+#&gt; Expected: 2 rows, AM mean 23.3, PM mean 40.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_am_pm &lt;- orders %&gt;%
+  group_by(period = if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;)) %&gt;%
+  summarise(avg_amount = mean(amount), .groups = &quot;drop&quot;)
+
+ex_am_pm
+#&gt; # A tibble: 2 x 2
+#&gt;   period avg_amount
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 AM           23.3
+#&gt; 2 PM           40.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>if_else(am(ts), &quot;AM&quot;, &quot;PM&quot;)</code> builds the bucket column inside <code>group_by()</code>. <code>summarise(avg_amount = mean(amount))</code> collapses each bucket to its average. The AM mean averages 34.50 and 12.10, and the PM mean averages 88.00, 22.40, and 9.99.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<p>After learning <code>am()</code>, look at:</p>
+
+<ul>
+
+<li><code>pm()</code>: the inverse predicate, <code>TRUE</code> for noon through 23:59:59</li>
+
+<li><code>hour()</code>, <code>minute()</code>, <code>second()</code>: extract integer time-of-day components</li>
+
+<li><code>wday()</code>, <code>mday()</code>, <code>yday()</code>: extract day-position numbers</li>
+
+<li><code>floor_date()</code>, <code>ceiling_date()</code>: round a datetime to hour, day, week, or month</li>
+
+<li><code>with_tz()</code>, <code>force_tz()</code>: shift or set the timezone before extracting parts</li>
+
+<li><code>ymd_hms()</code>, <code>mdy_hms()</code>, <code>dmy_hms()</code>: parse strings into datetimes first</li>
+
+</ul>
+
+<p>For the official reference, see the <a href="https://lubridate.tidyverse.org/reference/am.html">lubridate am() documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I check if a datetime is AM or PM in R?</strong></p>
+
+<p>Use <code>lubridate::am(x)</code> for a logical <code>TRUE</code>/<code>FALSE</code> answer, or <code>lubridate::pm(x)</code> for the inverse. Both accept POSIXct or POSIXlt and are fully vectorised. The base R alternative is <code>hour(x) &lt; 12</code>, which returns the same logical vector with one extra function call. For a printable "AM"/"PM" string suitable for a chart label, use <code>format(x, &quot;%p&quot;)</code> instead.</p>
+
+<p><strong>Does am() in lubridate count noon as AM or PM?</strong></p>
+
+<p>Noon counts as PM. <code>am(ymd_hms(&quot;2024-07-15 12:00:00&quot;))</code> returns <code>FALSE</code>, and <code>pm(ymd_hms(&quot;2024-07-15 12:00:00&quot;))</code> returns <code>TRUE</code>. The split is exact: hours 0 through 11 are AM, hours 12 through 23 are PM. This matches ISO 8601 and base R conventions.</p>
+
+<p><strong>Why does am() return TRUE for a Date object in R?</strong></p>
+
+<p>A <code>Date</code> has no time component, so lubridate silently coerces it to midnight UTC before evaluating the hour. Midnight is hour 0, which is less than 12, so the result is <code>TRUE</code>. The answer is technically correct but rarely informative for downstream analysis. Parse the source string with <code>ymd_hms()</code> or <code>as.POSIXct()</code> first so the time of day survives.</p>
+
+<p><strong>How do I filter a data frame to AM rows only in R?</strong></p>
+
+<p>Use <code>dplyr::filter(df, am(ts))</code> where <code>ts</code> is your datetime column. The <code>am()</code> call returns a logical vector that <code>filter()</code> consumes directly. For PM rows, use <code>filter(df, pm(ts))</code> or <code>filter(df, !am(ts))</code>. Both produce the same result; choose whichever reads more naturally in context.</p>
+
+<p><strong>Can I use am() with timezones in R?</strong></p>
+
+<p>Yes, but the function reads the hour from whatever tzone the vector carries. Convert with <code>with_tz()</code> BEFORE calling <code>am()</code> if you want the AM check evaluated in a specific zone. For example, <code>am(with_tz(x, &quot;America/New_York&quot;))</code> evaluates the New York hour, even if the stored timezone is UTC. Without an explicit shift, <code>Sys.timezone()</code> decides, which makes the answer machine-dependent.</p>
