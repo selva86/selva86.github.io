@@ -1,0 +1,362 @@
+---
+title: "readr write_tsv() in R: Export Data to TSV Files"
+description: "Use readr write_tsv() in R to export data frames to tab-separated TSV files. Covers syntax, the na and append arguments, write_tsv vs write.table, and pitfalls."
+keywords: "readr write_tsv, write_tsv function R, readr write_tsv examples, R write tsv file, write tab separated file R, export data frame to tsv R, write_tsv vs write_delim"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "write_tsv()|readr write_tsv|readr::write_tsv()|write a TSV file|write_tsv function"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>readr write_tsv() in R: Export Data to TSV Files</h1>
+
+<p class="lead">The readr <code>write_tsv()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> exports a data frame to a tab-separated values (TSV) file. It is fast, never writes row names, and encodes text as UTF-8 so the file reloads cleanly.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>write_tsv(df, &quot;out.tsv&quot;)<span class="qa-cmt">                    # basic export</span>
+write_tsv(df, &quot;out.tsv&quot;, na = &quot;NA&quot;)<span class="qa-cmt">         # set missing-value string</span>
+write_tsv(df, &quot;out.tsv&quot;, append = TRUE)<span class="qa-cmt">     # add rows, no header</span>
+write_tsv(df, &quot;out.tsv&quot;, col_names = FALSE)<span class="qa-cmt"> # omit the header row</span>
+write_tsv(df, &quot;out.tsv.gz&quot;)<span class="qa-cmt">                 # gzip-compressed output</span>
+write_tsv(df, &quot;out.tsv&quot;, quote = &quot;needed&quot;)<span class="qa-cmt">  # quote only when required</span>
+write_tsv(df, &quot;out.tsv&quot;, eol = &quot;\r\n&quot;)<span class="qa-cmt">      # Windows line endings</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is write_tsv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">export a data frame as tab-separated</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">write_tsv(df, &quot;out.tsv&quot;)</text><text x="125" y="126" class="branch-label">export as comma-separated instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">write_csv(df, &quot;out.csv&quot;)</text><text x="125" y="182" class="branch-label">pick a custom delimiter (pipe, semicolon)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">write_delim(df, &quot;f.txt&quot;, delim = &quot;|&quot;)</text><text x="125" y="238" class="branch-label">save for fast R-only reload</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">write_rds(df, &quot;out.rds&quot;)</text><text x="125" y="294" class="branch-label">write to an Excel .xlsx workbook</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">writexl::write_xlsx(df, &quot;out.xlsx&quot;)</text><text x="125" y="350" class="branch-label">write plain text lines, not a table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">write_lines(x, &quot;out.txt&quot;)</text></svg></div>
+
+<h2>What write_tsv() does</h2>
+
+<p><strong>write_tsv() saves a data frame as a tab-delimited text file.</strong> You pass a data frame and a file path, and readr writes one row per record with columns separated by tab characters. It is the tab-separated cousin of <code>write_csv()</code>, built for tools and pipelines that expect TSV rather than CSV.</p>
+
+<p>TSV is a popular interchange format because tab delimiters rarely collide with the data itself. Commas appear inside addresses and free text constantly, but literal tabs almost never do. That makes TSV a safer choice when your columns hold messy strings.</p>
+
+<div class="webr-container" data-block-title="Write a data frame to TSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a data frame to TSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+# Export the built-in mtcars data to a tab-separated file
+write_tsv(mtcars, &quot;cars.tsv&quot;)
+
+# Confirm the file was created
+file.exists(&quot;cars.tsv&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call returns the data frame invisibly, so it works inside a pipe without breaking the chain. The file lands in the working directory unless you give an absolute path.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A TSV file is just a text file with tab separators.</strong> Once you internalize that, every argument below (na, append, quote, eol) is simply a rule for how each cell becomes text. <code>write_tsv()</code> is <code>write_delim()</code> with the delimiter pre-set to <code>&quot;\t&quot;</code>.</div></div>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>write_tsv() shares its full argument list with write_csv() and write_delim().</strong> Only the delimiter is fixed. The signature is:</p>
+
+<div class="webr-container" data-block-title="write_tsv function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">write_tsv function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_tsv(
+  x,
+  file,
+  na = &quot;NA&quot;,
+  append = FALSE,
+  col_names = !append,
+  quote = c(&quot;needed&quot;, &quot;all&quot;, &quot;none&quot;),
+  escape = c(&quot;double&quot;, &quot;backslash&quot;, &quot;none&quot;),
+  eol = &quot;\n&quot;,
+  num_threads = readr_threads(),
+  progress = show_progress()
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually reach for:</p>
+
+<ul>
+
+<li><strong>x</strong> the data frame or tibble to write. Required.</li>
+
+<li><strong>file</strong> the output path. Required. An <code>.gz</code>, <code>.bz2</code>, <code>.xz</code>, or <code>.zip</code> extension triggers automatic compression.</li>
+
+<li><strong>na</strong> the string written for <code>NA</code> values. Defaults to <code>&quot;NA&quot;</code>.</li>
+
+<li><strong>append</strong> if <code>TRUE</code>, rows are added to an existing file instead of overwriting it.</li>
+
+<li><strong>col_names</strong> whether to write the header row. Defaults to <code>!append</code>, so a fresh file gets headers and an appended write does not.</li>
+
+<li><strong>quote</strong> when to wrap values in double quotes. <code>&quot;needed&quot;</code> (the default) quotes only cells that contain a tab, quote, or newline.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>path</code> was renamed to <code>file</code> in readr 1.4.0.</strong> Old tutorials still show <code>write_tsv(df, path = &quot;out.tsv&quot;)</code>. That still works but prints a deprecation warning. Use <code>file =</code> in new code.</div></div>
+
+<h2>write_tsv() examples</h2>
+
+<p><strong>Each example below changes one argument so you can see its effect.</strong> All of them use built-in datasets, and you can run and edit every block on this page.</p>
+
+<p>Read the raw lines back to confirm the tab delimiters are really there:</p>
+
+<div class="webr-container" data-block-title="Inspect the tab-separated output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the tab-separated output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Show the first three lines of the file
+cat(readLines(&quot;cars.tsv&quot;, n = 3), sep = &quot;\n&quot;)
+#&gt; mpg	cyl	disp	hp	drat	wt	qsec	vs	am	gear	carb
+#&gt; 21	6	160	110	3.9	2.62	16.46	0	1	4	4
+#&gt; 21	6	160	110	3.9	2.875	17.02	0	1	4	4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Control how <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> appear with the <code>na</code> argument. Some downstream tools expect an empty cell, others a sentinel word:</p>
+
+<div class="webr-container" data-block-title="Set the missing-value string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the missing-value string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(id = 1:3, score = c(95, NA, 88))
+
+write_tsv(df, &quot;scores.tsv&quot;, na = &quot;MISSING&quot;)
+cat(readLines(&quot;scores.tsv&quot;), sep = &quot;\n&quot;)
+#&gt; id	score
+#&gt; 1	95
+#&gt; 2	MISSING
+#&gt; 3	88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Add new rows to a file that already exists by setting <code>append = TRUE</code>. Because <code>col_names</code> defaults to <code>!append</code>, the header is not repeated:</p>
+
+<div class="webr-container" data-block-title="Append rows to an existing file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Append rows to an existing file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">more &lt;- data.frame(id = 4:5, score = c(70, 81))
+
+write_tsv(more, &quot;scores.tsv&quot;, append = TRUE)
+cat(readLines(&quot;scores.tsv&quot;), sep = &quot;\n&quot;)
+#&gt; id	score
+#&gt; 1	95
+#&gt; 2	MISSING
+#&gt; 3	88
+#&gt; 4	70
+#&gt; 5	81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compress the output on the fly by ending the file name with <code>.gz</code>. readr detects the extension and gzips the file, which can shrink a wide numeric table dramatically:</p>
+
+<div class="webr-container" data-block-title="Write a compressed TSV file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a compressed TSV file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_tsv(iris, &quot;iris.tsv.gz&quot;)
+
+file.exists(&quot;iris.tsv.gz&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No extra package or unzip step is needed. <code>read_tsv(&quot;iris.tsv.gz&quot;)</code> reads it straight back.</p>
+
+<h2>write_tsv() vs write.table() and alternatives</h2>
+
+<p><strong>write_tsv() is the readr way to write TSV; base R offers write.table().</strong> The table below shows when each tool fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Best for</th>
+<th>Watch out for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_tsv()</code></td>
+<td>readr</td>
+<td>Standard TSV export</td>
+<td>No row names by design</td>
+</tr>
+<tr>
+<td><code>write.table()</code></td>
+<td>base R</td>
+<td>No-dependency scripts</td>
+<td>Needs <code>sep</code>, <code>row.names</code>, <code>quote</code> set by hand</td>
+</tr>
+<tr>
+<td><code>write_delim()</code></td>
+<td>readr</td>
+<td>Any custom delimiter</td>
+<td>Must pass <code>delim</code> explicitly</td>
+</tr>
+<tr>
+<td><code>fwrite()</code></td>
+<td>data.table</td>
+<td>Very large tables, top speed</td>
+<td><code>sep = &quot;\t&quot;</code> required</td>
+</tr>
+<tr>
+<td><code>vroom_write()</code></td>
+<td>vroom</td>
+<td>Huge files, lazy writing</td>
+<td>Extra dependency</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>write_tsv()</code> for everyday tab-separated output. Reach for <code>fwrite(sep = &quot;\t&quot;)</code> only when files are large enough that write speed matters. Use <code>write.table()</code> only when you cannot add a package dependency.</p>
+
+<div class="webr-container" data-block-title="The base R equivalent of write_tsv()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The base R equivalent of write_tsv()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># These two produce a comparable TSV file
+write_tsv(mtcars, &quot;readr_way.tsv&quot;)
+write.table(mtcars, &quot;base_way.tsv&quot;,
+            sep = &quot;\t&quot;, row.names = FALSE, quote = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>write_tsv()</code> always drops row names; <code>write.table()</code> keeps them unless told not to.</strong> That single difference causes most TSV column-misalignment bugs. With base R, always pass <code>row.names = FALSE</code> for a clean export.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most write_tsv() problems trace back to three mistakes.</strong> Each has a quick fix.</p>
+
+<p><strong>Appending a data frame with a different column order.</strong> <code>append = TRUE</code> writes rows positionally, not by name. If <code>more</code> has its columns in a different order than the original file, values land in the wrong columns silently. Always <a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> to match before appending.</p>
+
+<p><strong>Expecting Excel to open a .tsv file directly.</strong> Double-clicking a <code>.tsv</code> file often opens it in a text editor, not Excel. Rename the file to <code>.txt</code> and use Excel's text import, or write an actual workbook with <code>writexl::write_xlsx()</code>.</p>
+
+<p><strong>Assuming the file extension changes the format.</strong> <code>write_tsv(df, &quot;data.csv&quot;)</code> still writes tab-separated content; the <code>.csv</code> name is misleading but the delimiter stays a tab. Match the extension to the real format to avoid confusing collaborators.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Export only the setosa rows of <code>iris</code> to a tab-separated file called <code>setosa.tsv</code>, then count the lines written. Save the row count to <code>ex_lines</code>.</p>
+<div class="webr-container" data-block-title="Your turn: write a filtered TSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write a filtered TSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write the setosa subset to TSV
+setosa &lt;- subset(iris, Species == &quot;setosa&quot;)
+# write setosa to &quot;setosa.tsv&quot; here
+
+ex_lines &lt;- length(readLines(&quot;setosa.tsv&quot;))
+ex_lines
+#&gt; Expected: 51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setosa &lt;- subset(iris, Species == &quot;setosa&quot;)
+write_tsv(setosa, &quot;setosa.tsv&quot;)
+
+ex_lines &lt;- length(readLines(&quot;setosa.tsv&quot;))
+ex_lines
+#&gt; [1] 51</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>iris</code> has 50 setosa rows. <code>write_tsv()</code> adds one header line, so the file holds 51 lines in total.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p><strong>write_tsv() belongs to a family of readr writers.</strong> These functions cover the rest of the export surface:</p>
+
+<ul>
+
+<li><a href="readr-write_csv-in-R.html">write_csv()</a> writes comma-separated files.</li>
+
+<li><a href="readr-write_delim-in-R.html">write_delim()</a> writes any delimiter you choose.</li>
+
+<li><a href="readr-write_rds-in-R.html">write_rds()</a> saves an R object in native binary form.</li>
+
+<li><a href="readr-write_lines-in-R.html">write_lines()</a> writes a character vector, one line per element.</li>
+
+<li><a href="readr-read_tsv-in-R.html">read_tsv()</a> reads a TSV file back into a tibble.</li>
+
+</ul>
+
+<p>For the full readr reference, see the <a href="https://readr.tidyverse.org/reference/write_delim.html">official write_delim documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between write_tsv() and write_csv()?</strong></p>
+
+<p>They are the same function with a different delimiter. <code>write_tsv()</code> separates columns with a tab character, while <code>write_csv()</code> uses a comma. Choose TSV when your text columns contain commas, since tabs almost never appear inside data values. Both functions share every other argument, drop row names, and encode output as UTF-8, so switching between them is just a matter of which separator your downstream tool expects.</p>
+
+<p><strong>How do I write a TSV file without the header row?</strong></p>
+
+<p>Set <code>col_names = FALSE</code> in the call: <code>write_tsv(df, &quot;out.tsv&quot;, col_names = FALSE)</code>. This writes only the data rows. Note that when you use <code>append = TRUE</code>, <code>col_names</code> already defaults to <code>FALSE</code>, so appended writes skip the header automatically. You only need to set it explicitly when writing a fresh headerless file.</p>
+
+<p><strong>Does write_tsv() add a .tsv extension automatically?</strong></p>
+
+<p>No. <code>write_tsv()</code> writes to the exact path you supply and never changes the extension. If you call <code>write_tsv(df, &quot;data&quot;)</code>, the file is named <code>data</code> with no extension. Always include <code>.tsv</code> in the file name yourself so collaborators and other programs recognize the format correctly.</p>
+
+<p><strong>How do I write a compressed TSV file?</strong></p>
+
+<p>End the file name with a compression extension and readr handles it. <code>write_tsv(df, &quot;out.tsv.gz&quot;)</code> produces a gzip-compressed file, and <code>.bz2</code>, <code>.xz</code>, and <code>.zip</code> work the same way. No separate compression step is needed, and <code>read_tsv()</code> decompresses the file automatically when you read it back.</p>
+
+<p><strong>Can write_tsv() append to an existing file?</strong></p>
+
+<p>Yes. Pass <code>append = TRUE</code> and the new rows are added to the end of the file without rewriting the header. Make sure the appended data frame has the same columns in the same order as the original file, because <code>write_tsv()</code> matches columns by position, not by name, when appending.</p>
