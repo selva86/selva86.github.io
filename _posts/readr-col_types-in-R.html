@@ -1,0 +1,309 @@
+---
+title: "readr col_types in R: Control Column Types on Import"
+description: "The readr col_types argument sets exact column types when reading data. Learn the compact string, cols() spec, cols_only(), and show_col_types with examples."
+keywords: "readr col_types, col_types readr, readr read_csv col_types, specify column types readr, readr column types, col_types string, show_col_types"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "col_types|readr col_types|col_types argument|show_col_types|col_types string"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>readr col_types in R: Control Column Types on Import</h1>
+
+<p class="lead">The readr <code>col_types</code> argument tells <code>read_csv()</code> and every other readr reader exactly how to parse each column, replacing readr's automatic type guessing with an explicit, repeatable specification.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_csv(f, col_types = NULL)<span class="qa-cmt">                       # default: readr guesses every type</span>
+read_csv(f, col_types = &quot;idcD&quot;)<span class="qa-cmt">                     # compact string, one letter per column</span>
+read_csv(f, col_types = cols(id = col_integer()))<span class="qa-cmt">   # cols() spec, override named columns</span>
+read_csv(f, col_types = cols(.default = &quot;c&quot;))<span class="qa-cmt">       # force every column to character</span>
+read_csv(f, col_types = cols_only(id = &quot;i&quot;))<span class="qa-cmt">        # read only the columns you name</span>
+read_csv(f, col_types = &quot;i-c&quot;)<span class="qa-cmt">                      # &quot;-&quot; skips the middle column</span>
+read_csv(f, show_col_types = FALSE)<span class="qa-cmt">                 # silence the spec message</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Do you need col_types?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">lock column types on import</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_csv(f, col_types = &quot;idc&quot;)</text><text x="125" y="126" class="branch-label">build a reusable type spec</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cols(id = col_integer())</text><text x="125" y="182" class="branch-label">silence the type-guess message</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_csv(f, show_col_types = FALSE)</text><text x="125" y="238" class="branch-label">fix types after import</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">type_convert(df)</text><text x="125" y="294" class="branch-label">see what readr guessed</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">spec(df)</text><text x="125" y="350" class="branch-label">convert one messy column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="readr-Exercises-in-R.html" title="readr Exercises in R: 30 Real Practice Problems">parse_number</a>(x)</text></svg></div>
+
+<h2>What the col_types argument does</h2>
+
+<p><strong>col_types controls how readr parses each column.</strong> Every readr reader exposes a <code>col_types</code> argument. When you leave it at its default <code>NULL</code>, readr inspects the first 1,000 rows of the file and guesses a type for each column. Passing a value to <code>col_types</code> replaces that guessing with an explicit contract, so a phone code stays character and a date parses with the format you expect.</p>
+
+<div class="webr-container" data-block-title="Default col_types guesses every column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default col_types guesses every column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+csv &lt;- &quot;ticket,price,paid,opened
+T-0091,19.99,true,2024-02-03
+T-0092,4.50,false,2024-02-05
+T-0093,120.00,true,2024-02-09&quot;
+
+df &lt;- read_csv(I(csv))
+#&gt; Rows: 3 Columns: 4
+sapply(df, class)
+#&gt;      ticket       price        paid      opened
+#&gt; &quot;character&quot;   &quot;numeric&quot;   &quot;logical&quot;      &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>readr guessed sensibly here: <code>ticket</code> is text, <code>price</code> is a double, <code>paid</code> is logical, and <code>opened</code> is a date. Guessing works until a file is large or messy enough to fool the sample. That is when an explicit <code>col_types</code> earns its place.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>col_types turns a guess into a contract.</strong> readr's guessing reads only a sample of rows, so a column that is all integers in the sample but has a decimal far down can change type between files. A <code>col_types</code> value fixes the type up front, so the import behaves identically on every run.</div></div>
+
+<h2>The forms col_types accepts</h2>
+
+<p><strong>col_types accepts four kinds of value.</strong> Each trades typing effort against control. You can hand it <code>NULL</code>, a compact one-letter string, a full <code>cols()</code> specification, or a <code>cols_only()</code> object that also drops columns.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Value</th>
+<th>What it does</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NULL</code></td>
+<td>readr guesses every column (the default)</td>
+<td><code>read_csv(f)</code></td>
+</tr>
+<tr>
+<td>Compact string</td>
+<td>One letter per column, in column order</td>
+<td><code>col_types = &quot;cdlD&quot;</code></td>
+</tr>
+<tr>
+<td><code>cols()</code> object</td>
+<td>Override named columns, guess the rest</td>
+<td><code>col_types = cols(price = &quot;c&quot;)</code></td>
+</tr>
+<tr>
+<td><code>cols_only()</code> object</td>
+<td>Read only the columns you name</td>
+<td><code>col_types = cols_only(id = &quot;i&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The compact string uses one letter per column: <code>c</code> character, <code>i</code> integer, <code>d</code> double, <code>l</code> logical, <code>n</code> number, <code>f</code> factor, <code>D</code> date, <code>T</code> datetime, <code>?</code> guess, and <code>-</code> skip. It is the fastest form when you know the layout.</p>
+
+<div class="webr-container" data-block-title="Compact string sets all column types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compact string sets all column types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df2 &lt;- read_csv(I(csv), col_types = &quot;cdlD&quot;)
+sapply(df2, class)
+#&gt;      ticket       price        paid      opened
+#&gt; &quot;character&quot;   &quot;numeric&quot;   &quot;logical&quot;      &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>cols()</code> value is more verbose but lets you name only the columns you care about. Every column you do not name keeps its guessed type, so <code>cols()</code> is ideal for correcting one or two stubborn columns in a wide table.</p>
+
+<div class="webr-container" data-block-title="cols() overrides only the columns you name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">cols() overrides only the columns you name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df3 &lt;- read_csv(I(csv), col_types = cols(opened = col_character()))
+sapply(df3, class)
+#&gt;      ticket       price        paid      opened
+#&gt; &quot;character&quot;   &quot;numeric&quot;   &quot;logical&quot; &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here only <code>opened</code> changed; readr still guessed the other three. The full set of <code>col_*()</code> type functions is covered in the <a href="readr-cols-in-R.html">cols()</a> reference.</p>
+
+<h2>Reading the column specification readr prints</h2>
+
+<p><strong>readr announces every column type it chose.</strong> After a read with default <code>col_types</code>, readr prints a "Column specification" message. Calling <code>spec()</code> reprints that block, and you can paste it straight back into <code>col_types</code> as a tested starting point.</p>
+
+<div class="webr-container" data-block-title="Inspect and reuse the column spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect and reuse the column spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec(df)
+#&gt; cols(
+#&gt;   ticket = col_character(),
+#&gt;   price = col_double(),
+#&gt;   paid = col_logical(),
+#&gt;   opened = col_date(format = &quot;&quot;)
+#&gt; )
+
+df4 &lt;- read_csv(I(csv), col_types = cols(
+  ticket = col_character(),
+  price  = col_double(),
+  paid   = col_logical(),
+  opened = col_date()
+), show_col_types = FALSE)
+ncol(df4)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>show_col_types = FALSE</code> argument silences the spec message once you have settled the types. It pairs naturally with <code>col_types</code>: declare the types, then stop readr from reporting them on every run.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Copy the printed spec to lock a file's types.</strong> Read the file once with default <code>col_types</code>, copy the <code>cols( ... )</code> block readr prints, and paste it into <code>col_types</code>. The import is now reproducible and immune to a future file whose <a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">sample rows</a> guess differently.</div></div>
+
+<h2>col_types works the same in every readr reader</h2>
+
+<p><strong>col_types is shared across the whole readr reader family.</strong> <code>read_csv()</code>, <code>read_tsv()</code>, <code>read_delim()</code>, <code>read_table()</code>, and <code>read_fwf()</code> all accept the same <code>col_types</code> value in the same way. Learn the argument once and it transfers to every delimited and fixed-width format readr handles.</p>
+
+<div class="webr-container" data-block-title="The same col_types in read_tsv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same col_types in read_tsv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tsv &lt;- &quot;ticket\tprice\nT-1\t9.5\nT-2\t3.0&quot;
+read_tsv(I(tsv), col_types = &quot;cd&quot;)
+#&gt; # A tibble: 2 x 2
+#&gt;   ticket price
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 T-1      9.5
+#&gt; 2 T-2      3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The compact string <code>&quot;cd&quot;</code> reads <code>ticket</code> as character and <code>price</code> as a double, exactly as it would inside <code>read_csv()</code>. Because the argument is identical everywhere, a type spec you build for a CSV can be reused unchanged when the same data arrives as a TSV.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The <code>col_types</code> argument is readr's counterpart to the <code>dtype</code> argument of <code>pd.read_csv()</code>. The compact string <code>&quot;idc&quot;</code> plays the role of a <code>dtype</code> dictionary, and <code>cols_only()</code> matches the pandas <code>usecols</code> argument.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three col_types mistakes surface again and again.</strong> The first is a compact string whose length does not match the column count. readr expects exactly one letter per column, so a four-column file needs a four-letter string. A shorter or longer string raises an error rather than guessing the difference.</p>
+
+<p>The second mistake is a name in <code>cols()</code> that matches no column header. readr compares names case-sensitively and does not warn on a miss, so the column you meant to fix quietly keeps its guessed type.</p>
+
+<div class="webr-container" data-block-title="A misspelled column name is ignored">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A misspelled column name is ignored</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_typo &lt;- read_csv(I(csv), col_types = cols(Price = col_character()))
+class(df_typo$price)
+#&gt; [1] &quot;numeric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The header is <code>price</code> in lowercase, so <code>Price</code> matches nothing and the column stays a double. The third mistake is forcing an incompatible type, such as <code>col_double()</code> on a column containing currency symbols. readr fills the unparseable values with <code>NA</code> and reports parsing problems instead of stopping.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A col_types name that matches no column is silently ignored.</strong> readr does not warn when a name in <code>cols()</code> has no matching header. The column you meant to fix keeps its guessed type. Verify the result with <code>sapply(df, class)</code> immediately after import.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the <code>csv</code> data forcing <code>price</code> to character and dropping the <code>paid</code> column. Save the result to <code>ex_types</code>.</p>
+<div class="webr-container" data-block-title="Your turn: set col_types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: set col_types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: price as character, drop the paid column
+ex_types &lt;- # your code here
+
+ex_types
+#&gt; Expected: 3 columns (ticket, price, opened)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_types &lt;- read_csv(I(csv), col_types = cols(
+  price = col_character(),
+  paid  = col_skip()
+))
+names(ex_types)
+#&gt; [1] &quot;ticket&quot; &quot;price&quot;  &quot;opened&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>cols()</code> overrides only the named columns, so <code>price</code> becomes character and <code>col_skip()</code> drops <code>paid</code> entirely. The unnamed <code>ticket</code> and <code>opened</code> columns keep their guessed types.</p>
+
+</details>
+</section>
+
+<h2>Related readr functions</h2>
+
+<p>The <code>col_types</code> argument works alongside several other readr tools for controlling how data loads:</p>
+
+<ul>
+
+<li><a href="readr-cols-in-R.html">cols()</a>: builds the column specification object that <code>col_types</code> accepts.</li>
+
+<li><a href="readr-read_csv-in-R.html">read_csv()</a>: the reader whose <code>col_types</code> argument this page explains.</li>
+
+<li><a href="readr-read_delim-in-R.html">read_delim()</a>: the general delimited reader that shares the same <code>col_types</code>.</li>
+
+<li><a href="readr-read_tsv-in-R.html">read_tsv()</a>: the tab-separated reader, also driven by <code>col_types</code>.</li>
+
+<li><a href="readr-read_fwf-in-R.html">read_fwf()</a>: the fixed-width reader that accepts the same type spec.</li>
+
+</ul>
+
+<p>The official <a href="https://readr.tidyverse.org/articles/readr.html">readr column specification reference</a> documents every <code>col_*()</code> type function in full.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is col_types in readr?</strong></p>
+
+<p><code>col_types</code> is an argument on every readr reader, such as <code>read_csv()</code>, that sets the type of each column when a file is read. Its default value <code>NULL</code> lets readr guess types from a sample of rows. Passing a compact string, a <code>cols()</code> object, or a <code>cols_only()</code> object replaces that guess with an explicit specification, which makes the import reproducible and protects columns like IDs and dates from being parsed wrong.</p>
+
+<p><strong>What do the letters in the col_types string mean?</strong></p>
+
+<p>Each letter sets one column's type in column order: <code>c</code> character, <code>i</code> integer, <code>d</code> double, <code>l</code> logical, <code>n</code> number, <code>f</code> factor, <code>D</code> date, <code>T</code> datetime, <code>?</code> guess, and <code>-</code> skip. So <code>col_types = &quot;idcD&quot;</code> reads four columns as integer, double, character, and date. The string must contain exactly one letter per column, or readr raises an error.</p>
+
+<p><strong>How do I stop readr from printing column types?</strong></p>
+
+<p>Set <code>show_col_types = FALSE</code> in the reader call, for example <code>read_csv(file, show_col_types = FALSE)</code>. That suppresses the "Column specification" message that readr prints after every read. To silence it for an entire session, set <code>options(readr.show_col_types = FALSE)</code>. Supplying an explicit <code>col_types</code> value also hides the message, since readr only reports types it had to guess.</p>
+
+<p><strong>What is the difference between col_types and cols()?</strong></p>
+
+<p><code>col_types</code> is the argument; <code>cols()</code> is one of the values you can pass to it. <code>cols()</code> builds a column specification object, naming columns and their <code>col_*()</code> type functions. You can also pass <code>col_types</code> a compact string like <code>&quot;idc&quot;</code> or leave it <code>NULL</code>. In short, <code>cols()</code> constructs the spec and <code>col_types</code> receives it.</p>
+
+{% endraw %}
