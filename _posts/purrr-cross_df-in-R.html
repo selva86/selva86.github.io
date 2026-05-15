@@ -1,0 +1,326 @@
+---
+title: "purrr cross_df() in R: Make a Tibble of Combinations"
+description: "Use purrr cross_df() in R to build a tibble of every combination from a list of inputs. Covers syntax, pmap grid search, and the expand_grid replacement."
+keywords: "purrr cross_df, cross_df function R, purrr cross_df examples, cross_df data frame, expand_grid purrr, cross_df vs expand_grid, list combinations R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cross_df()|purrr cross_df|purrr::cross_df()|cross() family|cross_df function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>purrr cross_df() in R: Make a Tibble of Combinations</h1>
+
+<p class="lead">The purrr cross_df() function in R turns a list of input vectors into a tibble holding every combination of their values, with one row per combination. It is the data-frame member of the cross family, built for grid search and parameter sweeps.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cross_df(list(a = 1:2, b = 3:4))<span class="qa-cmt">         # all combos as a tibble</span>
+cross_df(list(n = 1:3, m = c(&quot;x&quot;, &quot;y&quot;)))<span class="qa-cmt"> # mixed-type columns</span>
+cross_df(grid_list, .filter = `==`)<span class="qa-cmt">      # drop matching pairs</span>
+pmap_chr(cross_df(grid_list), f)<span class="qa-cmt">         # run f over every row</span>
+tidyr::expand_grid(a = 1:2, b = 3:4)<span class="qa-cmt">     # modern replacement</span>
+cross(list(a = 1:2, b = 3:4))<span class="qa-cmt">            # nested-list variant</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cross_df() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">want a tibble of all combinations</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cross_df(list(a = 1:2, b = 1:2))</text><text x="125" y="126" class="branch-label">prefer non-deprecated code</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tidyr::expand_grid(a = 1:2, b = 1:2)</text><text x="125" y="182" class="branch-label">want a nested list, not a tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cross(list(a = 1:2, b = 1:2))</text><text x="125" y="238" class="branch-label">need a base R data.frame</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">expand.grid(a = 1:2, b = 1:2)</text><text x="125" y="294" class="branch-label">run a function over each combo</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">pmap</a>(grid, f)</text><text x="125" y="350" class="branch-label">combos with no duplicate rows</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tidyr::crossing(a = 1:2)</text></svg></div>
+
+<h2>What cross_df() does in purrr</h2>
+
+<p><strong>cross_df() builds a data frame of combinations.</strong> You hand it a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of vectors, and it returns a tibble with one column per input and one row for every possible pairing of values across those inputs. It is the rectangular counterpart of <code>cross()</code>, which returns a nested list instead of a table.</p>
+
+<p>Cross a length-two input with a length-three input, and the tibble comes back with six rows. This shape is exactly what grid search and simulation studies need. A hyperparameter sweep wants every pairing of learning rate and tree depth, and <code>cross_df()</code> turns two short vectors into the full grid in one call.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The cross family is deprecated since purrr 1.0.0, released in December 2022.</strong> Functions like <code>cross_df()</code> still run and return correct results, but they print a one-time lifecycle warning. For new code the tidyverse team recommends <code>expand_grid()</code> from tidyr, shown later on this page. This guide still documents <code>cross_df()</code> because legacy scripts and older tutorials lean on it heavily.</div></div>
+
+<h2>cross_df() syntax and arguments</h2>
+
+<p><strong>The signature has just two arguments.</strong> Both are shared with the rest of the cross family, so the mental model carries over directly.</p>
+
+<div class="webr-container" data-block-title="The cross_df signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The cross_df signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># cross_df(.l, .filter = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments work as follows:</p>
+
+<ul>
+
+<li><code>.l</code> is a named list of vectors or lists to cross. The list names become the column names of the returned tibble.</li>
+
+<li><code>.filter</code> is a two-argument predicate function. Any combination for which it returns TRUE is dropped before the tibble is assembled.</li>
+
+</ul>
+
+<p>The first input in <code>.l</code> varies fastest in the output, so the first column cycles through its values before the second column advances. This matches the ordering used by <code>cross()</code> and differs from <code>expand_grid()</code>.</p>
+
+<h2>cross_df() examples</h2>
+
+<p><strong>Start with a named list so every column is labelled.</strong> Passing names means the tibble columns line up cleanly with downstream <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function arguments</a>.</p>
+
+<div class="webr-container" data-block-title="Build a tibble of combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a tibble of combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+cross_df(list(size = c(&quot;S&quot;, &quot;L&quot;), color = c(&quot;red&quot;, &quot;blue&quot;)))
+#&gt; # A tibble: 4 x 2
+#&gt;   size  color
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 S     red
+#&gt; 2 L     red
+#&gt; 3 S     blue
+#&gt; 4 L     blue</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The columns can hold different types. Here a numeric sample size is crossed with a character test name, and the tibble keeps each column's class.</p>
+
+<div class="webr-container" data-block-title="Cross mixed-type columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross mixed-type columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cross_df(list(n = c(30, 60), test = c(&quot;t.test&quot;, &quot;wilcox&quot;)))
+#&gt; # A tibble: 4 x 2
+#&gt;       n test
+#&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    30 t.test
+#&gt; 2    60 t.test
+#&gt; 3    30 wilcox
+#&gt; 4    60 wilcox</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.filter</code> argument trims the grid before the tibble is returned. The predicate receives two values, and any combination it flags as TRUE is removed. A common use drops pairs where both values match.</p>
+
+<div class="webr-container" data-block-title="Drop combinations with a filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop combinations with a filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- cross_df(list(x = 1:3, y = 1:3), .filter = `==`)
+nrow(grid)
+#&gt; [1] 6
+head(grid, 3)
+#&gt; # A tibble: 3 x 2
+#&gt;       x     y
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     2     1
+#&gt; 2     3     1
+#&gt; 3     1     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A full cross of one through three with itself has nine rows. The equality predicate flags the three rows where the two values match, so six rows remain. The real payoff is pairing the grid with <code>pmap()</code> to evaluate something at every point.</p>
+
+<div class="webr-container" data-block-title="Run a function over each row with pmap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a function over each row with pmap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid &lt;- cross_df(list(n = c(10, 20), rate = c(0.1, 0.5)))
+pmap_chr(grid, function(n, rate) sprintf(&quot;n=%g, rate=%g&quot;, n, rate))
+#&gt; [1] &quot;n=10, rate=0.1&quot; &quot;n=20, rate=0.1&quot; &quot;n=10, rate=0.5&quot; &quot;n=20, rate=0.5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>cross_df() is cross() plus a tibble conversion in one step.</strong> The plain <code>cross()</code> function returns a list of lists, which you would then bind into a table yourself. The <code>cross_df()</code> variant skips that conversion and hands back the tibble directly, so it slots straight into a <code>pmap()</code> call without an extra step.</div></div>
+
+<h2>cross_df() vs expand_grid() and cross()</h2>
+
+<p><strong>expand_grid() from tidyr does the same job and is not deprecated.</strong> It takes inputs as named arguments rather than a list, and returns a tibble that drops straight into a tidyverse pipeline.</p>
+
+<div class="webr-container" data-block-title="The modern replacement expand_grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The modern replacement expand_grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+expand_grid(size = c(&quot;S&quot;, &quot;L&quot;), color = c(&quot;red&quot;, &quot;blue&quot;))
+#&gt; # A tibble: 4 x 2
+#&gt;   size  color
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 S     red
+#&gt; 2 S     blue
+#&gt; 3 L     red
+#&gt; 4 L     blue</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the row order. <code>expand_grid()</code> varies its last argument fastest, while <code>cross_df()</code> varies its first input fastest. The set of combinations is identical; only the sequence of rows changes. The table below shows when to reach for each option.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Status</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cross_df()</code></td>
+<td>tibble</td>
+<td>Deprecated</td>
+<td>Legacy purrr pipelines</td>
+</tr>
+<tr>
+<td><code>cross()</code></td>
+<td>list of lists</td>
+<td>Deprecated</td>
+<td>Nested-list combinations</td>
+</tr>
+<tr>
+<td><code>expand_grid()</code></td>
+<td>tibble</td>
+<td>Active</td>
+<td>New tidyverse code</td>
+</tr>
+<tr>
+<td><code>expand.grid()</code></td>
+<td>data.frame</td>
+<td>Active</td>
+<td>Base R only scripts</td>
+</tr>
+</tbody>
+</table>
+
+<p>For new projects, pick <code>expand_grid()</code>. Reach for <code>cross_df()</code> only when you are maintaining code that already depends on it.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most cross_df() confusion.</strong></p>
+
+<ul>
+
+<li><strong>Ignoring the deprecation warning.</strong> In a fresh session <code>cross_df()</code> prints a lifecycle warning the first time it runs. It is a warning, not an error, but it clutters logs and worries reviewers. Switching to <code>expand_grid()</code> removes the noise.</li>
+
+<li><strong>Expecting cross_df() and expand_grid() to agree on row order.</strong> They produce the same combinations in a different sequence. Never compare their outputs row by row without sorting both first.</li>
+
+<li><strong>Passing an unnamed list.</strong> Without names the tibble columns get default labels like <code>V1</code> and <code>V2</code>, so any <code>pmap()</code> call that matches on argument names will fail. Always name the inputs in the list.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The cross_d() function was removed before deprecation.</strong> Older scripts may call <code>cross_d()</code>, an early name for the data-frame variant that was retired well before purrr 1.0.0. Replace <code>cross_d()</code> with <code>cross_df()</code>, then plan a move to <code>expand_grid()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>cross_df()</code> to build a tibble of every combination of two sample sizes and two effect sizes, then confirm the row count. Save the result to <code>ex_grid</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a cross_df grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a cross_df grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: cross_df of two two-element vectors
+ex_grid &lt;- # your code here
+
+nrow(ex_grid)
+#&gt; Expected: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- cross_df(list(n = c(30, 60), effect = c(0.2, 0.8)))
+nrow(ex_grid)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Two two-element inputs cross into two times two, which is four rows. Each row holds one sample size paired with one <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>, the full grid for a power simulation.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions show up alongside <code>cross_df()</code> in iteration code:</p>
+
+<ul>
+
+<li><code>cross()</code> returns the same combinations as a nested list rather than a tibble.</li>
+
+<li><code>cross2()</code> crosses exactly two vectors, a fixed-arity helper in the same family.</li>
+
+<li><code>pmap()</code> applies a function across the rows of the grid, the natural partner for <code>cross_df()</code>.</li>
+
+<li><code>map()</code> applies a function to each element of a single list.</li>
+
+<li><code>transpose()</code> flips a list of lists, turning per-combination records into per-field columns.</li>
+
+</ul>
+
+<p>For the bigger picture of list iteration, see the <a href="Functional-Programming-in-R.html">Functional Programming in R</a> guide. The official reference lives at <a href="https://purrr.tidyverse.org/reference/cross.html">purrr.tidyverse.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is purrr cross_df() deprecated?</strong></p>
+
+<p>Yes. The <code>cross_df()</code> function, along with <code>cross()</code>, <code>cross2()</code>, and <code>cross3()</code>, was deprecated in purrr 1.0.0, released in December 2022. It still works and returns a correct tibble, but it emits a lifecycle warning the first time it runs in a session. The tidyverse team recommends <code>expand_grid()</code> from tidyr for all new code.</p>
+
+<p><strong>What is the difference between cross_df() and cross()?</strong></p>
+
+<p>Both produce the Cartesian product of their inputs. The <code>cross()</code> function returns a list of lists, where each element holds one combination. The <code>cross_df()</code> function returns a tibble, with one column per input and one row per combination. Use <code>cross_df()</code> when you want a rectangular result that feeds directly into <code>pmap()</code> or a data-frame pipeline.</p>
+
+<p><strong>How do I run a function over every combination?</strong></p>
+
+<p>Build the grid with <code>cross_df()</code> or <code>expand_grid()</code>, then pass it to <code>pmap()</code>. The <code>pmap()</code> call evaluates the function once per row, matching the grid column names to the function argument names. This pattern powers grid search and parameter sweeps without any nested loops.</p>
+
+<p><strong>Why does cross_df() print a warning?</strong></p>
+
+<p>The warning is a lifecycle notice telling you the function is deprecated. It fires once per session, not once per call, and it does not stop your code or change the result. To silence it permanently, switch the call to <code>expand_grid()</code>, which is the maintained replacement and produces the same set of combinations.</p>
+
+<p><strong>Can cross_df() handle more than two inputs?</strong></p>
+
+<p>Yes. The <code>.l</code> argument accepts a list of any length, so you can cross three, four, or more vectors in a single call. Remember that the row count grows multiplicatively, so four inputs of ten values each produce ten thousand rows. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> early with the <code>.filter</code> argument when the full grid is larger than you need.</p>
+
+{% endraw %}
