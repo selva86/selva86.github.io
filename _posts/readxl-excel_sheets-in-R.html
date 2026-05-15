@@ -1,0 +1,297 @@
+---
+title: "readxl excel_sheets() in R: List Excel Sheet Names"
+description: "Use readxl excel_sheets() in R to list every sheet name in an Excel workbook before you read it. Syntax, examples, looping over sheets, and common pitfalls."
+keywords: "readxl excel_sheets, excel_sheets function R, readxl excel_sheets examples, R list Excel sheet names, get sheet names from Excel R, read Excel sheet names R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "excel_sheets()|readxl excel_sheets|readxl::excel_sheets()|list Excel sheet names|get Excel sheet names"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>readxl excel_sheets() in R: List Excel Sheet Names</h1>
+
+<p class="lead">The readxl excel_sheets() function lists every worksheet name inside an Excel file, returning them as a character vector so you can inspect a workbook before reading any data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>excel_sheets(&quot;data.xlsx&quot;)<span class="qa-cmt">                     # list all sheet names</span>
+excel_sheets(readxl_example(&quot;datasets.xlsx&quot;))<span class="qa-cmt"> # a bundled example file</span>
+length(excel_sheets(path))<span class="qa-cmt">                    # count the sheets</span>
+&quot;iris&quot; %in% excel_sheets(path)<span class="qa-cmt">                # does a sheet exist?</span>
+excel_sheets(path)[1]<span class="qa-cmt">                         # first sheet by position</span>
+read_excel(path, sheet = excel_sheets(path)[2])<span class="qa-cmt">  # read the 2nd sheet</span>
+lapply(excel_sheets(path), read_excel, path = path)<span class="qa-cmt">  # read every sheet</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is excel_sheets() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list sheet names in a workbook</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">excel_sheets(path)</text><text x="125" y="126" class="branch-label">read one sheet into a data frame</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel</a>(path, sheet = &quot;name&quot;)</text><text x="125" y="182" class="branch-label">read a cell range only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_excel(path, range = &quot;B2:D10&quot;)</text><text x="125" y="238" class="branch-label">write data to an Excel file</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">writexl::write_xlsx(df, path)</text><text x="125" y="294" class="branch-label">read an old .xls file</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_xls(path)</text><text x="125" y="350" class="branch-label">read a plain CSV instead</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">readr::read_csv(path)</text></svg></div>
+
+<h2>What excel_sheets() does</h2>
+
+<p><strong>The excel_sheets function is a workbook scanner.</strong> You hand it the path to an Excel file and it returns the names of every worksheet, in tab order, as a plain character vector. It never opens or parses the cell data, which keeps it fast even on workbooks with hundreds of thousands of rows. It accepts both the modern xlsx format and the older binary xls format, and detects which one you gave it automatically.</p>
+
+<p>This function matters because real Excel files rarely hold just one sheet. A monthly report may carry a summary tab, twelve tabs of detail, and a hidden tab of lookup values. The reader function in readxl, read_excel, pulls only one sheet per call, so before you can read anything you need to know what the workbook contains.</p>
+
+<p>That is the job excel_sheets does: it tells you which sheets exist and what they are called. With that list of names you can pick a sheet by name, select one by numeric position, or loop over the whole set. Driving your code from these names also makes a script robust, because a renamed tab no longer breaks a hard-coded sheet argument.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Discovery comes before reading.</strong> Think of excel_sheets as the table of contents and read_excel as the chapter. You scan the contents once, then read only the chapters you need.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is the simplest in the readxl package.</strong> The function accepts exactly one argument:</p>
+
+<div class="webr-container" data-block-title="The excel_sheets signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The excel_sheets signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">excel_sheets(path)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The path argument is a string pointing to an Excel file on disk. It can be an xls file, the legacy binary format from Excel 97 through 2003, or an xlsx file, the modern zipped-XML format. You never pass a flag to say which it is: readxl inspects the file, recognises the format, and dispatches to the right parser.</p>
+
+<p>The return value is always a character vector, even when the workbook holds a single sheet. That consistency helps in practice, because loops and the apply family behave identically whether the file has one tab or fifty. Each element is the literal text of a worksheet tab, with spaces and punctuation preserved exactly as the author typed them.</p>
+
+<h2>excel_sheets() examples</h2>
+
+<p><strong>Begin with a bare call to see what a workbook contains.</strong> The examples below use a sample file bundled inside readxl, so you can run every block without uploading anything. That workbook holds four classic R datasets, one per sheet.</p>
+
+<div class="webr-container" data-block-title="List every sheet in a workbook">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List every sheet in a workbook</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readxl)
+
+# readxl ships example files; ask for a real path
+path &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+
+excel_sheets(path)
+#&gt; [1] &quot;iris&quot;     &quot;mtcars&quot;   &quot;chickwts&quot; &quot;quakes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result lists the four sheets in tab order, reading left to right. Store that vector in a variable so you scan the file only once and reuse the names freely.</p>
+
+<div class="webr-container" data-block-title="Count sheets and check membership">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count sheets and check membership</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sheets &lt;- excel_sheets(path)
+
+length(sheets)
+#&gt; [1] 4
+
+&quot;mtcars&quot; %in% sheets
+#&gt; [1] TRUE
+
+&quot;sales&quot; %in% sheets
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The membership test is the defensive pattern you want in any production script. Checking that an expected sheet is present lets you stop early with a clear message instead of failing deep inside a pipeline.</p>
+
+<p>A common task is reading every sheet at once. Pair excel_sheets with the apply family to build a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of data frames, one entry per worksheet.</p>
+
+<div class="webr-container" data-block-title="Read every sheet into a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read every sheet into a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_data &lt;- lapply(sheets, function(s) read_excel(path, sheet = s))
+names(all_data) &lt;- sheets
+
+sapply(all_data, nrow)
+#&gt;     iris   mtcars chickwts   quakes
+#&gt;      150       32       71     1000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the returned vector preserves workbook order, you can also pick a sheet by numeric position. That helps when sheet names change between monthly files but the layout stays fixed.</p>
+
+<div class="webr-container" data-block-title="Read a sheet by position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a sheet by position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># index 2 is the second tab in the workbook
+second &lt;- read_excel(path, sheet = excel_sheets(path)[2])
+dim(second)
+#&gt; [1] 32 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>excel_sheets() vs the alternatives</h2>
+
+<p><strong>The excel_sheets function is the readxl-native way to discover sheets, but not the only one.</strong> The table below compares the approaches you are most likely to meet.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>excel_sheets(path)</code></td>
+<td>Character vector of names</td>
+<td>You need names before reading</td>
+</tr>
+<tr>
+<td><code>read_excel(path, sheet = N)</code></td>
+<td>Data frame of one sheet</td>
+<td>You already know the sheet</td>
+</tr>
+<tr>
+<td><code>openxlsx::getSheetNames(path)</code></td>
+<td>Character vector of names</td>
+<td>You already depend on openxlsx</td>
+</tr>
+<tr>
+<td><code>readxl_example(name)</code></td>
+<td>Path to a bundled file</td>
+<td>Practising without your own file</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. If you only need the data and you already know the sheet, go straight to read_excel with the sheet argument. If the workbook is unfamiliar, or you must process several sheets in one pass, call excel_sheets first and let the rest of your code flow from its output.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of excel_sheets is the sheet_names attribute of an ExcelFile object, which also returns worksheet names without loading any data.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most errors come from passing the wrong thing as the path.</strong> The argument is a file path on disk. It is not a data frame, not a bare sheet name, and not a dataset loaded in your R session. Passing the name of an in-memory object gives a "path does not exist" error.</p>
+
+<div class="webr-container" data-block-title="A path is required, not data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A path is required, not data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: passing a name where a file path belongs
+excel_sheets(&quot;mtcars&quot;)
+#&gt; Error: `path` does not exist: 'mtcars'
+
+# Right: pass the workbook file path
+excel_sheets(readxl_example(&quot;datasets.xlsx&quot;))
+#&gt; [1] &quot;iris&quot;     &quot;mtcars&quot;   &quot;chickwts&quot; &quot;quakes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two further traps catch beginners. The first is the working directory: a relative path is resolved against wherever R currently sits, so a bare file name fails when the session points elsewhere. Use an absolute path or a project-relative helper. The second is whitespace, since worksheet tabs sometimes carry invisible leading or trailing spaces that survive into the vector and break an exact-match comparison. Trim the names before you compare them.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Hidden sheets still show up.</strong> The excel_sheets function returns every worksheet, including ones marked hidden or very hidden in Excel. readxl exposes no visibility flag, so filter the vector yourself if your workflow should ignore hidden tabs.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use excel_sheets() to scan the bundled "datasets.xlsx" workbook, then save the number of sheets to ex_count.</p>
+<div class="webr-container" data-block-title="Your turn: count workbook sheets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count workbook sheets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: count the sheets
+ex_path &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+ex_count &lt;- # your code here
+
+ex_count
+#&gt; Expected: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_path &lt;- readxl_example(&quot;datasets.xlsx&quot;)
+ex_count &lt;- length(excel_sheets(ex_path))
+ex_count
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The excel_sheets function returns a character vector of sheet names. Wrapping that vector in the length function turns it into a count of how many worksheets the workbook holds.</p>
+
+</details>
+</section>
+
+<h2>Related readxl functions</h2>
+
+<p><strong>The excel_sheets function is the entry point to the wider readxl toolkit.</strong> These functions handle the steps before and after sheet discovery:</p>
+
+<ul>
+
+<li>read_excel reads a chosen sheet into a tibble and is the everyday workhorse of readxl.</li>
+
+<li>read_xlsx and read_xls are format-specific readers for when you want to be explicit about the file type.</li>
+
+<li>readxl_example returns paths to bundled sample workbooks, ideal for practice and reproducible examples.</li>
+
+<li>cell_limits and anchored restrict a read to a precise rectangular block of cells.</li>
+
+</ul>
+
+<p>For the official argument reference, see the <a href="https://readxl.tidyverse.org/reference/excel_sheets.html">readxl documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does excel_sheets() return?</strong></p>
+
+<p>It returns a character vector containing the name of every worksheet in the workbook, listed in tab order from left to right. The vector holds one element per sheet, so a four-sheet file produces a length-four vector. It never returns cell contents, formatting, or visibility flags. For the actual data you call read_excel afterwards, supplying one of the names excel_sheets gave you.</p>
+
+<p><strong>Does excel_sheets() read the data too?</strong></p>
+
+<p>No, and that is deliberate. The function inspects only the workbook structure and reports the sheet names. Scanning names stays fast even for very large files, while reading the data can be slow. The intended workflow is to call excel_sheets once, decide which sheets you need, and then call read_excel separately for each one.</p>
+
+<p><strong>Can excel_sheets() list hidden sheets?</strong></p>
+
+<p>Yes. The function returns every worksheet regardless of visibility, so sheets marked hidden or very hidden appear alongside visible ones. readxl gives you no visibility attribute to test, so if your workflow must skip hidden tabs you need to filter the returned vector against names you already trust.</p>
+
+<p><strong>How do I read all sheets in an Excel file at once?</strong></p>
+
+<p>Combine excel_sheets with the apply family. Pass the vector of sheet names to lapply and call read_excel inside, supplying the same path each time. Assign the names back onto the result so you finish with a named list of data frames, one entry per worksheet, ready for analysis or for binding into a single table.</p>
+
+{% endraw %}
