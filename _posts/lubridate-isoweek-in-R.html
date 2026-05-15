@@ -1,0 +1,431 @@
+---
+title: "lubridate isoweek() in R: ISO 8601 Week Numbers"
+description: "Use lubridate isoweek() in R to extract ISO 8601 week numbers, pair with isoyear() to fix year boundary edge cases, and join international weekly reports."
+keywords: "lubridate isoweek, isoweek function R, lubridate isoweek examples, ISO 8601 week R, isoyear R, R week number ISO, lubridate isoweek vs week"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "isoweek()|lubridate isoweek|lubridate::isoweek()|ISO 8601 week|ISO week number"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate isoweek() in R: ISO 8601 Week Numbers</h1>
+
+<p class="lead">The <code>isoweek()</code> function in lubridate returns the ISO 8601 week-of-year for a Date or POSIXct, an integer from 1 to 53 that follows the Thursday rule and always starts the week on Monday. It is the standards-compliant counterpart to <code>week()</code>, designed for international reports and any pipeline that has to agree with strftime <code>%V</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>isoweek(ymd(&quot;2024-12-30&quot;))<span class="qa-cmt">                       # ISO week 1 of 2025</span>
+isoweek(ymd(c(&quot;2024-01-01&quot;, &quot;2024-12-31&quot;)))<span class="qa-cmt">      # vectorised</span>
+isoyear(ymd(&quot;2024-12-30&quot;))<span class="qa-cmt">                       # paired ISO year, returns 2025</span>
+df |&gt; mutate(iw = isoweek(date))<span class="qa-cmt">                 # ISO week column</span>
+df |&gt; group_by(isoyear(date), isoweek(date))<span class="qa-cmt">     # ISO-year + ISO-week rollup</span>
+format(ymd(&quot;2024-12-30&quot;), &quot;%G-W%V&quot;)<span class="qa-cmt">              # ISO label &quot;2025-W01&quot;</span>
+isoweek(ymd(&quot;2020-12-31&quot;))<span class="qa-cmt">                       # 53, a 53-week ISO year</span>
+as.integer(format(date, &quot;%V&quot;))<span class="qa-cmt">                   # base R equivalent</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is isoweek() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 517" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="482"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need ISO 8601 weeks (Thursday rule)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">isoweek(x)</text><text x="125" y="126" class="branch-label">need the simple calendar week instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">week(x)</text><text x="125" y="182" class="branch-label">need CDC epidemiological weeks</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">epiweek(x)</text><text x="125" y="238" class="branch-label">need ISO year (paired with isoweek)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">isoyear(x)</text><text x="125" y="294" class="branch-label">snap to start of ISO week as a Date</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">floor_date(x, &quot;week&quot;, week_start = 1)</text><text x="125" y="350" class="branch-label">build a sortable year-week label</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">format(x, &quot;%G-W%V&quot;)</text><text x="125" y="406" class="branch-label">pull day of ISO week (1 = Monday)</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">wday(x, week_start = 1)</text><text x="125" y="462" class="branch-label">compare against another system</text><line class="branch" x1="100" y1="482" x2="200" y2="482" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="469" width="490" height="28" rx="5"/><text x="222" y="487" class="code">as.integer(format(x, &quot;%V&quot;))</text></svg></div>
+
+<h2>What isoweek() does in one sentence</h2>
+
+<p><strong><code>isoweek()</code> returns the ISO 8601 week number as an integer between 1 and 53.</strong> Week 1 is the week containing the year's first Thursday, equivalently the week that contains January 4. Weeks always run Monday through Sunday. Pass any Date or POSIXct vector and you get a vector of the same length, with <code>NA</code> for <code>NA</code> input.</p>
+
+<p>The Thursday rule means a late December date can belong to the next ISO year. December 30, 2024 is a Monday whose Thursday is January 2, 2025, so it is ISO week 1 of 2025, not week 53 of 2024.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>isoweek(x)</code> takes one argument: a date or date-time vector.</strong> No <code>week_start</code>, no <code>label</code>, no locale switch. The Monday-start rule is fixed by ISO 8601 and cannot be overridden. The output is always integer, fully vectorised.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and pull an ISO week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and pull an ISO week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+d &lt;- ymd(&quot;2024-02-14&quot;)
+isoweek(d)
+#&gt; [1] 7
+
+isoweek(ymd(c(&quot;2024-01-01&quot;, &quot;2024-12-30&quot;, &quot;2024-12-31&quot;)))
+#&gt; [1] 1 1 1
+
+isoweek(NA)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>February 14, 2024 sits in the seventh ISO week. December 30 and 31, 2024 share a week with Thursday January 2, 2025, so they return 1, not 53.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pair <code>isoweek()</code> with <code>isoyear()</code>, never with <code>year()</code>.</strong> Calendar <code>year()</code> returns 2024 for December 30, 2024, but <code>isoweek()</code> returns 1, giving you the meaningless label "2024-W01". <code>isoyear(d)</code> returns 2025 for the same date, so <code>paste(isoyear(d), isoweek(d))</code> lines up with strftime <code>%G-W%V</code>.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Get the ISO week number</h3>
+
+<div class="webr-container" data-block-title="ISO week of year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ISO week of year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- ymd(c(&quot;2024-01-01&quot;, &quot;2024-02-14&quot;, &quot;2024-07-04&quot;, &quot;2024-12-25&quot;, &quot;2024-12-30&quot;))
+isoweek(d)
+#&gt; [1]  1  7 27 52  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is plain integer, ready for <code>%in%</code> and comparison. New Year's Day 2024 is a Monday so it sits in ISO week 1, and December 30 is the Monday of ISO 2025 week 1.</p>
+
+<h3>2. Build the canonical year-week label</h3>
+
+<div class="webr-container" data-block-title="ISO year-week string with isoyear()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ISO year-week string with isoyear()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+d &lt;- ymd(c(&quot;2024-01-01&quot;, &quot;2024-06-15&quot;, &quot;2024-12-30&quot;))
+
+tibble(
+  date    = d,
+  iso_yr  = isoyear(d),
+  iso_wk  = isoweek(d),
+  label   = sprintf(&quot;%d-W%02d&quot;, isoyear(d), isoweek(d))
+)
+#&gt; # A tibble: 3 x 4
+#&gt;   date       iso_yr iso_wk label
+#&gt;   &lt;date&gt;      &lt;dbl&gt;  &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 2024-01-01   2024      1 2024-W01
+#&gt; 2 2024-06-15   2024     24 2024-W24
+#&gt; 3 2024-12-30   2025      1 2025-W01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sprintf(&quot;%d-W%02d&quot;, isoyear(d), isoweek(d))</code> produces the same label as <code>format(d, &quot;%G-W%V&quot;)</code>. The leading zero keeps strings sortable alphabetically, which matters when joining against external systems.</p>
+
+<h3>3. Group and summarise by ISO week</h3>
+
+<div class="webr-container" data-block-title="ISO weekly average sales">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ISO weekly average sales</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+sales &lt;- tibble(
+  sale_date = seq(ymd(&quot;2024-12-23&quot;), ymd(&quot;2025-01-19&quot;), by = &quot;day&quot;),
+  amount    = round(200 + rnorm(28, 0, 12), 1)
+)
+
+sales |&gt;
+  group_by(iso_yr = isoyear(sale_date), iso_wk = isoweek(sale_date)) |&gt;
+  summarise(avg = round(mean(amount), 1), n = dplyr::n(), .groups = &quot;drop&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;   iso_yr iso_wk   avg     n
+#&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
+#&gt; 1   2024     52  200.     7
+#&gt; 2   2025      1  208.     7
+#&gt; 3   2025      2  201.     7
+#&gt; 4   2025      3  198.     7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grouping crosses a calendar year cleanly. ISO week 1 of 2025 holds December 30 through January 5; using <code>group_by(year(date), isoweek(date))</code> would have split that week across two rows, since <code>year()</code> returns 2024 for December 30 and 2025 for January 5.</p>
+
+<h3>4. Snap dates to the start of the ISO week</h3>
+
+<div class="webr-container" data-block-title="Floor to Monday-start week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Floor to Monday-start week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- ymd(c(&quot;2024-12-29&quot;, &quot;2024-12-30&quot;, &quot;2024-12-31&quot;, &quot;2025-01-01&quot;, &quot;2025-01-05&quot;))
+
+floor_date(d, &quot;week&quot;, week_start = 1)
+#&gt; [1] &quot;2024-12-23&quot; &quot;2024-12-30&quot; &quot;2024-12-30&quot; &quot;2024-12-30&quot; &quot;2024-12-30&quot;
+
+tibble(date = d, iso_wk = isoweek(d), week_start = floor_date(d, &quot;week&quot;, week_start = 1))
+#&gt; # A tibble: 5 x 3
+#&gt;   date       iso_wk week_start
+#&gt;   &lt;date&gt;      &lt;dbl&gt; &lt;date&gt;
+#&gt; 1 2024-12-29     52 2024-12-23
+#&gt; 2 2024-12-30      1 2024-12-30
+#&gt; 3 2024-12-31      1 2024-12-30
+#&gt; 4 2025-01-01      1 2024-12-30
+#&gt; 5 2025-01-05      1 2024-12-30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>isoweek()</code> returns an integer; <code>floor_date(x, &quot;week&quot;, week_start = 1)</code> returns the Monday that begins the ISO week. Use the integer for grouping, the Date for joining against a weekly calendar or plotting on a time axis.</p>
+
+<h3>5. Spot a 53-week ISO year</h3>
+
+<div class="webr-container" data-block-title="Years with 53 ISO weeks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Years with 53 ISO weeks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">year_ends &lt;- ymd(c(&quot;2015-12-31&quot;, &quot;2020-12-31&quot;, &quot;2026-12-31&quot;, &quot;2027-12-31&quot;))
+
+tibble(
+  date    = year_ends,
+  iso_wk  = isoweek(year_ends),
+  iso_yr  = isoyear(year_ends)
+)
+#&gt; # A tibble: 4 x 3
+#&gt;   date       iso_wk iso_yr
+#&gt;   &lt;date&gt;      &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 2015-12-31     53   2015
+#&gt; 2 2020-12-31     53   2020
+#&gt; 3 2026-12-31     53   2026
+#&gt; 4 2027-12-31     52   2027</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 53-week ISO year occurs every 5 or 6 years, when January 1 is a Thursday or, in a leap year, a Wednesday. Dashboard code that hard-codes a 52-bucket axis silently drops week 53 in those years; testing on a 53-week year exposes the bug.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ISO week is a 3-part date, not a 2-part date.</strong> A calendar date has year + month + day; an ISO week date has isoyear + isoweek + isoweekday. Drop any of the three and you create ambiguity at year boundaries. Always carry <code>isoyear()</code> next to <code>isoweek()</code>, and reach for <code>wday(x, week_start = 1)</code> when you need the day-of-ISO-week.</div></div>
+
+<h2>isoweek() vs week() and format("%V")</h2>
+
+<p><strong><code>isoweek()</code> competes with three other routes for week extraction.</strong> Each returns a week number, but only <code>isoweek()</code> and <code>format(&quot;%V&quot;)</code> follow ISO 8601.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Route</th>
+<th>Example</th>
+<th>Returns</th>
+<th>Reads best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>isoweek(x)</code></td>
+<td><code>mutate(iw = isoweek(date))</code></td>
+<td>Integer 1 to 53</td>
+<td>ISO 8601 reports, Monday-start weeks</td>
+</tr>
+<tr>
+<td><code>week(x)</code></td>
+<td><code>mutate(wk = week(date))</code></td>
+<td>Integer 1 to 53</td>
+<td>Simple calendar weeks, fast aggregation</td>
+</tr>
+<tr>
+<td><code>format(x, &quot;%V&quot;)</code></td>
+<td><code>format(date, &quot;%V&quot;)</code></td>
+<td>Character "01" to "53"</td>
+<td>ISO weeks without lubridate, sorted strings</td>
+</tr>
+<tr>
+<td><code>epiweek(x)</code></td>
+<td><code>epiweek(date)</code></td>
+<td>Integer 1 to 53</td>
+<td>CDC epidemiological weeks, Sunday-start</td>
+</tr>
+</tbody>
+</table>
+
+<p>Confirm the relationship:</p>
+
+<div class="webr-container" data-block-title="Compare isoweek with siblings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare isoweek with siblings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- ymd(c(&quot;2024-01-01&quot;, &quot;2024-12-30&quot;, &quot;2024-12-31&quot;, &quot;2025-01-01&quot;))
+
+data.frame(
+  d       = d,
+  iso_lub = isoweek(d),
+  iso_bse = as.integer(format(d, &quot;%V&quot;)),
+  cal_wk  = week(d),
+  epi_wk  = epiweek(d)
+)
+#&gt;            d iso_lub iso_bse cal_wk epi_wk
+#&gt; 1 2024-01-01       1       1      1      1
+#&gt; 2 2024-12-30       1       1     53     53
+#&gt; 3 2024-12-31       1       1     53      1
+#&gt; 4 2025-01-01       1       1      1      1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>isoweek()</code> and <code>as.integer(format(d, &quot;%V&quot;))</code> always agree. <code>week()</code> resets on January 1, so it diverges from <code>isoweek()</code> at year boundaries. <code>epiweek()</code> is Sunday-start, which shifts the boundary by one day.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: pairing isoweek() with year().</strong> Using <code>paste(year(date), isoweek(date))</code> mis-labels late December dates: December 30, 2024 becomes "2024-W01" instead of the correct "2025-W01". Always reach for <code>isoyear()</code> in the same expression.</p>
+
+<p><strong>Pitfall 2: assuming a 52-week axis.</strong> Plot code with <code>scale_x_continuous(breaks = 1:52)</code> silently drops week 53 in ISO years like 2015, 2020, and 2026. Build the axis from <code>seq_len(max(isoweek(date)))</code> instead.</p>
+
+<p><strong>Pitfall 3: forgetting week_start when flooring.</strong> <code>floor_date(x, &quot;week&quot;)</code> defaults to Sunday-start, which contradicts ISO 8601. Pass <code>week_start = 1</code> whenever you snap to the start of an ISO week.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>year()</code> and <code>isoyear()</code> disagree on December 29 to 31 every year and on January 1 to 3 some years.</strong> A dashboard that mixes <code>year(date)</code> for filtering and <code>isoweek(date)</code> for grouping will drop or double-<a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> around the year boundary. Either use ISO everywhere (<code>isoyear</code> plus <code>isoweek</code>) or calendar everywhere (<code>year</code> plus <code>week</code>); never mix.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>isoweek(x)</code> is <code>s.dt.isocalendar().week</code> (pandas 1.1 and later), which returns the ISO week. Pair with <code>s.dt.isocalendar().year</code> for the ISO year. The older <code>s.dt.week</code> attribute is deprecated and behaves like the ISO version.</div></div>
+
+<h2>A practical workflow with isoweek()</h2>
+
+<p><strong>ISO weeks show up in international reporting, finance close calendars, and SLA accounting.</strong> European partners send weekly figures labelled "2025-W12"; match the key with <code>sprintf(&quot;%d-W%02d&quot;, isoyear(date), isoweek(date))</code> and the rows line up cleanly. Retail 52/53-week calendars approximate ISO weeks, and <code>wday(x, week_start = 1)</code> returns 1 for Monday through 7 for Sunday so weekday filters stay self-consistent.</p>
+
+<div class="webr-container" data-block-title="Production-ready ISO week summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Production-ready ISO week summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">weekly &lt;- sales |&gt;
+  mutate(
+    iso_yr = isoyear(sale_date),
+    iso_wk = isoweek(sale_date),
+    label  = sprintf(&quot;%d-W%02d&quot;, iso_yr, iso_wk)
+  ) |&gt;
+  group_by(label, iso_yr, iso_wk) |&gt;
+  summarise(total = round(sum(amount), 1), n = dplyr::n(), .groups = &quot;drop&quot;) |&gt;
+  arrange(iso_yr, iso_wk)
+
+head(weekly, 4)
+#&gt; # A tibble: 4 x 4
+#&gt;   label    iso_yr iso_wk total
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 2024-W52   2024     52 1404.
+#&gt; 2 2025-W01   2025      1 1458.
+#&gt; 3 2025-W02   2025      2 1410.
+#&gt; 4 2025-W03   2025      3 1387.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>label</code> column is a stable join key, the <code>iso_yr</code> and <code>iso_wk</code> columns sort chronologically, and <code>n</code> confirms every bucket holds seven days. One query, two consumers: hand the label to a partner system and the integers to a chart.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tibble with 14 daily rows starting on 2024-12-23, then compute the ISO weekly sum, carrying both <code>isoyear()</code> and <code>isoweek()</code> in the grouping. Save the result to <code>ex_iso_weekly</code>.</p>
+<div class="webr-container" data-block-title="Your turn: ISO weekly totals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ISO weekly totals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: aggregate 14 daily rows into ISO weekly totals
+ex_sales &lt;- tibble(
+  sale_date = seq(ymd(&quot;2024-12-23&quot;), by = &quot;day&quot;, length.out = 14),
+  amount    = seq(100, 113, length.out = 14)
+)
+
+ex_iso_weekly &lt;- # your code here
+
+ex_iso_weekly
+#&gt; Expected: 2 rows, one per ISO week, with summed amount</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iso_weekly &lt;- ex_sales |&gt;
+  group_by(iso_yr = isoyear(sale_date), iso_wk = isoweek(sale_date)) |&gt;
+  summarise(total = round(sum(amount), 1), n = dplyr::n(), .groups = &quot;drop&quot;)
+
+ex_iso_weekly
+#&gt; # A tibble: 2 x 4
+#&gt;   iso_yr iso_wk total     n
+#&gt;    &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
+#&gt; 1   2024     52  728      7
+#&gt; 2   2025      1  763      7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> December 30 to January 5 is ISO week 1 of 2025. Grouping by <code>isoyear()</code> alongside <code>isoweek()</code> keeps that week in a single row; a plain <code>year()</code> + <code>isoweek()</code> pairing would split it.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<p>After mastering isoweek(), look at:</p>
+
+<ul>
+
+<li><code>isoyear()</code>, <code>epiyear()</code>: the year functions that pair with <code>isoweek()</code> and <code>epiweek()</code></li>
+
+<li><code>week()</code>, <code>epiweek()</code>: other week conventions for calendar and CDC use</li>
+
+<li><code>wday()</code>, <code>mday()</code>, <code>yday()</code>: day-prefix family, with <code>week_start = 1</code> for ISO weekdays</li>
+
+<li><code>floor_date()</code>, <code>ceiling_date()</code>: snap to Monday-start week boundaries</li>
+
+<li><code>make_date()</code>, <code>weeks()</code>: rebuild dates and shift by weekly periods</li>
+
+<li><code>with_tz()</code>: when the week boundary changes because of time zone</li>
+
+</ul>
+
+<p>See the <a href="https://lubridate.tidyverse.org/reference/week.html">lubridate week documentation</a> for the official reference.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does isoweek() return in R?</strong></p>
+
+<p><code>isoweek()</code> returns the ISO 8601 week-of-year as an integer between 1 and 53. Week 1 is the week containing the year's first Thursday, equivalently the week containing January 4, and weeks always run Monday through Sunday. The function is fully vectorised and returns <code>NA</code> for <code>NA</code> input. It matches <code>format(x, &quot;%V&quot;)</code> cast to integer and pairs with <code>isoyear()</code> for a full ISO date.</p>
+
+<p><strong>What is the difference between isoweek() and week() in R?</strong></p>
+
+<p><code>isoweek()</code> follows ISO 8601: weeks start on Monday, and week 1 is the week with the year's first Thursday. <code>week()</code> resets every January 1, ignoring the Thursday rule. The functions agree mid-year and diverge at year boundaries: December 30, 2024 returns <code>week(d) = 53</code> but <code>isoweek(d) = 1</code>. Pick <code>isoweek()</code> for ISO-compliant reporting and <code>week()</code> for plain calendar buckets.</p>
+
+<p><strong>How do I get the ISO week number from a date in R?</strong></p>
+
+<p>The lubridate route is <code>isoweek(date)</code>, which returns integer 1 through 53. The base R route is <code>as.integer(format(date, &quot;%V&quot;))</code>, which returns the same value via strftime. For the matching ISO year, use <code>isoyear(date)</code> or <code>as.integer(format(date, &quot;%G&quot;))</code>; the calendar <code>year()</code> will mis-label late December dates.</p>
+
+<p><strong>Why does isoweek() return 1 for December 30, 2024?</strong></p>
+
+<p>The ISO 8601 rule says a week belongs to the year that contains its Thursday. December 30, 2024 is a Monday, and the Thursday of that week is January 2, 2025, so the week belongs to ISO year 2025 and is week 1. This is why <code>isoyear()</code> returns 2025 for the same date while <code>year()</code> returns 2024.</p>
+
+<p><strong>Which ISO years have 53 weeks?</strong></p>
+
+<p>An ISO year has 53 weeks when its January 1 is a Thursday, or when a leap year's January 1 is a Wednesday. In the 21st century, the 53-week years include 2004, 2009, 2015, 2020, 2026, 2032, and 2037. Code that hard-codes a 52-week axis will silently drop the extra week in those years; build the axis from <code>max(isoweek(date))</code> instead.</p>
