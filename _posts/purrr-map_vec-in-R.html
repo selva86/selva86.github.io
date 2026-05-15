@@ -1,0 +1,358 @@
+---
+title: "purrr map_vec() in R: Map to a Simple Typed Vector"
+description: "Learn purrr map_vec() in R to apply a function over a list or vector and return a simplified vector that automatically keeps Date, factor and other S3 types."
+keywords: "purrr map_vec, map_vec function R, purrr map_vec examples, R map_vec vector, map_vec vs map, map_vec dates, purrr map_vec output type"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "map_vec()|purrr map_vec|purrr::map_vec()|map_vec function|simplify to a vector|map returning a typed vector"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr map_vec() in R: Map to a Simple Typed Vector</h1>
+
+<p class="lead">purrr map_vec() applies a function to every element of a list or vector and returns a simplified vector, automatically picking the common output type including Date, factor and other <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 classes</a>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_vec(1:3, ~ .x * 2)<span class="qa-cmt">               # numeric vector</span>
+map_vec(x, toupper)<span class="qa-cmt">                  # character vector</span>
+map_vec(dates, as.Date)<span class="qa-cmt">              # Date vector, class kept</span>
+map_vec(codes, ~ factor(.x))<span class="qa-cmt">         # factor vector</span>
+map_vec(x, f, .ptype = integer())<span class="qa-cmt">    # force the output type</span>
+map_vec(x, f, .progress = TRUE)<span class="qa-cmt">      # show a progress bar</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is map_vec() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">simplify to a vector, type unknown</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map_vec(x, f)</text><text x="125" y="126" class="branch-label">output is always a number</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map_dbl(x, f)</text><text x="125" y="182" class="branch-label">output is always a string</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">map_chr(x, f)</text><text x="125" y="238" class="branch-label">output should stay a list</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">map(x, f)</text><text x="125" y="294" class="branch-label">combine results row-wise into a table</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list_rbind(map(x, f))</text><text x="125" y="350" class="branch-label">iterate only for side effects</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">walk(x, f)</text></svg></div>
+
+<h2>What map_vec() does in one sentence</h2>
+
+<p><strong>map_vec() is the type-flexible simplifier of the <a class="auto-link" href="Functional-Programming-in-R.html" title="Functional Programming in R: First-Class Functions & purrr Explained">purrr map</a> family.</strong> You hand it a list or vector and a function, it runs that function once per element, then combines the length-one results into a single atomic or S3 vector. Unlike <code>map_chr()</code> or <code>map_dbl()</code>, it does not force a type in advance. It inspects what the function returns and picks the common type automatically.</p>
+
+<p>That flexibility is the reason <code>map_vec()</code> exists. The typed variants only know about logical, integer, double and character. <code>map_vec()</code> also handles Date, factor, POSIXct and difftime, so iterations that produce those classes finally have a simplifying <a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">map function</a>.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature takes the data first, then the function.</strong> Like every map variant, <code>map_vec()</code> follows the standard purrr argument order, with two extras for type control.</p>
+
+<div class="webr-container" data-block-title="The map_vec signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The map_vec signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# map_vec(.x, .f, ..., .ptype = NULL, .progress = FALSE)
+#   .x        a list or atomic vector to iterate over
+#   .f        a function, formula (~), or extractor (name/position)
+#   ...       extra arguments passed on to .f
+#   .ptype    optional prototype to force the output type
+#   .progress show a progress bar for slow iterations</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.f</code> argument accepts a named function such as <code>toupper</code>, a formula like <code>~ .x * 2</code> where <code>.x</code> is the current element, or a string or integer that plucks an element from nested data. The <code>.ptype</code> argument is the safety valve: pass it a zero-length prototype like <code>integer()</code> and <code>map_vec()</code> coerces every result to that type or errors trying.</p>
+
+<h2>Worked examples</h2>
+
+<p><strong>Example 1 squares each number and returns a numeric vector.</strong> With a simple numeric function, <code>map_vec()</code> behaves like <code>map_dbl()</code>.</p>
+
+<div class="webr-container" data-block-title="Map to a numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map to a numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_vec(1:5, ~ .x ^ 2)
+#&gt; [1]  1  4  9 16 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 2 parses date strings and keeps the Date class.</strong> This is the case the typed variants cannot handle, since there is no <code>map_date()</code>.</p>
+
+<div class="webr-container" data-block-title="Map to a Date vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map to a Date vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+date_strings &lt;- c(&quot;2024-01-15&quot;, &quot;2024-06-30&quot;, &quot;2024-12-25&quot;)
+holidays &lt;- map_vec(date_strings, as.Date)
+
+holidays
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-06-30&quot; &quot;2024-12-25&quot;
+class(holidays)
+#&gt; [1] &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A plain <code>map_chr()</code> here would strip the class and leave you with bare strings. <code>map_vec()</code> returns a genuine Date vector you can subtract, sort, or plot.</p>
+
+<p><strong>Example 3 builds a factor from integer codes.</strong> Each call returns a length-one factor, and <code>map_vec()</code> binds them while preserving the levels.</p>
+
+<div class="webr-container" data-block-title="Map to a factor vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Map to a factor vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+codes &lt;- c(2, 1, 3, 1)
+sizes &lt;- map_vec(codes, ~ factor(c(&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;)[.x],
+                                 levels = c(&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;)))
+sizes
+#&gt; [1] medium small  large  small 
+#&gt; Levels: small medium large</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 forces the output type with <code>.ptype</code>.</strong> Supplying a prototype makes the contract explicit and rejects any result that cannot be coerced.</p>
+
+<div class="webr-container" data-block-title="Force the output type with .ptype">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Force the output type with .ptype</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_vec(c(1, 2, 3), ~ .x, .ptype = integer())
+#&gt; [1] 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>.ptype</code> when you know the type you expect.</strong> Passing <code>.ptype = double()</code> or <code>.ptype = Sys.Date()</code> turns <code>map_vec()</code> into a typed variant on demand. It documents intent and fails fast if a function ever returns the wrong class.</div></div>
+
+<h2>map_vec() vs map_chr(), map_dbl() and map()</h2>
+
+<p><strong>The difference is who decides the output type.</strong> All four iterate identically; they differ in what they return and how strict they are.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map()</code></td>
+<td>A list</td>
+<td>Results vary in type or length</td>
+</tr>
+<tr>
+<td><code>map_chr()</code></td>
+<td>Character vector</td>
+<td>Every result is a single string</td>
+</tr>
+<tr>
+<td><code>map_dbl()</code></td>
+<td>Double vector</td>
+<td>Every result is a single number</td>
+</tr>
+<tr>
+<td><code>map_vec()</code></td>
+<td>Simplest common vector</td>
+<td>Results are scalars, including Date or factor</td>
+</tr>
+<tr>
+<td><code>list_rbind()</code></td>
+<td>Data frame</td>
+<td>Each result is a row</td>
+</tr>
+</tbody>
+</table>
+
+<p>The contrast with <code>map()</code> is clearest on the same input:</p>
+
+<div class="webr-container" data-block-title="map keeps a list, map_vec simplifies it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">map keeps a list, map_vec simplifies it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map(1:3, ~ .x * 10)
+#&gt; [[1]]
+#&gt; [1] 10
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 20
+#&gt;
+#&gt; [[3]]
+#&gt; [1] 30
+
+map_vec(1:3, ~ .x * 10)
+#&gt; [1] 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Decision rule:</strong> if every result is a scalar and you want a vector out, use <code>map_vec()</code>. If you specifically need numbers or strings and want the type checked, the typed variants state that intent more loudly. If results vary in length, stay with <code>map()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>map_vec() exists to fill the gap left by the typed variants.</strong> Before purrr 1.0.0, iterating to a Date or factor meant calling <code>map()</code> and then a manual <code>do.call(c, ...)</code> or <code>reduce()</code>. <code>map_vec()</code> makes that one call, and uses vctrs rules so the combination is type-safe rather than a <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">silent coercion</a>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: the function returns more than one value.</strong> <code>map_vec()</code> can only simplify length-one results into its output vector.</p>
+
+<div class="webr-container" data-block-title="Pitfall: .f must return length 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: .f must return length 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_vec(1:3, ~ c(.x, .x * 10))
+#&gt; Error in `map_vec()`:
+#&gt; i In index: 1.
+#&gt; Caused by error:
+#&gt; ! Result must be length 1, not 2.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to collapse the result, or switch to <code>map()</code> when varying lengths are genuinely expected.</p>
+
+<p><strong>Pitfall 2: the results have no common type.</strong> If one call returns a number and another a string, <code>map_vec()</code> refuses to combine them rather than coercing silently.</p>
+
+<div class="webr-container" data-block-title="Pitfall: results must share a common type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: results must share a common type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map_vec(list(1, &quot;two&quot;, 3), ~ .x)
+#&gt; Error in `map_vec()`:
+#&gt; ! Can't combine `&lt;double&gt;` and `&lt;character&gt;`.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 3: reaching for <code>map_vec()</code> when the type is fixed.</strong> If every result is definitely a number, <code>map_dbl()</code> documents that better and the error message is clearer. Save <code>map_vec()</code> for the cases the typed variants cannot express.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>map_vec() was added in purrr 1.0.0 (December 2022).</strong> On older purrr installations the function does not exist and you get a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error. Run <code>packageVersion(&quot;purrr&quot;)</code> and upgrade if it reports a version below 1.0.0.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map_vec()</code> to convert the character vector <code>c(&quot;3&quot;, &quot;7&quot;, &quot;11&quot;)</code> to a numeric vector. Save the result to <code>ex_nums</code>.</p>
+<div class="webr-container" data-block-title="Your turn: map_vec to numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: map_vec to numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: convert character strings to numbers
+ex_nums &lt;- # your code here
+
+ex_nums
+#&gt; Expected: 3 7 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+ex_nums &lt;- map_vec(c(&quot;3&quot;, &quot;7&quot;, &quot;11&quot;), as.numeric)
+ex_nums
+#&gt; [1]  3  7 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as.numeric()</code> returns a single number per element, so <code>map_vec()</code> detects the common double type and binds the three results into a numeric vector.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p><strong>These functions pair naturally with map_vec() in everyday pipelines.</strong></p>
+
+<ul>
+
+<li><code>map()</code>: the untyped base case that returns a list when results vary.</li>
+
+<li><code>map_chr()</code>: the string-only sibling for results that are single characters.</li>
+
+<li><code>map_dbl()</code>: the numeric-only sibling for results that are single doubles.</li>
+
+<li><code>map2()</code>: iterates over two inputs in parallel, with its own <code>_vec</code> form.</li>
+
+<li><code>list_rbind()</code>: stacks per-element results into a single data frame.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>map_vec(x, f)</code> is close to <code>vapply(x, f, FUN.VALUE)</code> but you do not have to spell out the prototype. <code>map_vec()</code> infers the common type, and only needs <code>.ptype</code> when you want to lock it down.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map_vec() and map()?</strong></p>
+
+<p><code>map()</code> always returns a list, no matter what the function produces. <code>map_vec()</code> simplifies the results into a single atomic or S3 vector, choosing the common type automatically. Use <code>map_vec()</code> when each result is a scalar and you want a flat vector to work with directly. Use <code>map()</code> when results differ in length or have no shared type, then process the list afterward.</p>
+
+<p><strong>When was map_vec() added to purrr?</strong></p>
+
+<p><code>map_vec()</code> arrived in purrr 1.0.0, released in December 2022, alongside other modernised iteration helpers. If your code calls <code>map_vec()</code> and R reports that it cannot find the function, your purrr is older than 1.0.0. Check with <code>packageVersion(&quot;purrr&quot;)</code> and run <code>install.packages(&quot;purrr&quot;)</code> to upgrade to a current release.</p>
+
+<p><strong>Can map_vec() return a Date or factor vector?</strong></p>
+
+<p>Yes, and that is its main advantage over the typed variants. <code>map_chr()</code>, <code>map_dbl()</code>, <code>map_int()</code> and <code>map_lgl()</code> only know the four base atomic types. <code>map_vec()</code> understands any vector type that vctrs can combine, so functions returning Date, POSIXct, factor or difftime values simplify correctly into a vector of that class.</p>
+
+<p><strong>Why does map_vec() throw a "Result must be length 1" error?</strong></p>
+
+<p>That error means the function returned more than one value for at least one element. <code>map_vec()</code> simplifies by stacking length-one results, so a length-two return has no place to go. The message reports the failing index. Either collapse the result to a single value, or switch to <code>map()</code> if varying lengths are part of your design.</p>
+
+<p><strong>Is map_vec() slower than <a class="auto-link" href="purrr-map-in-R.html" title="purrr map() in R: Apply a Function (Tidyverse Style)">map_chr()</a> or <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl()</a>?</strong></p>
+
+<p>In practice the difference is negligible for typical data. <code>map_vec()</code> does slightly more work because it inspects results to find the common type, while <code>map_dbl()</code> knows the type up front. For tight loops over millions of elements the typed variant has a small edge, but for everyday iteration the gap is not noticeable.</p>
+
+</content>
+
+</invoke>
