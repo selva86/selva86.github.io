@@ -1,0 +1,384 @@
+---
+title: "lubridate int_overlaps() in R: Detect Overlapping Intervals"
+description: "Use lubridate int_overlaps() in R to test whether two Interval objects share any moment. Syntax, vectorised use, edge cases, and conflict detection patterns."
+keywords: "lubridate int_overlaps, int_overlaps function R, lubridate int_overlaps examples, R interval overlap, detect overlapping intervals R, lubridate overlap, R time range conflict"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "int_overlaps()|lubridate int_overlaps|lubridate::int_overlaps()|test interval overlap|detect overlapping intervals|int_overlaps function"
+auto_link_case_sensitive: true
+fr_parent: "lubridate-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>lubridate int_overlaps() in R: Detect Overlapping Intervals</h1>
+
+<p class="lead">The <code>int_overlaps()</code> function in lubridate tests whether two Interval objects share any moment in time and returns a logical TRUE or FALSE. It is the canonical way in R to detect calendar conflicts, double bookings, and overlapping date ranges without writing pairwise comparison logic by hand.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>int_overlaps(int1, int2)<span class="qa-cmt">                     # TRUE if any moment is shared</span>
+int_overlaps(t1 %--% t2, t3 %--% t4)<span class="qa-cmt">         # works with inline intervals</span>
+int_overlaps(int_vec, single_int)<span class="qa-cmt">            # vectorised, single recycled</span>
+int_overlaps(int_vec1, int_vec2)<span class="qa-cmt">             # element-wise across two vectors</span>
+any(int_overlaps(int_vec, target))<span class="qa-cmt">           # any conflict in a calendar</span>
+sum(int_overlaps(int_vec, target))<span class="qa-cmt">           # how many ranges conflict</span>
+int_overlaps(reversed_int, normal_int)<span class="qa-cmt">       # direction-agnostic, still works</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is int_overlaps() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">two Interval objects share any moment</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">int_overlaps(i1, i2)</text><text x="125" y="126" class="branch-label">single date falls inside an Interval</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">x %within% int</text><text x="125" y="182" class="branch-label">find which ranges in a vector conflict</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">int_overlaps(int_vec, target)</text><text x="125" y="238" class="branch-label">compute the overlapping portion as a new Interval</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">lubridate::intersect(i1, i2)</text><text x="125" y="294" class="branch-label">length of the shared span in seconds</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">int_length(intersect(i1, i2))</text><text x="125" y="350" class="branch-label">gap between two non-overlapping ranges</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">as.period(setdiff(i1, i2))</text><text x="125" y="406" class="branch-label">is a date in a fixed set of holidays</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">x %in% holiday_dates</text></svg></div>
+
+<h2>What int_overlaps() does in one sentence</h2>
+
+<p><strong><code>int_overlaps()</code> returns TRUE when two Interval objects share at least one instant and FALSE when they are completely disjoint.</strong> The comparison is inclusive at both endpoints, so two ranges that meet at a single moment (one ends at 10:00:00 and the next starts at 10:00:00) are treated as overlapping.</p>
+
+<p>Behind the scenes the function evaluates <code>int_start(i1) &lt;= int_end(i2) &amp; int_end(i1) &gt;= int_start(i2)</code>. That single boolean is what most calendar conflict checks reduce to, and writing it from primitives every time invites off-by-one errors around the touching-endpoint case.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>int_overlaps(int1, int2)</code> takes exactly two arguments, both of which must be Interval objects.</strong> It returns a logical vector whose length matches the longer input via standard R recycling. There are no other parameters and no options to switch between inclusive and exclusive endpoints.</p>
+
+<div class="webr-container" data-block-title="Load lubridate and call int_overlaps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load lubridate and call int_overlaps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+i1 &lt;- interval(ymd(&quot;2024-03-01&quot;), ymd(&quot;2024-03-10&quot;))
+i2 &lt;- interval(ymd(&quot;2024-03-08&quot;), ymd(&quot;2024-03-15&quot;))
+i3 &lt;- interval(ymd(&quot;2024-04-01&quot;), ymd(&quot;2024-04-10&quot;))
+
+int_overlaps(i1, i2)
+#&gt; [1] TRUE
+
+int_overlaps(i1, i3)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two-day overlap between March 8 and March 10 makes the first call TRUE. The April range is fully outside the March range, so the second call is FALSE. The return is plain <code>logical</code>, ready to drop into <code>if</code>, <code>filter()</code>, <code>which()</code>, or any other boolean context.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build intervals with the <code>%--%</code> operator when you want one-line conflict checks.</strong> Writing <code>(t1 %--% t2)</code> inline keeps the call compact, for example <code>int_overlaps(start1 %--% end1, start2 %--% end2)</code>. The infix form is identical to <code>interval()</code> and saves an intermediate variable when you only need the result once.</div></div>
+
+<h2>Four common use cases</h2>
+
+<h3>1. Detect a meeting conflict between two bookings</h3>
+
+<div class="webr-container" data-block-title="Two meetings, single conflict check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two meetings, single conflict check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">meeting_a &lt;- ymd_hms(&quot;2024-05-10 09:00:00&quot;) %--%
+             ymd_hms(&quot;2024-05-10 10:30:00&quot;)
+
+meeting_b &lt;- ymd_hms(&quot;2024-05-10 10:00:00&quot;) %--%
+             ymd_hms(&quot;2024-05-10 11:00:00&quot;)
+
+int_overlaps(meeting_a, meeting_b)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Meeting B begins 30 minutes before A ends, so the function returns TRUE. This is the simplest scheduling check: one boolean, no math, no edge-case handling for adjacency.</p>
+
+<h3>2. Find which ranges in a vector conflict with a target</h3>
+
+<div class="webr-container" data-block-title="Find conflicts against a vector of bookings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find conflicts against a vector of bookings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">room_bookings &lt;- c(ymd_hms(&quot;2024-05-10 08:00:00&quot;),
+                   ymd_hms(&quot;2024-05-10 10:00:00&quot;),
+                   ymd_hms(&quot;2024-05-10 13:00:00&quot;)) %--%
+                 c(ymd_hms(&quot;2024-05-10 09:30:00&quot;),
+                   ymd_hms(&quot;2024-05-10 11:00:00&quot;),
+                   ymd_hms(&quot;2024-05-10 14:00:00&quot;))
+
+new_request &lt;- ymd_hms(&quot;2024-05-10 10:15:00&quot;) %--%
+               ymd_hms(&quot;2024-05-10 10:45:00&quot;)
+
+int_overlaps(room_bookings, new_request)
+#&gt; [1] FALSE  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>int_overlaps()</code> vectorises over the longer input and recycles the shorter, so a single request can be tested against every existing booking in one call. Wrap the result in <code>any()</code> for a yes-or-no answer or <code>which()</code> to identify the conflicting rows.</p>
+
+<h3>3. Count overlaps inside a data frame</h3>
+
+<div class="webr-container" data-block-title="Count daily conflicts with dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count daily conflicts with dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+bookings &lt;- tibble(
+  id = 1:4,
+  start = ymd_hms(c(&quot;2024-06-01 09:00:00&quot;,
+                    &quot;2024-06-01 10:00:00&quot;,
+                    &quot;2024-06-01 12:00:00&quot;,
+                    &quot;2024-06-01 14:30:00&quot;)),
+  end = ymd_hms(c(&quot;2024-06-01 11:00:00&quot;,
+                  &quot;2024-06-01 10:45:00&quot;,
+                  &quot;2024-06-01 13:00:00&quot;,
+                  &quot;2024-06-01 15:00:00&quot;))
+)
+
+target &lt;- ymd_hms(&quot;2024-06-01 10:30:00&quot;) %--%
+          ymd_hms(&quot;2024-06-01 12:15:00&quot;)
+
+bookings |&gt;
+  mutate(span = interval(start, end),
+         conflict = int_overlaps(span, target)) |&gt;
+  summarise(n_conflicts = sum(conflict))
+#&gt; # A tibble: 1 x 1
+#&gt;   n_conflicts
+#&gt;         &lt;int&gt;
+#&gt; 1           3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three of four rows touch the target window. Because the result is logical, <code>sum()</code> counts TRUE values directly. This is the standard pattern for time-window joins where you want a count per row rather than a join itself.</p>
+
+<h3>4. Touching endpoints count as overlap</h3>
+
+<div class="webr-container" data-block-title="Adjacency is treated as overlap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjacency is treated as overlap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">back_to_back &lt;- interval(ymd_hms(&quot;2024-07-01 09:00:00&quot;),
+                         ymd_hms(&quot;2024-07-01 10:00:00&quot;))
+right_after &lt;- interval(ymd_hms(&quot;2024-07-01 10:00:00&quot;),
+                        ymd_hms(&quot;2024-07-01 11:00:00&quot;))
+
+int_overlaps(back_to_back, right_after)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two ranges that share only the boundary instant return TRUE because the comparison uses inclusive endpoints on both sides. To treat adjacency as non-overlap, subtract one unit from the boundary before the call (for example <code>int_end(i1) - 1</code>).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>int_overlaps()</code> is direction-agnostic.</strong> If one of the inputs has its end timestamp before its start (a reversed interval), lubridate still evaluates the comparison correctly because the underlying check normalises the sign. You do not need <code>int_flip()</code> before calling.</div></div>
+
+<h2>int_overlaps() vs %within% vs intersect()</h2>
+
+<p><strong>Three related lubridate tools answer questions about how ranges meet, and the choice depends on what shape of answer you need.</strong> <code>int_overlaps()</code> gives a boolean; <code>%within%</code> tests a single instant against a range; <code>lubridate::intersect()</code> returns the overlapping span itself.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>int_overlaps(i1, i2)</code></td>
+<td>two Intervals</td>
+<td>logical</td>
+<td>yes-or-no conflict check</td>
+</tr>
+<tr>
+<td><code>x %within% int</code></td>
+<td>instant, Interval</td>
+<td>logical</td>
+<td>test if a single date is inside a range</td>
+</tr>
+<tr>
+<td><code>lubridate::intersect(i1, i2)</code></td>
+<td>two Intervals</td>
+<td>Interval</td>
+<td>get the shared span, NA if disjoint</td>
+</tr>
+<tr>
+<td><code>int_diff(times)</code></td>
+<td>sorted vector of times</td>
+<td>Interval vector</td>
+<td>build intervals from a time sequence</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If you want to know whether two ranges meet, use <code>int_overlaps()</code>. If you want to know whether a single point falls inside a range, use <code>%within%</code>. If you want the overlapping span itself (perhaps to compute its length), use <code>lubridate::intersect()</code>.</p>
+
+<div class="webr-container" data-block-title="When you need the shared span itself">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">When you need the shared span itself</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">i1 &lt;- interval(ymd(&quot;2024-03-01&quot;), ymd(&quot;2024-03-10&quot;))
+i2 &lt;- interval(ymd(&quot;2024-03-08&quot;), ymd(&quot;2024-03-15&quot;))
+
+shared &lt;- lubridate::intersect(i1, i2)
+shared
+#&gt; [1] 2024-03-08 UTC--2024-03-10 UTC
+
+int_length(shared) / 86400
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>lubridate::intersect()</code> returns the 2-day span that both ranges share. Combining it with <code>int_length()</code> answers "how much overlap" in seconds, which <code>int_overlaps()</code> alone cannot.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>int_overlaps()</code> collapses every pairwise overlap question to a vector of booleans.</strong> Anything more nuanced (which day overlaps, by how much, in what order) belongs to <code>lubridate::intersect()</code>, <code>int_length()</code>, or a self-join. Reach for <code>int_overlaps()</code> first; promote to the heavier tools only when the boolean is not enough.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Both arguments must be Interval objects, not Periods, Durations, dates, or pairs of timestamps.</strong> Passing a date directly errors with <code>Error: int1 is not an Interval</code>. The fix is to wrap timestamp pairs in <code>interval()</code> or <code>%--%</code> before calling.</p>
+
+<div class="webr-container" data-block-title="Pitfall: wrong input class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: wrong input class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">int_overlaps(ymd(&quot;2024-03-01&quot;), ymd(&quot;2024-03-10&quot;))
+#&gt; Error: int1 is not an Interval
+
+# Fix: build proper intervals first
+int_overlaps(interval(ymd(&quot;2024-03-01&quot;), ymd(&quot;2024-03-10&quot;)),
+             interval(ymd(&quot;2024-03-05&quot;), ymd(&quot;2024-03-15&quot;)))
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>NA in either bound propagates to NA in the result, not FALSE.</strong> If a booking has a missing start or end, the overlap test returns NA for that row, which silently breaks counts and filters. Always guard against missing bounds, either by replacing them with sentinels or by filtering rows with <code>is.na()</code> before the call.</p>
+
+<div class="webr-container" data-block-title="Pitfall: NA bounds return NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: NA bounds return NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">i_na &lt;- interval(ymd(&quot;2024-03-01&quot;), NA)
+i_ok &lt;- interval(ymd(&quot;2024-03-05&quot;), ymd(&quot;2024-03-15&quot;))
+int_overlaps(i_na, i_ok)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>sum()</code> on an int_overlaps() result that contains NA returns NA, not a count.</strong> Either pass <code>sum(..., na.rm = TRUE)</code> or filter NAs upstream with <code>tidyr::drop_na()</code>. A silent NA in a conflict total is much more dangerous than a loud error, because the dashboard keeps showing it.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A conference room is booked from 14:00 to 15:30 on 2024-08-05. A new request asks for 15:00 to 16:00 on the same day. Use <code>int_overlaps()</code> to detect the conflict.</p>
+<div class="webr-container" data-block-title="Your turn: detect the booking conflict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: detect the booking conflict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_booked &lt;- # your code here
+ex_request &lt;- # your code here
+ex_conflict &lt;- # your code here
+
+ex_conflict
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_booked &lt;- ymd_hms(&quot;2024-08-05 14:00:00&quot;) %--%
+             ymd_hms(&quot;2024-08-05 15:30:00&quot;)
+ex_request &lt;- ymd_hms(&quot;2024-08-05 15:00:00&quot;) %--%
+              ymd_hms(&quot;2024-08-05 16:00:00&quot;)
+ex_conflict &lt;- int_overlaps(ex_booked, ex_request)
+ex_conflict
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The request begins 30 minutes before the existing booking ends, so the two ranges share the 15:00 to 15:30 window. <code>int_overlaps()</code> returns TRUE for any non-empty shared span, including those that are just a single instant.</p>
+
+</details>
+</section>
+
+<h2>Related lubridate functions</h2>
+
+<ul>
+
+<li>[<code>interval()</code>](lubridate-interval-in-R.html) builds the Interval objects that <code>int_overlaps()</code> compares</li>
+
+<li>[<code>int_length()</code>](lubridate-int_length-in-R.html) returns the size of an Interval in seconds; pair it with <code>intersect()</code> to measure overlap magnitude</li>
+
+<li><code>lubridate::intersect(i1, i2)</code> returns the overlapping span itself, or NA when disjoint</li>
+
+<li><code>x %within% int</code> tests whether a single date or timestamp falls inside a range</li>
+
+<li><code>int_start()</code> and <code>int_end()</code> retrieve the bounds for custom comparison logic</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does int_overlaps() count touching endpoints as overlap?</strong></p>
+
+<p>Yes. <code>int_overlaps()</code> uses inclusive bounds at both endpoints, so two intervals that share only the boundary instant return TRUE. If one range ends at 10:00:00 and the next begins at 10:00:00, that single moment counts as overlap. To treat back-to-back ranges as non-overlapping, subtract one second from the end of the first range before calling, or build the second range to start one second later.</p>
+
+<p><strong>Is int_overlaps() vectorised?</strong></p>
+
+<p>Yes. Pass two vectors of Interval objects and <code>int_overlaps()</code> returns a logical vector of the same length. If one input has length 1, it is recycled against the longer vector, which is the standard pattern for testing a single new request against many existing bookings. This makes it slot directly into <code>mutate()</code> or any column expression that produces a conflict flag.</p>
+
+<p><strong>What does int_overlaps() return if either interval has NA bounds?</strong></p>
+
+<p>It returns NA for that pair, not FALSE. Missing bounds propagate through the comparison the same way NA propagates through <code>&lt;</code> and <code>&gt;</code>. Either drop rows with <code>is.na()</code> first, or pass <code>na.rm = TRUE</code> to any downstream <code>sum()</code> or <code>any()</code> that aggregates the result. A silent NA in a conflict total is the most common bug in this family.</p>
+
+<p><strong>What is the difference between int_overlaps() and %within%?</strong></p>
+
+<p><code>int_overlaps(i1, i2)</code> tests whether two Interval objects share any moment. <code>x %within% int</code> tests whether a single date or timestamp falls inside one Interval. Use <code>%within%</code> when one side is a point in time; use <code>int_overlaps()</code> when both sides are ranges. Trying to pass two intervals to <code>%within%</code> does not error but tests only whether the second interval fully contains the first, which is a stricter check.</p>
+
+<p><strong>Can int_overlaps() handle intervals across different time zones?</strong></p>
+
+<p>Yes. Interval objects store their start and end as POSIXct timestamps, which are absolute moments in time regardless of the time zone in which they were printed. Two intervals built in different time zones can be compared directly; lubridate normalises them to the same instant before testing for overlap. The displayed time zone of the endpoints does not affect the boolean result.</p>
+
+<p>For the full <a class="auto-link" href="lubridate-Cheat-Sheet-R.html" title="lubridate Cheat Sheet: Parse, Extract, Modify, and Do Arithmetic on Dates">lubridate reference</a>, see the <a href="https://lubridate.tidyverse.org/reference/int_overlaps.html">official lubridate documentation</a>.</p>
