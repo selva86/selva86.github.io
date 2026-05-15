@@ -1,0 +1,312 @@
+---
+title: "purrr negate() in R: Flip a Predicate's Logic"
+description: "Learn purrr negate() in R to flip a predicate function so TRUE becomes FALSE. Covers syntax, keep and discard pairing, formula predicates, and pitfalls."
+keywords: "purrr negate, negate function R, purrr negate examples, R negate predicate, invert predicate function R, purrr negate is.na"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "negate()|purrr negate|purrr::negate()|negated predicate|negate a predicate"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr negate() in R: Flip a Predicate's Logic</h1>
+
+<p class="lead">purrr negate() in R takes a predicate function and returns a new function that flips its result, turning every TRUE into FALSE and every FALSE into TRUE. It lets you reuse the opposite of a test, such as "not missing" from <a class="auto-link" href="R-Special-Values.html" title="R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means">is.na()</a>, without writing a wrapper by hand.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>negate(is.na)<span class="qa-cmt">                       # flip a named predicate</span>
+negate(is.na)(c(1, NA, 3))<span class="qa-cmt">          # call it inline</span>
+not_na &lt;- negate(is.na)<span class="qa-cmt">             # save the negated predicate</span>
+keep(x, negate(is.null))<span class="qa-cmt">            # keep the non-NULL elements</span>
+negate(\(x) x &gt; 0)<span class="qa-cmt">                  # negate an anonymous function</span>
+negate(~ .x %% 2 == 0)<span class="qa-cmt">              # negate a formula predicate</span>
+map_lgl(x, negate(is.character))<span class="qa-cmt">    # use it inside map</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is negate() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">flip a predicate's TRUE/FALSE result</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">negate(is.na)</text><text x="125" y="126" class="branch-label">drop elements that pass a test</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discard(x, is.null)</text><text x="125" y="182" class="branch-label">keep elements that pass a test</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">keep(x, is.numeric)</text><text x="125" y="238" class="branch-label">combine several functions into one</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">compose(f, g)</text><text x="125" y="294" class="branch-label">pre-set some of a function's arguments</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">partial(fn, n = 2)</text><text x="125" y="350" class="branch-label">test whether all or any elements pass</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">every(x, is.numeric)</text></svg></div>
+
+<h2>What negate does</h2>
+
+<p><strong>negate() builds the opposite of a test.</strong> You hand it a predicate, a function that returns TRUE or FALSE, and it returns a new function that runs the original and inverts the answer. Nothing is computed when you call negate(); it hands back a function that you call later on real data.</p>
+
+<p>This solves a small but constant annoyance. R ships <code>is.na()</code>, <code>is.null()</code>, and <code>is.numeric()</code>, but it ships no <code>is_not_na()</code>. Instead of writing <code>function(x) !is.na(x)</code> every time, you write <code>negate(is.na)</code> once and reuse it everywhere a function is expected.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>negate() is a function operator.</strong> It takes a function as input and returns a function as output, the same family as <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose()</a> and <a class="auto-link" href="R-Currying-and-Partial-Application.html" title="R Currying & Partial Application: purrr::partial() & rlang">partial()</a>. The value it produces is a tool, not a result, so you store it in a variable and apply it again and again.</div></div>
+
+<h2>negate syntax</h2>
+
+<p><strong>The signature is <code>negate(.p)</code>.</strong> The single argument <code>.p</code> is the predicate to invert. negate() accepts it in three forms, all coerced through purrr's mapper rules.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Form of <code>.p</code></th>
+<th>Example</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Named function</td>
+<td><code>negate(is.na)</code></td>
+<td>Inverts an existing predicate by name</td>
+</tr>
+<tr>
+<td>Anonymous function</td>
+<td><code>negate(\(x) x &gt; 0)</code></td>
+<td>Inverts an inline lambda</td>
+</tr>
+<tr>
+<td>Formula</td>
+<td><code>negate(~ .x &gt; 0)</code></td>
+<td>Inverts a purrr formula, <code>.x</code> is the input</td>
+</tr>
+</tbody>
+</table>
+
+<p>The function negate() returns is itself called like any predicate. Whatever arguments you pass go straight to the original predicate, and the <code>!</code> operator is applied to its result.</p>
+
+<div class="webr-container" data-block-title="Load purrr and negate a predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load purrr and negate a predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+not_na &lt;- negate(is.na)
+not_na(c(1, NA, 3, NA, 5))
+#&gt; [1]  TRUE FALSE  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call <code>negate(is.na)</code> reads as "not is.na". is.na() would mark the <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> TRUE; the negated version marks the present values TRUE instead, which is usually what you want when filtering.</p>
+
+<h2>Pair negate with keep and discard</h2>
+
+<p><strong>negate() shines when a filter only has a positive test.</strong> purrr's keep() retains elements that pass a predicate. To retain elements that fail one, wrap the predicate in negate() instead of switching to a different function.</p>
+
+<div class="webr-container" data-block-title="Keep elements that fail a test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep elements that fail a test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- list(a = 1:3, b = &quot;text&quot;, c = 4:6, d = &quot;more&quot;)
+
+keep(x, negate(is.numeric)) |&gt; names()
+#&gt; [1] &quot;b&quot; &quot;d&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>keep(x, negate(is.numeric))</code> retains the non-numeric elements. It produces the same result as <code>discard(x, is.numeric)</code>, so negate() and <a class="auto-link" href="purrr-discard-in-R.html" title="purrr discard() in R: Drop List Elements by Predicate">discard()</a> are two routes to one outcome. Reach for negate() when you want to name the inverted predicate and reuse it, and for discard() when you only need the filter once.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name your negated predicates.</strong> Assigning <code>not_na &lt;- negate(is.na)</code> makes call sites read like plain English: <code>keep(values, not_na)</code>. An inline <code>negate(is.na)</code> works too, but a named predicate documents intent and avoids rebuilding the function on every call.</div></div>
+
+<h2>Negate anonymous and formula predicates</h2>
+
+<p><strong>negate() is not limited to named functions.</strong> Any predicate purrr can interpret works, including anonymous <code>\(x)</code> functions and <code>~</code> formulas where <code>.x</code> is the first argument.</p>
+
+<div class="webr-container" data-block-title="Negate a formula or anonymous predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Negate a formula or anonymous predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">not_positive &lt;- negate(\(x) x &gt; 0)
+not_positive(c(-2, 0, 5, -1))
+#&gt; [1]  TRUE  TRUE FALSE  TRUE
+
+is_odd &lt;- negate(~ .x %% 2 == 0)
+is_odd(c(1, 2, 3, 4))
+#&gt; [1]  TRUE FALSE  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>negate(\(x) x &gt; 0)</code> flips a "greater than zero" test into "not greater than zero". The formula version <code>~ .x %% 2 == 0</code> tests for even numbers, so its negation tests for odd ones. Both negated functions stay vectorised because their underlying predicates are.</p>
+
+<div class="webr-container" data-block-title="Use negate inside map_lgl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use negate inside map_lgl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">items &lt;- list(10, &quot;hello&quot;, NULL, 42, NULL)
+map_lgl(items, negate(is.null))
+#&gt; [1]  TRUE  TRUE FALSE  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing <code>negate(is.null)</code> to map_lgl() produces a logical vector marking which list slots actually hold a value, a common first step before dropping the empty ones.</p>
+
+<h2>negate vs the alternatives</h2>
+
+<p><strong>negate() produces a function; the <code>!</code> operator produces a value.</strong> They answer related questions, so pick the one that matches whether you need a reusable predicate or a one-time answer.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Produces</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>negate(.p)</code></td>
+<td>A flipped predicate function</td>
+<td>Reusing the inverse of a test in many places</td>
+</tr>
+<tr>
+<td><code>!test(x)</code></td>
+<td>A logical value</td>
+<td>Inverting a test once, inline</td>
+</tr>
+<tr>
+<td><code>discard(x, .p)</code></td>
+<td>A filtered list or vector</td>
+<td>Dropping the elements that pass a test</td>
+</tr>
+<tr>
+<td><code>base::Negate(f)</code></td>
+<td>A flipped predicate function</td>
+<td>The same job without loading purrr</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. If you invert a test in exactly one spot, <code>!is.na(x)</code> is clearest. If the same inverted test appears in three places, name it once with negate(). When you only want the filtered data and never the predicate itself, skip negate() and call discard() directly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from base R?</strong> <code>base::Negate()</code> does the same job and predates purrr. <code>negate()</code> adds support for purrr formulas and anonymous-function shorthand, and reads consistently with the rest of the purrr toolkit. In Python there is no direct equivalent; you would write <code>lambda x: not f(x)</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>negate() takes a predicate, not data.</strong> Its only argument is the function to invert. Passing the data alongside the predicate is the most frequent mistake, because it looks like a one-step call.</p>
+
+<div class="webr-container" data-block-title="negate takes only a predicate, not data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">negate takes only a predicate, not data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">negate(is.na, c(1, NA))
+#&gt; Error in negate(is.na, c(1, NA)): unused argument (c(1, NA))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>negate() builds a function first; you call that function on data in a separate step, as in <code>negate(is.na)(c(1, NA))</code>.</p>
+
+<p><strong>negate() does not make a predicate NA-safe.</strong> The negated function applies <code>!</code> to whatever the original returns. If the predicate returns NA, the negation is NA as well, since <code>!NA</code> is NA.</p>
+
+<div class="webr-container" data-block-title="negate does not make a predicate NA-safe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">negate does not make a predicate NA-safe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">not_positive &lt;- negate(\(x) x &gt; 0)
+not_positive(c(5, NA, -1))
+#&gt; [1] FALSE    NA  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The comparison <code>NA &gt; 0</code> yields NA, and negating it leaves NA. Use an NA-aware predicate if missing values must resolve to a definite TRUE or FALSE.</p>
+
+<p><strong>A negated predicate inherits the original's shape.</strong> negate() does not vectorise anything. If the underlying predicate returns a single value, so does its negation, even when you pass a vector.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a predicate <code>ex_has_value</code> that returns TRUE for list elements that are not NULL, using negate(). Then use it with keep() to retain the non-NULL elements of <code>list(1, NULL, 3, NULL)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: negate is.null">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: negate is.null</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: negate is.null, then keep
+ex_has_value &lt;- # your code here
+
+keep(list(1, NULL, 3, NULL), ex_has_value)
+#&gt; Expected: a list of 1 and 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_has_value &lt;- negate(is.null)
+keep(list(1, NULL, 3, NULL), ex_has_value)
+#&gt; [[1]]
+#&gt; [1] 1
+#&gt; 
+#&gt; [[2]]
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> negate(is.null) returns a function that is TRUE when an element is not NULL. keep() then retains only the slots where that function returns TRUE, dropping the two NULL entries.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>These functions pair naturally with negate() when you build small predicate toolkits:</p>
+
+<ul>
+
+<li>The keep function retains the elements for which a predicate is TRUE, the natural home for a negated predicate.</li>
+
+<li>The discard function drops elements that pass a test, often the simpler choice when you do not need the inverted predicate by name.</li>
+
+<li>The compose function chains functions together, and a negated predicate can serve as one stage.</li>
+
+<li>The partial function fixes some of a function's arguments, another function operator like negate().</li>
+
+</ul>
+
+<p>See the <a href="https://purrr.tidyverse.org/reference/negate.html">purrr negate reference</a> for the full specification.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does negate() do in purrr?</strong> negate() takes a predicate function, one that returns TRUE or FALSE, and returns a new function that produces the opposite answer. Calling the new function runs the original predicate and applies <code>!</code> to its result. It exists so you can reuse the inverse of a test, such as "not missing" from is.na(), without hand-writing a wrapper function every time you need it.</p>
+
+<p><strong>What is the difference between negate() and Negate() in base R?</strong> They do the same job: both take a predicate and return its logical inverse. <code>base::Negate()</code> is older and part of base R, so it needs no package. purrr's <code>negate()</code> additionally accepts purrr formulas like <code>~ .x &gt; 0</code> and anonymous-function shorthand, and it reads consistently with keep(), discard(), and the rest of purrr. Use whichever fits the style of your codebase.</p>
+
+<p><strong>How do I use negate() with is.na or is.null?</strong> Wrap the predicate in negate() and store the result: <code>not_na &lt;- negate(is.na)</code> or <code>has_value &lt;- negate(is.null)</code>. The new function returns TRUE for present, non-missing values. It pairs well with keep(), as in <code>keep(x, negate(is.null))</code>, which retains only the elements that actually hold a value.</p>
+
+<p><strong>Can negate() take a formula or anonymous function?</strong> Yes. negate() coerces its argument through purrr's mapper rules, so a named function, an anonymous <code>\(x)</code> function, and a <code>~</code> formula all work. For example, <code>negate(~ .x %% 2 == 0)</code> flips an even-number test into an odd-number test, with <code>.x</code> standing for the input.</p>
+
+<p><strong>Does negate() run the predicate or just return a function?</strong> negate() only returns a function; it runs nothing itself. The original predicate executes later, when you call the function negate() handed back. That is why <code>negate(is.na)(x)</code> needs two sets of parentheses: the first builds the negated predicate, the second applies it to <code>x</code>.</p>
