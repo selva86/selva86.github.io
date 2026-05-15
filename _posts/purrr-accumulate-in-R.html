@@ -1,0 +1,325 @@
+---
+title: "purrr accumulate() in R: Running Reductions Over a List"
+description: "Use purrr accumulate() in R to fold a list or vector while keeping every intermediate step. Covers running sums, .init, .dir, accumulate2, and 5 examples."
+keywords: "purrr accumulate, accumulate function R, purrr accumulate examples, R cumulative reduce, accumulate vs reduce R, R running total list, purrr accumulate dir"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr accumulate|accumulate()|purrr::accumulate()|running total|cumulative reduce"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr accumulate() in R: Running Reductions Over a List</h1>
+
+<p class="lead">The <code>accumulate()</code> function in purrr folds a list or vector with a 2-argument function and returns <em>every</em> intermediate result, not just the final one. It is <code>reduce()</code> that shows its work.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>accumulate(1:5, `+`)<span class="qa-cmt">                      # 1 3 6 10 15 running sum</span>
+accumulate(1:5, `*`)<span class="qa-cmt">                      # 1 2 6 24 120 cumulative product</span>
+accumulate(x, max)<span class="qa-cmt">                        # running maximum</span>
+accumulate(x, `+`, .init = 100)<span class="qa-cmt">           # start the fold from 100</span>
+accumulate(1:5, `+`, .dir = &quot;backward&quot;)<span class="qa-cmt">   # fold right-to-left</span>
+accumulate2(x, y, ~ ..1 + ..2 + ..3)<span class="qa-cmt">      # two parallel inputs</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-reduce-in-R.html" title="purrr reduce() in R: Combine Elements With a Function">accumulate()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need running totals and every step</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">accumulate()</text><text x="125" y="126" class="branch-label">need only the final folded value</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">reduce()</text><text x="125" y="182" class="branch-label">plain running sum of a vector</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cumsum()</text><text x="125" y="238" class="branch-label">plain running product of a vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">cumprod()</text><text x="125" y="294" class="branch-label">running max or running min</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cummax() / cummin()</text><text x="125" y="350" class="branch-label">one output per input, no folding</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a></text><text x="125" y="406" class="branch-label">accumulate over two inputs at once</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">accumulate2()</text></svg></div>
+
+<h2>What accumulate() does in one sentence</h2>
+
+<p><strong><code>accumulate(.x, .f)</code> applies a 2-argument function across <code>.x</code> and records the result after every step, returning a vector the same length as the input.</strong> Where <code>reduce()</code> collapses a list to one value, <code>accumulate()</code> keeps the full trail of partial results.</p>
+
+<p>Think of summing <code>1:5</code>. <code>reduce()</code> gives you <code>15</code>. <code>accumulate()</code> gives you <code>1 3 6 10 15</code>, the partial sum after each element is added. The first output is the first input untouched, and every value after it is the running result of folding one more element into the accumulator.</p>
+
+<p>That trail is the whole point. Many problems ask not for a final number but how a quantity evolved: a balance after each transaction, a portfolio value after each year. <code>accumulate()</code> answers that in one line, where a manual loop would need an index and a pre-allocated output vector.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>accumulate(.x, .f, ..., .init, .dir = c(&quot;forward&quot;, &quot;backward&quot;))</code>. <code>.f</code> takes 2 arguments, <code>.init</code> is an optional seed, and <code>.dir</code> controls fold direction.</strong></p>
+
+<div class="webr-container" data-block-title="Running sum versus a single reduce">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Running sum versus a single reduce</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+reduce(1:5, `+`)
+#&gt; [1] 15
+
+accumulate(1:5, `+`)
+#&gt; [1]  1  3  6 10 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first argument of <code>.f</code> is the accumulator, meaning the result so far. The second argument is the next element of <code>.x</code>. The output is a vector the same length as the input, and it keeps the names of <code>.x</code> when the input is named. You can pass <code>.f</code> as a bare function, a backtick-quoted operator like <code>+</code>, or a purrr-style lambda such as <code>~ .x + .y</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>accumulate()</code> is <code>reduce()</code> with a memory.</strong> Both walk the input pairwise with the same function in the same order. <code>reduce()</code> throws away each partial result; <code>accumulate()</code> stores them. Whenever you ask "what did the running value look like along the way?", you want <code>accumulate()</code>.</div></div>
+
+<h2>accumulate() examples by use case</h2>
+
+<h3>1. Running totals and cumulative sums</h3>
+
+<p>The most common job is a running total: a balance, a score, or a count that grows element by element. Each output position holds the sum of every input up to and including that position.</p>
+
+<div class="webr-container" data-block-title="Running total of a sequence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Running total of a sequence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate(1:7, `+`)
+#&gt; [1]  1  3  6 10 15 21 28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This pattern fits any additive quantity, such as daily sales accumulating into a month-to-date figure.</p>
+
+<h3>2. Running maximum and running minimum</h3>
+
+<p>Pass <code>max</code> or <code>min</code> as <code>.f</code> to track the best or worst value seen so far. The result is a non-decreasing (or non-increasing) sequence, which is exactly what a high-water mark looks like.</p>
+
+<div class="webr-container" data-block-title="Running maximum over a noisy vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Running maximum over a noisy vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">scores &lt;- c(3, 1, 4, 1, 5, 9, 2, 6)
+
+accumulate(scores, max)
+#&gt; [1] 3 3 4 4 5 9 9 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Once a new peak appears at position 6, it carries forward unchanged. Drawdown analysis uses this idea: compare each value against its running maximum.</p>
+
+<h3>3. Cumulative product</h3>
+
+<p>Swap in the <code>*</code> operator to get cumulative products. When the input is <code>1:n</code>, the result is the sequence of factorials, because each step multiplies the running product by the next integer.</p>
+
+<div class="webr-container" data-block-title="Cumulative product yields factorials">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cumulative product yields factorials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate(1:6, `*`)
+#&gt; [1]   1   2   6  24 120 720</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Position 6 is <code>6! = 720</code>, and every earlier position is the factorial of its index.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For a plain cumulative sum or product, reach for base R first.</strong> <code>cumsum()</code>, <code>cumprod()</code>, <code>cummax()</code>, and <code>cummin()</code> are vectorized in C and noticeably faster than <code>accumulate()</code>. Use <code>accumulate()</code> when the <a class="auto-link" href="ggplot2-geom_step-in-R.html" title="ggplot2 geom_step() in R: Step Function Lines">step function</a> is custom and no <code>cum*()</code> helper exists, or when the input is a list rather than a plain numeric vector.</div></div>
+
+<h3>4. Compound growth with .init</h3>
+
+<p>The <code>.init</code> argument seeds the fold with a starting value, and that seed becomes the first element of the output. This models compound growth cleanly: the seed is the opening amount, and each growth factor multiplies the running balance.</p>
+
+<div class="webr-container" data-block-title="Investment value after five years of 5% growth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Investment value after five years of 5% growth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate(rep(1.05, 5), `*`, .init = 1000)
+#&gt; [1] 1000.000 1050.000 1102.500 1157.625 1215.506 1276.282</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output has 6 values: the initial 1000 plus one per growth factor. Because <code>.init</code> adds an element, the result is always one longer than <code>.x</code> when a seed is supplied.</p>
+
+<h3>5. accumulate2() for two parallel inputs</h3>
+
+<p><code>accumulate2()</code> walks two inputs at once. The second input <code>.y</code> must be exactly one element shorter than <code>.x</code>, and <code>.f</code> receives three arguments: the accumulator, the next <code>.x</code>, and the next <code>.y</code>.</p>
+
+<div class="webr-container" data-block-title="Fold two vectors together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fold two vectors together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate2(1:4, c(10, 20, 30), ~ ..1 + ..2 + ..3)
+#&gt; [1]  1 13 36 70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first result is <code>.x[1]</code> untouched. Each later step adds the next <code>.x</code> element and the next <code>.y</code> element to the running value, which is useful when the fold needs a second stream of data.</p>
+
+<h2>accumulate() vs reduce()</h2>
+
+<p><strong>Both fold with the same function and the same argument order. They differ only in what they return.</strong> Picking between them is a question of whether you need the journey or just the destination.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reduce()</code></td>
+<td>Single final value</td>
+<td>You only need the end result</td>
+</tr>
+<tr>
+<td><code>accumulate()</code></td>
+<td>Vector of every step</td>
+<td>You need the running trail</td>
+</tr>
+<tr>
+<td><code>accumulate(.dir = &quot;backward&quot;)</code></td>
+<td>Steps, right-to-left</td>
+<td>The trail should build from the end</td>
+</tr>
+<tr>
+<td><code>base::Reduce(accumulate = TRUE)</code></td>
+<td>Vector of steps</td>
+<td>You want no purrr dependency</td>
+</tr>
+</tbody>
+</table>
+
+<p>Direction matters for <code>accumulate()</code> too. A forward fold reports each prefix result, while a backward fold reports each suffix result.</p>
+
+<div class="webr-container" data-block-title="Forward versus backward accumulation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forward versus backward accumulation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accumulate(1:5, `+`)
+#&gt; [1]  1  3  6 10 15
+
+accumulate(1:5, `+`, .dir = &quot;backward&quot;)
+#&gt; [1] 15 14 12  9  5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The backward result reads as "sum from here to the end" at each position, which is the natural shape for a countdown or a remaining-work estimate.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: expecting a single value.</strong> <code>accumulate()</code> returns a vector as long as <code>.x</code>, never a scalar. If you only want the final number, use <code>reduce()</code>, or take <code>tail(accumulate(...), 1)</code>.</p>
+
+<p><strong>Pitfall 2: forgetting that <code>.init</code> adds an element.</strong> With <code>.init</code> supplied, the output length is <code>length(.x) + 1</code> because the seed counts as the first element. This trips up code that expects the result to line up one-to-one with the input.</p>
+
+<p><strong>Pitfall 3: mismatched lengths in <code>accumulate2()</code>.</strong> The <code>.y</code> argument must have exactly one fewer element than <code>.x</code>. A wrong length throws an error rather than recycling silently, so check <code>length(.y) == length(.x) - 1</code> before calling.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A non-commutative function gives different forward and backward results.</strong> For <code>+</code>, <code>*</code>, <code>max</code>, and <code>min</code>, the direction changes only the trail, not the final value. For string concatenation, subtraction, or list building, <code>.dir</code> changes the actual numbers. Always test both directions when the operation is order-sensitive.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>accumulate()</code> to build a running balance from a vector of transactions, starting from an opening balance of 500. Save the result to <code>ex_balance</code>.</p>
+<div class="webr-container" data-block-title="Your turn: running account balance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: running account balance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">txns &lt;- c(-100, 250, -75, -200, 400)
+
+ex_balance &lt;- # your code here
+
+ex_balance
+#&gt; Expected: 500 400 650 575 375 775</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">txns &lt;- c(-100, 250, -75, -200, 400)
+
+ex_balance &lt;- accumulate(txns, `+`, .init = 500)
+ex_balance
+#&gt; [1] 500 400 650 575 375 775</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.init = 500</code> seeds the running balance, so the first output value is the opening balance. Each later value adds the next transaction to the balance so far, giving the account history after every move.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>Once <code>accumulate()</code> makes sense, these neighbors round out the fold toolkit:</p>
+
+<ul>
+
+<li><code>reduce()</code>: the same fold, but it returns only the final value</li>
+
+<li><code>accumulate2()</code>: accumulate over two parallel inputs at once</li>
+
+<li><code>reduce2()</code>: reduce over two parallel inputs</li>
+
+<li><code>map()</code>: one transformed output per input, with no accumulation between elements</li>
+
+<li><code>compose()</code>: chain several functions into a single function</li>
+
+</ul>
+
+<p>For simple cumulative math on <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>, base R's <code>cumsum()</code>, <code>cumprod()</code>, <code>cummax()</code>, and <code>cummin()</code> stay the fastest choice and need no package.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does accumulate() do in purrr?</strong></p>
+
+<p><code>accumulate(.x, .f)</code> folds a list or vector with a 2-argument function and returns every intermediate result. After processing each element it records the running value, so the output is a vector the same length as the input. It is the step-by-step version of <code>reduce()</code>, which keeps only the final folded value.</p>
+
+<p><strong>What is the difference between accumulate and reduce in purrr?</strong></p>
+
+<p>They apply the same function in the same way and the same order. <code>reduce()</code> returns only the final folded value, while <code>accumulate()</code> returns the complete sequence of partial results. Use <code>reduce()</code> for an end total and <code>accumulate()</code> when you need the running trail, such as a cumulative sum, a running maximum, or a balance over time.</p>
+
+<p><strong>How is accumulate() different from cumsum() in R?</strong></p>
+
+<p><code>cumsum()</code> is hard-wired to addition and only works on numeric vectors. <code>accumulate()</code> accepts any 2-argument function, so it handles running products, running max, custom logic, and even list inputs. For a plain cumulative sum, <code>cumsum()</code> is faster because it is vectorized in C; for anything else, <code>accumulate()</code> is far more flexible.</p>
+
+<p><strong>What does the .init argument do in accumulate()?</strong></p>
+
+<p><code>.init</code> sets the starting value of the accumulator and becomes the first element of the output. Without it, <code>accumulate()</code> uses the first element of <code>.x</code> as the seed. With it, the output is one element longer than <code>.x</code>, which is useful for modeling an opening balance, a base case, or a known starting state.</p>
+
+<p><strong>Can accumulate() fold from right to left?</strong></p>
+
+<p>Yes. Pass <code>.dir = &quot;backward&quot;</code> to fold from the last element toward the first. Each output value then represents the accumulated result of the suffix starting at that position. For order-sensitive functions, the backward trail differs from the forward trail.</p>
+
+</content>
