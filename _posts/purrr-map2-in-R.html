@@ -1,0 +1,327 @@
+---
+title: "purrr map2() in R: Iterate Over Two Lists in Parallel"
+description: "Use purrr map2() to apply a function to two lists or vectors in parallel in R. Covers map2_dbl, map2_chr, map2_dfr variants, lambda syntax, and 5 examples."
+keywords: "purrr map2, map2 function R, purrr map2 examples, map2_dbl, map2 vs mapply, R iterate two lists, walk2"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "purrr map2|map2()|map2_dbl()|map2_chr()|iterate over two lists"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>purrr map2() in R: Iterate Over Two Lists in Parallel</h1>
+
+<p class="lead">The <code>map2()</code> function in purrr applies a function to two lists or vectors in parallel, stepping through both at the same time. Type-safe variants (<code>map2_dbl</code>, <code>map2_chr</code>, <code>map2_dfr</code>) return a specific atomic type or a data frame instead of a list.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map2(a, b, ~ .x + .y)<span class="qa-cmt">              # list output</span>
+map2_dbl(a, b, ~ .x + .y)<span class="qa-cmt">          # numeric vector</span>
+map2_chr(nm, val, paste)<span class="qa-cmt">           # character vector</span>
+map2_lgl(a, b, ~ .x &gt; .y)<span class="qa-cmt">          # logical vector</span>
+map2_dfr(a, b, make_row)<span class="qa-cmt">           # row-bind to data frame</span>
+map2(a, b, fn, na.rm = TRUE)<span class="qa-cmt">       # extra args after .f</span>
+walk2(paths, data, write.csv)<span class="qa-cmt">      # side effects, no return</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map2()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">two inputs in lockstep</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">map2(a, b, ~ .x + .y)</text><text x="125" y="126" class="branch-label">only one input</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">map(a, ~ .x * 2)</text><text x="125" y="182" class="branch-label">three or more inputs</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">pmap(list(a, b, c), sum)</text><text x="125" y="238" class="branch-label">two inputs, side effects only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">walk2(a, b, fn)</text><text x="125" y="294" class="branch-label">two inputs, running total</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">reduce2(a, b, fn)</text><text x="125" y="350" class="branch-label">one input plus its index</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">imap(a, ~ .y)</text></svg></div>
+
+<h2>What map2() does in one sentence</h2>
+
+<p><strong><code>map2(.x, .y, .f)</code> calls <code>.f</code> once per pair of elements drawn from <code>.x</code> and <code>.y</code>, returning a list.</strong> Element <code>i</code> of the result is <code>.f(.x[[i]], .y[[i]])</code>, so both inputs must have the same length.</p>
+
+<p>While <code>map()</code> walks a single input, <code>map2()</code> walks two inputs in lockstep. This is the tool you reach for when a calculation needs one value from each of two collections: a name and a score, a numerator and a denominator, a file path and the data to write to it.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>map2(.x, .y, .f, ...)</code>. <code>.x</code> and <code>.y</code> are the two inputs; <code>.f</code> is the function or lambda; <code>...</code> holds extra arguments passed to <code>.f</code>.</strong></p>
+
+<p>Inside a purrr lambda, <code>.x</code> refers to the current element of the first input and <code>.y</code> to the current element of the second. The two inputs must be the same length, although a length-1 input is recycled.</p>
+
+<div class="webr-container" data-block-title="Add two vectors element by element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add two vectors element by element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+map2(1:3, 4:6, ~ .x + .y)
+#&gt; [[1]]
+#&gt; [1] 5
+#&gt; [[2]]
+#&gt; [1] 7
+#&gt; [[3]]
+#&gt; [1] 9
+
+map2_dbl(1:3, 4:6, ~ .x + .y)
+#&gt; [1] 5 7 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for a <code>map2_*()</code> variant whenever you know the output type.</strong> <code>map2_dbl()</code> returns a numeric vector and errors if any call returns a non-numeric, which catches bugs early. Use plain <code>map2()</code> only when results are mixed types or genuinely need to stay a list.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Plain map2 (list output)</h3>
+
+<p><strong><code>map2()</code> with no suffix always returns a list, one element per pair.</strong> Use it when each call produces something that does not flatten cleanly, such as a vector or a model object.</p>
+
+<div class="webr-container" data-block-title="Pairwise list output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise list output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map2(c(1, 2, 3), c(10, 20, 30), ~ c(.x, .y))
+#&gt; [[1]]
+#&gt; [1]  1 10
+#&gt; [[2]]
+#&gt; [1]  2 20
+#&gt; [[3]]
+#&gt; [1]  3 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each call returns a length-2 vector, so a list is the only sensible container.</p>
+
+<h3>2. Type-safe numeric output</h3>
+
+<p><strong><code>map2_dbl()</code> divides, scales, or combines two numeric inputs into a clean numeric vector.</strong> This is the most common map2 variant in day-to-day analysis.</p>
+
+<div class="webr-container" data-block-title="Divide miles per gallon by weight">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Divide miles per gallon by weight</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg &lt;- mtcars$mpg[1:4]
+wt  &lt;- mtcars$wt[1:4]
+
+map2_dbl(mpg, wt, ~ .x / .y)
+#&gt; [1] 8.015267 7.304348 7.091757 6.656299</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.x</code> is each mpg value and <code>.y</code> is the matching weight, so element <code>i</code> is <code>mpg[i] / wt[i]</code>.</p>
+
+<h3>3. Build strings from two vectors</h3>
+
+<p><strong><code>map2_chr()</code> glues a value from each input into one string per pair.</strong> It is the parallel-iteration answer to pasting two vectors together.</p>
+
+<div class="webr-container" data-block-title="Combine names and scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine names and scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">students &lt;- c(&quot;Alice&quot;, &quot;Bob&quot;, &quot;Carol&quot;)
+scores   &lt;- c(88, 92, 79)
+
+map2_chr(students, scores, ~ paste0(.x, &quot; scored &quot;, .y))
+#&gt; [1] &quot;Alice scored 88&quot; &quot;Bob scored 92&quot;   &quot;Carol scored 79&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Combine results into a data frame</h3>
+
+<p><strong><code>map2_dfr()</code> calls a function that returns a data frame, then row-binds every result.</strong> This builds one tidy table from two parallel inputs.</p>
+
+<div class="webr-container" data-block-title="Row-bind a data frame per pair">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row-bind a data frame per pair</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_row &lt;- function(name, n) {
+  data.frame(group = name, total = n * 10)
+}
+
+map2_dfr(c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;), c(1, 2, 3), make_row)
+#&gt;   group total
+#&gt; 1     x    10
+#&gt; 2     y    20
+#&gt; 3     z    30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>5. Pass extra arguments after the function</h3>
+
+<p><strong>Anything after <code>.f</code> is forwarded to every call.</strong> Here <code>round()</code> receives <code>.x</code> and <code>.y</code> as its first two arguments, with no lambda needed.</p>
+
+<div class="webr-container" data-block-title="Round each number to a paired digit count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round each number to a paired digit count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">map2_dbl(c(3.14159, 2.71828), c(2, 4), round)
+#&gt; [1] 3.1400 2.7183</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>map2()</code> is <code>map()</code> with a second synchronized cursor, not a nested loop.</strong> It does not pair every element of <code>.x</code> with every element of <code>.y</code>. It pairs position 1 with position 1, position 2 with position 2, and so on. For an all-combinations grid, use <code>tidyr::crossing()</code> first, then <code>map2()</code> over the expanded columns.</div></div>
+
+<h2>map2() vs Map() vs mapply()</h2>
+
+<p><strong>Three <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> iterate over two inputs in parallel, with different output guarantees.</strong> <code>map2()</code> adds type safety and lambda syntax on top of what base R already offers.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Output</th>
+<th>Type-safe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Map()</code></td>
+<td>base</td>
+<td>List</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>mapply()</code></td>
+<td>base</td>
+<td>Vector or matrix or list (auto)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>map2()</code></td>
+<td>purrr</td>
+<td>List</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>map2_dbl()</code> and friends</td>
+<td>purrr</td>
+<td>Type-strict atomic vector</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>map2()</code> behaves like <code>Map()</code> with cleaner lambda syntax. The real advantage is the typed <code>map2_*()</code> family: you declare the output type up front, and a wrong return value raises an error instead of silently collapsing to a list or simplifying unpredictably like <code>mapply()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> The closest equivalent of <code>map2(a, b, f)</code> is <code>[f(x, y) for x, y in zip(a, b)]</code> or <code>list(map(f, a, b))</code>. Both iterate two sequences in lockstep, exactly as map2 does.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: inputs of different lengths.</strong> <code>map2()</code> requires <code>.x</code> and <code>.y</code> to have the same length, except when one has length 1. <code>map2(1:3, 1:2, ~ .x + .y)</code> raises an error because purrr cannot recycle a length-3 input to match a length-2 input.</p>
+
+<p><strong>Pitfall 2: forgetting the type suffix.</strong> <code>map2(a, b, ~ .x + .y)</code> returns a list. For a numeric vector, use <code>map2_dbl()</code>. For text, use <code>map2_chr()</code>. The bare <code>map2()</code> never simplifies on its own.</p>
+
+<p><strong>Pitfall 3: swapping <code>.x</code> and <code>.y</code>.</strong> The first argument fills <code>.x</code> and the second fills <code>.y</code>. In <code>map2_dbl(mpg, wt, ~ .x / .y)</code>, reversing the inputs computes weight over mileage instead. Order matters.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>map2_chr</code> to label each car. Combine <code>rownames(mtcars)[1:3]</code> with <code>mtcars$cyl[1:3]</code> into strings like <code>&quot;Mazda RX4 has 6 cylinders&quot;</code>. Save the result to <code>ex_labels</code>.</p>
+<div class="webr-container" data-block-title="Your turn: label cars with map2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label cars with map2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: map2_chr over names and cylinder counts
+ex_labels &lt;- # your code here
+
+ex_labels
+#&gt; Expected: 3 strings naming each car and its cylinder count</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_labels &lt;- map2_chr(
+  rownames(mtcars)[1:3],
+  mtcars$cyl[1:3],
+  ~ paste0(.x, &quot; has &quot;, .y, &quot; cylinders&quot;)
+)
+ex_labels
+#&gt; [1] &quot;Mazda RX4 has 6 cylinders&quot;     &quot;Mazda RX4 Wag has 6 cylinders&quot;
+#&gt; [3] &quot;Datsun 710 has 4 cylinders&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map2_chr()</code> walks the car names and cylinder counts together. For each pair, the lambda pastes <code>.x</code> (the name) and <code>.y</code> (the count) into one sentence, and the <code>_chr</code> suffix returns a character vector.</p>
+
+</details>
+</section>
+
+<h2>Related purrr functions</h2>
+
+<p>After map2, these functions cover the rest of multi-input iteration:</p>
+
+<ul>
+
+<li><code>map2_dbl()</code>, <code>map2_chr()</code>, <code>map2_lgl()</code>, <code>map2_int()</code>: type-safe variants</li>
+
+<li><code>map2_dfr()</code>, <code>map2_dfc()</code>: combine results into a data frame</li>
+
+<li><code>pmap()</code> and <code>pmap_dbl()</code>: iterate over three or more inputs from a list</li>
+
+<li><code>walk2()</code>: run a two-input function for side effects, returning the input invisibly</li>
+
+<li><code>imap()</code>: iterate over one input plus its index or names</li>
+
+<li><code>reduce2()</code>: fold two inputs into a single accumulated value</li>
+
+</ul>
+
+<p>The base R counterparts are <code>Map()</code> and <code>mapply()</code> for projects that avoid the tidyverse. The official argument reference lives in the <a href="https://purrr.tidyverse.org/reference/map2.html">purrr map2 documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between map and map2 in purrr?</strong></p>
+
+<p><code>map()</code> iterates over a single input and exposes each element as <code>.x</code>. <code>map2()</code> iterates over two inputs in parallel, exposing them as <code>.x</code> and <code>.y</code>. Use <code>map()</code> when a calculation needs one value at a time, and <code>map2()</code> when each step needs a matching value from two collections, such as a name and a score. For three or more inputs, switch to <code>pmap()</code>.</p>
+
+<p><strong>How do I use map2 with more than two inputs?</strong></p>
+
+<p><code>map2()</code> is limited to exactly two inputs. For three or more, use <code>pmap()</code>, which takes a single list of inputs: <code>pmap(list(a, b, c), function(x, y, z) x + y + z)</code>. Inside a pmap lambda you can also refer to inputs positionally as <code>..1</code>, <code>..2</code>, and <code>..3</code>. The typed <code>pmap_dbl()</code> and <code>pmap_chr()</code> variants work the same way.</p>
+
+<p><strong>What does map2_dbl do?</strong></p>
+
+<p><code>map2_dbl()</code> applies a function to two inputs in parallel and returns a numeric vector instead of a list. Every call must return a single numeric value, otherwise purrr raises an error. It is the type-safe choice for pairwise arithmetic like division, weighted sums, or scaling one vector by another.</p>
+
+<p><strong>Why does map2 give an error about lengths?</strong></p>
+
+<p><code>map2()</code> requires both inputs to be the same length, or one of them to have length 1 so it can be recycled. An error such as "Can't recycle" means <code>.x</code> and <code>.y</code> have different, incompatible lengths. Check both inputs with <code>length()</code> and fix the mismatch before calling map2.</p>
+
+<p><strong>Can I use named arguments with map2?</strong></p>
+
+<p>Yes. Any argument you pass after <code>.f</code> is forwarded to every call. For example, <code>map2_dbl(x, y, fn, na.rm = TRUE)</code> passes <code>na.rm = TRUE</code> into each invocation of <code>fn</code>. This keeps the lambda short when the extra argument is constant across all pairs.</p>
