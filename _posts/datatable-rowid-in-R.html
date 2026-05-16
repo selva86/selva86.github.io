@@ -1,0 +1,375 @@
+---
+title: "data.table rowid() in R: Unique Row IDs Within Groups"
+description: "Use data.table rowid() in R to generate a within-group row counter, number occurrences of a value, group by multiple keys, and keep the first row per group."
+keywords: "data.table rowid, rowid function R, data.table rowid examples, R rowid within groups, rowidv data.table, generate row id R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rowid()|data.table rowid|data.table::rowid()|rowidv()|within-group counter"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table rowid() in R: Unique Row IDs Within Groups</h1>
+
+<p class="lead">The data.table <code>rowid()</code> function generates a unique within-group counter, numbering each row 1, 2, 3 within every group defined by the values you pass it, all in a single fast pass.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rowid(c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">           # within-group counter: 1 2 1</span>
+rowid(dt$cyl)<span class="qa-cmt">                     # occurrence index for a column</span>
+rowid(dt$g1, dt$g2)<span class="qa-cmt">               # group by two keys at once</span>
+rowid(x, prefix = &quot;id&quot;)<span class="qa-cmt">           # character ids: id1, id2, id1</span>
+dt[, n := rowid(grp)]<span class="qa-cmt">             # add a within-group counter column</span>
+dt[rowid(id) == 1]<span class="qa-cmt">                # keep the first row per group</span>
+rowidv(dt, cols = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">    # rowid driven by named columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rowid() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">number rows within each value group</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rowid(dt$grp)</text><text x="125" y="126" class="branch-label">number rows within consecutive runs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rleid(dt$grp)</text><text x="125" y="182" class="branch-label">number every row globally 1 to N</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">seq_len(nrow(dt))</text><text x="125" y="238" class="branch-label">rank rows by a value within a group</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">frank(dt, val)</text><text x="125" y="294" class="branch-label">count how many rows each group has</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[, .N, by = grp]</text><text x="125" y="350" class="branch-label">flag duplicate rows to drop them</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">duplicated(dt)</text></svg></div>
+
+<h2>What rowid() does in one sentence</h2>
+
+<p><strong><code>rowid()</code> answers "which occurrence of this group is this row?" with a single integer.</strong> You hand it one or more vectors, and it returns an integer for every position, counting up from 1 each time it meets a new group and continuing the count whenever that group appears again. It is the data.table shorthand for the common <code>dt[, id := 1:.N, by = group]</code> idiom.</p>
+
+<p>The reason <code>data.table rowid</code> exists is convenience and speed. Writing a grouped <code>1:.N</code> works only inside a <code>data.table</code> query, while <code>rowid()</code> runs on any plain vector anywhere in your code. It computes the counter in C in one pass, reads clearly on its own line, and accepts several grouping vectors at once without nesting.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rowid()</code> takes one or more grouping vectors plus an optional prefix.</strong> Only the grouping input is required.</p>
+
+<div class="webr-container" data-block-title="Load data.table and number occurrences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and number occurrences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+rowid(c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;, &quot;b&quot;))
+#&gt; [1] 1 2 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>rowid(..., prefix = NULL)</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>...</code>: one or more vectors. Each row's group is the combination of values across every vector at that position.</li>
+
+<li><code>prefix</code>: an optional string. When set, the result is a character vector like <code>id1</code>, <code>id2</code> instead of plain integers.</li>
+
+</ul>
+
+<p>A second form, <code>rowidv(x, cols = seq_along(x), prefix = NULL)</code>, takes a single list, <code>data.frame</code>, or <code>data.table</code> as <code>x</code> and a <code>cols</code> vector naming which columns to group by. Use <code>rowid()</code> for loose vectors and <code>rowidv()</code> when the grouping columns already sit inside a table.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>rowid()</code> whenever you need a per-group sequence number.</strong> It replaces the verbose <code>ave(seq_along(x), x, FUN = seq_along)</code> base R pattern and works outside a <code>data.table</code> query, so you can build the counter first and assign it later.</div></div>
+
+<h2>Numbering rows within groups: four patterns</h2>
+
+<h3>1. A within-group counter for one vector</h3>
+
+<p><strong>The most common use is a per-group occurrence index.</strong> Pass one column and <code>rowid()</code> returns how many times each value has been seen so far.</p>
+
+<div class="webr-container" data-block-title="Count occurrences within one column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count occurrences within one column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- as.data.table(mtcars)
+head(dt[, .(cyl, cyl_occ = rowid(cyl))])
+#&gt;      cyl cyl_occ
+#&gt;    &lt;num&gt;   &lt;int&gt;
+#&gt; 1:     6       1
+#&gt; 2:     6       2
+#&gt; 3:     4       1
+#&gt; 4:     6       3
+#&gt; 5:     8       1
+#&gt; 6:     6       4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fourth row is the third six-cylinder car, so its counter reads 3 even though a four-cylinder and an eight-cylinder car appeared in between.</p>
+
+<h3>2. Grouping by multiple keys</h3>
+
+<p><strong>Pass several vectors and <code>rowid()</code> groups by their combination.</strong> The counter restarts only when the full tuple of values is new.</p>
+
+<div class="webr-container" data-block-title="Group by two keys at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group by two keys at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits &lt;- data.table(
+  user = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;),
+  site = c(&quot;x&quot;, &quot;x&quot;, &quot;x&quot;, &quot;y&quot;, &quot;x&quot;, &quot;y&quot;)
+)
+
+rowid(visits$user)
+#&gt; [1] 1 2 1 3 2 3
+
+rowid(visits$user, visits$site)
+#&gt; [1] 1 2 1 1 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Grouping by <code>user</code> alone, user <code>a</code> reaches 3. Grouping by <code>user</code> and <code>site</code> together, the <code>(a, y)</code> pair is brand new, so its counter resets to 1.</p>
+
+<h3>3. Character ids with a prefix</h3>
+
+<p><strong>Set <code>prefix</code> to get labelled character ids instead of integers.</strong> This is handy for building readable keys before a reshape.</p>
+
+<div class="webr-container" data-block-title="Generate prefixed character ids">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generate prefixed character ids</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rowid(c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;), prefix = &quot;v&quot;)
+#&gt; [1] &quot;v1&quot; &quot;v2&quot; &quot;v1&quot;
+
+rowidv(visits, cols = c(&quot;user&quot;, &quot;site&quot;))
+#&gt; [1] 1 2 1 1 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rowidv()</code> produces the same counter as <code>rowid()</code> but reads the grouping columns out of a table by name, which keeps long pipelines tidy.</p>
+
+<h3>4. Adding a counter column inside a data.table</h3>
+
+<p><strong>Assign the result with <code>:=</code> to attach a sequence number to every row.</strong> This is the canonical way to tag repeated records.</p>
+
+<div class="webr-container" data-block-title="Add a within-group counter column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a within-group counter column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits[, visit_no := rowid(user)]
+visits[]
+#&gt;      user   site visit_no
+#&gt;    &lt;char&gt; &lt;char&gt;    &lt;int&gt;
+#&gt; 1:      a      x        1
+#&gt; 2:      a      x        2
+#&gt; 3:      b      x        1
+#&gt; 4:      a      y        3
+#&gt; 5:      b      x        2
+#&gt; 6:      b      y        3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each user now carries a running visit number. The first visit of every user is <code>visit_no == 1</code>, which is exactly the filter you use to keep one row per group.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>rowid()</code> turns "is this a repeat?" into a number you can filter on.</strong> Once every row knows its occurrence index, deduplication, "first event" analysis, and long-to-wide reshaping all become simple comparisons against that integer instead of custom grouping logic.</div></div>
+
+<h2>rowid() vs rleid(), 1:.N, and row_number()</h2>
+
+<p><strong>All four number rows, but they disagree on what counts as a group.</strong> <code>rowid()</code> groups by value identity, while <code>rleid()</code> groups by consecutive runs.</p>
+
+<div class="webr-container" data-block-title="rowid groups by value, rleid by run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rowid groups by value, rleid by run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;a&quot;)
+
+rowid(g)
+#&gt; [1] 1 2 1 3
+
+rleid(g)
+#&gt; [1] 1 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The final <code>a</code> is the third occurrence of value <code>a</code>, so <code>rowid()</code> gives it 3. To <code>rleid()</code> it starts a fresh run, so it becomes run 3. Inside a query, a grouped <code>1:.N</code> matches <code>rowid()</code> exactly:</p>
+
+<div class="webr-container" data-block-title="rowid matches 1:.N by group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rowid matches 1:.N by group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, n_query := 1:.N, by = cyl]
+dt[, n_rowid := rowid(cyl)]
+identical(dt$n_query, dt$n_rowid)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Numbers by</th>
+<th>Works outside a query</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rowid()</code></td>
+<td>value identity, any position</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>rleid()</code></td>
+<td>consecutive runs</td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>1:.N</code> with <code>by</code></td>
+<td>group, inside <code>j</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>dplyr::row_number()</code></td>
+<td>group, after <code>group_by()</code></td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> The equivalent of <code>rowid(dt$grp)</code> is <code>row_number()</code> inside a grouped pipeline: <code>df |&gt; group_by(grp) |&gt; mutate(n = row_number())</code>. Both number rows within each group following the table's current order.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <code>rowid()</code> groups by value, not by consecutive runs.</strong> A value that reappears later keeps counting up rather than restarting.</p>
+
+<div class="webr-container" data-block-title="rowid ignores run boundaries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rowid ignores run boundaries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rowid(c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;a&quot;))
+#&gt; [1] 1 2 1 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If you expected the last <code>a</code> to reset to 1 because a <code>b</code> interrupted it, you want <code>rleid()</code>, not <code>rowid()</code>.</p>
+
+<p><strong>Pitfall 2: the counter follows the table's current row order.</strong> <code>rowid()</code> numbers rows as they sit right now, so a meaningful sequence (oldest to newest, for example) requires sorting first with <code>setorder()</code>.</p>
+
+<p><strong>Pitfall 3: with <code>prefix</code> set, the result is character, not integer.</strong> <code>rowid(x, prefix = &quot;id&quot;) == 1</code> is always <code>FALSE</code> because it compares strings to a number. Drop the prefix when you need to filter the counter numerically.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not swap <code>rowid()</code> for <code>rleid()</code> when records are unsorted.</strong> <code>rowid()</code> will happily count scattered occurrences of the same value as one group, while <code>rleid()</code> treats every interrupted stretch as new. Picking the wrong one silently produces a counter that looks plausible but is wrong.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a column <code>ex_visit</code> that numbers each row within its <code>user</code> group, then save the updated table to <code>ex_log</code>.</p>
+<div class="webr-container" data-block-title="Your turn: number rows per user">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: number rows per user</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add a within-user counter
+ex_log &lt;- data.table(
+  user = c(&quot;u1&quot;, &quot;u2&quot;, &quot;u1&quot;, &quot;u1&quot;, &quot;u2&quot;),
+  page = c(&quot;home&quot;, &quot;home&quot;, &quot;about&quot;, &quot;shop&quot;, &quot;faq&quot;)
+)
+ex_log[, ex_visit := NA_integer_]  # replace NA_integer_ with your code
+
+ex_log
+#&gt; Expected: ex_visit = 1, 1, 2, 3, 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_log[, ex_visit := rowid(user)]
+ex_log
+#&gt;      user   page ex_visit
+#&gt;    &lt;char&gt; &lt;char&gt;    &lt;int&gt;
+#&gt; 1:     u1   home        1
+#&gt; 2:     u2   home        1
+#&gt; 3:     u1  about        2
+#&gt; 4:     u1   shop        3
+#&gt; 5:     u2    faq        2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rowid()</code> walks the <code>user</code> column and hands out 1, 2, 3 each time it meets a value again. User <code>u1</code> appears in rows 1, 3, and 4 so it gets 1, 2, 3, and <code>u2</code> appears in rows 2 and 5 so it gets 1, 2.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>rowid()</code> when sequencing or deduplicating rows:</p>
+
+<ul>
+
+<li><code>rleid()</code>: numbers consecutive runs rather than every occurrence of a value.</li>
+
+<li><code>.N</code>: the row count of the current group inside a <code>data.table</code> query.</li>
+
+<li><code>frank()</code>: ranks rows by a value, with ties control, instead of by occurrence order.</li>
+
+<li><code>setorder()</code>: sorts a table in place, so the <code>rowid()</code> counter follows a meaningful order.</li>
+
+<li><code>duplicated()</code>: flags repeat rows, a companion when you filter with <code>rowid() == 1</code>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does rowid() do in data.table?</strong></p>
+
+<p><code>rowid()</code> generates a within-group counter. For every element you pass it, it returns an integer saying which occurrence of that group the row is: the first time a value appears it gets 1, the second time 2, and so on. It is the vector-friendly equivalent of <code>dt[, id := 1:.N, by = group]</code> and runs anywhere, not only inside a <code>data.table</code> query.</p>
+
+<p><strong>What is the difference between rowid and rleid in R?</strong></p>
+
+<p>Both number rows, but they define groups differently. <code>rowid()</code> groups by value identity, so every occurrence of the same value continues one shared count no matter where it sits. <code>rleid()</code> groups by consecutive runs, so an interrupted stretch of the same value starts a fresh id. For <code>c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;a&quot;)</code>, <code>rowid()</code> returns <code>1 2 1 3</code> and <code>rleid()</code> returns <code>1 1 2 3</code>.</p>
+
+<p><strong>How do I keep the first row of each group with rowid()?</strong></p>
+
+<p><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> on <code>rowid()</code> equal to 1: <code>dt[rowid(group) == 1]</code>. data.table numbers each row within its group, and only the first occurrence of every group carries the value 1, so the filter returns exactly one row per group. To keep the first by a particular order, call <code>setorder()</code> on the table before applying the filter.</p>
+
+<p><strong>How do I add a row number within a group in data.table?</strong></p>
+
+<p>Assign <code>rowid()</code> with the <code>:=</code> operator: <code>dt[, n := rowid(group)]</code>. This writes a within-group sequence number into every row. Inside a query you can also use <code>dt[, n := 1:.N, by = group]</code>, which produces an identical result. Both follow the table's current row order, so sort first if the count must reflect a specific sequence.</p>
+
+<p><strong>Can rowid() group by more than one column?</strong></p>
+
+<p>Yes. Pass several vectors and <code>rowid()</code> groups by their combination: <code>rowid(dt$a, dt$b)</code> numbers rows within each distinct pair of <code>a</code> and <code>b</code>. When the columns already live inside a table, <code>rowidv(dt, cols = c(&quot;a&quot;, &quot;b&quot;))</code> does the same job by reading them out by name, which keeps longer pipelines easier to read.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/rowid.html">data.table rowid documentation</a>.</p>
