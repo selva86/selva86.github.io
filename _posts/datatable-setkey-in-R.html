@@ -1,0 +1,351 @@
+---
+title: "data.table setkey() in R: Sort Tables for Fast Lookups"
+description: "setkey() in R sorts a data.table by reference and marks key columns, enabling fast binary-search subsetting and joins. See syntax, examples, and pitfalls."
+keywords: "data.table setkey, setkey function R, data.table setkey examples, R setkey data.table, set key data.table, setkey vs setorder, setkeyv R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "setkey()|data.table setkey|data.table::setkey()|setkeyv()|set key data.table"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table setkey() in R: Sort Tables for Fast Lookups</h1>
+
+<p class="lead">The <code>data.table setkey()</code> function sorts a data.table by one or more columns by reference and marks those columns as the key, which turns later subsets and joins into fast binary searches.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>setkey(dt, cyl)<span class="qa-cmt">                    # set a single-column key</span>
+setkey(dt, cyl, gear)<span class="qa-cmt">              # set a multi-column key</span>
+setkeyv(dt, c(&quot;cyl&quot;, &quot;gear&quot;))<span class="qa-cmt">      # set a key from a character vector</span>
+key(dt)<span class="qa-cmt">                            # see the current key</span>
+haskey(dt)<span class="qa-cmt">                         # TRUE if a key is set</span>
+setkey(dt, NULL)<span class="qa-cmt">                   # remove the key</span>
+dt[.(4)]<span class="qa-cmt">                           # fast keyed subset on cyl == 4</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is setkey() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sort and key for fast joins</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">setkey(dt, col)</text><text x="125" y="126" class="branch-label">just sort, no key needed</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">setorder(dt, col)</text><text x="125" y="182" class="branch-label">index without reordering rows</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setindex(dt, col)</text><text x="125" y="238" class="branch-label">read the current key</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">key(dt)</text><text x="125" y="294" class="branch-label">test whether a key is set</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">haskey(dt)</text><text x="125" y="350" class="branch-label">set a key from a variable</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">setkeyv(dt, cols)</text></svg></div>
+
+<h2>What setkey() does in one sentence</h2>
+
+<p><strong>setkey() physically sorts a data.table and tags its key columns.</strong> You pass a data.table and one or more column names, and the table is reordered in ascending order by those columns. The same columns are then recorded as the table's key. Both changes happen by reference, so no copy of the data is made.</p>
+
+<p>A key matters because data.table uses it for binary search. Once <code>cyl</code> is the key, a query like <code>dt[.(4)]</code> jumps straight to the matching rows instead of scanning every row. The same sorted order also speeds up joins and <a class="auto-link" href="dplyr-group_by-in-R.html" title="dplyr group_by() in R: Grouped Operations Made Easy">grouped operations</a> on the key columns.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>setkey() takes unquoted column names; setkeyv() takes a vector.</strong> The two functions do the same job and differ only in how you pass the columns.</p>
+
+<div class="webr-container" data-block-title="setkey function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setkey function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(x, ..., physical = TRUE, verbose = getOption(&quot;datatable.verbose&quot;))
+setkeyv(x, cols, physical = TRUE, verbose = getOption(&quot;datatable.verbose&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments are:</p>
+
+<ul>
+
+<li><code>x</code>: the data.table to key. It is modified in place, not copied.</li>
+
+<li><code>...</code>: one or more unquoted column names for <code>setkey()</code>. The order you list them is the sort order.</li>
+
+<li><code>cols</code>: a character vector of column names for <code>setkeyv()</code>. Use this when the names live in a variable.</li>
+
+<li><code>physical</code>: if <code>TRUE</code> (default), the rows are physically reordered. <code>FALSE</code> sets an index instead, leaving row order untouched.</li>
+
+<li><code>verbose</code>: if <code>TRUE</code>, prints timing details about the sort.</li>
+
+</ul>
+
+<p>Both functions return the data.table invisibly, so you can chain a query right after the call.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start by building a data.table and confirming it has no key.</strong> The <code>mtcars</code> dataset becomes a data.table with <code>as.data.table()</code>.</p>
+
+<div class="webr-container" data-block-title="Create a data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+haskey(dt)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Set a key on one column to sort and tag it.</strong> After the call, the rows are ordered by <code>cyl</code> and <code>key()</code> reports the key.</p>
+
+<div class="webr-container" data-block-title="Set a key on one column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a key on one column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(dt, cyl)
+key(dt)
+#&gt; [1] &quot;cyl&quot;
+head(dt[, .(model, cyl, mpg)], 3)
+#&gt;            model   cyl   mpg
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:    Datsun 710     4  22.8
+#&gt; 2:     Merc 240D     4  24.4
+#&gt; 3:      Merc 230     4  22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Subset on the key with <code>.()</code> to trigger binary search.</strong> Wrapping the value in <code>.()</code> tells data.table to match against the key rather than scan a column.</p>
+
+<div class="webr-container" data-block-title="Subset fast with the key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Subset fast with the key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(dt[.(4)])
+#&gt; [1] 11
+dt[.(6), .N]
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Set a multi-column key when you query on several columns.</strong> List the columns in the order you want the sort applied.</p>
+
+<div class="webr-container" data-block-title="Set a key on multiple columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a key on multiple columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(dt, cyl, gear)
+key(dt)
+#&gt; [1] &quot;cyl&quot;  &quot;gear&quot;
+dt[.(4, 4), .N]
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use setkeyv() when the column names sit in a variable.</strong> This is the form you reach for inside functions and loops.</p>
+
+<div class="webr-container" data-block-title="Set a key from a variable with setkeyv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a key from a variable with setkeyv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">key_cols &lt;- c(&quot;gear&quot;, &quot;carb&quot;)
+setkeyv(dt, key_cols)
+key(dt)
+#&gt; [1] &quot;gear&quot; &quot;carb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>setkey() vs setorder(), setindex() and key()</h2>
+
+<p><strong>setkey() is one of four related tools, and they split along two questions.</strong> Decide whether you need a stored key and whether row order should change.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Sorts rows?</th>
+<th>Stores a key?</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setkey()</code></td>
+<td>Yes, ascending</td>
+<td>Yes</td>
+<td>You query or join on these columns often</td>
+</tr>
+<tr>
+<td><code>setorder()</code></td>
+<td>Yes, any direction</td>
+<td>No</td>
+<td>You only need a sort, not a key</td>
+</tr>
+<tr>
+<td><code>setindex()</code></td>
+<td>No</td>
+<td>Yes, as an index</td>
+<td>You want fast lookup but must keep row order</td>
+</tr>
+<tr>
+<td><code>key()</code></td>
+<td>No</td>
+<td>Reads it</td>
+<td>You only want to see the current key</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. If you need the table sorted and will subset or join on those columns repeatedly, use <code>setkey()</code>. If you just want a one-off sort, use <code>setorder()</code>, which also allows descending order. If row order must stay as it is, use <code>setindex()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A key is a sort order plus a promise.</strong> <code>setkey()</code> does not build a separate lookup structure. It sorts the rows and records that they are sorted, so data.table can safely run a binary search instead of a full scan. That is why the data must be physically reordered.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>setkey() reorders rows in place, so the original order is lost.</strong> If you need the incoming order later, save it in a column before keying.</p>
+
+<div class="webr-container" data-block-title="setkey reorders rows in place">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setkey reorders rows in place</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt2 &lt;- data.table(id = c(3, 1, 2), val = c(&quot;c&quot;, &quot;a&quot;, &quot;b&quot;))
+setkey(dt2, id)
+dt2
+#&gt;       id    val
+#&gt;    &lt;num&gt; &lt;char&gt;
+#&gt; 1:     1      a
+#&gt; 2:     2      b
+#&gt; 3:     3      c</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Save the row order first if you need it back.</strong> Run <code>dt2[, rn := .I]</code> before <code>setkey()</code>, then <code>setorder(dt2, rn)</code> later restores the original sequence. Once the rows are sorted there is no other way to recover the order they arrived in.</div></div>
+
+<p><strong>A keyed subset needs <code>.()</code>, or it falls back to a slow scan.</strong> Writing <code>dt2[id == 2]</code> works but ignores the key; <code>dt2[.(2)]</code> uses the binary search the key enables.</p>
+
+<div class="webr-container" data-block-title="Use the key, not a column scan">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the key, not a column scan</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt2[.(2)]
+#&gt;       id    val
+#&gt;    &lt;num&gt; &lt;char&gt;
+#&gt; 1:     2      b
+dt2[id == 2]
+#&gt;       id    val
+#&gt;    &lt;num&gt; &lt;char&gt;
+#&gt; 1:     2      b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass column names from a variable to setkeyv(), never setkey().</strong> <code>setkey(dt, my_var)</code> keys a column literally named <code>my_var</code>, which usually does not exist. <code>setkeyv(dt, my_var)</code> reads the names the variable holds. Reach for <code>setkeyv()</code> in any function or loop.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the <code>airquality</code> data.frame to a data.table and set <code>Month</code> then <code>Day</code> as a two-column key. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: set a compound key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: set a compound key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: key airquality by Month then Day
+ex_dt &lt;- as.data.table(airquality)
+# your code here
+
+key(ex_dt)
+#&gt; Expected: &quot;Month&quot; &quot;Day&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(airquality)
+setkey(ex_dt, Month, Day)
+key(ex_dt)
+#&gt; [1] &quot;Month&quot; &quot;Day&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Listing <code>Month</code> then <code>Day</code> keys both columns and sorts the table by <code>Month</code> first, then <code>Day</code> within each month. The order you pass the names is the sort priority.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>setkey() works alongside the rest of data.table's ordering and lookup toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>setkeyv()</code>: the vector-input version of <code>setkey()</code>, for programmatic use.</li>
+
+<li><code>key()</code>: read the current key of a data.table.</li>
+
+<li><code>haskey()</code>: test whether a data.table has a key set.</li>
+
+<li><code>setorder()</code>: sort a data.table by reference without storing a key.</li>
+
+<li><code>setindex()</code>: build a secondary index without reordering rows.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/setkey.html">setkey reference</a> for the complete argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does setkey() do in data.table in R?</strong></p>
+
+<p><code>setkey()</code> sorts a data.table in ascending order by the columns you name and records those columns as the table's key. Both steps happen by reference, with no copy of the data. Once a key is set, data.table can use binary search for subsets like <code>dt[.(value)]</code> and for joins, which is far faster than scanning every row.</p>
+
+<p><strong>What is the difference between setkey() and setorder()?</strong></p>
+
+<p>Both sort a data.table by reference, but <code>setkey()</code> also stores a key and only sorts ascending. <code>setorder()</code> stores nothing and can sort descending, for example <code>setorder(dt, -mpg)</code>. Use <code>setkey()</code> when you will subset or join on those columns repeatedly; use <code>setorder()</code> for a one-time sort.</p>
+
+<p><strong>Does setkey() sort the data.table?</strong></p>
+
+<p>Yes. By default <code>setkey()</code> physically reorders the rows in ascending order by the key columns. This is required, because the key is a promise that the rows are sorted so binary search is valid. If you must keep the current row order, use <code>setindex()</code> instead, which builds a lookup index without moving any rows.</p>
+
+<p><strong>What is the difference between setkey() and setindex()?</strong></p>
+
+<p><code>setkey()</code> sorts the rows and marks the key, so the table is physically ordered. <code>setindex()</code> creates a secondary index that records a sort order without touching the actual rows. Both speed up lookups. Choose <code>setindex()</code> when row order matters or when you want fast access on several different column sets at once.</p>
+
+<p><strong>How do I remove a key from a data.table?</strong></p>
+
+<p>Call <code>setkey(dt, NULL)</code> to drop the key. The rows stay in their current sorted order, but the key tag is removed and <code>haskey(dt)</code> returns <code>FALSE</code>. Removing a key does not unsort the data; it only tells data.table to stop assuming the rows are ordered.</p>
