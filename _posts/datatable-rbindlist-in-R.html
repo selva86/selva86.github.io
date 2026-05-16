@@ -1,0 +1,386 @@
+---
+title: "data.table rbindlist() in R: Bind Lists of Tables by Row"
+description: "Use data.table rbindlist() in R to combine a list of data tables or data frames by row. Covers fill, idcol, use.names, and rbindlist vs rbind with examples."
+keywords: "data.table rbindlist, rbindlist function R, data.table rbindlist examples, rbindlist R combine data tables, rbindlist vs rbind, rbindlist fill, combine list of data tables R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rbindlist()|data.table rbindlist|data.table::rbindlist()|rbindlist|rbindlist function|combine list of data tables"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table rbindlist() in R: Bind Lists of Tables by Row</h1>
+
+<p class="lead">The <code>rbindlist()</code> function from data.table stacks a list of data tables, data frames, or lists into one <code>data.table</code> by row, far faster than calling <code>rbind()</code> repeatedly.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rbindlist(list(dt1, dt2))<span class="qa-cmt">              # stack two tables by row</span>
+rbindlist(my_list)<span class="qa-cmt">                     # stack every table in a list</span>
+rbindlist(parts, fill = TRUE)<span class="qa-cmt">          # pad missing columns with NA</span>
+rbindlist(parts, use.names = TRUE)<span class="qa-cmt">     # match columns by name</span>
+rbindlist(parts, idcol = &quot;source&quot;)<span class="qa-cmt">     # tag each row with its origin</span>
+rbindlist(lapply(files, fread))<span class="qa-cmt">        # read and stack many files</span>
+rbindlist(list(dt1, NULL, dt2))<span class="qa-cmt">        # NULL entries are skipped</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rbindlist() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">stack many tables by row</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rbindlist(list_of_tables)</text><text x="125" y="126" class="branch-label"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">add columns</a> side by side</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">cbind(dt1, dt2)</text><text x="125" y="182" class="branch-label">join tables on a shared key</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">merge(dt1, dt2, by = &quot;id&quot;)</text><text x="125" y="238" class="branch-label">read and combine many files</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rbindlist(lapply(files, <a class="auto-link" href="readr-vs-read-csv-vs-fread.html" title="readr vs read.csv vs fread: Which Data Import Function Is Fastest?">fread</a>))</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="tidyr-pivot_longer-in-R.html" title="tidyr pivot_longer() in R: Wide to Long Format">reshape long</a> format to wide</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dcast(dt, id ~ key)</text><text x="125" y="350" class="branch-label">count distinct values fast</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">uniqueN(dt$col)</text></svg></div>
+
+<h2>What rbindlist() does in one sentence</h2>
+
+<p><strong><code>rbindlist()</code> turns a list of many tables into one.</strong> You hand it a list whose elements are data.tables, data.frames, or plain lists, and it returns a single <code>data.table</code> with every input stacked vertically. It is the list-aware counterpart of base R <code>rbind()</code>, built for the case where you have a variable number of objects to combine.</p>
+
+<p>The reason <code>data.table rbindlist</code> exists is speed and convenience. Binding rows one pair at a time with <code>rbind()</code> copies the growing result on every step, which becomes slow for many tables. <code>rbindlist()</code> measures the total size once, allocates the result in C, and fills it in a single pass. It also handles mismatched columns, tracks which row came from which input, and silently skips <code>NULL</code> elements.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>rbindlist()</code> takes a list plus four optional controls.</strong> Only the list is required; the rest tune how mismatched inputs are handled.</p>
+
+<div class="webr-container" data-block-title="Load data.table and stack two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and stack two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+q1 &lt;- data.table(month = c(&quot;Jan&quot;, &quot;Feb&quot;), sales = c(100, 150))
+q2 &lt;- data.table(month = c(&quot;Mar&quot;, &quot;Apr&quot;), sales = c(120, 180))
+
+rbindlist(list(q1, q2))
+#&gt;     month sales
+#&gt;    &lt;char&gt; &lt;num&gt;
+#&gt; 1:    Jan   100
+#&gt; 2:    Feb   150
+#&gt; 3:    Mar   120
+#&gt; 4:    Apr   180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>rbindlist(l, use.names = &quot;check&quot;, fill = FALSE, idcol = NULL)</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>l</code>: a list of data.tables, data.frames, or lists to stack. The only required argument.</li>
+
+<li><code>use.names</code>: <code>TRUE</code> binds columns by matching name, <code>FALSE</code> binds by position, <code>&quot;check&quot;</code> (the default) warns on a mismatch then binds by position.</li>
+
+<li><code>fill</code>: <code>TRUE</code> pads missing columns with <code>NA</code> so inputs need not share the same columns.</li>
+
+<li><code>idcol</code>: adds a column naming the source element. <code>TRUE</code> calls it <code>.id</code>; a string sets a custom name.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set <code>use.names = TRUE</code> whenever column order is not guaranteed.</strong> The default <code>&quot;check&quot;</code> only warns and then binds by position, which can interleave the wrong columns. Binding by name is safe and the cost is negligible.</div></div>
+
+<h2>Binding data: four common patterns</h2>
+
+<h3>1. Fill missing columns with fill = TRUE</h3>
+
+<p><strong>Inputs rarely have identical columns in real pipelines.</strong> When one table has a column another lacks, <code>fill = TRUE</code> pads the gap with <code>NA</code> instead of erroring.</p>
+
+<div class="webr-container" data-block-title="Stack tables with different columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stack tables with different columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">east &lt;- data.table(region = &quot;East&quot;, units = c(120, 60))
+west &lt;- data.table(region = &quot;West&quot;, units = c(85, 200), returns = c(3, 7))
+
+rbindlist(list(east, west), fill = TRUE)
+#&gt;    region units returns
+#&gt;    &lt;char&gt; &lt;num&gt;   &lt;num&gt;
+#&gt; 1:   East   120      NA
+#&gt; 2:   East    60      NA
+#&gt; 3:   West    85       3
+#&gt; 4:   West   200       7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setting <code>fill = TRUE</code> also turns on <code>use.names = TRUE</code> automatically, since filling by position would be meaningless.</p>
+
+<h3>2. Track the source with idcol</h3>
+
+<p><strong><code>idcol</code> records which list element each row came from.</strong> This is invaluable when you stack files, groups, or scenarios and need to know the origin later.</p>
+
+<div class="webr-container" data-block-title="Tag rows with their source">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tag rows with their source</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stores &lt;- list(
+  downtown = data.table(item = c(&quot;A&quot;, &quot;B&quot;), qty = c(5, 9)),
+  airport  = data.table(item = c(&quot;A&quot;, &quot;C&quot;), qty = c(2, 7))
+)
+
+rbindlist(stores, idcol = &quot;store&quot;)
+#&gt;       store   item   qty
+#&gt;      &lt;char&gt; &lt;char&gt; &lt;num&gt;
+#&gt; 1: downtown      A     5
+#&gt; 2: downtown      B     9
+#&gt; 3:  airport      A     2
+#&gt; 4:  airport      C     7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the list has names, those names fill the id column. An unnamed list gets integers <code>1:length(l)</code> instead.</p>
+
+<h3>3. Match columns by name with use.names</h3>
+
+<p><strong>Tables built in different column orders bind correctly only by name.</strong> Pass <code>use.names = TRUE</code> so each column lands under its own header.</p>
+
+<div class="webr-container" data-block-title="Bind columns by name, not position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bind columns by name, not position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- data.table(x = 1:2, y = c(&quot;p&quot;, &quot;q&quot;))
+b &lt;- data.table(y = c(&quot;r&quot;, &quot;s&quot;), x = 3:4)
+
+rbindlist(list(a, b), use.names = TRUE)
+#&gt;        x      y
+#&gt;    &lt;int&gt; &lt;char&gt;
+#&gt; 1:     1      p
+#&gt; 2:     2      q
+#&gt; 3:     3      r
+#&gt; 4:     4      s</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>use.names = TRUE</code>, table <code>b</code> would bind by position and mix the <code>x</code> and <code>y</code> values.</p>
+
+<h3>4. Stack a list built by lapply</h3>
+
+<p><strong>The classic use case is a list produced by <code>lapply()</code>.</strong> Any function that returns one table per call pairs naturally with <code>rbindlist()</code>.</p>
+
+<div class="webr-container" data-block-title="Combine a list from lapply">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine a list from lapply</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">make_part &lt;- function(n) data.table(id = seq_len(n), size = n)
+parts &lt;- lapply(c(2, 3), make_part)
+
+rbindlist(parts, idcol = &quot;source&quot;)
+#&gt;    source    id  size
+#&gt;     &lt;int&gt; &lt;int&gt; &lt;num&gt;
+#&gt; 1:      1     1     2
+#&gt; 2:      1     2     2
+#&gt; 3:      2     1     3
+#&gt; 4:      2     2     3
+#&gt; 5:      2     3     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of <code>rbindlist()</code> as the reduce step of a split-apply pipeline.</strong> You split work into a list, apply a function to each piece with <code>lapply()</code>, then collapse the list back to one table. That <code>lapply()</code> then <code>rbindlist()</code> rhythm is the most common data.table pattern for processing many files or groups.</div></div>
+
+<h2>rbindlist() vs rbind() and do.call(rbind, ...)</h2>
+
+<p><strong>All three stack rows, but they differ in speed and flexibility.</strong> Base <code>rbind()</code> joins objects passed as separate arguments. <code>do.call(rbind, list)</code> adapts <code>rbind()</code> to a list. <code>rbindlist()</code> is purpose-built for lists and is the fastest of the three.</p>
+
+<div class="webr-container" data-block-title="Compare rbindlist with do.call rbind">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare rbindlist with do.call rbind</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- list(q1, q2)
+
+identical(
+  as.data.frame(rbindlist(parts)),
+  as.data.frame(do.call(rbind, parts))
+)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>rbindlist()</code></th>
+<th><code>rbind()</code></th>
+<th><code>do.call(rbind, l)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input shape</td>
+<td>a list</td>
+<td>separate arguments</td>
+<td>a list</td>
+</tr>
+<tr>
+<td>Speed on many tables</td>
+<td>Fastest</td>
+<td>Slow</td>
+<td>Slow</td>
+</tr>
+<tr>
+<td>Fill missing columns</td>
+<td><code>fill = TRUE</code></td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Source id column</td>
+<td><code>idcol</code></td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Return type</td>
+<td>data.table</td>
+<td>matches input</td>
+<td>matches input</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>rbindlist()</code> whenever the objects already sit in a list, or when there are more than a handful to combine. Reach for <code>rbind()</code> only for a quick two-object stack written inline.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>rbindlist(list(dt1, dt2))</code> is <code>pandas.concat([df1, df2])</code>. The <code>fill = TRUE</code> behaviour matches pandas aligning columns by name and inserting <code>NaN</code> for gaps.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: mismatched columns error without fill.</strong> If inputs have different column counts and you forget <code>fill = TRUE</code>, <code>rbindlist()</code> stops rather than guessing.</p>
+
+<div class="webr-container" data-block-title="Column mismatch error and the fix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Column mismatch error and the fix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rbindlist(list(east, west))
+#&gt; Error: Item 2 has 3 columns, inconsistent with item 1 which has 2 columns.
+#&gt; To fill missing columns use fill=TRUE.
+
+# Fix: allow padding
+nrow(rbindlist(list(east, west), fill = TRUE))
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: the default binds by position, not name.</strong> <code>use.names = &quot;check&quot;</code> only warns on a name mismatch, then proceeds positionally. A silently reordered column is worse than an error, so set <code>use.names = TRUE</code> explicitly.</p>
+
+<p><strong>Pitfall 3: the result is always a data.table.</strong> Even if every input is a plain <code>data.frame</code>, <code>rbindlist()</code> returns a <code>data.table</code>. Wrap the result in <code>as.data.frame()</code> if downstream code depends on data frame behaviour.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never trust the default <code>use.names</code> on tables from different sources.</strong> Files exported by different tools, or tables built in separate functions, often carry columns in different orders. Binding them by position quietly mixes values, and the error surfaces only much later as nonsense numbers.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Stack the two data tables below. They have different columns, so use <code>fill = TRUE</code>, and add a source column named <code>quarter</code> with <code>idcol</code>. Save the result to <code>ex_bound</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rbindlist with fill and idcol">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rbindlist with fill and idcol</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: bind a named list with fill and idcol
+parts &lt;- list(
+  q1 = data.table(month = &quot;Jan&quot;, sales = 100),
+  q2 = data.table(month = &quot;Feb&quot;, sales = 150, refunds = 5)
+)
+ex_bound &lt;- # your code here
+
+ex_bound
+#&gt; Expected: 2 rows, columns quarter, month, sales, refunds</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bound &lt;- rbindlist(parts, fill = TRUE, idcol = &quot;quarter&quot;)
+ex_bound
+#&gt;    quarter  month sales refunds
+#&gt;     &lt;char&gt; &lt;char&gt; &lt;num&gt;   &lt;num&gt;
+#&gt; 1:      q1    Jan   100      NA
+#&gt; 2:      q2    Feb   150       5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fill = TRUE</code> pads the missing <code>refunds</code> column in <code>q1</code> with <code>NA</code>, and <code>idcol = &quot;quarter&quot;</code> adds a column carrying each list element's name. Together they handle ragged inputs without losing track of where rows came from.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>rbindlist()</code> when reshaping or combining data:</p>
+
+<ul>
+
+<li><code>fread()</code>: the fast file reader; <code>rbindlist(lapply(files, fread))</code> reads and stacks a folder of files.</li>
+
+<li><code>merge()</code>: joins two tables on a shared key, the column-wise counterpart to row binding.</li>
+
+<li><code>melt()</code>: reshapes a wide table to long format, often before stacking.</li>
+
+<li><code>setDT()</code>: converts a data.frame to a data.table in place.</li>
+
+<li><code>uniqueN()</code>: counts distinct values, handy for checking a stacked result.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between rbind and rbindlist in R?</strong></p>
+
+<p><code>rbind()</code> takes objects as separate arguments and stacks them; <code>rbindlist()</code> takes a single list of objects. For a variable or large number of tables, <code>rbindlist()</code> is far faster because it allocates the result once instead of copying a growing object on every bind. <code>rbindlist()</code> also adds features <code>rbind()</code> lacks, namely <code>fill</code> for ragged columns and <code>idcol</code> for source tracking.</p>
+
+<p><strong>How do I <a class="auto-link" href="purrr-list_rbind-in-R.html" title="purrr list_rbind() in R: Row-Bind a List of Data Frames">combine a list of data frames</a> in R?</strong></p>
+
+<p>Pass the list straight to <code>rbindlist()</code>: <code>rbindlist(my_list_of_dfs)</code>. It accepts data.frames, data.tables, and plain lists, and always returns a <code>data.table</code>. If the data frames have different columns, add <code>fill = TRUE</code>. If they were built in different column orders, add <code>use.names = TRUE</code> so columns align by name rather than position.</p>
+
+<p><strong>Does rbindlist work with data frames?</strong></p>
+
+<p>Yes. Each element of the input list can be a <code>data.table</code>, a <code>data.frame</code>, or a plain <code>list</code>, and you can mix types within one call. Regardless of input, the output is always a <code>data.table</code>. If you need a plain data frame back, wrap the call in <code>as.data.frame()</code>.</p>
+
+<p><strong>How do I add a column showing which table each row came from?</strong></p>
+
+<p>Use the <code>idcol</code> argument: <code>rbindlist(my_list, idcol = &quot;source&quot;)</code>. If the input list is named, those names become the values in the new column. If it is unnamed, the column holds integers <code>1</code> to <code>length(l)</code>. Passing <code>idcol = TRUE</code> names the column <code>.id</code> by default.</p>
+
+<p><strong>Why does rbindlist say columns are inconsistent?</strong></p>
+
+<p>The inputs have different numbers of columns and <code>fill</code> is <code>FALSE</code>. <code>rbindlist()</code> refuses to guess how to align them and stops. Add <code>fill = TRUE</code> to pad missing columns with <code>NA</code>, which also enables binding by name so the columns line up correctly.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/rbindlist.html">data.table rbindlist documentation</a>.</p>
