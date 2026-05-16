@@ -1,0 +1,355 @@
+---
+title: "data.table uniqueN() in R: Count Distinct Values Fast"
+description: "Use data.table uniqueN() in R to count distinct values in a vector, unique rows in a table, or distinct combinations by group, with na.rm and by examples."
+keywords: "data.table uniqueN, uniqueN function R, data.table uniqueN examples, count distinct values R, uniqueN by group, uniqueN vs unique, count unique values data.table"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "uniqueN()|data.table uniqueN|data.table::uniqueN()|uniqueN|count distinct values"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table uniqueN() in R: Count Distinct Values Fast</h1>
+
+<p class="lead">The <code>uniqueN()</code> function from data.table counts the number of distinct values in a vector, or distinct rows in a table, in a single fast pass, returning one integer instead of a list of values.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>uniqueN(dt$cyl)<span class="qa-cmt">                        # distinct values in a column</span>
+uniqueN(c(1, 2, 2, NA))<span class="qa-cmt">                # NA counts as a value</span>
+uniqueN(c(1, 2, 2, NA), na.rm = TRUE)<span class="qa-cmt">  # exclude NA from the count</span>
+uniqueN(dt)<span class="qa-cmt">                            # distinct rows in a table</span>
+uniqueN(dt, by = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">          # distinct combinations of columns</span>
+dt[, uniqueN(gear), by = cyl]<span class="qa-cmt">          # distinct count per group</span>
+uniqueN(iris$Species)<span class="qa-cmt">                  # quick cardinality check</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is uniqueN() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">count distinct values fast</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">uniqueN(dt$col)</text><text x="125" y="126" class="branch-label">list the distinct values themselves</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">unique(dt$col)</text><text x="125" y="182" class="branch-label">keep only the distinct rows of a table</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">unique(dt)</text><text x="125" y="238" class="branch-label">count total rows per group</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[, .N, by = grp]</text><text x="125" y="294" class="branch-label">frequency of each value</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">table(dt$col)</text><text x="125" y="350" class="branch-label">count distinct in dplyr</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">n_distinct(df$col)</text></svg></div>
+
+<h2>What uniqueN() does in one sentence</h2>
+
+<p><strong><code>uniqueN()</code> answers "how many different things are here?" with one number.</strong> You hand it a vector, a <code>data.table</code>, a <code>data.frame</code>, or a list, and it returns the count of distinct values or distinct rows as a single integer. It is the data.table shortcut for the common <code>length(unique(x))</code> idiom.</p>
+
+<p>The reason <code>data.table uniqueN</code> exists is speed and clarity. Writing <code>length(unique(x))</code> builds the full vector of unique values in memory just to measure it, then throws that vector away. <code>uniqueN()</code> counts distinctness directly in C without materialising the intermediate vector, which is faster on large columns and reads better inside a <code>data.table</code> query. It also accepts a <code>by</code> argument and an <code>na.rm</code> switch that the base idiom lacks.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>uniqueN()</code> takes one object plus two optional controls.</strong> Only the first argument is required; the rest tune how tables and <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are handled.</p>
+
+<div class="webr-container" data-block-title="Load data.table and count distinct values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and count distinct values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+dt &lt;- as.data.table(mtcars)
+
+uniqueN(dt$cyl)
+#&gt; [1] 3
+
+uniqueN(dt$carb)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>uniqueN(x, by = NULL, na.rm = FALSE)</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>x</code>: the object to measure. A vector, <code>data.table</code>, <code>data.frame</code>, or list.</li>
+
+<li><code>by</code>: when <code>x</code> is a table, the columns whose distinct combinations are counted. Defaults to all columns, so <code>uniqueN(dt)</code> counts fully distinct rows.</li>
+
+<li><code>na.rm</code>: <code>TRUE</code> drops <code>NA</code> before counting, so a missing value is not treated as one of the distinct values.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>uniqueN()</code> instead of <code>length(unique(x))</code> everywhere.</strong> It is shorter to read, faster on long vectors, and works inside a <code>data.table</code> <code>j</code> expression without nesting two function calls. The two return the same integer for a plain vector.</div></div>
+
+<h2>Counting distinct values: four common patterns</h2>
+
+<h3>1. Distinct values in a single column</h3>
+
+<p><strong>The most common use is column cardinality.</strong> Pass one column and <code>uniqueN()</code> returns how many different values it holds.</p>
+
+<div class="webr-container" data-block-title="Count distinct values in a column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count distinct values in a column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">uniqueN(dt$gear)
+#&gt; [1] 3
+
+uniqueN(iris$Species)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the quick check you run before deciding whether a column is a good grouping key or whether a join column is unique enough.</p>
+
+<h3>2. Distinct rows in a whole table</h3>
+
+<p><strong>Call <code>uniqueN()</code> on a table with no <code>by</code> and it counts fully distinct rows.</strong> Every column is compared, so two rows count as one only if they match in every field.</p>
+
+<div class="webr-container" data-block-title="Count distinct rows of a table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count distinct rows of a table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">uniqueN(dt)
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All 32 rows of <code>mtcars</code> differ somewhere, so the count equals the row total. When duplicates exist, <code>uniqueN(dt)</code> is smaller than <code>nrow(dt)</code>, and the gap is your duplicate count.</p>
+
+<h3>3. Distinct combinations with by</h3>
+
+<p><strong>The <code>by</code> argument counts unique combinations of chosen columns.</strong> This answers "how many distinct pairs of region and product appear?" without building the pairs yourself.</p>
+
+<div class="webr-container" data-block-title="Count distinct column combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count distinct column combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- data.table(
+  user = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;, &quot;b&quot;, &quot;c&quot;),
+  day  = c(1, 1, 1, 2, 2, 3)
+)
+
+uniqueN(events, by = &quot;user&quot;)
+#&gt; [1] 3
+
+uniqueN(events, by = c(&quot;user&quot;, &quot;day&quot;))
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There are three users but four distinct user-day pairs, because user <code>b</code> appears on two different days.</p>
+
+<h3>4. Distinct count per group inside a query</h3>
+
+<p><strong><code>uniqueN()</code> shines inside the <code>j</code> slot of a <code>data.table</code> query.</strong> Combined with <code>by</code>, it computes a distinct count for every group in one expression.</p>
+
+<div class="webr-container" data-block-title="Count distinct values per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count distinct values per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(n_gears = uniqueN(gear)), by = cyl]
+#&gt;      cyl n_gears
+#&gt;    &lt;num&gt;   &lt;int&gt;
+#&gt; 1:     6       3
+#&gt; 2:     4       3
+#&gt; 3:     8       2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row reports how many different gear counts appear among cars with that cylinder count. Eight-cylinder cars use only two distinct gear values.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>uniqueN()</code> collapses a column to its cardinality, the single number that drives many decisions.</strong> High cardinality means a column behaves like an identifier; low cardinality means it behaves like a category. Knowing that number before you group, join, or plot saves you from grouping on a key that explodes into thousands of tiny groups.</div></div>
+
+<h2>uniqueN() vs unique(), length(unique()), and n_distinct()</h2>
+
+<p><strong>All four relate to distinctness, but only <code>uniqueN()</code> and <code>n_distinct()</code> return a count directly.</strong> <code>unique()</code> returns the distinct values themselves, and <code>length(unique())</code> is the base R idiom that wraps it.</p>
+
+<div class="webr-container" data-block-title="uniqueN matches length unique">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">uniqueN matches length unique</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(1, 1, 2, 3, 3, 3)
+
+uniqueN(v)
+#&gt; [1] 3
+
+length(unique(v))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Counts table rows</th>
+<th>NA control</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uniqueN()</code></td>
+<td>one integer</td>
+<td>yes, with <code>by</code></td>
+<td><code>na.rm</code> argument</td>
+</tr>
+<tr>
+<td><code>length(unique())</code></td>
+<td>one integer</td>
+<td>only via <code>nrow()</code></td>
+<td>manual</td>
+</tr>
+<tr>
+<td><code>unique()</code></td>
+<td>the distinct values</td>
+<td>yes (distinct rows)</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>dplyr::n_distinct()</code></td>
+<td>one integer</td>
+<td>no</td>
+<td><code>na.rm</code> argument</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>uniqueN()</code> when you want a count and you are already in data.table. Use <code>unique()</code> when you need the values, not their count. Use <code>n_distinct()</code> for the same job inside a dplyr pipeline.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> The equivalent of <code>uniqueN(dt$col)</code> is <code>n_distinct(df$col)</code>, and <code>uniqueN(dt, by = c(&quot;a&quot;, &quot;b&quot;))</code> matches <code>n_distinct(df$a, df$b)</code>. Both families default to counting <code>NA</code> as a value unless you pass <code>na.rm = TRUE</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: NA counts as a distinct value by default.</strong> A column with <code>NA</code> in it counts the missing value as one of its distinct entries unless you ask otherwise.</p>
+
+<div class="webr-container" data-block-title="NA handling with na.rm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA handling with na.rm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 20, NA, 30, NA)
+
+uniqueN(x)
+#&gt; [1] 4
+
+uniqueN(x, na.rm = TRUE)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first call counts <code>10</code>, <code>20</code>, <code>30</code>, and <code>NA</code>. Pass <code>na.rm = TRUE</code> when a missing value should not inflate the distinct count.</p>
+
+<p><strong>Pitfall 2: <code>uniqueN()</code> on a table counts rows, not columns.</strong> Passing a whole <code>data.table</code> measures distinct rows. If you meant the cardinality of one column, index that column with <code>dt$col</code> or <code>dt[[&quot;col&quot;]]</code>.</p>
+
+<p><strong>Pitfall 3: <code>uniqueN()</code> is a count, <code>unique()</code> is the values.</strong> Swapping the two is a frequent mistake. If downstream code expects the actual distinct values, <code>uniqueN()</code> hands it a single integer instead and the error surfaces far from its cause.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not use <code>uniqueN(dt)</code> to count distinct values of one column.</strong> With no <code>by</code>, it compares every column and counts distinct rows, which is almost always larger than the count you wanted. Always pass the column itself, as in <code>uniqueN(dt$col)</code>, or name it in <code>by</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the table below, count the number of distinct <code>region</code>/<code>product</code> combinations. Save the count to <code>ex_n</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count distinct combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count distinct combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: count distinct region-product pairs
+ex_sales &lt;- data.table(
+  region  = c(&quot;N&quot;, &quot;N&quot;, &quot;S&quot;, &quot;S&quot;, &quot;S&quot;),
+  product = c(&quot;x&quot;, &quot;x&quot;, &quot;x&quot;, &quot;y&quot;, &quot;y&quot;)
+)
+ex_n &lt;- # your code here
+
+ex_n
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- uniqueN(ex_sales, by = c(&quot;region&quot;, &quot;product&quot;))
+ex_n
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>by</code> argument tells <code>uniqueN()</code> to count distinct combinations of the named columns. The pairs are <code>(N, x)</code>, <code>(S, x)</code>, and <code>(S, y)</code>, so the count is 3 even though the table has five rows.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>uniqueN()</code> when summarising or deduplicating data:</p>
+
+<ul>
+
+<li><code>unique()</code>: returns the distinct values or rows themselves, not their count.</li>
+
+<li><code>.N</code>: the special symbol for the row count of a group inside a query.</li>
+
+<li><code>duplicated()</code>: flags which rows or values are repeats.</li>
+
+<li><code>setkey()</code>: sorts a table by a key, which speeds up grouped <code>uniqueN()</code> calls.</li>
+
+<li><code>tabulate()</code> and <code>table()</code>: build a frequency count of each distinct value.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I <a class="auto-link" href="dplyr-n_distinct-in-R.html" title="dplyr n_distinct() in R: Count Unique Values Fast">count unique values</a> in R with data.table?</strong></p>
+
+<p>Call <code>uniqueN()</code> on the column: <code>uniqueN(dt$col)</code>. It returns a single integer, the number of distinct values, and runs faster than <code>length(unique(dt$col))</code> on large columns. To count distinct rows of a whole table use <code>uniqueN(dt)</code>, and to count distinct combinations of selected columns use <code>uniqueN(dt, by = c(&quot;a&quot;, &quot;b&quot;))</code>. All three forms work inside a <code>data.table</code> query as well.</p>
+
+<p><strong>What is the difference between uniqueN and unique in R?</strong></p>
+
+<p><code>unique()</code> returns the distinct values or rows themselves, so its result is a vector or table. <code>uniqueN()</code> returns only how many distinct items there are, as one integer. In effect <code>uniqueN(x)</code> equals <code>length(unique(x))</code> for a vector, but it computes the count directly without building the intermediate vector, which makes it faster and cleaner to read.</p>
+
+<p><strong>How do I count distinct values by group in data.table?</strong></p>
+
+<p>Put <code>uniqueN()</code> in the <code>j</code> expression and name the grouping column in <code>by</code>: <code>dt[, uniqueN(value_col), by = group_col]</code>. data.table evaluates <code>uniqueN()</code> separately within each group and returns one row per group with its distinct count. You can name the result, as in <code>dt[, .(n = uniqueN(value_col)), by = group_col]</code>, for a cleaner output column.</p>
+
+<p><strong>Does uniqueN count NA as a value?</strong></p>
+
+<p>Yes, by default. A vector containing <code>NA</code> treats the missing value as one of its distinct entries, so <code>uniqueN(c(1, 2, NA))</code> returns 3. Pass <code>na.rm = TRUE</code> to exclude missing values from the count: <code>uniqueN(c(1, 2, NA), na.rm = TRUE)</code> returns 2. This matches the behaviour of <code>dplyr::n_distinct()</code>, which also keeps <code>NA</code> unless told otherwise.</p>
+
+<p><strong>Is uniqueN faster than length(unique())?</strong></p>
+
+<p>For large vectors, yes. <code>length(unique(x))</code> first materialises the complete vector of distinct values, then measures its length, allocating memory it immediately discards. <code>uniqueN()</code> counts distinct entries in C in a single pass without that intermediate allocation. For small vectors the difference is negligible, but <code>uniqueN()</code> is still preferable because it is shorter and reads clearly inside a data.table query.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/duplicated.html">data.table uniqueN documentation</a>.</p>
