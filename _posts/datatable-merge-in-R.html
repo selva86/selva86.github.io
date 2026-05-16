@@ -1,0 +1,405 @@
+---
+title: "data.table merge() in R: Join Two Tables by Key"
+description: "data.table merge() in R joins two tables on shared key columns. Learn inner, left, right and full outer joins, the by.x and by.y arguments, and pitfalls."
+keywords: "data.table merge, merge function R, data.table merge examples, R merge data.table, data.table join, merge two data.tables R, data.table left join"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "merge()|data.table merge|data.table::merge()|merge.data.table|merge two data.tables"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table merge() in R: Join Two Tables by Key</h1>
+
+<p class="lead">The <code>data.table merge()</code> function joins two data.tables on one or more shared key columns, supporting inner, left, right and full outer joins through the <code>all.x</code>, <code>all.y</code> and <code>all</code> arguments.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>merge(x, y, by = &quot;id&quot;)<span class="qa-cmt">                  # inner join on id</span>
+merge(x, y, by = &quot;id&quot;, all.x = TRUE)<span class="qa-cmt">    # left join</span>
+merge(x, y, by = &quot;id&quot;, all.y = TRUE)<span class="qa-cmt">    # right join</span>
+merge(x, y, by = &quot;id&quot;, all = TRUE)<span class="qa-cmt">      # full outer join</span>
+merge(x, y, by.x = &quot;id&quot;, by.y = &quot;code&quot;)<span class="qa-cmt"> # keys named differently</span>
+merge(x, y)<span class="qa-cmt">                             # join on shared key columns</span>
+x[y, on = &quot;id&quot;]<span class="qa-cmt">                         # data.table-native join</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is merge() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">join two tables on a key column</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">merge(x, y, by = &quot;id&quot;)</text><text x="125" y="126" class="branch-label">stack tables with the same columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rbindlist(list(x, y))</text><text x="125" y="182" class="branch-label">look up values without a full join</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">y[x, val, on = &quot;id&quot;]</text><text x="125" y="238" class="branch-label">rolling or nearest-match join</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">x[y, on = &quot;id&quot;, roll = TRUE]</text><text x="125" y="294" class="branch-label">range or interval overlap join</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">foverlaps(x, y)</text><text x="125" y="350" class="branch-label">update columns in place during a join</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">x[y, on = &quot;id&quot;, v := i.v]</text></svg></div>
+
+<h2>What merge() does in one sentence</h2>
+
+<p><strong>merge() combines two data.tables into one by matching rows on shared key columns.</strong> You pass two data.tables, name the column or columns they have in common, and get back a single data.table where each row pairs a left-side record with its matching right-side record.</p>
+
+<p>By default <code>merge()</code> keeps only rows that match in both tables, which is an <a class="auto-link" href="dplyr-inner_join-in-R.html" title="dplyr inner_join() in R: Keep Only Matched Rows">inner join</a>. The <code>all.x</code>, <code>all.y</code> and <code>all</code> arguments widen that to left, right and full outer joins. The method is <code>merge.data.table</code>, a data.table-aware version of base R's <code>merge()</code>, so it accepts data.table inputs and returns a data.table.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>merge() for data.tables mirrors the base R signature with join-type switches.</strong> The full call exposes every option you need for column matching and join type.</p>
+
+<div class="webr-container" data-block-title="merge data.table signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">merge data.table signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">merge(x, y, by = NULL, by.x = NULL, by.y = NULL,
+      all = FALSE, all.x = all, all.y = all,
+      sort = TRUE, suffixes = c(&quot;.x&quot;, &quot;.y&quot;),
+      no.dups = TRUE, allow.cartesian = getOption(&quot;datatable.allow.cartesian&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you reach for most often are:</p>
+
+<ul>
+
+<li><code>x</code>, <code>y</code>: the two data.tables to join. <code>x</code> is the left table, <code>y</code> is the right.</li>
+
+<li><code>by</code>: a character vector of column names present in both tables. If omitted, <code>merge()</code> uses the shared key columns, or the shared column names if neither table is keyed.</li>
+
+<li><code>by.x</code>, <code>by.y</code>: use these when the join columns have different names in each table.</li>
+
+<li><code>all</code>, <code>all.x</code>, <code>all.y</code>: control the join type. All default to <code>FALSE</code>, giving an inner join.</li>
+
+<li><code>sort</code>: if <code>TRUE</code> (default), the result is sorted by the join columns.</li>
+
+<li><code>suffixes</code>: the tags appended to non-join columns that share a name.</li>
+
+</ul>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with two small data.tables that share a <code>dept_id</code> column.</strong> One holds employees, the other holds department names.</p>
+
+<div class="webr-container" data-block-title="Create two data.tables to join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create two data.tables to join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+emp &lt;- data.table(
+  id      = 1:4,
+  name    = c(&quot;Ann&quot;, &quot;Bob&quot;, &quot;Cara&quot;, &quot;Dan&quot;),
+  dept_id = c(10, 20, 10, 30)
+)
+dept &lt;- data.table(
+  dept_id = c(10, 20, 40),
+  dept    = c(&quot;Sales&quot;, &quot;IT&quot;, &quot;HR&quot;)
+)
+emp
+#&gt;       id   name dept_id
+#&gt;    &lt;int&gt; &lt;char&gt;   &lt;num&gt;
+#&gt; 1:     1    Ann      10
+#&gt; 2:     2    Bob      20
+#&gt; 3:     3   Cara      10
+#&gt; 4:     4    Dan      30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>An inner join keeps only rows that match in both tables.</strong> Department 30 has no name and department 40 has no employee, so both drop out.</p>
+
+<div class="webr-container" data-block-title="Inner join on a shared column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inner join on a shared column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">merge(emp, dept, by = &quot;dept_id&quot;)
+#&gt;    dept_id    id   name   dept
+#&gt;      &lt;num&gt; &lt;int&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:      10     1    Ann  Sales
+#&gt; 2:      10     3   Cara  Sales
+#&gt; 3:      20     2    Bob     IT</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>A left join keeps every row of <code>x</code> and fills unmatched right columns with NA.</strong> Set <code>all.x = TRUE</code> to keep Dan even though department 30 is missing from <code>dept</code>.</p>
+
+<div class="webr-container" data-block-title="Left join keeps every left row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Left join keeps every left row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">merge(emp, dept, by = &quot;dept_id&quot;, all.x = TRUE)
+#&gt;    dept_id    id   name   dept
+#&gt;      &lt;num&gt; &lt;int&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:      10     1    Ann  Sales
+#&gt; 2:      10     3   Cara  Sales
+#&gt; 3:      20     2    Bob     IT
+#&gt; 4:      30     4    Dan   &lt;NA&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Right and full outer joins keep unmatched rows from the other side.</strong> <code>all.y = TRUE</code> keeps every department; <code>all = TRUE</code> keeps every row from both tables.</p>
+
+<div class="webr-container" data-block-title="Right and full outer joins">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Right and full outer joins</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">merge(emp, dept, by = &quot;dept_id&quot;, all.y = TRUE)   # keep every dept row
+#&gt;    dept_id    id   name   dept
+#&gt;      &lt;num&gt; &lt;int&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:      10     1    Ann  Sales
+#&gt; 2:      10     3   Cara  Sales
+#&gt; 3:      20     2    Bob     IT
+#&gt; 4:      40    NA   &lt;NA&gt;     HR
+
+merge(emp, dept, by = &quot;dept_id&quot;, all = TRUE)      # keep every row from both
+#&gt;    dept_id    id   name   dept
+#&gt;      &lt;num&gt; &lt;int&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:      10     1    Ann  Sales
+#&gt; 2:      10     3   Cara  Sales
+#&gt; 3:      20     2    Bob     IT
+#&gt; 4:      30     4    Dan   &lt;NA&gt;
+#&gt; 5:      40    NA   &lt;NA&gt;     HR</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use <code>by.x</code> and <code>by.y</code> when the key columns have different names.</strong> Here the lookup table calls the key <code>code</code> instead of <code>dept_id</code>.</p>
+
+<div class="webr-container" data-block-title="Join when key columns are named differently">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Join when key columns are named differently</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lookup &lt;- data.table(
+  code = c(10, 20, 40),
+  dept = c(&quot;Sales&quot;, &quot;IT&quot;, &quot;HR&quot;)
+)
+merge(emp, lookup, by.x = &quot;dept_id&quot;, by.y = &quot;code&quot;)
+#&gt;    dept_id    id   name   dept
+#&gt;      &lt;num&gt; &lt;int&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:      10     1    Ann  Sales
+#&gt; 2:      10     3   Cara  Sales
+#&gt; 3:      20     2    Bob     IT</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>merge(x, y, by = &quot;id&quot;, all.x = TRUE)</code> is <code>x.merge(y, on=&quot;id&quot;, how=&quot;left&quot;)</code>. The <code>all.x</code> / <code>all.y</code> / <code>all</code> switches map to pandas <code>how=&quot;left&quot;</code> / <code>&quot;right&quot;</code> / <code>&quot;outer&quot;</code>.</div></div>
+
+<h2>merge() vs the x[y] join</h2>
+
+<p><strong>data.table offers a second join style with bracket syntax, <code>x[y, on = ...]</code>.</strong> It does the same matching work but reads as a subset and returns columns in <code>x</code>-first order.</p>
+
+<div class="webr-container" data-block-title="The data.table-native join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The data.table-native join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">emp[dept, on = &quot;dept_id&quot;]
+#&gt;       id   name dept_id   dept
+#&gt;    &lt;int&gt; &lt;char&gt;   &lt;num&gt; &lt;char&gt;
+#&gt; 1:     1    Ann      10  Sales
+#&gt; 2:     3   Cara      10  Sales
+#&gt; 3:     2    Bob      20     IT
+#&gt; 4:    NA   &lt;NA&gt;      40     HR</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two approaches differ in defaults and intent:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>merge(x, y, by =)</code></th>
+<th><code>x[y, on =]</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Default join</td>
+<td>Inner</td>
+<td>Right (every row of <code>y</code>)</td>
+</tr>
+<tr>
+<td>Result sorted</td>
+<td>Yes, by key</td>
+<td>No, follows <code>y</code> order</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">Update by reference</a></td>
+<td>No</td>
+<td>Yes, with <code>:=</code></td>
+</tr>
+<tr>
+<td>Reads like</td>
+<td>A SQL join</td>
+<td>A keyed subset</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>merge()</code> when you want a SQL-style join with explicit <code>all.x</code> / <code>all.y</code> control, or when porting code from base R or dplyr. Use <code>x[y, on = ]</code> when you want speed inside a data.table pipeline or need to update columns in place during the join.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>merge() is the familiar API; x[y] is the native one.</strong> Both call the same fast binary join under the hood. <code>merge()</code> exists so base R and dplyr users have a drop-in path, while <code>x[y, on = ]</code> unlocks data.table-only features like <code>:=</code> updates and rolling joins.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A many-to-many match silently multiplies rows.</strong> When a key value repeats on both sides, <code>merge()</code> returns every pairing, so two left rows and two right rows become four.</p>
+
+<div class="webr-container" data-block-title="Many-to-many joins explode row counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Many-to-many joins explode row counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- data.table(k = c(1, 1), v = c(&quot;a&quot;, &quot;b&quot;))
+y &lt;- data.table(k = c(1, 1), w = c(&quot;x&quot;, &quot;y&quot;))
+merge(x, y, by = &quot;k&quot;)
+#&gt;        k      v      w
+#&gt;    &lt;num&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:     1      a      x
+#&gt; 2:     1      a      y
+#&gt; 3:     1      b      x
+#&gt; 4:     1      b      y</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Check key uniqueness before you join.</strong> Run <code>anyDuplicated(dt, by = &quot;k&quot;)</code> on each table. If a key is meant to be unique but is not, the join inflates row counts and quietly corrupts every downstream aggregate. A duplicated key on both sides is the most common cause of a result that is suddenly far larger than expected.</div></div>
+
+<p><strong>Shared non-key columns get <code>.x</code> and <code>.y</code> suffixes.</strong> If both tables carry a column with the same name that is not a join key, <code>merge()</code> keeps both and renames them rather than dropping one.</p>
+
+<div class="webr-container" data-block-title="Shared non-key columns are suffixed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Shared non-key columns are suffixed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- data.table(id = 1:2, val = c(10, 20))
+b &lt;- data.table(id = 1:2, val = c(99, 88))
+merge(a, b, by = &quot;id&quot;)
+#&gt;       id  val.x  val.y
+#&gt;    &lt;int&gt;  &lt;num&gt;  &lt;num&gt;
+#&gt; 1:     1     10     99
+#&gt; 2:     2     20     88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>The result is sorted by the key, not left in input order.</strong> <code>merge()</code> sorts by the join columns by default. Pass <code>sort = FALSE</code> if you need to preserve the original row order of <code>x</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set a key first when you merge the same tables repeatedly.</strong> Calling <code>setkey(emp, dept_id)</code> and <code>setkey(dept, dept_id)</code> lets <code>merge()</code> skip the sort step and run a pure binary join. For a one-off merge it makes little difference, but inside a loop the saved sorts add up fast.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Join <code>emp</code> to <code>dept</code> so that every employee is kept even when the department is unknown. Save the result to <code>ex_join</code>.</p>
+<div class="webr-container" data-block-title="Your turn: left join two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: left join two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: keep every employee row
+ex_join &lt;- # your code here
+
+nrow(ex_join)
+#&gt; Expected: 4 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_join &lt;- merge(emp, dept, by = &quot;dept_id&quot;, all.x = TRUE)
+nrow(ex_join)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>all.x = TRUE</code> makes a left join, so all four employees survive. Dan's department (30) is absent from <code>dept</code>, so his <code>dept</code> value is filled with <code>NA</code> instead of dropping the row.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>merge() works alongside the rest of data.table's combining and joining toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>rbindlist()</code>: stack many data.tables that share columns into one table.</li>
+
+<li><code>setkey()</code>: sort and tag key columns so joins skip the sort step.</li>
+
+<li><code>foverlaps()</code>: join two tables on overlapping numeric or date ranges.</li>
+
+<li><code>setDT()</code>: convert a data.frame or list to a data.table by reference before joining.</li>
+
+<li><code>[.data.table</code>: the <code>x[y, on = ]</code> bracket join, the native alternative to <code>merge()</code>.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/merge.html">merge.data.table reference</a> for the complete argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do you merge two data.tables in R?</strong></p>
+
+<p>Load the <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table package</a>, then call <code>merge(x, y, by = &quot;key&quot;)</code> with the name of the column the two tables share. By default this is an inner join, returning only rows whose key value appears in both tables. The result is a new data.table sorted by the key column. Add <code>all.x</code>, <code>all.y</code> or <code>all</code> to switch to a left, right or <a class="auto-link" href="dplyr-full_join-in-R.html" title="dplyr full_join() in R: Keep All Rows From Both Tables">full outer join</a>.</p>
+
+<p><strong>What is the difference between merge() and the x[y] join in data.table?</strong></p>
+
+<p>Both run the same fast binary join. <code>merge()</code> defaults to an inner join, sorts the result by the key, and reads like a SQL join, which suits code ported from base R or dplyr. The <code>x[y, on = ]</code> bracket form defaults to a <a class="auto-link" href="dplyr-right_join-in-R.html" title="dplyr right_join() in R: Keep All Rows From the Right Table">right join</a>, keeps <code>y</code>'s row order, and can update columns in place with <code>:=</code>. Use the bracket form inside a data.table pipeline.</p>
+
+<p><strong>How do I do a left join in data.table?</strong></p>
+
+<p>Pass <code>all.x = TRUE</code> to <code>merge()</code>: <code>merge(x, y, by = &quot;id&quot;, all.x = TRUE)</code>. Every row of <code>x</code> is kept, and columns from <code>y</code> that have no match are filled with <code>NA</code>. This matches a SQL <code>LEFT JOIN</code>. The bracket equivalent is <code>y[x, on = &quot;id&quot;]</code>, which keeps every row of the table written inside the brackets.</p>
+
+<p><strong>Does data.table merge() need keys to be set?</strong></p>
+
+<p>No. <code>merge()</code> works on unkeyed data.tables; you just name the join columns with <code>by</code>. Setting a key with <code>setkey()</code> is an <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a>, not a requirement. It lets <code>merge()</code> skip an internal sort, which speeds up repeated joins on large tables. For a single join on modest data the difference is negligible.</p>
+
+<p><strong>Why does merge() create .x and .y columns?</strong></p>
+
+<p>When both tables contain a column with the same name that is not a join key, <code>merge()</code> cannot keep one name for two columns. It appends the <code>suffixes</code> tags, <code>.x</code> for the left table and <code>.y</code> for the right, so both columns survive. Rename or drop the unwanted one afterward, or change the defaults with the <code>suffixes</code> argument.</p>
+
+</content>
+
+</invoke>
