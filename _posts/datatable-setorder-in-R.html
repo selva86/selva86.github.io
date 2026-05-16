@@ -1,0 +1,387 @@
+---
+title: "data.table setorder() in R: Sort Rows by Reference"
+description: "setorder() in R sorts a data.table or data.frame by reference, ascending or descending, with no copy. See syntax, examples, mixed-order sorts, and pitfalls."
+keywords: "data.table setorder, setorder function R, data.table setorder examples, R sort data.table, setorder vs setkey, setorderv R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "setorder()|data.table setorder|data.table::setorder()|setorderv()|sort a data.table"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table setorder() in R: Sort Rows by Reference</h1>
+
+<p class="lead">The <code>data.table setorder()</code> function sorts a data.table by one or more columns by reference, ascending or descending, without making a copy of the data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>setorder(dt, mpg)<span class="qa-cmt">                      # ascending sort</span>
+setorder(dt, -mpg)<span class="qa-cmt">                     # descending sort</span>
+setorder(dt, cyl, -mpg)<span class="qa-cmt">                # cyl up, mpg down</span>
+setorderv(dt, &quot;mpg&quot;)<span class="qa-cmt">                   # column name as a string</span>
+setorderv(dt, c(&quot;cyl&quot;,&quot;mpg&quot;), c(1,-1))<span class="qa-cmt"> # vector of columns and directions</span>
+setorder(df, mpg)<span class="qa-cmt">                      # works on a data.frame too</span>
+setorder(dt, Ozone, na.last = TRUE)<span class="qa-cmt">    # push NA values to the end</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is setorder() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sort a data.table by columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">setorder(dt, col)</text><text x="125" y="126" class="branch-label">sort and store a key for joins</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a>(dt, col)</text><text x="125" y="182" class="branch-label">get sort indices without reordering</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">order(dt$col)</text><text x="125" y="238" class="branch-label">sort by a computed expression</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[order(-col1 / col2)]</text><text x="125" y="294" class="branch-label">rank values within the table</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">frank(dt, col)</text><text x="125" y="350" class="branch-label">sort by column names held in a variable</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">setorderv(dt, cols)</text></svg></div>
+
+<h2>What setorder() does in one sentence</h2>
+
+<p><strong>setorder() reorders the rows of a data.table in place.</strong> You pass a data.table and one or more column names, and the rows are sorted by those columns without any copy being made. The function returns the table invisibly, so the change is permanent on the object you passed.</p>
+
+<p>By default the sort is ascending. Prefix a column with a minus sign to sort it descending. Because the work happens by reference, <code>setorder()</code> is both fast and memory-light on large tables, which is why data.table provides it instead of relying on base R's <code>order()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>setorder() takes bare column names; setorderv() takes a character vector.</strong> The two functions do the same job and differ only in how you name the sort columns.</p>
+
+<div class="webr-container" data-block-title="setorder function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setorder function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setorder(x, ..., na.last = FALSE)
+setorderv(x, cols = NULL, order = 1L, na.last = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments are:</p>
+
+<ul>
+
+<li><code>x</code>: the data.table or data.frame to sort. It is modified in place, not copied.</li>
+
+<li><code>...</code>: one or more unquoted column names for <code>setorder()</code>. Prefix a name with <code>-</code> to sort it descending.</li>
+
+<li><code>cols</code>: a character vector of column names for <code>setorderv()</code>. Use this when the names live in a variable.</li>
+
+<li><code>order</code>: for <code>setorderv()</code>, <code>1</code> for ascending or <code>-1</code> for descending. Pass a vector to set a direction per column.</li>
+
+<li><code>na.last</code>: where to place <code>NA</code> values. <code>FALSE</code> (the default) sends them to the front; <code>TRUE</code> sends them to the end.</li>
+
+</ul>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start by turning a data.frame into a data.table.</strong> The <code>mtcars</code> dataset becomes a data.table with <code>as.data.table()</code>, keeping the row names in a <code>model</code> column.</p>
+
+<div class="webr-container" data-block-title="Create a data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+nrow(dt)
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Sort ascending, then descending, on a single column.</strong> A plain column name sorts low to high; a <code>-</code> prefix flips it.</p>
+
+<div class="webr-container" data-block-title="Sort one column up or down">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort one column up or down</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setorder(dt, mpg)
+head(dt[, .(model, mpg)], 2)
+#&gt;                  model   mpg
+#&gt;                 &lt;char&gt; &lt;num&gt;
+#&gt; 1:  Cadillac Fleetwood  10.4
+#&gt; 2: Lincoln Continental  10.4
+
+setorder(dt, -mpg)
+head(dt[, .(model, mpg)], 2)
+#&gt;             model   mpg
+#&gt;            &lt;char&gt; &lt;num&gt;
+#&gt; 1: Toyota Corolla  33.9
+#&gt; 2:       Fiat 128  32.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Sort several columns with mixed directions.</strong> List the columns in priority order and prefix each one you want descending.</p>
+
+<div class="webr-container" data-block-title="Sort by cyl ascending then mpg descending">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort by cyl ascending then mpg descending</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setorder(dt, cyl, -mpg)
+head(dt[, .(model, cyl, mpg)], 3)
+#&gt;             model   cyl   mpg
+#&gt;            &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: Toyota Corolla     4  33.9
+#&gt; 2:       Fiat 128     4  32.4
+#&gt; 3:    Honda Civic     4  30.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use setorderv() when the column names sit in a variable.</strong> This is the form you reach for inside functions and loops.</p>
+
+<div class="webr-container" data-block-title="Sort from a variable with setorderv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort from a variable with setorderv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sort_cols &lt;- c(&quot;cyl&quot;, &quot;wt&quot;)
+setorderv(dt, sort_cols)
+head(dt[, .(model, cyl, wt)], 3)
+#&gt;           model   cyl    wt
+#&gt;          &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: Lotus Europa     4 1.513
+#&gt; 2:  Honda Civic     4 1.615
+#&gt; 3:   Datsun 710     4 2.320</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass column names from a variable to setorderv(), never setorder().</strong> <code>setorder(dt, my_var)</code> looks for a column literally named <code>my_var</code>, which usually does not exist. <code>setorderv(dt, my_var)</code> reads the names the variable holds. Reach for <code>setorderv()</code> in any function or loop.</div></div>
+
+<p><strong>setorder() also works on a plain data.frame.</strong> Since data.table 1.9.5 you can sort a base data.frame in place, row names included.</p>
+
+<div class="webr-container" data-block-title="Sort a data.frame in place">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort a data.frame in place</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- mtcars
+setorder(df, -mpg)
+head(df[, c(&quot;mpg&quot;, &quot;cyl&quot;)], 2)
+#&gt;                 mpg cyl
+#&gt; Toyota Corolla 33.9   4
+#&gt; Fiat 128       32.4   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>setorder() vs setkey(), order() and arrange()</h2>
+
+<p><strong>setorder() is one of several sorting tools, and they split along two questions.</strong> Decide whether the sort should happen by reference and whether you also need a stored key.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Sorts by reference?</th>
+<th>Direction</th>
+<th>Stores a key?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setorder()</code></td>
+<td>Yes</td>
+<td>Ascending or descending</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>setkey()</code></td>
+<td>Yes</td>
+<td>Ascending only</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>order()</code></td>
+<td>No, returns indices</td>
+<td>Ascending or descending</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>dplyr::arrange()</code></td>
+<td>No, copies the data</td>
+<td>Ascending or descending</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>setorder()</code> for a fast in-place sort in any direction. Use <code>setkey()</code> when you will subset or join on those columns repeatedly and want the key stored. Use <code>order()</code> when you need the sort indices rather than a sorted table, for example to reorder a related vector. Use <code>arrange()</code> when you are working in a dplyr pipeline and want a fresh copy.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>By reference means no copy is made.</strong> <code>setorder()</code> rearranges the rows of the existing object rather than building a sorted duplicate. That saves time and memory on large tables, but it also means there is no separate "sorted version" to fall back on. The original order is gone once the call returns.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>setorder(dt, mpg)</code> is <code>df.sort_values(&#x27;mpg&#x27;, inplace=True)</code>, and <code>setorder(dt, -mpg)</code> maps to <code>df.sort_values(&#x27;mpg&#x27;, ascending=False, inplace=True)</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>setorder() changes every name that points to the same table.</strong> Assigning a data.table to a new variable does not copy it, so sorting through one name sorts the other.</p>
+
+<div class="webr-container" data-block-title="setorder changes the original object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setorder changes the original object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt_a &lt;- data.table(x = c(3, 1, 2))
+dt_b &lt;- dt_a
+setorder(dt_b, x)
+dt_a
+#&gt;        x
+#&gt;    &lt;num&gt;
+#&gt; 1:     1
+#&gt; 2:     2
+#&gt; 3:     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Use copy() before setorder() if you need the original order.</strong> <code>dt_b &lt;- copy(dt_a)</code> makes an independent table, so sorting <code>dt_b</code> leaves <code>dt_a</code> untouched. Without <code>copy()</code>, both names share one object and both get sorted.</div></div>
+
+<p><strong>setorder() cannot sort by a computed expression.</strong> It only accepts column names. To sort by something like a ratio, use base <code>order()</code> inside the data.table <code>i</code> argument.</p>
+
+<div class="webr-container" data-block-title="Sort by an expression with order()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort by an expression with order()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt[order(-mpg / wt)][1:2, .(model, mpg, wt)]
+#&gt;           model   mpg    wt
+#&gt;          &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: Lotus Europa  30.4 1.513
+#&gt; 2:  Honda Civic  30.4 1.615</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>setorder() sends <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> to the front by default.</strong> This is the opposite of base <code>order()</code>, which keeps <code>NA</code> last. Set <code>na.last = TRUE</code> to match the familiar behaviour.</p>
+
+<div class="webr-container" data-block-title="Control where NA values land">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control where NA values land</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- as.data.table(airquality)
+setorder(aq, Ozone)
+head(aq$Ozone, 3)
+#&gt; [1] NA NA NA
+
+setorder(aq, Ozone, na.last = TRUE)
+head(aq$Ozone, 3)
+#&gt; [1] 1 4 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the <code>airquality</code> data.frame to a data.table and sort it by <code>Temp</code> descending. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sort by Temp descending">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sort by Temp descending</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: sort airquality by Temp, hottest first
+ex_dt &lt;- as.data.table(airquality)
+# your code here
+
+head(ex_dt$Temp, 3)
+#&gt; Expected: 97 96 94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(airquality)
+setorder(ex_dt, -Temp)
+head(ex_dt$Temp, 3)
+#&gt; [1] 97 96 94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>-</code> prefix on <code>Temp</code> sorts the column from high to low. Because <code>setorder()</code> works by reference, <code>ex_dt</code> itself is reordered and no copy is created.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>setorder() works alongside the rest of data.table's ordering toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>setorderv()</code>: the vector-input version of <code>setorder()</code>, for programmatic use.</li>
+
+<li><code>setkey()</code>: sort by reference and also store the columns as a key.</li>
+
+<li><code>setcolorder()</code>: reorder the columns of a data.table, not the rows.</li>
+
+<li><code>frank()</code>: compute fast ranks of values without reordering rows.</li>
+
+<li><code>order()</code>: return sort indices, useful inside the data.table <code>i</code> argument.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/setorder.html">setorder reference</a> for the complete argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does setorder() do in data.table in R?</strong></p>
+
+<p><code>setorder()</code> sorts the rows of a data.table by one or more columns. The sort happens by reference, meaning the existing object is rearranged in place and no copy is created. By default the sort is ascending, and the function returns the table invisibly so you can chain a query after it.</p>
+
+<p><strong>How do I sort a data.table in descending order?</strong></p>
+
+<p>Prefix the column name with a minus sign: <code>setorder(dt, -mpg)</code> sorts <code>mpg</code> from high to low. For <code>setorderv()</code>, pass <code>order = -1</code> instead, as in <code>setorderv(dt, &quot;mpg&quot;, -1)</code>. You can mix directions <a class="auto-link" href="dplyr-across-in-R.html" title="dplyr across() in R: Apply Functions to Many Columns">across columns</a>, for example <code>setorder(dt, cyl, -mpg)</code> sorts <code>cyl</code> ascending and <code>mpg</code> descending.</p>
+
+<p><strong>What is the difference between setorder() and setkey()?</strong></p>
+
+<p>Both sort a data.table by reference, but <code>setkey()</code> also records the columns as the table's key and only sorts ascending. <code>setorder()</code> stores nothing and can sort in either direction. Use <code>setkey()</code> when you will subset or join on those columns repeatedly; use <code>setorder()</code> for a one-time sort.</p>
+
+<p><strong>Does setorder() create a copy of the data.table?</strong></p>
+
+<p>No. <code>setorder()</code> reorders the rows of the existing object in place, which is what "by reference" means. If another variable points to the same table, it is sorted too. Use <code>copy()</code> first when you need to keep the original row order.</p>
+
+<p><strong>How do I sort by a column name stored in a variable?</strong></p>
+
+<p>Use <code>setorderv()</code>, which accepts a character vector of column names. For example, <code>cols &lt;- c(&quot;cyl&quot;, &quot;mpg&quot;); setorderv(dt, cols)</code> sorts by both columns. Pass an <code>order</code> vector such as <code>c(1, -1)</code> to set the direction of each column independently.</p>
+
+{% endraw %}
