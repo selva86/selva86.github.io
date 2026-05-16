@@ -1,0 +1,323 @@
+---
+title: "arrow open_dataset() in R: Query Multi-File Datasets"
+description: "Learn arrow open_dataset() in R to query large multi-file Parquet and CSV datasets lazily. Covers syntax, partitioning, dplyr queries, collect(), and pitfalls."
+keywords: "arrow open_dataset, open_dataset function R, arrow open_dataset examples, R open_dataset, arrow multi-file dataset, open_dataset partitioning"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "open_dataset()|arrow open_dataset|arrow::open_dataset()|open a dataset in R|open_dataset in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>arrow open_dataset() in R: Query Multi-File Datasets</h1>
+
+<p class="lead">The arrow <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">open_dataset()</a> function points R at a folder of Parquet or CSV files and treats them as one queryable table. It does not load the data, so you can filter and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> datasets far larger than your computer's memory.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>open_dataset(&quot;data/&quot;)<span class="qa-cmt">                                # open a Parquet folder</span>
+open_dataset(&quot;data/&quot;, format = &quot;csv&quot;)<span class="qa-cmt">                # open a CSV folder</span>
+open_dataset(&quot;data/&quot;, partitioning = &quot;year&quot;)<span class="qa-cmt">         # Hive-partitioned folder</span>
+open_dataset(c(&quot;a.parquet&quot;, &quot;b.parquet&quot;))<span class="qa-cmt">            # open an explicit file list</span>
+open_dataset(&quot;data/&quot;) |&gt; filter(x &gt; 0) |&gt; collect()<span class="qa-cmt">  # query then pull to R</span>
+open_dataset(&quot;data/&quot;) |&gt; nrow()<span class="qa-cmt">                      # count rows, no load</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is open_dataset() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">query many files larger than memory</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">open_dataset(&quot;folder/&quot;)</text><text x="125" y="126" class="branch-label">read one Parquet file into memory</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_parquet(&quot;file.parquet&quot;)</text><text x="125" y="182" class="branch-label">read one Feather or IPC file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_feather(&quot;file.feather&quot;)</text><text x="125" y="238" class="branch-label">read a single CSV into memory</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a>(&quot;file.csv&quot;)</text><text x="125" y="294" class="branch-label">save one data frame to Parquet</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">write_parquet(df, &quot;file.parquet&quot;)</text><text x="125" y="350" class="branch-label">write a partitioned dataset folder</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">write_dataset(df, &quot;folder/&quot;)</text></svg></div>
+
+<h2>What open_dataset() does</h2>
+
+<p><strong>open_dataset() builds a lazy view over many files at once.</strong> You give it a directory, and it scans the file layout, reads each file's metadata, and returns a <code>Dataset</code> object. No rows are pulled into R. The object simply knows where the data lives and what columns it has.</p>
+
+<p>That laziness is the whole point. A <code>Dataset</code> can span hundreds of Parquet files and hundreds of gigabytes, yet <code>open_dataset()</code> returns in a fraction of a second. You then attach <code>dplyr</code> verbs, and the Apache Arrow engine pushes that work down to the files, reading only the columns and row groups your query touches.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A Dataset is a query plan, not data.</strong> <code>open_dataset()</code> gives you a promise to read files later. Nothing is materialised until you call <code>collect()</code>, so the expensive work happens once, on exactly the rows you asked for.</div></div>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>The first argument is a path, and <code>format</code> tells Arrow how to parse it.</strong> Everything else has a sensible default, so most calls are one or two arguments long.</p>
+
+<div class="webr-container" data-block-title="The open_dataset signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The open_dataset signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">open_dataset(
+  sources,                  # a directory, a vector of file paths, or a URI
+  schema = NULL,            # column types; NULL means infer from the files
+  partitioning = hive_partition(),  # how folder names map to columns
+  unify_schemas = NULL,     # TRUE reconciles columns that differ across files
+  format = c(&quot;parquet&quot;, &quot;arrow&quot;, &quot;csv&quot;, &quot;tsv&quot;, &quot;text&quot;),
+  ...
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>format</code> argument defaults to <code>&quot;parquet&quot;</code>, so reading a CSV folder needs <code>format = &quot;csv&quot;</code> explicitly. The <code>partitioning</code> argument reads Hive-style folder names such as <code>year=2024/</code> and turns them back into a column. Set <code>unify_schemas = TRUE</code> when files were written at different times and their columns no longer line up.</p>
+
+<h2>open_dataset() examples</h2>
+
+<p><strong>These examples build a real dataset folder, then query it.</strong> Each block runs in order and shares state, so variables created early stay available.</p>
+
+<p>First, write a partitioned dataset so there is something multi-file to open.</p>
+
+<div class="webr-container" data-block-title="Create a multi-file dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a multi-file dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(arrow)
+library(dplyr)
+
+ds_path &lt;- file.path(tempdir(), &quot;cars&quot;)
+write_dataset(mtcars, ds_path, partitioning = &quot;cyl&quot;)
+
+list.files(ds_path, recursive = TRUE)
+#&gt; [1] &quot;cyl=4/part-0.parquet&quot; &quot;cyl=6/part-0.parquet&quot; &quot;cyl=8/part-0.parquet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now open that folder. The printed summary confirms the file count and schema without reading a single row.</p>
+
+<div class="webr-container" data-block-title="Open the dataset lazily">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Open the dataset lazily</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- open_dataset(ds_path)
+cars
+#&gt; FileSystemDataset with 3 Parquet files
+#&gt; 11 columns
+#&gt; mpg: double
+#&gt; disp: double
+#&gt; hp: double
+#&gt; ... and cyl recovered from the folder names</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Attach <code>dplyr</code> verbs and finish with <code>collect()</code> to pull the result into a tibble. Arrow runs the filter and <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a> across all three files for you.</p>
+
+<div class="webr-container" data-block-title="Query the dataset with dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Query the dataset with dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- cars |&gt;
+  filter(cyl == 4) |&gt;
+  select(mpg, hp, wt) |&gt;
+  arrange(desc(mpg)) |&gt;
+  collect()
+
+nrow(result)
+#&gt; [1] 11
+head(result, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;     mpg    hp    wt
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  33.9    66  1.84
+#&gt; 2  32.4    66  2.20
+#&gt; 3  30.4    52  1.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a folder of CSV files, pass <code>format = &quot;csv&quot;</code>. The query interface is identical once the dataset is open.</p>
+
+<div class="webr-container" data-block-title="Open a folder of CSV files">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Open a folder of CSV files</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">csv_ds &lt;- open_dataset(&quot;sales/&quot;, format = &quot;csv&quot;)
+
+csv_ds |&gt;
+  filter(region == &quot;West&quot;) |&gt;
+  summarise(total = sum(amount)) |&gt;
+  collect()
+#&gt; # A tibble: 1 x 1
+#&gt;      total
+#&gt;      &lt;dbl&gt;
+#&gt; 1  482910</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Count and inspect before you collect.</strong> <code>nrow(cars)</code> and <code>schema(cars)</code> answer structural questions instantly because they read metadata, not data. Use them to size a query before you commit to pulling rows.</div></div>
+
+<h2>open_dataset() vs read_parquet() and alternatives</h2>
+
+<p><strong>Reach for <code>open_dataset()</code> when the data spans many files or exceeds memory.</strong> For a single file that fits in RAM, the simpler readers are a better fit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Reads</th>
+<th>Loads into memory</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_dataset()</code></td>
+<td>A folder of many files</td>
+<td>No, lazy until <code>collect()</code></td>
+<td>Larger-than-memory, partitioned data</td>
+</tr>
+<tr>
+<td><code>read_parquet()</code></td>
+<td>One Parquet file</td>
+<td>Yes, immediately</td>
+<td>A single file that fits in RAM</td>
+</tr>
+<tr>
+<td><code>read_csv()</code></td>
+<td>One CSV file</td>
+<td>Yes, immediately</td>
+<td>Small to medium text files</td>
+</tr>
+<tr>
+<td><code>arrow_table()</code></td>
+<td>An in-memory object</td>
+<td>Already in memory</td>
+<td>Wrapping data you already have</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If you can name one file and it fits in memory, use <a href="arrow-read_parquet-in-R.html">read_parquet()</a>. If you have a directory, partitioned data, or a dataset bigger than RAM, use <code>open_dataset()</code> and let Arrow stream it.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most open_dataset() confusion.</strong> Each has a one-line fix.</p>
+
+<p>Forgetting <code>collect()</code> is the most common. A pipeline without it returns an unevaluated query, not a data frame.</p>
+
+<div class="webr-container" data-block-title="Forgetting to collect the result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forgetting to collect the result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars |&gt; filter(cyl == 4)
+#&gt; FileSystemDataset (query)
+#&gt; mpg: double ...
+#&gt; Call collect() on the result to materialise it.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Opening a CSV folder without <code>format = &quot;csv&quot;</code> makes Arrow try to parse text as Parquet and fail. Always set <code>format</code> for anything that is not Parquet.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Schema drift breaks a multi-file dataset silently.</strong> If one file has a column the others lack, <code>open_dataset()</code> may error or drop rows on collect. Pass <code>unify_schemas = TRUE</code> so Arrow reconciles the columns instead of assuming every file matches the first.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Open the <code>cars</code> dataset from the examples, keep only 6-cylinder cars, and compute their mean <code>mpg</code>. Save the number to <code>ex_mpg</code>.</p>
+<div class="webr-container" data-block-title="Your turn: query the dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: query the dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: filter and summarise a Dataset
+ex_mpg &lt;- # your code here
+
+ex_mpg
+#&gt; Expected: about 19.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mpg &lt;- cars |&gt;
+  filter(cyl == 6) |&gt;
+  summarise(m = mean(mpg)) |&gt;
+  collect() |&gt;
+  pull(m)
+
+ex_mpg
+#&gt; [1] 19.74286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The filter and summarise run inside the Arrow engine, and <code>collect()</code> brings back the single summary row. <code>pull()</code> then extracts the number from the one-row tibble.</p>
+
+</details>
+</section>
+
+<h2>Related arrow functions</h2>
+
+<p><strong>These functions pair with open_dataset() in a typical Parquet workflow.</strong></p>
+
+<ul>
+
+<li><a href="arrow-read_parquet-in-R.html">read_parquet()</a> reads a single Parquet file straight into a data frame.</li>
+
+<li><a href="arrow-write_parquet-in-R.html">write_parquet()</a> saves one data frame to a single Parquet file.</li>
+
+<li><a href="arrow-read_feather-in-R.html">read_feather()</a> reads an Arrow Feather or IPC file.</li>
+
+<li><code>write_dataset()</code> writes a data frame back out as a partitioned folder.</li>
+
+<li><code>collect()</code> materialises a lazy Dataset query into an R tibble.</li>
+
+</ul>
+
+<p>For a fuller tour of the package, see the <a href="Apache-Arrow-in-R.html">Apache Arrow in R</a> guide and the official <a href="https://arrow.apache.org/docs/r/">arrow package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does open_dataset() load the whole dataset into memory?</strong></p>
+
+<p>No. <code>open_dataset()</code> only reads file metadata and returns a lazy <code>Dataset</code> object. Data is read when you call <code>collect()</code>, and even then Arrow reads only the columns and rows your query needs. This is what lets a single laptop query datasets that are far larger than its RAM, because the full table never has to exist in memory at once.</p>
+
+<p><strong>What file formats does open_dataset() support?</strong></p>
+
+<p>It supports Parquet, Arrow IPC and Feather, and delimited text formats including CSV and TSV. Parquet is the default, so other formats need an explicit <code>format</code> argument, such as <code>format = &quot;csv&quot;</code>. Parquet is usually the best choice because its columnar layout lets Arrow skip unneeded columns and row groups during a query.</p>
+
+<p><strong>How is open_dataset() different from read_parquet()?</strong></p>
+
+<p><code>read_parquet()</code> reads exactly one file and loads it fully into memory right away. <code>open_dataset()</code> points at a directory of many files and stays lazy until <code>collect()</code>. Use <code>read_parquet()</code> for a single file that fits in RAM, and <code>open_dataset()</code> for a folder, a partitioned layout, or any dataset too big to load at once.</p>
+
+<p><strong>Can open_dataset() read partitioned folders?</strong></p>
+
+<p>Yes. When folders are named in Hive style, such as <code>year=2024/month=01/</code>, <code>open_dataset()</code> reads those names and turns them back into columns you can filter on. The default <code>partitioning = hive_partition()</code> handles this automatically. Filtering on a partition column lets Arrow skip whole folders, which is the single biggest speedup on large datasets.</p>
+
+</content>
+
+</invoke>
