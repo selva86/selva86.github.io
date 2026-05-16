@@ -1,0 +1,329 @@
+---
+title: "haven labelled() in R: Create Labelled Survey Vectors"
+description: "Use haven labelled() in R to attach value labels to coded survey data. Covers the labels and label arguments, labelled_spss(), and conversion to factors."
+keywords: "haven labelled, labelled function R, haven labelled examples, R labelled vector, value labels in R, labelled_spss R, create labelled vector R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "labelled()|haven labelled|haven::labelled()|labelled vector in R|value labels in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>haven labelled() in R: Create Labelled Survey Vectors</h1>
+
+<p class="lead">The haven labelled() function builds a labelled vector in R: it stores numeric or character codes alongside the value labels that explain them, mirroring how SPSS, Stata, and SAS keep coded survey data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>labelled(x, c(No = 0, Yes = 1))<span class="qa-cmt">            # numeric value labels</span>
+labelled(x, c(M = &quot;m&quot;, F = &quot;f&quot;))<span class="qa-cmt">           # character value labels</span>
+labelled(x, labels, label = &quot;Question 5&quot;)<span class="qa-cmt">  # add a variable label</span>
+labelled_spss(x, labels, na_values = 9)<span class="qa-cmt">    # SPSS user missing values</span>
+is.labelled(x)<span class="qa-cmt">                             # test for the labelled class</span>
+print_labels(x)<span class="qa-cmt">                            # show the value-label map</span>
+as_factor(x)<span class="qa-cmt">                               # convert to an ordinary factor</span>
+zap_labels(x)<span class="qa-cmt">                              # strip labels, keep raw codes</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is labelled() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">attach value labels to coded data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">labelled(x, c(No = 0, Yes = 1))</text><text x="125" y="126" class="branch-label">add SPSS user-defined <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a></text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">labelled_spss(x, labels, na_values = 9)</text><text x="125" y="182" class="branch-label">read a file that is already labelled</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_sav(&quot;survey.sav&quot;)</text><text x="125" y="238" class="branch-label">turn a labelled vector into a factor</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">as_factor(x)</text><text x="125" y="294" class="branch-label">strip labels and keep the raw codes</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">zap_labels(x)</text><text x="125" y="350" class="branch-label">build a plain factor from text</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">factor(x)</text></svg></div>
+
+<h2>What labelled() does</h2>
+
+<p><strong>labelled() pairs raw codes with human-readable labels.</strong> Survey data is usually stored as numbers: a gender column holds <code>1</code> and <code>2</code>, not <code>Male</code> and <code>Female</code>. The mapping lives in a separate codebook. <code>labelled()</code> attaches that codebook directly to the vector, so the codes and their meaning travel together as a single object of class <code>haven_labelled</code>.</p>
+
+<p>This is the same structure <code>read_sav()</code>, <code>read_dta()</code>, and <code>read_sas()</code> produce when they import labelled files. Calling <code>labelled()</code> by hand lets you recreate that structure for data you build in R, or for a column you need to recode before exporting back to SPSS or Stata with <code>write_sav()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A labelled vector is data plus its codebook in one object.</strong> The values stay numeric for storage and round-tripping, while the labels attribute carries the meaning. You decide when to collapse the two by converting to a factor.</div></div>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>labelled() takes a vector and a named labels lookup.</strong> Only <code>x</code> and <code>labels</code> are needed for most calls; <code>label</code> adds a description of the whole variable.</p>
+
+<div class="webr-container" data-block-title="The labelled signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The labelled signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">labelled(
+  x,             # a numeric or character vector to label
+  labels = NULL, # a named vector: names are labels, values are codes
+  label = NULL   # a one-line description of the variable itself
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>labels</code> argument is the part that trips people up. It is a named vector where the <strong>names become the labels</strong> and the <strong>values become the data codes</strong>. So <code>c(Male = 1, Female = 2)</code> means code <code>1</code> displays as <code>Male</code>. The names and values must be the same type as <code>x</code>: numeric labels for a numeric vector, character labels for a character vector.</p>
+
+<h2>Creating a labelled vector</h2>
+
+<p><strong>Start with a numeric vector and a labels lookup.</strong> Load haven, then pass the codes and their meaning to <code>labelled()</code>.</p>
+
+<div class="webr-container" data-block-title="Create a labelled numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a labelled numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(haven)
+
+gender &lt;- labelled(
+  c(1, 2, 1, 1, 2),
+  labels = c(Male = 1, Female = 2)
+)
+gender
+#&gt; &lt;labelled&lt;double&gt;[5]&gt;
+#&gt; [1] 1 2 1 1 2
+#&gt;
+#&gt; Labels:
+#&gt;  value  label
+#&gt;      1   Male
+#&gt;      2 Female</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector still prints its raw codes, with the label map shown underneath. The <code>label</code> argument adds a description of the variable as a whole, separate from the per-value labels.</p>
+
+<div class="webr-container" data-block-title="Add a variable label">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a variable label</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">satisfaction &lt;- labelled(
+  c(3, 1, 2, 3, 2),
+  labels = c(Low = 1, Medium = 2, High = 3),
+  label = &quot;Customer satisfaction rating&quot;
+)
+attr(satisfaction, &quot;label&quot;)
+#&gt; [1] &quot;Customer satisfaction rating&quot;
+print_labels(satisfaction)
+#&gt; Labels:
+#&gt;  value  label
+#&gt;      1    Low
+#&gt;      2 Medium
+#&gt;      3   High</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Labelling character data</h3>
+
+<p><strong><a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">Character vectors</a> can be labelled too.</strong> The codes are strings, and the labels in <code>labels</code> must be strings to match.</p>
+
+<div class="webr-container" data-block-title="Label a character vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label a character vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">region &lt;- labelled(
+  c(&quot;N&quot;, &quot;S&quot;, &quot;S&quot;, &quot;E&quot;),
+  labels = c(North = &quot;N&quot;, South = &quot;S&quot;, East = &quot;E&quot;)
+)
+is.labelled(region)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>SPSS-style user missing values</h3>
+
+<p><strong>Use labelled_spss() when codes double as missing values.</strong> It extends <code>labelled()</code> with <code>na_values</code> and <code>na_range</code>, the user-defined missing codes SPSS uses for answers like "Refused" or "Not applicable".</p>
+
+<div class="webr-container" data-block-title="Create an SPSS-style labelled vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create an SPSS-style labelled vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q5 &lt;- labelled_spss(
+  c(1, 2, 1, 9),
+  labels = c(Yes = 1, No = 2, Refused = 9),
+  na_values = 9
+)
+q5
+#&gt; &lt;labelled_spss&lt;double&gt;[4]&gt;
+#&gt; [1] 1 2 1 9
+#&gt; Missing values: 9
+#&gt;
+#&gt; Labels:
+#&gt;  value   label
+#&gt;      1     Yes
+#&gt;      2      No
+#&gt;      9 Refused</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>labelled() vs labelled_spss() vs factor()</h2>
+
+<p><strong>Pick the constructor by what you need to preserve.</strong> A labelled vector keeps the original codes; a factor discards them and keeps only the categories.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>labelled()</code></th>
+<th><code>labelled_spss()</code></th>
+<th><code>factor()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stores raw codes</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No, stores levels</td>
+</tr>
+<tr>
+<td>Keeps value labels</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Labels become levels</td>
+</tr>
+<tr>
+<td>User missing values</td>
+<td>No</td>
+<td>Yes (<code>na_values</code>, <code>na_range</code>)</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Class produced</td>
+<td><code>haven_labelled</code></td>
+<td><code>haven_labelled_spss</code></td>
+<td><code>factor</code></td>
+</tr>
+<tr>
+<td>Ready for <code>table()</code>, <code>ggplot()</code></td>
+<td>No, seen as numbers</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Mirroring SPSS or Stata codes</td>
+<td>SPSS data with missing codes</td>
+<td>Analysis-ready categories</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule of thumb: use <code>labelled()</code> or <code>labelled_spss()</code> while data is being imported, cleaned, or exported, and convert to a factor with <code>as_factor()</code> once you start tabulating or plotting.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Watch the direction of the labels vector.</strong> Three mistakes account for most <code>labelled()</code> errors.</p>
+
+<ul>
+
+<li><strong>Reversing names and values.</strong> <code>c(Male = 1)</code> is correct: the name is the label, the value is the code. Writing <code>c(1 = &quot;Male&quot;)</code> is a syntax error because names cannot be bare numbers.</li>
+
+<li><strong>Mismatched types.</strong> A numeric <code>x</code> needs numeric label values. Passing <code>labels = c(Male = &quot;1&quot;)</code> against a numeric vector raises an error about incompatible types.</li>
+
+<li><strong>Expecting labels everywhere.</strong> <code>labelled()</code> does not require a label for every value. Unlabelled codes stay as bare numbers, which is valid but easy to overlook.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A labelled column tabulates as numbers, not labels.</strong> <code>table(gender)</code> counts <code>1</code> and <code>2</code>, and <code>ggplot()</code> plots the codes. Convert with <code>as_factor()</code> before any summary or chart, or your output shows codes instead of categories.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a labelled vector named <code>ex_status</code> from the codes <code>c(1, 0, 1, 1, 0)</code> with labels <code>Active = 1</code> and <code>Inactive = 0</code>, then confirm its class.</p>
+<div class="webr-container" data-block-title="Your turn: build a labelled vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a labelled vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: create a labelled vector
+ex_status &lt;- # your code here
+
+is.labelled(ex_status)
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_status &lt;- labelled(
+  c(1, 0, 1, 1, 0),
+  labels = c(Active = 1, Inactive = 0)
+)
+is.labelled(ex_status)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>labelled()</code> returns an object of class <code>haven_labelled</code>, so <code>is.labelled()</code> reports <code>TRUE</code>. The named vector <code>c(Active = 1, Inactive = 0)</code> maps each code to its label.</p>
+
+</details>
+</section>
+
+<h2>Related haven functions</h2>
+
+<p>These functions handle the rest of the labelled-data workflow:</p>
+
+<ul>
+
+<li><strong><code>as_factor()</code></strong> converts a labelled vector into an ordinary factor for analysis and plotting.</li>
+
+<li><strong><code>zap_labels()</code></strong> strips the value labels and returns the raw codes.</li>
+
+<li><strong><code>zap_formats()</code></strong> removes the SPSS or Stata display format attribute.</li>
+
+<li><strong><code>read_sav()</code></strong> imports an SPSS file, producing labelled columns automatically.</li>
+
+<li><strong><code>print_labels()</code></strong> prints the value-label map of any labelled vector.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from the labelled package?</strong> That package builds on haven and adds <code>val_labels()</code> and <code>var_label()</code> helpers for editing labels in place. The underlying <code>haven_labelled</code> class is the same one <code>labelled()</code> creates here. See the <a href="https://haven.tidyverse.org/reference/labelled.html">haven reference</a> for the full argument list.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between labelled() and <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">factor() in R</a>?</strong></p>
+
+<p><code>labelled()</code> keeps the original numeric or character codes and stores the labels as a separate attribute, so the data can round-trip back to SPSS or Stata unchanged. <code>factor()</code> discards the codes and keeps only the category levels. Use <code>labelled()</code> while importing or exporting data, and convert to a factor with <code>as_factor()</code> once you need to tabulate or plot, because most <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> treat a labelled vector as raw numbers.</p>
+
+<p><strong>How do I create a labelled vector from SPSS value labels?</strong></p>
+
+<p>Pass your data vector as <code>x</code> and a named vector as <code>labels</code>, where the names are the labels and the values are the SPSS codes, for example <code>labelled(x, c(Yes = 1, No = 2))</code>. If the SPSS file uses user-defined missing values such as <code>9</code> for "Refused", use <code>labelled_spss()</code> instead and supply <code>na_values = 9</code> so those codes are flagged as missing.</p>
+
+<p><strong>Can labelled() be used on character vectors?</strong></p>
+
+<p>Yes. <code>labelled()</code> accepts both numeric and character vectors. For a character vector, the codes in <code>x</code> and the values in <code>labels</code> must both be strings, such as <code>labelled(c(&quot;N&quot;, &quot;S&quot;), c(North = &quot;N&quot;, South = &quot;S&quot;))</code>. The names of the <code>labels</code> vector remain the human-readable labels regardless of the underlying type.</p>
+
+<p><strong>How do I remove labels from a haven_labelled vector?</strong></p>
+
+<p>Use <code>zap_labels()</code> to drop the value labels and return the bare codes, or <code>as_factor()</code> to turn the labels into factor levels. <code>zap_labels()</code> is the right choice when you want plain numbers for arithmetic, while <code>as_factor()</code> is better when you want readable categories for summaries and charts.</p>
+
+<p><strong>Why does my labelled column show numbers instead of labels?</strong></p>
+
+<p>A labelled vector stores codes for storage efficiency and prints them as numbers by design. The labels live in an attribute and only become the visible values once you call <code>as_factor()</code>. Functions like <code>table()</code> and <code>ggplot()</code> see the codes, so convert the column first if you want categories in your output.</p>
