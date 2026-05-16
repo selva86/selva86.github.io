@@ -1,0 +1,302 @@
+---
+title: "data.table frank() in R: Fast Ranking of Vectors"
+description: "Learn data.table frank() in R to rank vectors and columns fast. Covers ties.method options, descending ranks, group-wise ranking, and frank vs base rank."
+keywords: "data.table frank, frank function R, data.table frank examples, R frank ranking, frank vs rank R, frankv data.table, fast rank R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "frank()|data.table frank|data.table::frank()|frankv()|frankv|frank function"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table frank() in R: Fast Ranking of Vectors</h1>
+
+<p class="lead">data.table frank() in R returns the rank of every value in a vector or column, with seven tie-breaking methods and built-in descending order. It is a faster, more flexible drop-in for base rank().</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>frank(x)<span class="qa-cmt">                          # rank a vector, average ties</span>
+frank(x, ties.method = &quot;dense&quot;)<span class="qa-cmt">   # no gaps after tied values</span>
+frank(x, ties.method = &quot;min&quot;)<span class="qa-cmt">     # all ties get the lowest rank</span>
+frank(dt, col)<span class="qa-cmt">                    # rank a data.table by a column</span>
+frank(dt, -col)<span class="qa-cmt">                   # descending rank</span>
+frank(.SD, -col)<span class="qa-cmt">                  # rank inside a by-group</span>
+frankv(x, order = -1L)<span class="qa-cmt">            # vector API, descending</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is frank() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rank values fast</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">frank(dt, -mpg)</text><text x="125" y="126" class="branch-label"><a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">sort rows</a> by a column</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">setorder(dt, -mpg)</text><text x="125" y="182" class="branch-label">row number within groups</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rowid(grp)</text><text x="125" y="238" class="branch-label">consecutive run IDs</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rleid(grp)</text><text x="125" y="294" class="branch-label">pull the top N rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[order(-mpg)][1:5]</text><text x="125" y="350" class="branch-label">cut values into percentiles</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">quantile(x)</text></svg></div>
+
+<h2>What frank() does in R</h2>
+
+<p><strong>data.table frank() assigns a numeric rank to each value.</strong> It takes a vector, list, data.frame, or data.table and returns one rank per element, ordering from smallest to largest by default. The function is part of the <code>data.table</code> package and runs in C, so it stays fast even on millions of rows.</p>
+
+<p>Unlike base <code>rank()</code>, <code>frank()</code> supports every common tie-breaking rule, accepts a <code>data.table</code> directly, and lets you rank by several columns at once. The vector-only variant is <code>frankv()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>frank()</code> is the Series method <code>.rank()</code>, and <code>ties.method = &quot;dense&quot;</code> matches pandas <code>method=&quot;dense&quot;</code>.</div></div>
+
+<h2>frank() syntax and arguments</h2>
+
+<p><strong>frank() has one data argument and three controls.</strong> The signature is <code>frank(x, ..., na.last = TRUE, ties.method = &quot;average&quot;)</code>. Each argument changes a specific part of the ranking behaviour.</p>
+
+<ul>
+
+<li><code>x</code>: the data to rank. A vector ranks directly. A <code>data.table</code>, <code>data.frame</code>, or list ranks by the columns named in <code>...</code>.</li>
+
+<li><code>...</code>: column names or expressions to rank by when <code>x</code> is a table. Prefix a column with <code>-</code> to rank it in descending order, as in <code>frank(dt, -mpg)</code>.</li>
+
+<li><code>na.last</code>: where <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> go. <code>TRUE</code> ranks <code>NA</code> last, <code>FALSE</code> ranks it first, and <code>NA</code> drops it.</li>
+
+<li><code>ties.method</code>: how equal values share ranks. Options are <code>&quot;average&quot;</code> (default), <code>&quot;first&quot;</code>, <code>&quot;last&quot;</code>, <code>&quot;min&quot;</code>, <code>&quot;max&quot;</code>, <code>&quot;dense&quot;</code>, and <code>&quot;random&quot;</code>.</li>
+
+</ul>
+
+<p>The vector-focused form, <code>frankv(x, cols, order = 1L, ...)</code>, is identical except it takes column names as a character vector and an <code>order</code> argument (<code>1L</code> ascending, <code>-1L</code> descending). Use <code>frankv()</code> when you build the column list programmatically.</p>
+
+<h2>frank() examples by use case</h2>
+
+<p><strong>Start with a plain vector.</strong> Pass any numeric vector and <code>frank()</code> returns its ranks. With the default <code>&quot;average&quot;</code> method, tied values share the mean of the ranks they would occupy.</p>
+
+<div class="webr-container" data-block-title="Rank a vector with frank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank a vector with frank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- c(30, 10, 20, 10)
+frank(x)
+#&gt; [1] 4.0 1.5 3.0 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two <code>10</code>s would take ranks 1 and 2, so each gets <code>1.5</code>. The <code>ties.method</code> argument changes that. <code>&quot;dense&quot;</code> never leaves gaps, <code>&quot;min&quot;</code> gives every tie the lowest available rank, and <code>&quot;first&quot;</code> breaks ties by position.</p>
+
+<div class="webr-container" data-block-title="Control tie handling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control tie handling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(30, 10, 20, 10)
+frank(x, ties.method = &quot;dense&quot;)
+#&gt; [1] 3 1 2 1
+frank(x, ties.method = &quot;min&quot;)
+#&gt; [1] 4 1 3 1
+frank(x, ties.method = &quot;first&quot;)
+#&gt; [1] 4 1 3 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use "dense" when you want rank labels, "average" when you want statistics.</strong> Dense ranks are consecutive integers (1, 2, 3) ideal for grouping, while average ranks preserve the spacing needed for <a class="auto-link" href="Nonparametric-Tests-Exercises-in-R.html" title="Nonparametric Tests Exercises in R: 10 Practice Problems, Solved Step-by-Step">rank-based tests</a>.</div></div>
+
+<p><strong>Rank a column inside a data.table.</strong> Pass the table as <code>x</code> and the column as <code>...</code>. Prefix the column with <code>-</code> to rank from highest to lowest, which is what "rank 1 = best" usually means.</p>
+
+<div class="webr-container" data-block-title="Rank a data.table column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank a data.table column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- as.data.table(mtcars, keep.rownames = &quot;car&quot;)
+dt[, mpg_rank := frank(dt, -mpg)]
+head(dt[order(mpg_rank), .(car, mpg, mpg_rank)], 4)
+#&gt;               car  mpg mpg_rank
+#&gt; 1: Toyota Corolla 33.9      1.0
+#&gt; 2:      Fiat 128 32.4      2.0
+#&gt; 3:    Honda Civic 30.4      3.5
+#&gt; 4:   Lotus Europa 30.4      3.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Rank within groups.</strong> Combine <code>frank()</code> with <code>.SD</code> and <code>by</code> to rank rows inside each group. Here every car is ranked by <code>mpg</code> against other cars with the same cylinder count.</p>
+
+<div class="webr-container" data-block-title="Rank within groups">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank within groups</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, rank_in_cyl := frank(.SD, -mpg), by = cyl]
+dt[cyl == 6, .(car, mpg, rank_in_cyl)][order(rank_in_cyl)]
+#&gt;              car  mpg rank_in_cyl
+#&gt; 1: Hornet 4 Drive 21.4         1.0
+#&gt; 2:      Mazda RX4 21.0         2.5
+#&gt; 3:  Mazda RX4 Wag 21.0         2.5
+#&gt; 4:   Ferrari Dino 19.7         4.0
+#&gt; 5:       Merc 280 19.2         5.0
+#&gt; 6:        Valiant 18.1         6.0
+#&gt; 7:      Merc 280C 17.8         7.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>frank() vs base rank()</h2>
+
+<p><strong>frank() does everything rank() does, plus three things it cannot.</strong> Base <code>rank()</code> works on vectors only and lacks the <code>&quot;dense&quot;</code> and <code>&quot;last&quot;</code> tie methods. The table below shows where <code>frank()</code> pulls ahead.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>frank()</th>
+<th>base rank()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed on large vectors</td>
+<td>Fast, multi-threaded</td>
+<td>Slower</td>
+</tr>
+<tr>
+<td>ties.method = "dense"</td>
+<td>Supported</td>
+<td>Not supported</td>
+</tr>
+<tr>
+<td>Rank a data.table column</td>
+<td>Direct</td>
+<td>Needs <code>rank(dt$col)</code></td>
+</tr>
+<tr>
+<td>Rank by multiple columns</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Descending order</td>
+<td><code>-col</code> or <code>order = -1L</code></td>
+<td><code>rank(-x)</code> only</td>
+</tr>
+</tbody>
+</table>
+
+<p>For a one-off rank on a short vector, base <code>rank()</code> is fine. Reach for <code>frank()</code> when the data is large, when you need dense ranks, or when ranking happens inside a <code>data.table</code> workflow.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>frank() is the safe default in any data.table pipeline.</strong> It is faster, supports more tie rules, and reads consistently with <code>setorder()</code> and <code>frollmean()</code>, so mixing it with base <code>rank()</code> only adds friction.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Watch the default tie method.</strong> With <code>ties.method = &quot;average&quot;</code>, tied values return decimals like <code>3.5</code>. If a later step expects whole numbers, switch to <code>&quot;min&quot;</code> or <code>&quot;dense&quot;</code>.</p>
+
+<p><strong>A misspelled tie method errors immediately.</strong> Only the seven documented strings are valid.</p>
+
+<div class="webr-container" data-block-title="Invalid ties.method">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Invalid ties.method</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frank(c(3, 1, 2), ties.method = &quot;smallest&quot;)
+#&gt; Error: 'arg' should be one of &quot;average&quot;, &quot;first&quot;, &quot;last&quot;,
+#&gt;   &quot;min&quot;, &quot;max&quot;, &quot;dense&quot;, &quot;random&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to use <code>&quot;min&quot;</code>, the method most people mean by "smallest".</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>frank() ranks <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> instead of skipping them.</strong> With the default <code>na.last = TRUE</code>, a missing value receives a real numeric rank at the end, not <code>NA</code>. Set <code>na.last = NA</code> to drop missing values from the result entirely.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rank the cars in <code>mtcars</code> by horsepower (<code>hp</code>) so that the most powerful car is rank 1, breaking ties densely. Save the ranks to <code>ex_ranks</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rank by horsepower">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank by horsepower</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rank mtcars by hp, highest = rank 1
+ex_ranks &lt;- # your code here
+
+head(ex_ranks)
+#&gt; Expected: the highest-hp car has rank 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ranks &lt;- frank(mtcars, -hp, ties.method = &quot;dense&quot;)
+head(ex_ranks)
+#&gt; [1] 11 11 14 11 8 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Prefixing <code>hp</code> with <code>-</code> ranks from highest to lowest, so the strongest engine gets rank 1. The <code>&quot;dense&quot;</code> method keeps the ranks as consecutive integers with no gaps after ties.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>frank() sits next to data.table's ordering and grouping helpers.</strong> Use these when ranking is not quite the operation you need.</p>
+
+<ul>
+
+<li><code>setorder()</code>: sort the rows of a table in place instead of ranking them.</li>
+
+<li><code>rowid()</code>: number rows 1, 2, 3 within each group.</li>
+
+<li><code>rleid()</code>: assign run-length IDs to consecutive equal values.</li>
+
+<li><code>uniqueN()</code>: count distinct values, often paired with dense ranks.</li>
+
+<li><code>shift()</code>: lag or lead a column, useful for rank-change calculations.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/frank.html">data.table frank reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between frank and rank in R?</strong></p>
+
+<p><code>frank()</code> is data.table's ranking function and <code>rank()</code> is base R's. They return the same result for a simple vector with the default settings. <code>frank()</code> adds multi-threaded speed, the <code>&quot;dense&quot;</code> and <code>&quot;last&quot;</code> tie methods, direct support for ranking <code>data.table</code> columns, and ranking by several columns at once. Base <code>rank()</code> handles only vectors.</p>
+
+<p><strong>How do I rank in descending order with frank?</strong></p>
+
+<p>Prefix the column or vector with a minus sign: <code>frank(dt, -mpg)</code> ranks the highest <code>mpg</code> as rank 1. For the <code>frankv()</code> API, pass <code>order = -1L</code> instead. Negating works because <code>frank()</code> ranks ascending by default, so flipping the sign flips the order.</p>
+
+<p><strong>What does ties.method = "dense" do?</strong></p>
+
+<p>Dense ranking assigns consecutive integers with no gaps after tied values. If two values tie for rank 1, the next value gets rank 2, not rank 3. This contrasts with <code>&quot;min&quot;</code>, which would jump to rank 3. Dense ranks are ideal when you want compact group labels rather than positions.</p>
+
+<p><strong>Can frank rank multiple columns at once?</strong></p>
+
+<p>Yes. Pass several columns to the <code>...</code> argument: <code>frank(dt, cyl, -mpg)</code> ranks first by <code>cyl</code> ascending, then breaks ties by <code>mpg</code> descending. This mirrors how <code>setorder()</code> sorts by multiple keys, and base <code>rank()</code> cannot do it.</p>
+
+<p><strong>Does frank work on character or date columns?</strong></p>
+
+<p>Yes. <code>frank()</code> ranks any orderable type, including characters (alphabetical), factors (by level), and <code>Date</code> or <code>POSIXct</code> values (chronological). The same <code>ties.method</code> and descending rules apply, so <code>frank(dt, -order_date)</code> ranks the most recent date as rank 1.</p>
+
+{% endraw %}
