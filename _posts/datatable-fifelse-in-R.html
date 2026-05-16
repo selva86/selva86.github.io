@@ -1,0 +1,320 @@
+---
+title: "data.table fifelse() in R: Fast Vectorized If-Else"
+description: "Learn data.table fifelse() in R for fast, type-safe vectorized if-else logic. Covers syntax, the na argument, fifelse vs ifelse, dates, and common pitfalls."
+keywords: "data.table fifelse, fifelse function R, data.table fifelse examples, R vectorized if else, fifelse vs ifelse, fifelse na argument, data.table conditional column"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fifelse()|data.table fifelse|data.table::fifelse()|fifelse|vectorized if else"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table fifelse() in R: Fast Vectorized If-Else</h1>
+
+<p class="lead">The data.table fifelse() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns one of two values for each element of a logical test, in a single fast, type-safe pass. It is a stricter, quicker drop-in for base <a class="auto-link" href="R-Control-Flow.html" title="R Control Flow: if/else, for, and while — Stop Avoiding Loops">ifelse()</a>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fifelse(x &gt; 0, &quot;pos&quot;, &quot;neg&quot;)<span class="qa-cmt">             # binary label</span>
+fifelse(x &gt; 0, x, 0L)<span class="qa-cmt">                    # keep value or zero</span>
+fifelse(test, &quot;y&quot;, &quot;n&quot;, na = &quot;unknown&quot;)<span class="qa-cmt">  # control NA rows</span>
+fifelse(d &gt; cut, d, as.Date(NA))<span class="qa-cmt">         # Date class preserved</span>
+DT[, flag := fifelse(am == 1, 1L, 0L)]<span class="qa-cmt">   # add a column by reference</span>
+fifelse(v &gt; 20, v, 0)<span class="qa-cmt">                    # length-1 'no' recycled</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fifelse() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 349" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="314"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one binary condition</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fifelse(test, yes, no)</text><text x="125" y="126" class="branch-label">three or more cases</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fcase(c1, v1, c2, v2)</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> with a fallback value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fcoalesce(x, backup)</text><text x="125" y="238" class="branch-label">choose a row by exact key match</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">DT[lookup, on = &quot;id&quot;]</text><text x="125" y="294" class="branch-label">rank values into buckets</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">frank(x)</text></svg></div>
+
+<h2>What fifelse() does</h2>
+
+<p><strong>fifelse() makes a binary choice across a whole vector at once.</strong> You give it a logical <code>test</code>, a <code>yes</code> value, and a <code>no</code> value. For every element where <code>test</code> is <code>TRUE</code> it returns the matching <code>yes</code> value, and everywhere <code>test</code> is <code>FALSE</code> it returns <code>no</code>.</p>
+
+<p>It is data.table's answer to base R's <code>ifelse()</code>, rewritten for speed and type safety. The base function silently coerces types and drops attributes such as the <code>Date</code> or <code>factor</code> class. <code>fifelse()</code> refuses to mix types and keeps attributes intact, so the output is exactly the type you expect.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fifelse() is one vectorized operation, not a per-row branch.</strong> The test is evaluated across the entire vector, then <code>yes</code> and <code>no</code> are selected in a single C-level pass. That is why it stays fast on columns with millions of rows.</div></div>
+
+<h2>fifelse() syntax</h2>
+
+<p><strong>The call takes one test and two values, plus an optional na.</strong> The signature is <code>fifelse(test, yes, no, na = NA)</code>. Here <code>test</code> is a logical vector, <code>yes</code> and <code>no</code> are the values to return, and <code>na</code> sets what to return where <code>test</code> itself is <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="The fifelse call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fifelse call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+temp &lt;- c(-4, 12, 30)
+fifelse(temp &lt; 0, &quot;freezing&quot;, &quot;above zero&quot;)
+#&gt; [1] &quot;freezing&quot;   &quot;above zero&quot; &quot;above zero&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rules govern every call. <code>yes</code> and <code>no</code> must be the same type, since the result is one typed vector. Each must have length 1 or the same length as <code>test</code>, and length-1 values are recycled. Where <code>test</code> is <code>NA</code>, the result is <code>na</code>, which defaults to a typed <code>NA</code>. See the official <a href="https://rdatatable.gitlab.io/data.table/reference/fifelse.html">data.table fifelse reference</a> for the full argument list.</p>
+
+<h2>fifelse() examples</h2>
+
+<p><strong>These examples use the built-in <code>mtcars</code> dataset loaded as a data.table.</strong> Each one shows a different real task: labelling rows, keeping or replacing values, controlling NA, and preserving a date class.</p>
+
+<p>The first example adds a labelled column inside a <code>data.table</code>. The <code>am</code> column is <code>1</code> for manual cars and <code>0</code> for automatic ones.</p>
+
+<div class="webr-container" data-block-title="Label rows with a binary condition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Label rows with a binary condition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+DT[, transmission := fifelse(am == 1, &quot;manual&quot;, &quot;automatic&quot;)]
+DT[, .N, by = transmission]
+#&gt;    transmission  N
+#&gt; 1:       manual 13
+#&gt; 2:    automatic 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>yes</code> value does not have to be a constant. Pass the vector itself to keep an element where the test holds and substitute something else where it does not.</p>
+
+<div class="webr-container" data-block-title="Keep a value or substitute zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep a value or substitute zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(10, 25, 40, 5)
+fifelse(v &gt; 20, v, 0)
+#&gt; [1]  0 25 40  0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the test vector contains <code>NA</code>, the <code>na</code> argument decides what those positions return. Without it they would silently become <code>NA</code> in the output.</p>
+
+<div class="webr-container" data-block-title="Handle NA in the test vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handle NA in the test vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">score &lt;- c(88, NA, 45)
+fifelse(score &gt;= 60, &quot;pass&quot;, &quot;fail&quot;, na = &quot;no score&quot;)
+#&gt; [1] &quot;pass&quot;     &quot;no score&quot; &quot;fail&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>fifelse()</code> keeps attributes, a <code>Date</code> input produces a <code>Date</code> output. Base <code>ifelse()</code> would strip the class and return raw day counts here.</p>
+
+<div class="webr-container" data-block-title="Dates keep their class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dates keep their class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dates  &lt;- as.Date(c(&quot;2024-01-10&quot;, &quot;2024-08-20&quot;))
+cutoff &lt;- as.Date(&quot;2024-06-01&quot;)
+fifelse(dates &gt; cutoff, dates, as.Date(NA))
+#&gt; [1] NA           &quot;2024-08-20&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>fifelse()</code> is <code>numpy.where(cond, yes, no)</code>, which also returns one of two values element-wise across an array.</div></div>
+
+<h2>fifelse vs ifelse</h2>
+
+<p><strong>Pick fifelse() when type safety and speed matter, ifelse() only for quick base-R scripts.</strong> They share the same three-argument shape, but they behave differently when types disagree or attributes are involved.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Type handling</th>
+<th>NA control</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fifelse()</code></td>
+<td>data.table</td>
+<td>strict, errors on mismatch</td>
+<td><code>na =</code> argument</td>
+</tr>
+<tr>
+<td><code>ifelse()</code></td>
+<td>base R</td>
+<td><a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">silent coercion</a>, drops attributes</td>
+<td>inherits test NA</td>
+</tr>
+<tr>
+<td><code>if_else()</code></td>
+<td>dplyr</td>
+<td>strict, errors on mismatch</td>
+<td><code>missing =</code> argument</td>
+</tr>
+<tr>
+<td><code>fcase()</code></td>
+<td>data.table</td>
+<td>strict, for 3 or more cases</td>
+<td><code>default =</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. If you already work in data.table, <code>fifelse()</code> is the natural binary choice: it is faster, refuses unsafe coercions, and preserves the <code>Date</code> or <code>factor</code> class. Base <code>ifelse()</code> is fine for throwaway scripts but will quietly convert a date to a number. For three or more branches, reach for <a href="datatable-fcase-in-R.html">data.table fcase in R</a> instead of nesting <code>fifelse()</code> calls.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most fifelse() bugs trace back to mismatched types, wrong lengths, or unhandled NA.</strong> All three surface quickly once you know the symptom.</p>
+
+<p>Mixing the types of <code>yes</code> and <code>no</code> throws an error, because the result must be one typed vector. This is deliberate: base <code>ifelse()</code> would coerce silently and hide the bug.</p>
+
+<div class="webr-container" data-block-title="yes and no must share a type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">yes and no must share a type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(-2, 5, -7)
+fifelse(x &gt; 0, &quot;positive&quot;, 0)
+#&gt; Error in fifelse(x &gt; 0, &quot;positive&quot;, 0) :
+#&gt;   'yes' is of type character but 'no' is of type double. Please make sure both arguments have the same type.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Type mismatches fail loudly, but a forgotten na fails silently.</strong> The error above is easy to fix by making both values the same type. The quieter trap is leaving <code>na</code> unset, which lets <code>NA</code> in the test leak straight into the output.</div></div>
+
+<p>Each value must be length 1 or the same length as <code>test</code>. A vector of any other length is rejected.</p>
+
+<div class="webr-container" data-block-title="yes and no must be length 1 or length(test)">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">yes and no must be length 1 or length(test)</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fifelse(c(TRUE, FALSE, TRUE), c(&quot;a&quot;, &quot;b&quot;), &quot;x&quot;)
+#&gt; Error in fifelse(c(TRUE, FALSE, TRUE), c(&quot;a&quot;, &quot;b&quot;), &quot;x&quot;) :
+#&gt;   Length of 'yes' is 2 but must be 1 or length of 'test' (3).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Finally, an <code>NA</code> in the test propagates into the result unless you supply <code>na</code>. The output below has a gap exactly where the test was missing.</p>
+
+<div class="webr-container" data-block-title="NA in the test leaks into the output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA in the test leaks into the output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flag &lt;- c(TRUE, NA, FALSE)
+fifelse(flag, &quot;on&quot;, &quot;off&quot;)
+#&gt; [1] &quot;on&quot; NA   &quot;off&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use fifelse() to add a column mpg_flag to a data.table of mtcars: "efficient" when mpg is at least 25, otherwise "thirsty". Save the result to ex_dt.</p>
+<div class="webr-container" data-block-title="Your turn: flag fuel efficiency">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flag fuel efficiency</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: flag mpg with fifelse()
+ex_dt &lt;- as.data.table(mtcars)
+ex_dt[, mpg_flag := # your code here]
+
+ex_dt[, .N, by = mpg_flag]
+#&gt; Expected: 6 efficient, 26 thirsty</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(mtcars)
+ex_dt[, mpg_flag := fifelse(mpg &gt;= 25, &quot;efficient&quot;, &quot;thirsty&quot;)]
+ex_dt[, .N, by = mpg_flag]
+#&gt;     mpg_flag  N
+#&gt; 1:   thirsty 26
+#&gt; 2: efficient  6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fifelse()</code> evaluates <code>mpg &gt;= 25</code> across all 32 rows, returns <code>&quot;efficient&quot;</code> where it holds, and <code>&quot;thirsty&quot;</code> everywhere else. The <code>:=</code> operator writes the result back as a new column with no copy.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>fifelse() sits in data.table's family of fast, vectorized helpers.</strong> These functions pair well with it for conditional logic and cleanup:</p>
+
+<ul>
+
+<li><code>fcase()</code>: the multi-case version, for three or more conditions. See <a href="datatable-fcase-in-R.html">data.table fcase in R</a>.</li>
+
+<li><code>fcoalesce()</code>: returns the first non-<code>NA</code> value across vectors. See <a href="datatable-fcoalesce-in-R.html">data.table fcoalesce in R</a>.</li>
+
+<li><code>shift()</code>: lag or lead a column before a comparison. See <a href="datatable-shift-in-R.html">data.table shift in R</a>.</li>
+
+<li><code>setDT()</code>: convert a data.frame to a data.table in place. See <a href="datatable-setDT-in-R.html">data.table setDT in R</a>.</li>
+
+<li><code>uniqueN()</code>: count distinct values in a result. See <a href="datatable-uniqueN-in-R.html">data.table uniqueN in R</a>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fifelse() and base ifelse()?</strong></p>
+
+<p>Both pick between <code>yes</code> and <code>no</code> based on a logical test, but <code>fifelse()</code> is stricter and faster. Base <code>ifelse()</code> silently coerces <code>yes</code> and <code>no</code> to a common type and drops attributes, so a <code>Date</code> input comes back as a raw number. <code>fifelse()</code> errors when the types disagree and preserves the <code>Date</code> or <code>factor</code> class. It also runs in optimized C code, which is noticeably faster on large vectors.</p>
+
+<p><strong>What does the na argument in fifelse() do?</strong></p>
+
+<p>The <code>na</code> argument sets the value returned wherever the <code>test</code> vector is <code>NA</code>. By default it is a typed <code>NA</code>, so <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> in the test become missing values in the output. Passing <code>na = &quot;unknown&quot;</code> (or any value of the same type as <code>yes</code> and <code>no</code>) replaces those positions with an explicit fallback. This makes <code>fifelse()</code> safer than base <code>ifelse()</code> when your condition might itself contain <code>NA</code>.</p>
+
+<p><strong>Is fifelse() faster than ifelse()?</strong></p>
+
+<p>Yes, usually by a wide margin on large vectors. <code>fifelse()</code> runs as a single optimized C operation, while base <code>ifelse()</code> does more work in R and allocates extra intermediate objects. On a few hundred elements the difference is invisible, but on columns with millions of rows <code>fifelse()</code> is clearly faster. It is the recommended choice inside any data.table pipeline that already loads the package.</p>
+
+<p><strong>Does fifelse() preserve dates and factors?</strong></p>
+
+<p>Yes. Because <code>fifelse()</code> does not coerce types, a <code>Date</code> input returns a <code>Date</code> and a <code>factor</code> input returns a <code>factor</code> with its levels intact. Base <code>ifelse()</code> strips these attributes and hands back a plain integer or numeric vector instead. If you build conditional logic on date or factor columns, <code>fifelse()</code> saves you from re-applying <code>as.Date()</code> or <code>factor()</code> after every call.</p>
