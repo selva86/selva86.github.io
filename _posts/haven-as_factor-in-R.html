@@ -1,0 +1,330 @@
+---
+title: "haven as_factor() in R: Convert Labelled Data to Factors"
+description: "Use haven as_factor() in R to convert labelled SPSS, Stata, and SAS data into factors. Covers the levels argument, ordered factors, and data frame conversion."
+keywords: "haven as_factor, as_factor function R, haven as_factor examples, R labelled to factor, convert labelled variable R, SPSS labels to factor R, haven as_factor vs factor"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_factor()|haven as_factor|haven::as_factor()|labelled to factor|convert labelled variable in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>haven as_factor() in R: Convert Labelled Data to Factors</h1>
+
+<p class="lead">The haven as_factor() function converts a labelled vector, the kind read_sav(), read_dta(), and read_sas() produce, into an ordinary R factor. It turns the stored value labels into factor levels.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_factor(x)<span class="qa-cmt">                          # labels where available, else values</span>
+as_factor(x, levels = &quot;labels&quot;)<span class="qa-cmt">       # use value labels only</span>
+as_factor(x, levels = &quot;values&quot;)<span class="qa-cmt">       # keep the raw codes only</span>
+as_factor(x, levels = &quot;both&quot;)<span class="qa-cmt">         # combine as &quot;[code] label&quot;</span>
+as_factor(x, ordered = TRUE)<span class="qa-cmt">          # return an ordered factor</span>
+as_factor(df)<span class="qa-cmt">                         # convert every labelled column</span>
+as_factor(df, only_labelled = FALSE)<span class="qa-cmt">  # also convert plain columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_factor() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">turn a labelled vector into a factor</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_factor(x)</text><text x="125" y="126" class="branch-label">keep the raw codes, drop the labels</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">zap_labels(x)</text><text x="125" y="182" class="branch-label">drop SPSS or Stata display formats</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">zap_formats(x)</text><text x="125" y="238" class="branch-label">build a factor from plain text or numbers</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">factor(x)</text><text x="125" y="294" class="branch-label">parse a column to a factor on import</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">parse_factor(x)</text><text x="125" y="350" class="branch-label">reorder or rename existing factor levels</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fct_recode(f, ...)</text></svg></div>
+
+<h2>What as_factor() does</h2>
+
+<p><strong>as_factor() turns a labelled vector into a factor.</strong> When haven reads an SPSS, Stata, or SAS file, coded columns such as <code>1 = &quot;Male&quot;</code> arrive with class <code>haven_labelled</code>. They print as numbers but carry the labels as a hidden attribute. as_factor() reads that attribute and builds a proper factor whose levels are the human-readable labels.</p>
+
+<p>This matters because most <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a>, from <code>table()</code> to <code>ggplot()</code>, treat a <code>haven_labelled</code> column as raw numbers. A labelled column of survey responses would tabulate as <code>1, 2, 3</code> instead of <code>Male, Female, Other</code>. Converting with as_factor() makes the labels the visible values, so summaries and plots read correctly.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>as_factor() is a generic with methods for a single vector and for a whole data frame.</strong> Most calls need only <code>x</code>; the <code>levels</code> and <code>ordered</code> arguments control how the factor is built.</p>
+
+<div class="webr-container" data-block-title="The as_factor signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The as_factor signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_factor(
+  x,                     # a labelled vector or a data frame
+  levels = &quot;default&quot;,    # &quot;default&quot;, &quot;labels&quot;, &quot;values&quot;, or &quot;both&quot;
+  ordered = FALSE,       # TRUE returns an ordered factor
+  ...,
+  only_labelled = TRUE   # data-frame method: skip non-labelled columns
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>levels</code> argument decides what the factor levels become. With <code>&quot;default&quot;</code> or <code>&quot;labels&quot;</code> the labels are used; <code>&quot;values&quot;</code> keeps the raw codes; <code>&quot;both&quot;</code> combines them as <code>[1] Male</code>. Set <code>ordered = TRUE</code> when the categories have a natural rank, such as Low, Medium, High, so comparisons with <code>&lt;</code> work.</p>
+
+<p>When <code>x</code> is a data frame, as_factor() converts every labelled column at once and leaves the rest alone. The <code>only_labelled</code> argument controls that: it defaults to <code>TRUE</code>, so plain numeric and character columns pass through untouched.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> pandas stores SPSS-style codes as a <code>Categorical</code> with named <code>.cat.categories</code>. The haven equivalent of attaching those category names is as_factor(), which bakes the value labels into a base R factor.</div></div>
+
+<h2>as_factor() examples</h2>
+
+<p><strong>Build a labelled vector with <code>labelled()</code>, then convert it.</strong> haven's <code>labelled()</code> constructor reproduces the kind of column a <code>.sav</code> file holds, so every example below runs without a data file of your own.</p>
+
+<div class="webr-container" data-block-title="Convert a labelled vector to a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a labelled vector to a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(haven)
+
+sex &lt;- labelled(
+  c(1, 2, 1, 2, 1),
+  labels = c(Male = 1, Female = 2)
+)
+as_factor(sex)
+#&gt; [1] Male   Female Male   Female Male
+#&gt; Levels: Male Female</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a factor. Each <code>1</code> became <code>Male</code> and each <code>2</code> became <code>Female</code>, because as_factor() read the <code>labels</code> attribute.</p>
+
+<p><strong>Use <code>levels = &quot;values&quot;</code> or <code>&quot;both&quot;</code> to keep the codes visible.</strong> Survey codebooks often need the raw number alongside the label.</p>
+
+<div class="webr-container" data-block-title="Keep codes with the values and both modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep codes with the values and both modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_factor(sex, levels = &quot;values&quot;)
+#&gt; [1] 1 2 1 2 1
+#&gt; Levels: 1 2
+
+as_factor(sex, levels = &quot;both&quot;)
+#&gt; [1] [1] Male   [2] Female [1] Male   [2] Female [1] Male
+#&gt; Levels: [1] Male [2] Female</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&quot;values&quot;</code> mode discards the labels entirely, while <code>&quot;both&quot;</code> keeps an audit trail by showing the code in brackets before each label.</p>
+
+<p><strong>Pass <code>ordered = TRUE</code> for ranked categories.</strong> An <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factor</a> lets you compare and sort levels.</p>
+
+<div class="webr-container" data-block-title="Build an ordered factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an ordered factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">satisfaction &lt;- labelled(
+  c(1, 3, 2, 3),
+  labels = c(Low = 1, Medium = 2, High = 3)
+)
+as_factor(satisfaction, ordered = TRUE)
+#&gt; [1] Low    High   Medium High
+#&gt; Levels: Low &lt; Medium &lt; High</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&lt;</code> signs in the printed levels confirm the order, so <code>satisfaction &gt; &quot;Low&quot;</code> now returns a logical result instead of an error.</p>
+
+<p><strong>Call as_factor() on a whole data frame to convert every labelled column at once.</strong> This is the common move right after reading a survey file.</p>
+
+<div class="webr-container" data-block-title="Convert all labelled columns in a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert all labelled columns in a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey &lt;- data.frame(respondent = 1:4)
+survey$sex   &lt;- labelled(c(1, 2, 2, 1), c(Male = 1, Female = 2))
+survey$grade &lt;- labelled(c(3, 1, 2, 3), c(Low = 1, Medium = 2, High = 3))
+
+as_factor(survey)
+#&gt;   respondent    sex  grade
+#&gt; 1          1   Male   High
+#&gt; 2          2 Female    Low
+#&gt; 3          3 Female Medium
+#&gt; 4          4   Male   High</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>respondent</code> column stays an integer because it was never labelled, while <code>sex</code> and <code>grade</code> became factors in a single call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Convert once, right after import.</strong> Chain the reader and as_factor() together, as in <code>read_sav(&quot;survey.sav&quot;) |&gt; as_factor()</code>, so every downstream summary and plot sees readable labels instead of raw codes.</div></div>
+
+<h2>as_factor() vs factor() and zap_labels()</h2>
+
+<p><strong>as_factor() is the only one of these that reads value labels.</strong> Base <code>factor()</code> and haven's <code>zap_labels()</code> solve nearby problems, so the choice depends on whether you want the labels kept, ignored, or discarded.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Uses value labels?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>as_factor()</code> (haven)</td>
+<td>labelled vector</td>
+<td>factor</td>
+<td>Yes, labels become levels</td>
+</tr>
+<tr>
+<td><code>factor()</code> (base R)</td>
+<td>any vector</td>
+<td>factor</td>
+<td>No, uses the raw values</td>
+</tr>
+<tr>
+<td><code>zap_labels()</code> (haven)</td>
+<td>labelled vector</td>
+<td>plain vector</td>
+<td>No, strips the labels off</td>
+</tr>
+<tr>
+<td><code>as_factor()</code> (forcats)</td>
+<td>character or numeric</td>
+<td>factor</td>
+<td>No, orders by first appearance</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>factor()</code> when a column is already plain text or numbers with no label attribute. Use <code>zap_labels()</code> when you want the raw codes as a clean numeric vector, for example before a model that expects numbers. Use as_factor() whenever the labels are the meaning you want to keep.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A labelled vector is a number with a hidden dictionary.</strong> factor() ignores that dictionary, zap_labels() throws it away, and as_factor() promotes it so the dictionary becomes the factor's levels. Picking the right function is really a choice about what to do with the labels.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The data frame method skips plain columns by default.</strong> If a column you expected to convert is still numeric or character, it was never labelled. Pass <code>only_labelled = FALSE</code> to convert plain columns too.</p>
+
+<div class="webr-container" data-block-title="Pitfall: plain columns are skipped">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: plain columns are skipped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey$region &lt;- c(&quot;N&quot;, &quot;S&quot;, &quot;S&quot;, &quot;N&quot;)   # plain character, not labelled
+
+# default keeps region as character
+sapply(as_factor(survey), class)
+#&gt;  respondent         sex       grade      region
+#&gt;   &quot;integer&quot;    &quot;factor&quot;    &quot;factor&quot; &quot;character&quot;
+
+# only_labelled = FALSE converts everything
+sapply(as_factor(survey, only_labelled = FALSE), class)
+#&gt; respondent        sex      grade     region
+#&gt;   &quot;factor&quot;   &quot;factor&quot;   &quot;factor&quot;   &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Unlabelled codes fall back to their raw value.</strong> If a labelled vector holds a code with no matching label, <code>levels = &quot;default&quot;</code> uses the bare number as that level. Confirm your codebook is complete before converting, or those rows will read as digits among the words.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>haven and forcats both define as_factor().</strong> If you load forcats, or the full tidyverse, after haven, <code>as_factor()</code> resolves to the forcats version, which cannot read value labels. Call <code>haven::as_factor()</code> explicitly whenever both packages are attached.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the labelled vector <code>ex_party</code> into a factor that shows the codes and labels together, using <code>levels = &quot;both&quot;</code>. Save the result to <code>ex_result</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert with both labels and codes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert with both labels and codes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: convert ex_party with levels = &quot;both&quot;
+ex_party &lt;- labelled(c(1, 2, 3, 1), c(Left = 1, Centre = 2, Right = 3))
+ex_result &lt;- # your code here
+
+ex_result
+#&gt; Expected: levels shown as [1] Left, [2] Centre, [3] Right</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_party &lt;- labelled(c(1, 2, 3, 1), c(Left = 1, Centre = 2, Right = 3))
+ex_result &lt;- as_factor(ex_party, levels = &quot;both&quot;)
+ex_result
+#&gt; [1] [1] Left   [2] Centre [3] Right  [1] Left
+#&gt; Levels: [1] Left [2] Centre [3] Right</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>levels = &quot;both&quot;</code> tells as_factor() to build each level from the raw code and its label, so the factor keeps the audit trail from the original codebook.</p>
+
+</details>
+</section>
+
+<h2>Related haven functions</h2>
+
+<p><strong>as_factor() works alongside a small set of haven label helpers.</strong> Reach for the one that matches what you want to do with the labels and formats.</p>
+
+<ul>
+
+<li><code>zap_labels()</code>: strip value labels and keep the raw underlying values.</li>
+
+<li><code>zap_formats()</code>: drop SPSS and Stata display formats from a column.</li>
+
+<li><code>zap_missing()</code>: convert tagged user-defined <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> to plain <code>NA</code>.</li>
+
+<li><code>labelled()</code>: build a labelled vector by hand, useful for tests and examples.</li>
+
+<li><code>read_sav()</code>: read an SPSS <code>.sav</code> file, which often returns labelled columns.</li>
+
+<li><code>read_dta()</code>: read a Stata <code>.dta</code> file with its variable and value labels.</li>
+
+</ul>
+
+<p>For the full argument reference, see the <a href="https://haven.tidyverse.org/reference/as_factor.html">haven as_factor() documentation</a> on tidyverse.org.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does haven as_factor() do?</strong></p>
+
+<p>as_factor() converts a labelled vector into a base R factor. When haven reads an SPSS, Stata, or SAS file, coded columns arrive with class <code>haven_labelled</code>, storing labels such as <code>1 = &quot;Male&quot;</code> as an attribute. as_factor() reads that attribute and rebuilds the column as a factor whose levels are the labels. It also works on a whole data frame, converting every labelled column in one call while leaving plain columns alone.</p>
+
+<p><strong>What is the difference between as_factor() and factor() in R?</strong></p>
+
+<p>Base <code>factor()</code> builds a factor from the values it sees, with no knowledge of value labels. Calling it on a <code>haven_labelled</code> column produces a factor with levels <code>1, 2, 3</code>. haven's <code>as_factor()</code> reads the label attribute first, so the same column becomes a factor with levels <code>Male, Female, Other</code>. Use <code>factor()</code> for plain vectors and <code>as_factor()</code> whenever the column carries labels from a statistical file.</p>
+
+<p><strong>How do I convert SPSS labelled variables to factors in R?</strong></p>
+
+<p>Read the file with <code>read_sav()</code>, then call <code>as_factor()</code> on the resulting tibble. The data frame method converts every labelled column at once and leaves untouched columns alone. A one-line pipeline such as <code>read_sav(&quot;survey.sav&quot;) |&gt; as_factor()</code> gives you a tibble where coded survey responses display as readable categories instead of numbers.</p>
+
+<p><strong>What does levels = "both" do in as_factor()?</strong></p>
+
+<p><code>levels = &quot;both&quot;</code> builds each factor level from the raw code and its label together, formatted as <code>[1] Male</code>. It is useful for survey work where you want the original numeric code visible alongside the label as an audit trail. The other options are <code>&quot;labels&quot;</code> for label text only, <code>&quot;values&quot;</code> for the raw codes only, and the <code>&quot;default&quot;</code> setting that uses labels where they exist.</p>
+
+<p><strong>Why does as_factor() behave differently after I load the tidyverse?</strong></p>
+
+<p>Both haven and forcats export a function named <code>as_factor()</code>. Whichever package is attached last masks the other. The forcats version converts character or <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> and orders levels by first appearance; it cannot read haven value labels. If you load the tidyverse after haven, call <code>haven::as_factor()</code> with the explicit <a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">namespace</a> prefix so you get the labelled-aware version.</p>
