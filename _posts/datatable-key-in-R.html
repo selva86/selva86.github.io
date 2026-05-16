@@ -1,0 +1,316 @@
+---
+title: "data.table Keys in R: Fast Joins and Subsetting"
+description: "A data.table key in R is a sorted set of columns that lets data.table use binary search for fast subsets and joins. See how to set, read, and use keys."
+keywords: "data.table key, data.table key column, R data.table set key, data.table keyed join, data.table key vs index, key function data.table, data.table binary search"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "data.table key|key()|data.table::key()|keyed data.table|haskey()"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table Keys in R: Fast Joins and Subsetting</h1>
+
+<p class="lead">A <code>data.table key</code> in R is one or more columns the table is sorted by and tagged on, which lets data.table use binary search for fast subsetting and joins instead of scanning every row.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>setkey(dt, id)<span class="qa-cmt">              # set id as the key</span>
+key(dt)<span class="qa-cmt">                     # read the current key</span>
+haskey(dt)<span class="qa-cmt">                  # TRUE if a key is set</span>
+dt[.(4)]<span class="qa-cmt">                    # keyed subset by binary search</span>
+X[Y]<span class="qa-cmt">                        # keyed join of two data.tables</span>
+dt[.(4), on = &quot;cyl&quot;]<span class="qa-cmt">        # ad-hoc lookup, no key needed</span>
+setkey(dt, NULL)<span class="qa-cmt">            # remove the key</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Do you need a key on this data.table?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">repeated joins or subsets on the same cols</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a>(dt, cols)</text><text x="125" y="126" class="branch-label">one ad-hoc join, no reuse</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dt[Y, on = &quot;id&quot;]</text><text x="125" y="182" class="branch-label">fast lookup but keep row order</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setindex(dt, cols)</text><text x="125" y="238" class="branch-label">sort the rows once, no key</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">setorder(dt, col)</text><text x="125" y="294" class="branch-label">check if a key already exists</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">haskey(dt)</text><text x="125" y="350" class="branch-label">see which columns are keyed</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">key(dt)</text></svg></div>
+
+<h2>What a key is in data.table</h2>
+
+<p><strong>A key is a sort order plus a tag that data.table trusts.</strong> When you set a key, the rows are physically sorted in ascending order by the key columns, and data.table records those columns as the key. Because the rows are now known to be sorted, data.table can run a binary search to find matching rows instead of scanning the whole column.</p>
+
+<p>That difference is the whole point. A linear scan checks every row, so it costs time proportional to the number of rows. A binary search on a keyed column jumps to the answer in a number of steps proportional to the logarithm of the row count. On large tables this turns a slow query into an instant one, and it speeds up joins on the key columns too.</p>
+
+<div class="webr-container" data-block-title="Build a keyed data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a keyed data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+setkey(dt, cyl)
+key(dt)
+#&gt; [1] &quot;cyl&quot;
+haskey(dt)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A key is a promise, not a separate lookup table.</strong> <code>setkey()</code> does not build an index structure on the side. It sorts the rows and records that they are sorted, so a binary search is mathematically valid. That is why keying always reorders the data.</div></div>
+
+<h2>Setting, reading, and removing a key</h2>
+
+<p><strong>Three small functions cover the whole key lifecycle.</strong> You set a key with <code>setkey()</code>, inspect it with <code>key()</code> and <code>haskey()</code>, and drop it by keying on <code>NULL</code>.</p>
+
+<div class="webr-container" data-block-title="Read, check, and remove a key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read, check, and remove a key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">key(dt)
+#&gt; [1] &quot;cyl&quot;
+haskey(dt)
+#&gt; [1] TRUE
+setkey(dt, NULL)
+key(dt)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>key()</code> returns a character vector of the key columns, or <code>NULL</code> when no key is set. <code>haskey()</code> returns a single <code>TRUE</code> or <code>FALSE</code>, which is handy inside <code>if</code> statements. Removing a key with <code>setkey(dt, NULL)</code> leaves the rows in their current sorted order but tells data.table to stop assuming they are ordered. For the full argument list of the setter, see the dedicated guide to the <code>setkey()</code> function.</p>
+
+<h2>Keyed subsetting and joins</h2>
+
+<p><strong>A key speeds up two operations: subsetting one table and joining two.</strong> Both use the sorted key columns to run a binary search instead of a full scan.</p>
+
+<h3>Subset rows with <code>.()</code></h3>
+
+<p><strong>Wrap a value in <code>.()</code> to match it against the key.</strong> The <code>.()</code> notation is data.table shorthand for <code>list()</code>. Inside <code>i</code>, it tells data.table to look the value up in the key columns by binary search rather than scan a column.</p>
+
+<div class="webr-container" data-block-title="Keyed subset with binary search">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keyed subset with binary search</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(dt, cyl)
+dt[.(4), .(model, mpg)]
+#&gt;             model   mpg
+#&gt;            &lt;char&gt; &lt;num&gt;
+#&gt; 1:     Datsun 710  22.8
+#&gt; 2:      Merc 240D  24.4
+#&gt; 3:       Merc 230  22.8
+#&gt; 4:       Fiat 128  32.4
+#&gt; 5:    Honda Civic  30.4
+#&gt; 6: Toyota Corolla  33.9
+#&gt; 7:  Toyota Corona  21.5
+#&gt; 8:      Fiat X1-9  27.3
+#&gt; 9:  Porsche 914-2  26.0
+#&gt; 10:   Lotus Europa  30.4
+#&gt; 11:     Volvo 142E  21.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Join two data.tables</h3>
+
+<p><strong>When both tables are keyed, <code>X[Y]</code> joins them on the key.</strong> This is the classic data.table join. For each row of <code>Y</code>, data.table finds the matching rows of <code>X</code> through the key, with no <code>by</code> argument needed.</p>
+
+<div class="webr-container" data-block-title="Keyed join of two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keyed join of two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">X &lt;- data.table(id = c(1, 2, 3), x = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+Y &lt;- data.table(id = c(2, 3, 4), y = c(20, 30, 40))
+setkey(X, id)
+setkey(Y, id)
+X[Y]
+#&gt;       id      x     y
+#&gt;    &lt;num&gt; &lt;char&gt; &lt;num&gt;
+#&gt; 1:     2      b    20
+#&gt; 2:     3      c    30
+#&gt; 3:     4   &lt;NA&gt;    40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result keeps every row of <code>Y</code> and pulls in the matching <code>x</code> value from <code>X</code>. Row <code>id = 4</code> has no match in <code>X</code>, so <code>x</code> is filled with <code>NA</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Key once, query many times.</strong> Setting a key has a one-time sort cost. Every subset and join on the key columns afterward is fast, so keying pays off when you reuse the same lookup columns across a script.</div></div>
+
+<h2>Keys vs secondary indexes</h2>
+
+<p><strong>A data.table can have one key but many secondary indexes.</strong> A key sorts the rows; a secondary index records a sort order without moving any rows. Indexes are created with <code>setindex()</code>, and the <code>on=</code> argument lets you join or subset on any columns, using an index automatically if one exists.</p>
+
+<div class="webr-container" data-block-title="Ad-hoc lookup with on= needs no key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Ad-hoc lookup with on= needs no key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(dt, NULL)
+dt[.(6), .N, on = &quot;cyl&quot;]
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>Key</th>
+<th>Secondary index</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reorders rows</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>How many per table</td>
+<td>One</td>
+<td>Many</td>
+</tr>
+<tr>
+<td>Set with</td>
+<td><code>setkey()</code></td>
+<td><code>setindex()</code></td>
+</tr>
+<tr>
+<td>Used by</td>
+<td><code>dt[.(v)]</code> and joins</td>
+<td><code>dt[.(v), on=]</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use a key when one set of columns drives most of your subsets and joins. Use secondary indexes when you query several different column sets, or when row order must stay as it is.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A key matches <code>.()</code> values by position, not by name.</strong> With a two-column key, passing one value matches only the first key column.</p>
+
+<div class="webr-container" data-block-title="Partial key match uses leading columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Partial key match uses leading columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(dt, cyl, gear)
+dt[.(4), .N]
+#&gt; [1] 11
+dt[.(4, 4), .N]
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A key does not enforce uniqueness.</strong> Unlike a SQL primary key, a data.table key happily allows duplicate values in the key columns. If you need unique rows, call <code>unique(dt, by = key(dt))</code> yourself; setting a key will not deduplicate anything.</div></div>
+
+<p>A third trap is forgetting the key entirely. Writing <code>dt[.(4)]</code> on an unkeyed table raises an error, because data.table has no sorted column to search. Either set a key first, or pass <code>on=</code> to do an ad-hoc lookup without one.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert <code>airquality</code> to a data.table, set <code>Month</code> as the key, then count the rows where <code>Month</code> is 7. Save the count to <code>ex_count</code>.</p>
+<div class="webr-container" data-block-title="Your turn: key and subset airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: key and subset airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: key airquality by Month, then count Month 7
+ex_dt &lt;- as.data.table(airquality)
+ex_count &lt;- # your code here
+
+ex_count
+#&gt; Expected: 31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(airquality)
+setkey(ex_dt, Month)
+ex_count &lt;- ex_dt[.(7), .N]
+ex_count
+#&gt; [1] 31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>setkey(ex_dt, Month)</code> sorts the table and tags <code>Month</code> as the key. <code>ex_dt[.(7), .N]</code> then uses binary search to find every July row and <code>.N</code> counts them.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>Keys connect to the rest of data.table's ordering and lookup toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>setkey()</code>: sort a data.table by reference and set the key columns.</li>
+
+<li><code>key()</code>: read the current key, returning <code>NULL</code> when none is set.</li>
+
+<li><code>haskey()</code>: test whether a data.table has a key.</li>
+
+<li><code>setindex()</code>: build a secondary index without reordering rows.</li>
+
+<li><code>setorder()</code>: sort by reference without storing a key.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-keys-fast-subset.html">data.table keys and indexes vignette</a> for a deeper reference.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a key in data.table in R?</strong></p>
+
+<p>A key in data.table is one or more columns that the table is sorted by and tagged on. Setting a key with <code>setkey()</code> physically reorders the rows in ascending order and records the columns as the key. Once a key exists, data.table runs a binary search for subsets like <code>dt[.(value)]</code> and for joins, which is far faster than scanning every row on a large table.</p>
+
+<p><strong>How do I set a key on a data.table?</strong></p>
+
+<p>Call <code>setkey(dt, col)</code> with one or more unquoted column names, or <code>setkeyv(dt, cols)</code> when the names sit in a character vector. Both modify the table by reference, with no copy. The order you list the columns is the sort priority. After the call, <code>key(dt)</code> reports the key and the rows are sorted accordingly.</p>
+
+<p><strong>What is the difference between a key and a secondary index?</strong></p>
+
+<p>A key physically sorts the rows and a table can have only one. A secondary index, set with <code>setindex()</code>, records a sort order without moving any rows, and a table can hold many. Keys power <code>dt[.(v)]</code> and keyed joins directly; indexes are used by queries that pass the <code>on=</code> argument. Choose an index when row order must stay fixed.</p>
+
+<p><strong>Does a data.table key have to be unique?</strong></p>
+
+<p>No. A data.table key does not enforce uniqueness, so duplicate values in the key columns are allowed. This differs from a SQL primary key. If you need unique rows, run <code>unique(dt, by = key(dt))</code> explicitly. The key only guarantees the rows are sorted, which is what makes binary search valid.</p>
+
+<p><strong>How do I remove a key from a data.table?</strong></p>
+
+<p>Call <code>setkey(dt, NULL)</code> to drop the key. The rows keep their current sorted order, but the key tag is removed and <code>haskey(dt)</code> returns <code>FALSE</code>. Removing a key does not unsort the data; it only tells data.table to stop assuming the rows are ordered, so later keyed subsets will need a fresh key or an <code>on=</code> clause.</p>
+
+</content>
+
+</invoke>
