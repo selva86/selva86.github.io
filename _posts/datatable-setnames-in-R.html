@@ -1,0 +1,319 @@
+---
+title: "data.table setnames() in R: Rename Columns by Reference"
+description: "Learn how data.table setnames() in R renames columns by reference. Rename by name, position, or function and skip missing names, with runnable examples."
+keywords: "data.table setnames, setnames function R, data.table setnames examples, R rename columns data.table, setnames by reference, data.table rename column, skip_absent setnames"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "setnames()|data.table setnames|data.table::setnames()|rename columns data.table|data.table rename column"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table setnames() in R: Rename Columns by Reference</h1>
+
+<p class="lead">data.table <code>setnames()</code> renames columns by reference, changing names in place without copying the table. It accepts names, positions, or a function, making it the fastest way to <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a> in R.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>setnames(DT, new_names)<span class="qa-cmt">                     # rename every column</span>
+setnames(DT, &quot;old&quot;, &quot;new&quot;)<span class="qa-cmt">                  # rename one column</span>
+setnames(DT, c(&quot;a&quot;,&quot;b&quot;), c(&quot;x&quot;,&quot;y&quot;))<span class="qa-cmt">        # rename several columns</span>
+setnames(DT, 1:2, c(&quot;x&quot;,&quot;y&quot;))<span class="qa-cmt">               # rename by position</span>
+setnames(DT, toupper)<span class="qa-cmt">                       # apply a function to all</span>
+setnames(DT, old, new, skip_absent=TRUE)<span class="qa-cmt">    # ignore missing old names</span>
+setnames(df, &quot;old&quot;, &quot;new&quot;)<span class="qa-cmt">                  # also works on data.frame</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is setnames() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rename columns in place</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">setnames(DT, old, new)</text><text x="125" y="126" class="branch-label"><a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a>, not rename</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">setcolorder(DT, new_order)</text><text x="125" y="182" class="branch-label">rename inside a dplyr pipeline</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rename(df, new = old)</text><text x="125" y="238" class="branch-label">rename a copy in base R</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">setNames(df, new_names)</text><text x="125" y="294" class="branch-label">clean every name at once</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setnames(DT, <a class="auto-link" href="janitor-Package-in-R.html" title="janitor Package in R: Clean Messy Data with 5 Lines of Code">janitor</a>::make_clean_names)</text><text x="125" y="350" class="branch-label">name a column while aggregating</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">DT[, .(total = sum(x))]</text></svg></div>
+
+<h2>What setnames() does</h2>
+
+<p><strong>setnames() changes data.table column names without making a copy.</strong> Most R objects follow copy-on-modify semantics, so renaming columns with <code>names(df) &lt;-</code> duplicates the whole frame in memory before the change takes effect. <code>setnames()</code> skips that copy entirely: it edits the <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">names attribute</a> of the existing object directly. On a small table the difference is invisible, but on a table with millions of rows it is the difference between an instant operation and a noticeable pause that allocates a second copy of your data.</p>
+
+<p>The function works on both <code>data.table</code> and <code>data.frame</code> objects. When you pass a plain data frame, it is still modified by reference, which surprises people used to R's usual <a class="auto-link" href="R-Copy-on-Modify.html" title="Why R Copies Your Data (And How Copy-on-Modify Actually Saves Memory)">copy semantics</a>. There is no return value worth capturing: <code>setnames()</code> returns the table invisibly, so you call it purely for its side effect.</p>
+
+<p>Because the rename happens in place, <code>setnames()</code> fits naturally into data.table pipelines where you want a sequence of fast, allocation-free transformations. It pairs with <code>setkey()</code>, <code>setcolorder()</code>, and <code>setDT()</code>, all of which share the same by-reference design and the <code>set</code> naming prefix.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>By reference means no assignment needed.</strong> Unlike <code>names(df) &lt;- value</code>, you do not write <code>DT &lt;- setnames(DT, ...)</code>. The original object already changed in memory. The return value exists only so you can chain calls if you want to.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>setnames() takes the table, the columns to rename, and their new names.</strong> The full signature is <code>setnames(x, old, new, skip_absent = FALSE)</code>. The <code>old</code> and <code>new</code> arguments are flexible: they accept <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>, integer positions, or functions. When <code>new</code> is omitted entirely, <code>old</code> is treated as the complete vector of replacement names for the whole table.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>The data.table or data.frame to <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">modify in place</a>.</td>
+</tr>
+<tr>
+<td><code>old</code></td>
+<td>Column names or integer positions to rename. If <code>new</code> is missing, this becomes the full set of new names.</td>
+</tr>
+<tr>
+<td><code>new</code></td>
+<td>Replacement names, or a function applied to <code>old</code> (or to all names).</td>
+</tr>
+<tr>
+<td><code>skip_absent</code></td>
+<td>If <code>TRUE</code>, names in <code>old</code> not found in the table are skipped instead of raising an error.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Knowing which form to reach for keeps your code readable. Use the single-vector form when you are renaming every column, and the <code>old</code>/<code>new</code> pair when you only want to touch a few.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Pass a single vector to rename every column.</strong> The vector length must equal the number of columns, and names are assigned left to right in column order.</p>
+
+<div class="webr-container" data-block-title="Rename every column at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename every column at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+DT &lt;- data.table(a = 1:3, b = 4:6, c = 7:9)
+setnames(DT, c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;))
+names(DT)
+#&gt; [1] &quot;x&quot; &quot;y&quot; &quot;z&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pass <code>old</code> and <code>new</code> vectors to rename only selected columns.</strong> Columns you do not list keep their original names, and the order of the pairs does not matter as long as <code>old</code> and <code>new</code> line up.</p>
+
+<div class="webr-container" data-block-title="Rename selected columns by name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename selected columns by name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(mpg = c(21, 22.8), cyl = c(6, 4), hp = c(110, 93))
+setnames(DT, old = c(&quot;mpg&quot;, &quot;hp&quot;), new = c(&quot;miles_per_gallon&quot;, &quot;horsepower&quot;))
+names(DT)
+#&gt; [1] &quot;miles_per_gallon&quot; &quot;cyl&quot;              &quot;horsepower&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use integer positions when names are awkward to type.</strong> Positions are handy when current names contain spaces or special characters. You can also hand <code>setnames()</code> a function, which it applies to generate the new names.</p>
+
+<div class="webr-container" data-block-title="Rename by position or with a function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename by position or with a function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(A = 1:2, B = 3:4, C = 5:6)
+setnames(DT, 1:2, c(&quot;first&quot;, &quot;second&quot;))   # rename by position
+names(DT)
+#&gt; [1] &quot;first&quot;  &quot;second&quot; &quot;C&quot;
+setnames(DT, tolower)                     # function applied to all names
+names(DT)
+#&gt; [1] &quot;first&quot;  &quot;second&quot; &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Set <code>skip_absent = TRUE</code> when the old names may not all exist.</strong> This matters in reusable functions where a column might be present in some inputs and missing from others.</p>
+
+<div class="webr-container" data-block-title="Skip names that do not exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip names that do not exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(id = 1:2, val = 3:4)
+setnames(DT, c(&quot;id&quot;, &quot;missing&quot;), c(&quot;key&quot;, &quot;amount&quot;), skip_absent = TRUE)
+names(DT)
+#&gt; [1] &quot;key&quot; &quot;val&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>&quot;missing&quot;</code> is not a real column, so its rename is silently dropped while <code>&quot;id&quot;</code> still becomes <code>&quot;key&quot;</code>. Without <code>skip_absent</code>, the same call would stop with an error.</p>
+
+<h2>Compare setnames() with alternatives</h2>
+
+<p><strong>setnames() is the in-place option; other tools return copies.</strong> Choose based on whether you want <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">reference semantics</a> and which package your code already depends on.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Copies the data?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setnames(DT, old, new)</code></td>
+<td>No, edits in place</td>
+<td>Large tables, data.table workflows</td>
+</tr>
+<tr>
+<td><code>names(df)[i] &lt;- &quot;new&quot;</code></td>
+<td>Yes, copies the frame</td>
+<td>Quick base R edits on small data</td>
+</tr>
+<tr>
+<td><code>dplyr::rename(df, new = old)</code></td>
+<td>Yes, returns new tibble</td>
+<td>tidyverse pipelines</td>
+</tr>
+<tr>
+<td><code>data.table::setattr(DT, &quot;names&quot;, v)</code></td>
+<td>No</td>
+<td>Low-level control over all names</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Inside a data.table workflow on data of any real size, use <code>setnames()</code>. Reach for <code>rename()</code> only when you are already in a dplyr pipeline and the copy cost is acceptable.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> <code>rename()</code> puts the new name first: <code>rename(df, horsepower = hp)</code>. <code>setnames()</code> puts old before new: <code>setnames(DT, &quot;hp&quot;, &quot;horsepower&quot;)</code>. The argument order is reversed between the two functions, which is a frequent source of confusion when switching.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The original object changes even without assignment.</strong> Because <code>setnames()</code> works by reference, every variable pointing at that table sees the new names. Copy first with <code>copy()</code> if you need the old names preserved.</p>
+
+<div class="webr-container" data-block-title="Reference semantics surprise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reference semantics surprise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(a = 1:3)
+DT2 &lt;- DT                 # NOT a copy, same object
+setnames(DT2, &quot;a&quot;, &quot;x&quot;)
+names(DT)
+#&gt; [1] &quot;x&quot;                # DT changed too</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Unmatched names raise an error by default.</strong> If a name in <code>old</code> is not a real column, <code>setnames()</code> stops unless you set <code>skip_absent = TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Missing name without skip_absent">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing name without skip_absent</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(a = 1:3)
+setnames(DT, &quot;b&quot;, &quot;x&quot;)
+#&gt; Error in setnames(DT, &quot;b&quot;, &quot;x&quot;): Items of 'old' not found
+#&gt; in column names: [b]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>The <code>old</code> and <code>new</code> vectors must be the same length.</strong> A length mismatch is a common copy-paste mistake and also throws an error, so check both vectors when you extend a rename to more columns.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>setnames() inside a function mutates the caller's table.</strong> If you pass a data.table to your own function and call <code>setnames()</code> on it, the rename leaks back to the caller. Call <code>copy()</code> at the top of the function when you want a self-contained transformation.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rename the <code>wt</code> column of a data.table to <code>weight</code> and <code>qsec</code> to <code>quarter_mile</code>, leaving other columns untouched. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rename two columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rename two columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rename wt and qsec
+ex_dt &lt;- as.data.table(mtcars)
+# your code here
+
+names(ex_dt)
+#&gt; Expected: &quot;weight&quot; and &quot;quarter_mile&quot; appear</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(mtcars)
+setnames(ex_dt, c(&quot;wt&quot;, &quot;qsec&quot;), c(&quot;weight&quot;, &quot;quarter_mile&quot;))
+names(ex_dt)[c(6, 7)]
+#&gt; [1] &quot;weight&quot;       &quot;quarter_mile&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing matched <code>old</code> and <code>new</code> vectors renames only those columns. Every other column name stays exactly as it was, and no copy of the table is made.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>setnames() belongs to a family of by-reference <code>set*</code> helpers.</strong> Each one modifies a data.table in place for speed, and learning the set is the quickest way to write idiomatic data.table code.</p>
+
+<ul>
+
+<li><code>setcolorder()</code> reorders columns without renaming them.</li>
+
+<li><code>setkey()</code> sorts a table and marks key columns for fast joins and subsetting.</li>
+
+<li><code>setDT()</code> converts a data.frame or list to a data.table in place.</li>
+
+<li><code>setorder()</code> sorts rows by one or more columns by reference.</li>
+
+</ul>
+
+<p>For deeper background on how these by-reference operations differ from the tidyverse approach, the data.table versus dplyr comparison covers the trade-offs in full.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does setnames() modify the original data.table?</strong></p>
+
+<p>Yes. <code>setnames()</code> changes the column names by reference, so the original object is updated directly with no copy made. You do not assign the result back to a variable. Any other variable bound to the same table also reflects the new names immediately. If you need the old names kept, make an explicit <code>copy()</code> of the table before calling <code>setnames()</code>.</p>
+
+<p><strong>Can setnames() rename columns of a data.frame?</strong></p>
+
+<p>Yes. <code>setnames()</code> works on plain data frames as well as data.tables, and it still modifies them by reference. This is a useful trick for renaming a large data.frame without the memory cost of <code>names(df) &lt;-</code>. The <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table package</a> must be loaded with <code>library(data.table)</code> for the function to be available in your session.</p>
+
+<p><strong>How do I rename a column by position instead of name?</strong></p>
+
+<p>Pass integer positions as the <code>old</code> argument. For example, <code>setnames(DT, 2, &quot;new_name&quot;)</code> renames the second column. You can pass a vector of positions and a matching vector of names to rename several at once. Positions are useful when the current names contain spaces or special characters that are awkward to quote and type.</p>
+
+<p><strong>What does skip_absent do in setnames()?</strong></p>
+
+<p><code>skip_absent = TRUE</code> tells <code>setnames()</code> to ignore any name in <code>old</code> that is not an actual column, instead of stopping with an error. The default is <code>FALSE</code>, which raises an error on the first unmatched name. Use <code>skip_absent = TRUE</code> in reusable functions where the set of input columns may vary from one call to the next.</p>
+
+<p><strong>Why use setnames() instead of names()?</strong></p>
+
+<p><code>setnames()</code> renames columns without copying the entire table, while <code>names(df) &lt;- value</code> triggers a full copy of the data. On large datasets this makes <code>setnames()</code> far faster and far more memory efficient. It also lets you rename a subset of columns directly by name or position, rather than rebuilding the whole names vector by hand.</p>
