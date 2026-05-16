@@ -1,0 +1,390 @@
+---
+title: "data.table frollmean() in R: Fast Rolling Window Means"
+description: "Learn data.table frollmean() in R to compute fast rolling window means. Covers window size, alignment, na.rm, adaptive windows, and grouped rolling means."
+keywords: "data.table frollmean, frollmean function R, data.table frollmean examples, R rolling mean, rolling average R, frollmean adaptive, data.table rolling window"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "frollmean()|data.table frollmean|data.table::frollmean()|frollmean|data.table rolling mean"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table frollmean() in R: Fast Rolling Window Means</h1>
+
+<p class="lead">The data.table <code>frollmean()</code> function computes fast rolling (moving) window means over a numeric vector. It is a compiled, multi-threaded alternative to <code>zoo::rollmean()</code> and is the standard way to smooth <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> or build moving averages inside a data.table.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>frollmean(x, 3)<span class="qa-cmt">                        # 3-row trailing mean</span>
+frollmean(x, c(3, 7))<span class="qa-cmt">                  # several windows at once</span>
+frollmean(x, 3, align = &quot;center&quot;)<span class="qa-cmt">      # centered window</span>
+frollmean(x, 3, align = &quot;left&quot;)<span class="qa-cmt">        # leading window</span>
+frollmean(x, 5, na.rm = TRUE)<span class="qa-cmt">          # skip NAs inside window</span>
+frollmean(x, 3, fill = 0)<span class="qa-cmt">              # pad edges with 0 not NA</span>
+frollmean(x, n, adaptive = TRUE)<span class="qa-cmt">       # per-row window length</span>
+dt[, mu := frollmean(v, 7), by = id]<span class="qa-cmt">   # rolling mean per group</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is frollmean() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rolling average over a window</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">frollmean(x, 7)</text><text x="125" y="126" class="branch-label">rolling total instead of average</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">frollsum(x, 7)</text><text x="125" y="182" class="branch-label">rolling max, min or sd</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">frollmax / frollmin / frollsd</text><text x="125" y="238" class="branch-label">custom rolling stat like median</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">frollapply(x, 7, median)</text><text x="125" y="294" class="branch-label">cumulative expanding mean</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cumsum(x) / seq_along(x)</text><text x="125" y="350" class="branch-label">lag or lead a column by k rows</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">shift(x, 7)</text></svg></div>
+
+<h2>What frollmean() does</h2>
+
+<p><strong>frollmean() slides a fixed window across a vector and returns the mean of each window.</strong> For a window size of <code>n</code>, the value at position <code>i</code> is the average of the <code>n</code> values ending at <code>i</code>. The result is a vector the same length as the input, so it drops straight into a data.table column.</p>
+
+<p>Because the rolling computation is written in C and runs on multiple threads, <code>frollmean()</code> is dramatically faster than looping or than <code>zoo::rollmean()</code> on large vectors. It is the rolling-window workhorse of the <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table package</a>.</p>
+
+<p>The first <code>n - 1</code> positions have no full window, so they are filled with <code>NA</code> by default. This is expected behaviour, not a bug.</p>
+
+<h2>frollmean() syntax and arguments</h2>
+
+<p><strong>The function signature exposes seven arguments, but most calls use only the first two.</strong> You pass a numeric vector and a window size, and everything else has a sensible default.</p>
+
+<div class="webr-container" data-block-title="frollmean function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">frollmean function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frollmean(x, n, fill = NA, algo = &quot;fast&quot;,
+          align = &quot;right&quot;, na.rm = FALSE,
+          hasNA = NA, adaptive = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments control input, window size, and edge behaviour:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>Numeric vector, or a list of vectors, to roll over.</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>Window size. A vector of sizes returns one result per size.</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td>Value used for the incomplete leading or trailing positions. Defaults to <code>NA</code>.</td>
+</tr>
+<tr>
+<td><code>align</code></td>
+<td>Window placement: <code>&quot;right&quot;</code>, <code>&quot;left&quot;</code>, or <code>&quot;center&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>na.rm</code></td>
+<td>If <code>TRUE</code>, <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are dropped inside each window.</td>
+</tr>
+<tr>
+<td><code>algo</code></td>
+<td><code>&quot;fast&quot;</code> (default) or <code>&quot;exact&quot;</code> for higher floating-point accuracy.</td>
+</tr>
+<tr>
+<td><code>adaptive</code></td>
+<td>If <code>TRUE</code>, <code>n</code> is a per-row vector of window lengths.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from another package?</strong> <code>frollmean(x, n)</code> is the data.table equivalent of <code>zoo::rollmean(x, n, fill = NA, align = &quot;right&quot;)</code> and of pandas' <code>series.rolling(n).mean()</code>.</div></div>
+
+<h2>frollmean() examples</h2>
+
+<p><strong>These examples use the built-in <code>airquality</code> dataset so you can run them without any setup.</strong> Each one targets a different real use case for rolling means.</p>
+
+<p>A basic call computes a trailing average. Here a 3-day rolling mean smooths the daily temperature readings.</p>
+
+<div class="webr-container" data-block-title="Compute a basic rolling mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute a basic rolling mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+dt &lt;- as.data.table(airquality)
+dt[, temp_roll3 := frollmean(Temp, 3)]
+head(dt[, .(Temp, temp_roll3)], 6)
+#&gt;     Temp temp_roll3
+#&gt;    &lt;int&gt;      &lt;num&gt;
+#&gt; 1:    67         NA
+#&gt; 2:    72         NA
+#&gt; 3:    74   71.00000
+#&gt; 4:    62   69.33333
+#&gt; 5:    56   64.00000
+#&gt; 6:    66   61.33333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing a vector to <code>n</code> returns several rolling means in one call. The output is a list with one element per window size, which is efficient because the windows are computed in parallel.</p>
+
+<div class="webr-container" data-block-title="Compute several window sizes at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute several window sizes at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">windows &lt;- frollmean(dt$Temp, c(3, 7))
+str(windows)
+#&gt; List of 2
+#&gt;  $ : num [1:153] NA NA 71 69.3 64 ...
+#&gt;  $ : num [1:153] NA NA NA NA NA ...
+windows[[2]][7:9]
+#&gt; [1] 66.00000 64.85714 63.28571</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>align</code> argument decides where the window sits relative to the current row. A right-aligned window looks backward, a left-aligned window looks forward, and a centered window straddles the row.</p>
+
+<div class="webr-container" data-block-title="Change the window alignment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Change the window alignment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- 1:10
+data.table(
+  x,
+  right  = frollmean(x, 3),
+  center = frollmean(x, 3, align = &quot;center&quot;),
+  left   = frollmean(x, 3, align = &quot;left&quot;)
+)
+#&gt;         x right center  left
+#&gt;     &lt;int&gt; &lt;num&gt;  &lt;num&gt; &lt;num&gt;
+#&gt;  1:     1    NA     NA     2
+#&gt;  2:     2    NA      2     3
+#&gt;  3:     3     2      3     4
+#&gt; ...
+#&gt; 10:    10     9     NA    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside a data.table, combine <code>frollmean()</code> with <code>by</code> to roll within each group. Without <code>by</code>, the window bleeds across group boundaries and corrupts the first rows of every group.</p>
+
+<div class="webr-container" data-block-title="Roll the mean within each group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Roll the mean within each group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.table(
+  store = rep(c(&quot;A&quot;, &quot;B&quot;), each = 4),
+  units = c(10, 20, 30, 40, 100, 200, 300, 400)
+)
+sales[, roll2 := frollmean(units, 2), by = store]
+sales
+#&gt;     store units roll2
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      A    10    NA
+#&gt; 2:      A    20    15
+#&gt; 3:      A    30    25
+#&gt; 4:      A    40    35
+#&gt; 5:      B   100    NA
+#&gt; 6:      B   200   150
+#&gt; 7:      B   300   250
+#&gt; 8:      B   400   350</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Real data has gaps, and <code>na.rm = TRUE</code> keeps the rolling mean alive across them. With it, each window averages only its non-missing values instead of returning <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="Handle missing values with na.rm">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handle missing values with na.rm</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">oz &lt;- frollmean(airquality$Ozone, 5, na.rm = TRUE)
+head(oz, 7)
+#&gt; [1]       NA       NA       NA       NA 26.75000 23.50000 20.25000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A rolling mean trades detail for trend.</strong> Widening <code>n</code> produces a smoother line that reacts slowly, while a narrow window tracks every spike. Choose the window to match the cycle you want to see, not the noise you want to hide.</div></div>
+
+<h2>frollmean() vs other rolling tools</h2>
+
+<p><strong>frollmean() is one member of a family, and picking the right relative saves you a wrapper.</strong> The <code>froll*</code> functions share the same arguments, so switching between a rolling mean and a rolling sum is a one-word change.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Use it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frollmean(x, n)</code></td>
+<td>You need a moving average over a fixed window.</td>
+</tr>
+<tr>
+<td><code>frollsum(x, n)</code></td>
+<td>You need a rolling total instead of an average.</td>
+</tr>
+<tr>
+<td><code>frollapply(x, n, FUN)</code></td>
+<td>You need a custom statistic, such as a rolling median.</td>
+</tr>
+<tr>
+<td><code>zoo::rollmean(x, n)</code></td>
+<td>You already depend on zoo and the data is small.</td>
+</tr>
+<tr>
+<td><code>cumsum(x) / seq_along(x)</code></td>
+<td>You want an expanding (cumulative) mean, not a fixed window.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For an adaptive window, pass a per-row vector of lengths and set <code>adaptive = TRUE</code>. This is useful for year-to-date or "since launch" averages where the window grows over time.</p>
+
+<div class="webr-container" data-block-title="Use an adaptive per-row window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use an adaptive per-row window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 30, 40, 50)
+n &lt;- c(1, 2, 3, 3, 3)
+frollmean(x, n, adaptive = TRUE)
+#&gt; [1] 10 15 20 30 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most frollmean() surprises trace back to edges, groups, or floating-point math.</strong> These three mistakes account for almost every confused bug report.</p>
+
+<p>Forgetting that leading positions are <code>NA</code> breaks downstream code that expects a complete column. Pad them with <code>fill</code> when a default value is safer than a gap.</p>
+
+<div class="webr-container" data-block-title="Pad the leading edge with fill">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pad the leading edge with fill</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frollmean(1:6, 3, fill = 0)
+#&gt; [1] 0 0 2 3 4 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Calling <code>frollmean()</code> on a grouped column without <code>by</code> lets the window span two groups, so the first rows of each group mix in foreign data. Always add <code>by =</code> for panel or multi-series tables.</p>
+
+<p>For long vectors where precision matters, <code>algo = &quot;fast&quot;</code> can accumulate tiny floating-point drift. Switch to <code>algo = &quot;exact&quot;</code> for a slower but numerically stable result.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A window wider than the vector returns all NA.</strong> <code>frollmean(1:3, 5)</code> has no complete window, so every position is <code>NA</code>. Check that <code>n</code> is not larger than the data, especially inside small groups.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute a 4-period rolling mean of <code>mtcars$mpg</code> and store it in <code>ex_roll</code>. The first three values should be <code>NA</code>.</p>
+<div class="webr-container" data-block-title="Your turn: roll mtcars mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: roll mtcars mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 4-period rolling mean of mpg
+ex_roll &lt;- # your code here
+
+head(ex_roll, 5)
+#&gt; Expected: NA NA NA &lt;value&gt; &lt;value&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+ex_roll &lt;- frollmean(mtcars$mpg, 4)
+head(ex_roll, 5)
+#&gt; [1]      NA      NA      NA 20.1000 20.7250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>frollmean()</code> with <code>n = 4</code> averages each value with the three before it. The first three positions have no full 4-row window, so they return <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>frollmean()</code> for rolling and windowed work:</p>
+
+<ul>
+
+<li><code>frollsum()</code> computes rolling totals with the same arguments.</li>
+
+<li><code>frollapply()</code> applies any function over a rolling window.</li>
+
+<li><code>shift()</code> lags or leads a column, often used before a rolling step.</li>
+
+<li><code>frank()</code> assigns fast ranks, useful for rolling percentile logic.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/froll.html">data.table rolling functions reference</a> for the complete <code>froll*</code> family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between frollmean and rollmean?</strong></p>
+
+<p>Both compute a rolling mean, but <code>frollmean()</code> is part of data.table and is written in multi-threaded C, while <code>rollmean()</code> comes from the zoo package. On large vectors <code>frollmean()</code> is far faster and integrates directly into data.table syntax. <code>rollmean()</code> defaults to a centered window, whereas <code>frollmean()</code> defaults to a right-aligned (trailing) window.</p>
+
+<p><strong>Why does frollmean return NA at the start?</strong></p>
+
+<p>The first <code>n - 1</code> positions do not have enough preceding values to fill a complete window, so <code>frollmean()</code> returns <code>NA</code> there by default. This is correct behaviour. Use the <code>fill</code> argument to substitute another value, or set <code>align = &quot;center&quot;</code> or <code>&quot;left&quot;</code> to move the gap to a different edge.</p>
+
+<p><strong>How do I compute a rolling mean by group in data.table?</strong></p>
+
+<p>Add a <code>by</code> clause: <code>dt[, roll := frollmean(value, 7), by = group]</code>. The <code>by</code> argument restarts the window at each group boundary, so a 7-row rolling mean never mixes values from two groups. Without <code>by</code>, the window slides continuously across the whole column.</p>
+
+<p><strong>Can frollmean handle a variable window size?</strong></p>
+
+<p>Yes. Set <code>adaptive = TRUE</code> and pass <code>n</code> as a vector the same length as <code>x</code>, where each element gives the window length for that row. This supports expanding windows, year-to-date averages, and any case where the window grows or shrinks per observation.</p>
+
+<p><strong>Is frollmean faster than a for loop?</strong></p>
+
+<p>Significantly. <code>frollmean()</code> runs compiled C code across multiple CPU threads, while an R-level loop interprets each iteration. On vectors of a million rows the difference is often two or three orders of magnitude, which is the main reason to reach for <code>frollmean()</code> over hand-written rolling code.</p>
