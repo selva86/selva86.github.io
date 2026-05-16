@@ -1,0 +1,342 @@
+---
+title: "data.table tstrsplit() in R: Split Strings to Columns"
+description: "Learn how data.table tstrsplit() in R splits a string column into multiple columns. Covers fixed delimiters, keep, type.convert and fill, with examples."
+keywords: "data.table tstrsplit, tstrsplit function R, data.table tstrsplit examples, split column into multiple columns R, tstrsplit vs strsplit, R split string to columns, tstrsplit keep argument"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tstrsplit()|data.table tstrsplit|data.table::tstrsplit()|split column into multiple columns|transpose strsplit"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table tstrsplit() in R: Split Strings to Columns</h1>
+
+<p class="lead">data.table <code>tstrsplit()</code> splits a character vector on a delimiter and transposes the result, so each split piece becomes its own column. It is the fastest way to break one column into many inside a data.table.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tstrsplit(&quot;a-b-c&quot;, &quot;-&quot;)<span class="qa-cmt">                       # split one string to a list</span>
+tstrsplit(c(&quot;a-1&quot;,&quot;b-2&quot;), &quot;-&quot;)<span class="qa-cmt">                # split a vector, transposed</span>
+DT[, c(&quot;x&quot;,&quot;y&quot;) := tstrsplit(col, &quot;-&quot;)]<span class="qa-cmt">       # split into new columns</span>
+tstrsplit(x, &quot;-&quot;, fixed=TRUE)<span class="qa-cmt">                 # literal delimiter, safer</span>
+tstrsplit(x, &quot;-&quot;, keep=c(1,3))<span class="qa-cmt">                # keep only pieces 1 and 3</span>
+tstrsplit(x, &quot;-&quot;, type.convert=TRUE)<span class="qa-cmt">          # auto-convert &quot;1&quot; to integer</span>
+tstrsplit(x, &quot;-&quot;, fill=&quot;&quot;)<span class="qa-cmt">                    # pad short splits with &quot;&quot;</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tstrsplit() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">split one column into several</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">DT[, c(&quot;a&quot;,&quot;b&quot;) := tstrsplit(x, &quot;-&quot;)]</text><text x="125" y="126" class="branch-label">split but keep pieces grouped</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">strsplit(x, &quot;-&quot;)</text><text x="125" y="182" class="branch-label">extract a pattern, not split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">regmatches(x, regexpr(&quot;[0-9]+&quot;, x))</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="tidyr-pivot_longer-in-R.html" title="tidyr pivot_longer() in R: Wide to Long Format">reshape long</a> data to wide</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dcast(DT, id ~ key)</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="tidyr-unite-in-R.html" title="tidyr unite() in R: Combine Columns Into One">combine columns</a> into a string</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">paste(a, b, sep = &quot;-&quot;)</text><text x="125" y="350" class="branch-label">pull only the nth piece</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tstrsplit(x, &quot;-&quot;, keep = 2)</text></svg></div>
+
+<h2>What tstrsplit() does</h2>
+
+<p><strong>tstrsplit() is a transposing version of <a class="auto-link" href="base-strsplit-in-R.html" title="strsplit() in R: Split Strings by a Delimiter">strsplit()</a>.</strong> Base R's <code>strsplit()</code> cuts each string on a delimiter and returns a list with one element per input string. That layout is awkward when you want columns, because the pieces of any single row are bundled together. <code>tstrsplit()</code> runs <code>strsplit()</code> and then transposes the result, so element one holds every first piece, element two holds every second piece, and so on. That column-shaped list drops straight into a data.table.</p>
+
+<p>The function is built for the <code>:=</code> assignment idiom. You pass a column to split, hand the resulting list to a vector of new column names, and data.table adds those columns by reference without copying the table. On a frame with millions of rows this matters: the split happens once and the new columns are written in place.</p>
+
+<p><code>tstrsplit()</code> also forwards extra arguments to <code>strsplit()</code>, so options like <code>fixed</code> and <code>perl</code> work exactly as they do there. On top of that it adds four arguments of its own, <code>fill</code>, <code>type.convert</code>, <code>keep</code>, and <code>names</code>, which handle ragged data and tidy up the output.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The "t" stands for transpose.</strong> <code>strsplit()</code> gives you rows of pieces; <code>tstrsplit()</code> gives you columns of pieces. Picture splitting <code>&quot;a-1&quot;</code> and <code>&quot;b-2&quot;</code>: <code>strsplit()</code> returns <code>(&quot;a&quot;,&quot;1&quot;)</code> and <code>(&quot;b&quot;,&quot;2&quot;)</code>, while <code>tstrsplit()</code> returns <code>(&quot;a&quot;,&quot;b&quot;)</code> and <code>(&quot;1&quot;,&quot;2&quot;)</code>. The second shape is what a table wants.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>tstrsplit() takes the vector to split plus split and tidy-up options.</strong> The signature is <code>tstrsplit(x, ..., fill = NA, type.convert = FALSE, keep, names = FALSE)</code>. The <code>...</code> slot is where the delimiter and any <code>strsplit()</code> flags go.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>The character vector (usually a data.table column) to split.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Passed to <code>strsplit()</code>: the split pattern, plus <code>fixed</code>, <code>perl</code>, <code>useBytes</code>.</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td>Value used to pad rows that produce fewer pieces than the longest row. Default <code>NA</code>.</td>
+</tr>
+<tr>
+<td><code>type.convert</code></td>
+<td>If <code>TRUE</code>, runs <code>type.convert()</code> on each output piece so numeric pieces become numbers.</td>
+</tr>
+<tr>
+<td><code>keep</code></td>
+<td>Integer positions of the pieces to keep, dropping the rest.</td>
+</tr>
+<tr>
+<td><code>names</code></td>
+<td><code>TRUE</code>, or a character vector, to name the elements of the returned list.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The delimiter sits in <code>...</code>, not in a named argument, which is why <code>tstrsplit(x, &quot;-&quot;)</code> works with no argument name. Reach for <code>keep</code> when a string has more pieces than you need, and <code>fill</code> when rows split into different counts.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Split a plain vector to see the transposed layout.</strong> With no data.table involved, <code>tstrsplit()</code> returns a list where each element is one position across all the input strings.</p>
+
+<div class="webr-container" data-block-title="Split a character vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split a character vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+tstrsplit(c(&quot;a-1&quot;, &quot;b-2&quot;, &quot;c-3&quot;), &quot;-&quot;)
+#&gt; [[1]]
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use it inside <code>:=</code> to split one column into several.</strong> This is the canonical use case. Supply a vector of new names on the left and <code>tstrsplit()</code> on the right, and data.table writes the columns in place.</p>
+
+<div class="webr-container" data-block-title="Split a column into new columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split a column into new columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(sku = c(&quot;RED-LARGE&quot;, &quot;BLUE-SMALL&quot;, &quot;RED-SMALL&quot;))
+DT[, c(&quot;color&quot;, &quot;size&quot;) := tstrsplit(sku, &quot;-&quot;, fixed = TRUE)]
+DT
+#&gt;           sku color   size
+#&gt;        &lt;char&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:  RED-LARGE    RED  LARGE
+#&gt; 2: BLUE-SMALL   BLUE  SMALL
+#&gt; 3:  RED-SMALL    RED  SMALL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pass <code>keep</code> to pull only the pieces you want.</strong> When a string has more parts than you need, <code>keep</code> selects positions and discards the rest, so you do not <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">create columns</a> you will only drop later.</p>
+
+<div class="webr-container" data-block-title="Keep selected pieces only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep selected pieces only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dates &lt;- c(&quot;2024-01-15&quot;, &quot;2025-06-30&quot;, &quot;2023-12-01&quot;)
+tstrsplit(dates, &quot;-&quot;, keep = c(1, 3))
+#&gt; [[1]]
+#&gt; [1] &quot;2024&quot; &quot;2025&quot; &quot;2023&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] &quot;15&quot; &quot;30&quot; &quot;01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Combine <code>fill</code> and <code>type.convert</code> for ragged, mixed data.</strong> When rows split into different counts, <code>fill</code> pads the short ones; <code>type.convert</code> then converts any all-numeric piece to a proper numeric vector.</p>
+
+<div class="webr-container" data-block-title="Handle ragged input with fill and type.convert">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handle ragged input with fill and type.convert</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">parts &lt;- c(&quot;item-10-A&quot;, &quot;item-5&quot;, &quot;item-20-C&quot;)
+tstrsplit(parts, &quot;-&quot;, fill = NA, type.convert = TRUE)
+#&gt; [[1]]
+#&gt; [1] &quot;item&quot; &quot;item&quot; &quot;item&quot;
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 10  5 20
+#&gt;
+#&gt; [[3]]
+#&gt; [1] &quot;A&quot; NA  &quot;C&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here the middle piece comes back as an integer vector because every value was numeric, while the third piece stays character and gets an <code>NA</code> where <code>&quot;item-5&quot;</code> had no third part.</p>
+
+<h2>Compare tstrsplit() with alternatives</h2>
+
+<p><strong>tstrsplit() is the column-shaped option; the alternatives differ in output shape and package.</strong> Pick based on whether you want columns, which package you already depend on, and whether you are splitting or extracting.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tstrsplit(x, &quot;-&quot;)</code></td>
+<td>Transposed list, one element per piece</td>
+<td>Splitting a column into many</td>
+</tr>
+<tr>
+<td><code>strsplit(x, &quot;-&quot;)</code></td>
+<td>List, one element per input string</td>
+<td>Keeping a row's pieces grouped</td>
+</tr>
+<tr>
+<td><code>tidyr::separate(df, col, into)</code></td>
+<td>New tibble columns</td>
+<td>tidyverse pipelines</td>
+</tr>
+<tr>
+<td><code>regmatches() + regexpr()</code></td>
+<td>Matched substrings</td>
+<td>Extracting a pattern, not splitting</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Inside a data.table, use <code>tstrsplit()</code> with <code>:=</code>. If you are in a dplyr or tidyr pipeline, <code>separate()</code> or its successor <code>separate_wider_delim()</code> reads more naturally. Use <code>regmatches()</code> only when you want to pull a pattern out rather than cut on a delimiter.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from tidyr?</strong> The <code>tstrsplit()</code> equivalent is <code>separate(df, col, into = c(&quot;a&quot;, &quot;b&quot;), sep = &quot;-&quot;)</code>. Both turn one delimited column into several, but <code>tstrsplit()</code> works by reference inside <code>:=</code>, while <code>separate()</code> returns a new data frame.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A regex-special delimiter splits in the wrong place.</strong> The delimiter is a regular expression by default, so characters like <code>.</code>, <code>|</code>, and <code>+</code> do not mean what you expect. Splitting on <code>&quot;.&quot;</code> matches every character.</p>
+
+<div class="webr-container" data-block-title="Regex delimiter splits wrong">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regex delimiter splits wrong</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tstrsplit(&quot;a.b.c&quot;, &quot;.&quot;)
+#&gt; [[1]]
+#&gt; [1] &quot;&quot;
+#&gt; ... every character treated as a split point</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Add <code>fixed = TRUE</code> to treat the delimiter as a literal string: <code>tstrsplit(&quot;a.b.c&quot;, &quot;.&quot;, fixed = TRUE)</code> gives the expected three pieces.</p>
+
+<p><strong>The new-name count must match the piece count.</strong> When you assign with <code>:=</code>, the number of names must equal the number of pieces <code>tstrsplit()</code> produces, or data.table raises an error.</p>
+
+<div class="webr-container" data-block-title="Mismatched column count errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mismatched column count errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(x = c(&quot;a-b-c&quot;, &quot;d-e-f&quot;))
+DT[, c(&quot;p&quot;, &quot;q&quot;) := tstrsplit(x, &quot;-&quot;)]
+#&gt; Error: Supplied 3 items to be assigned to 2 items of column 'p'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Numbers come back as text.</strong> <code>type.convert</code> defaults to <code>FALSE</code>, so <code>tstrsplit(&quot;id-42&quot;, &quot;-&quot;)</code> returns <code>&quot;42&quot;</code> as a character string, not the number 42. Set <code>type.convert = TRUE</code> when you need numeric output.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Ragged rows silently produce NA, not an error.</strong> If some strings split into fewer pieces than others, <code>tstrsplit()</code> pads the gaps with <code>fill</code> (NA by default) instead of failing. Check for unexpected <code>NA</code> values in your new columns when the source data is inconsistent.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split the <code>email</code> column of the data.table below into <code>user</code> and <code>domain</code> columns on the <code>@</code> sign. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: split an email column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: split an email column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: split email into user and domain
+ex_dt &lt;- data.table(email = c(&quot;ann@site.com&quot;, &quot;bob@mail.org&quot;))
+# your code here
+
+ex_dt
+#&gt; Expected: user and domain columns appear</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- data.table(email = c(&quot;ann@site.com&quot;, &quot;bob@mail.org&quot;))
+ex_dt[, c(&quot;user&quot;, &quot;domain&quot;) := tstrsplit(email, &quot;@&quot;, fixed = TRUE)]
+ex_dt
+#&gt;           email user   domain
+#&gt;          &lt;char&gt; &lt;char&gt;  &lt;char&gt;
+#&gt; 1: ann@site.com    ann site.com
+#&gt; 2: bob@mail.org    bob mail.org</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tstrsplit()</code> cuts each email on <code>@</code> and transposes the pieces into two columns. Using <code>fixed = TRUE</code> is good practice even though <code>@</code> is not a regex metacharacter, and <code>:=</code> writes both columns by reference.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>tstrsplit() pairs with the reshaping and assignment tools in data.table.</strong> Learning the neighbours makes string-heavy cleaning tasks far quicker.</p>
+
+<ul>
+
+<li><code>strsplit()</code> is the base R function <code>tstrsplit()</code> wraps; use it when you want pieces grouped per row.</li>
+
+<li><code>melt()</code> reshapes wide data to long format, often a step before or after splitting.</li>
+
+<li><code>dcast()</code> reshapes long data to wide, the reverse direction.</li>
+
+<li><code>setnames()</code> renames the new columns <code>tstrsplit()</code> creates if the defaults are not what you want.</li>
+
+</ul>
+
+<p>For a fuller picture of how data.table's by-reference style compares with the tidyverse, see the <a href="data-table-vs-dplyr.html">data.table vs dplyr</a> comparison. The official <a href="https://rdatatable.gitlab.io/data.table/reference/tstrsplit.html">data.table reference</a> documents every argument.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does tstrsplit() do in R?</strong></p>
+
+<p><code>tstrsplit()</code> splits a character vector on a delimiter and transposes the result. Where base R's <code>strsplit()</code> returns a list with one element per input string, <code>tstrsplit()</code> returns a list with one element per split position. That column-shaped output is what you need to break one data.table column into several. It is shorthand for <code>transpose(strsplit(...))</code> with extra options for padding and <a class="auto-link" href="R-Data-Types.html" title="R Data Types: Which Type Is Your Variable? (And Why It Matters)">type conversion</a>.</p>
+
+<p><strong>How do I split a column into multiple columns with tstrsplit?</strong></p>
+
+<p>Use the <code>:=</code> operator: <code>DT[, c(&quot;a&quot;, &quot;b&quot;) := tstrsplit(col, &quot;-&quot;)]</code>. The left side lists the new column names, and the right side splits the source column. data.table writes the new columns by reference, so no copy of the table is made. The number of names must match the number of pieces each string produces, or you get an error.</p>
+
+<p><strong>What is the difference between tstrsplit and strsplit?</strong></p>
+
+<p>Both cut strings on a delimiter, but the output shape differs. <code>strsplit()</code> returns one list element per input string, so a row's pieces stay grouped together. <code>tstrsplit()</code> transposes that, returning one list element per piece position, so all first pieces are together, all second pieces are together, and so on. Use <code>tstrsplit()</code> for columns and <code>strsplit()</code> when you want per-row groups.</p>
+
+<p><strong>Why does tstrsplit return text instead of numbers?</strong></p>
+
+<p>By default <code>type.convert</code> is <code>FALSE</code>, so every piece comes back as a character string even when it looks numeric. Set <code>type.convert = TRUE</code> to have <code>tstrsplit()</code> convert each piece to its natural type, turning <code>&quot;42&quot;</code> into the integer 42. Without it, you would need to coerce the new columns yourself with <code>as.integer()</code> or <code>as.numeric()</code>.</p>
+
+<p><strong>How does tstrsplit handle rows with different numbers of pieces?</strong></p>
+
+<p>It pads the short rows using the <code>fill</code> argument, which defaults to <code>NA</code>. If <code>&quot;a-b-c&quot;</code> and <code>&quot;a-b&quot;</code> are split together, the second string's missing third piece becomes <code>NA</code>. No error is raised, so inconsistent input fails quietly. Set <code>fill = &quot;&quot;</code> to pad with empty strings instead, and always check the new columns for unexpected <code>NA</code> values.</p>
