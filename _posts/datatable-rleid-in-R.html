@@ -1,0 +1,392 @@
+---
+title: "data.table rleid() in R: Number Consecutive Runs"
+description: "Learn data.table rleid() in R to generate run-length group ids for consecutive values. Covers syntax, rleidv, the prefix argument, grouping, and pitfalls."
+keywords: "data.table rleid, rleid function R, data.table rleid examples, R rleid run length, rleid group consecutive, rleidv data.table, rleid vs rle"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rleid()|data.table rleid|data.table::rleid()|rleidv()|run-length id"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table rleid() in R: Number Consecutive Runs</h1>
+
+<p class="lead">The data.table rleid() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> assigns a run-length integer id to every element, giving each block of consecutive identical values its own group number. It is the fast, vectorized way to group runs before aggregating.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rleid(x)<span class="qa-cmt">                          # run-length ids for one vector</span>
+rleid(x, prefix = &quot;run&quot;)<span class="qa-cmt">          # character ids: run1, run2 ...</span>
+rleid(a, b)<span class="qa-cmt">                       # id changes when a OR b changes</span>
+rleidv(DT, &quot;grp&quot;)<span class="qa-cmt">                 # rleid driven by a data.table column</span>
+DT[, run := rleid(grp)]<span class="qa-cmt">           # add the run id by reference</span>
+DT[, sum(val), by = rleid(grp)]<span class="qa-cmt">   # group consecutive runs inline</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rleid() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">number consecutive runs of a value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rleid(x)</text><text x="125" y="126" class="branch-label">count occurrences within each group</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rowid(grp)</text><text x="125" y="182" class="branch-label">get run lengths and values, not ids</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rle(x)</text><text x="125" y="238" class="branch-label">one id per distinct value (not run)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">DT[, .N, by = grp]</text><text x="125" y="294" class="branch-label">plain row number across the table</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">seq_len(.N)</text><text x="125" y="350" class="branch-label">detect where a value changes</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">x != shift(x)</text></svg></div>
+
+<h2>What rleid() does</h2>
+
+<p><strong>rleid() turns consecutive runs into group ids.</strong> Whenever a value is identical to the element before it, both share a run id. The moment the value changes, the id increments by one. The result is an integer vector the same length as the input, ready to use in a <code>by =</code> clause.</p>
+
+<p>This matters because ordinary grouping ignores position. A standard group id gives every <code>&quot;A&quot;</code> the same number no matter where it sits. <code>rleid()</code> instead respects order, so two separate blocks of <code>&quot;A&quot;</code> get two different ids.</p>
+
+<div class="webr-container" data-block-title="Basic run-length ids">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic run-length ids</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- c(5, 5, 9, 9, 9, 5)
+rleid(x)
+#&gt; [1] 1 1 2 2 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first run of <code>5</code> is id 1, the run of <code>9</code> is id 2, and the final lone <code>5</code> is id 3, not id 1.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>rleid() is position-aware, not value-aware.</strong> A group id answers "which value is this?" A run-length id answers "which consecutive block is this?" Use <code>rleid()</code> whenever a gap between identical values should start a fresh group.</div></div>
+
+<h2>rleid() and rleidv() syntax</h2>
+
+<p><strong>rleid() takes one or more vectors; rleidv() takes a table plus column names.</strong> They produce the same kind of output but accept input differently. Pick <code>rleid()</code> for loose vectors and <code>rleidv()</code> when the data already lives in a data.table.</p>
+
+<div class="webr-container" data-block-title="The two function signatures">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The two function signatures</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># rleid(..., prefix = NULL)
+# rleidv(x, cols = seq_along(x), prefix = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Belongs to</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td><code>rleid</code></td>
+<td>One or more <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> or lists of equal length</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td><code>rleidv</code></td>
+<td>A list, data.frame, or data.table</td>
+</tr>
+<tr>
+<td><code>cols</code></td>
+<td><code>rleidv</code></td>
+<td>Character or integer columns of <code>x</code> to use</td>
+</tr>
+<tr>
+<td><code>prefix</code></td>
+<td>both</td>
+<td>Optional string; returns character ids instead of integers</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both functions live in <code>data.table</code>, so the package must be loaded with <code>library(data.table)</code> before you call them. Neither one needs the <code>DT[i, j, by]</code> query syntax, so you can use <code>rleid()</code> on any plain vector.</p>
+
+<h2>rleid() examples by use case</h2>
+
+<p><strong>These four patterns cover almost every real use of rleid().</strong> Each builds on the last: a single vector, a labelled prefix, multiple inputs, and finally grouping inside a data.table.</p>
+
+<h3>Label runs with a prefix</h3>
+
+<p><strong>The prefix argument returns readable character ids.</strong> Pass any string and the integer ids become <code>prefix1</code>, <code>prefix2</code>, and so on. This is useful when the run id will appear in a report or a plot legend.</p>
+
+<div class="webr-container" data-block-title="Prefix turns ids into labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prefix turns ids into labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grp &lt;- c(&quot;lo&quot;, &quot;lo&quot;, &quot;hi&quot;, &quot;hi&quot;, &quot;lo&quot;)
+rleid(grp, prefix = &quot;run&quot;)
+#&gt; [1] &quot;run1&quot; &quot;run1&quot; &quot;run2&quot; &quot;run2&quot; &quot;run3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Track runs across multiple columns</h3>
+
+<p><strong>Pass several vectors and the id changes when any of them changes.</strong> <code>rleid()</code> compares the element-wise tuple of all inputs. A new run starts as soon as one column differs from the previous row.</p>
+
+<div class="webr-container" data-block-title="Runs across two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Runs across two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- c(&quot;x&quot;, &quot;x&quot;, &quot;y&quot;, &quot;y&quot;, &quot;x&quot;)
+b &lt;- c(1,   1,   1,   2,   2)
+rleid(a, b)
+#&gt; [1] 1 1 2 3 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rows 1 and 2 match on both <code>a</code> and <code>b</code>. Row 3 changes <code>a</code>, row 4 changes <code>b</code>, and row 5 changes <code>a</code> again, so every later row opens a new run.</p>
+
+<h3>Group consecutive runs in a data.table</h3>
+
+<p><strong>The classic job for rleid() is collapsing consecutive runs before aggregation.</strong> Add the run id with <code>:=</code>, then use it in <code>by =</code>. Here three blocks of sensor readings get summarized without merging the two separate <code>&quot;A&quot;</code> stretches.</p>
+
+<div class="webr-container" data-block-title="Aggregate consecutive sensor runs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate consecutive sensor runs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(
+  sensor  = c(&quot;A&quot;, &quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;B&quot;, &quot;A&quot;, &quot;A&quot;),
+  reading = c(21, 22, 20, 30, 31, 25, 26)
+)
+DT[, run := rleid(sensor)]
+DT[, .(sensor = sensor[1], n = .N, avg = mean(reading)), by = run]
+#&gt;      run sensor     n   avg
+#&gt;    &lt;int&gt; &lt;char&gt; &lt;int&gt; &lt;num&gt;
+#&gt; 1:     1      A     3  21.0
+#&gt; 2:     2      B     2  30.5
+#&gt; 3:     3      A     2  25.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two <code>&quot;A&quot;</code> runs stay separate because they are not adjacent. The equivalent call with <code>rleidv()</code> reads the column straight from the table:</p>
+
+<div class="webr-container" data-block-title="Same result with rleidv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same result with rleidv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rleidv(DT, &quot;sensor&quot;)
+#&gt; [1] 1 1 1 2 2 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Group inline to skip a temporary column.</strong> You do not have to store the id first. <code>DT[, mean(reading), by = rleid(sensor)]</code> computes the run id and groups in a single pass, which keeps the table tidy.</div></div>
+
+<h2>rleid() vs rle() vs rowid()</h2>
+
+<p><strong>rleid(), rle(), and rowid() are close cousins that answer different questions.</strong> Choosing the wrong one is the most common source of confusion, so compare them on the same input.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Length of output</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rleid(x)</code></td>
+<td>Run-length group id per element</td>
+<td>Same as input</td>
+<td>You need a <code>by =</code> grouping key</td>
+</tr>
+<tr>
+<td><code>rle(x)</code></td>
+<td>Run lengths and values</td>
+<td>One row per run</td>
+<td>You need run sizes, not ids</td>
+</tr>
+<tr>
+<td><code>rowid(x)</code></td>
+<td>Occurrence counter within each value</td>
+<td>Same as input</td>
+<td>You need a within-group sequence</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Compare rleid rle and rowid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare rleid rle and rowid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;, &quot;A&quot;)
+rleid(g)
+#&gt; [1] 1 2 3 4
+rowid(g)
+#&gt; [1] 1 2 1 3
+rle(g)$lengths
+#&gt; [1] 2 1 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rleid()</code> numbers consecutive blocks, <code>rowid()</code> counts how many times each value has appeared, and <code>rle()</code> reports how long each run is.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to rleid().</strong> Each one stems from forgetting that the function is strictly position-based.</p>
+
+<p><strong>Non-consecutive matches are different runs.</strong> If you expect every <code>&quot;A&quot;</code> to share an id, you want a value-based group id, not <code>rleid()</code>. The function gives separated blocks separate numbers.</p>
+
+<div class="webr-container" data-block-title="Separated values get separate ids">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Separated values get separate ids</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(&quot;A&quot;, &quot;B&quot;, &quot;A&quot;, &quot;A&quot;)
+rleid(y)
+#&gt; [1] 1 2 3 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Unsorted data produces tiny runs.</strong> <code>rleid()</code> never sorts. If rows alternate, every element becomes its own run. Call <code>setorder()</code> or <code>setkey()</code> first when you want grouped runs.</p>
+
+<div class="webr-container" data-block-title="Alternating data has no runs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Alternating data has no runs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">status &lt;- c(&quot;on&quot;, &quot;off&quot;, &quot;on&quot;, &quot;off&quot;)
+rleid(status)
+#&gt; [1] 1 2 3 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A run of NAs counts as a run.</strong> <code>rleid()</code> treats consecutive <code>NA</code> values as identical, so they form their own run. A single <code>NA</code> breaks a run just like any other changed value, which can split groups you expected to stay whole.</div></div>
+
+<div class="webr-container" data-block-title="NA values form their own run">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA values form their own run</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rleid(c(1, NA, NA, 2, NA))
+#&gt; [1] 1 2 2 3 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given a vector of consecutive weather states, generate the run-length id and save it to <code>ex_runs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: number the runs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: number the runs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: number consecutive runs
+states &lt;- c(&quot;sun&quot;, &quot;sun&quot;, &quot;rain&quot;, &quot;rain&quot;, &quot;rain&quot;, &quot;sun&quot;)
+ex_runs &lt;- # your code here
+
+ex_runs
+#&gt; Expected: 1 1 2 2 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">states &lt;- c(&quot;sun&quot;, &quot;sun&quot;, &quot;rain&quot;, &quot;rain&quot;, &quot;rain&quot;, &quot;sun&quot;)
+ex_runs &lt;- rleid(states)
+ex_runs
+#&gt; [1] 1 1 2 2 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rleid()</code> walks the vector once, incrementing the id at every change. The two <code>&quot;sun&quot;</code> blocks are not adjacent, so they receive ids 1 and 3.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>rleid() works best alongside a handful of other data.table helpers.</strong> These pair naturally with run-length grouping:</p>
+
+<ul>
+
+<li><code>rowid()</code> builds a within-group occurrence counter instead of a run id.</li>
+
+<li><code>shift()</code> lags or leads a column, which is how you detect where a value changes.</li>
+
+<li><code>setorder()</code> sorts a data.table in place so that runs actually form.</li>
+
+<li><code>uniqueN()</code> counts the distinct values, a quick sanity check against run ids.</li>
+
+<li><code>rle()</code> from base R returns run lengths and values when ids are not what you need.</li>
+
+</ul>
+
+<p>See the <a href="data-table-vs-dplyr.html">data.table vs dplyr</a> guide for how run-length grouping compares with the tidyverse approach. The official <a href="https://rdatatable.gitlab.io/data.table/reference/rleid.html">rleid reference</a> lists every argument.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is rleid in data.table?</strong></p>
+
+<p><code>rleid()</code> is a data.table convenience function that generates a run-length type group id. It scans a vector and assigns the same integer to every block of consecutive identical values, incrementing the id whenever the value changes. The output is an integer vector the same length as the input, designed to be used as a grouping key in a <code>by =</code> clause.</p>
+
+<p><strong>What is the difference between rleid and rowid?</strong></p>
+
+<p><code>rleid()</code> numbers consecutive runs, so the id changes every time the value changes. <code>rowid()</code> counts how many times each distinct value has appeared so far, restarting the count per value. For <code>c(&quot;A&quot;,&quot;A&quot;,&quot;B&quot;,&quot;A&quot;)</code>, <code>rleid()</code> returns <code>1 2 3 4</code> while <code>rowid()</code> returns <code>1 2 1 3</code>. Use <code>rleid()</code> for run grouping and <code>rowid()</code> for within-group sequence numbers.</p>
+
+<p><strong>How is rleid different from rle?</strong></p>
+
+<p>Base R's <code>rle()</code> returns a compact summary: one run length and one value per run. <code>rleid()</code> instead returns a full-length vector with one id per element. <code>rle()</code> answers "how long is each run?" while <code>rleid()</code> answers "which run does this element belong to?" The latter is what you need for grouping and aggregation.</p>
+
+<p><strong>Can rleid handle multiple columns at once?</strong></p>
+
+<p>Yes. Pass several vectors to <code>rleid()</code> and a new run starts whenever any input changes. With a data.table, use <code>rleidv(DT, c(&quot;col1&quot;, &quot;col2&quot;))</code> to drive the id from named columns. The id increments at the first row where the tuple of column values differs from the previous row.</p>
+
+{% endraw %}
