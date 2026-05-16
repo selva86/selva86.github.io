@@ -1,0 +1,329 @@
+---
+title: "data.table frollsum() in R: Fast Rolling Window Sums"
+description: "Learn how data.table frollsum() in R computes fast rolling window sums. Covers syntax, multiple windows, na.rm, grouped rolling totals, and common pitfalls."
+keywords: "data.table frollsum, frollsum function R, data.table frollsum examples, rolling sum R, R rolling window sum, frollsum vs frollmean"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "frollsum()|data.table frollsum|data.table::frollsum()|frollmean()|rolling sum"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table frollsum() in R: Fast Rolling Window Sums</h1>
+
+<p class="lead">data.table frollsum() computes a fast rolling sum over a sliding window, returning a trailing total for every element of a numeric vector. It is the C-optimized way to build moving totals, rolling counts, and windowed aggregates in R.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>frollsum(x, 3)<span class="qa-cmt">                      # 3-element trailing sum</span>
+frollsum(x, c(3, 7))<span class="qa-cmt">                # two windows at once</span>
+frollsum(x, 3, align = &quot;center&quot;)<span class="qa-cmt">    # centered window</span>
+frollsum(x, 3, na.rm = TRUE)<span class="qa-cmt">        # skip NAs inside the window</span>
+frollsum(x, 3, fill = 0)<span class="qa-cmt">            # fill incomplete windows with 0</span>
+dt[, s := frollsum(v, 3), by = grp]<span class="qa-cmt"> # rolling sum per group</span>
+frollsum(x, lens, adaptive = TRUE)<span class="qa-cmt">  # per-element window sizes</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is frollsum() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rolling sum over a fixed window</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">frollsum(x, 3)</text><text x="125" y="126" class="branch-label">rolling average instead of a total</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">frollmean(x, 3)</text><text x="125" y="182" class="branch-label">running total from the very start</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cumsum(x)</text><text x="125" y="238" class="branch-label">lag or lead a column by k rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">shift(x, 1)</text><text x="125" y="294" class="branch-label">rolling min, max or standard deviation</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">frollmax(x, 3)</text><text x="125" y="350" class="branch-label">any custom function over a window</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">frollapply(x, 3, FUN)</text></svg></div>
+
+<h2>What frollsum() does</h2>
+
+<p><strong>frollsum() returns a rolling sum, not a single total.</strong> For each position in a numeric vector it adds up the current value plus the preceding values that fall inside a window of width <code>n</code>. The output is the same length as the input, so it slots straight into a data.table column. It is written in C, which makes it far faster than a hand-rolled loop or <code>sapply()</code>.</p>
+
+<h2>frollsum() syntax and arguments</h2>
+
+<p><strong>The signature is compact but every argument changes the window.</strong> The core call is <code>frollsum(x, n)</code>.</p>
+
+<div class="webr-container" data-block-title="frollsum function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">frollsum function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frollsum(x, n, fill = NA, algo = &quot;fast&quot;,
+         align = &quot;right&quot;, na.rm = FALSE, adaptive = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>Numeric vector, or a list of vectors, to roll over.</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td>Window width. A single integer, or a vector for several windows at once.</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td>Value placed where the window is incomplete (default <code>NA</code>).</td>
+</tr>
+<tr>
+<td><code>align</code></td>
+<td>Window position: <code>&quot;right&quot;</code> (trailing), <code>&quot;left&quot;</code> (leading), <code>&quot;center&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>na.rm</code></td>
+<td>If <code>TRUE</code>, <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are dropped inside each window.</td>
+</tr>
+<tr>
+<td><code>adaptive</code></td>
+<td>If <code>TRUE</code>, <code>n</code> is a per-element vector of window lengths.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The first <code>n - 1</code> positions have no full window, so they receive <code>fill</code>. With the default <code>align = &quot;right&quot;</code>, the window ends on the current element, meaning each result includes the current row.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The window includes the current row.</strong> <code>frollsum(x, 3)</code> at position 5 sums elements 3, 4, and 5, not 2, 3, and 4. For a trailing total that excludes today, shift the input first with <code>shift(x, 1)</code>.</div></div>
+
+<h2>frollsum() examples</h2>
+
+<p><strong>Start with a plain vector to see the sliding window.</strong> Each result is the sum of the current value and the two before it.</p>
+
+<div class="webr-container" data-block-title="Basic rolling sum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic rolling sum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- 1:10
+frollsum(x, 3)
+#&gt;  [1] NA NA  6  9 12 15 18 21 24 27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first two slots are <code>NA</code> because a 3-wide window cannot fill yet. Position 3 is <code>1 + 2 + 3 = 6</code>.</p>
+
+<p><strong>Pass several window widths in one call.</strong> <code>frollsum()</code> then returns a list, one vector per window.</p>
+
+<div class="webr-container" data-block-title="Multiple windows at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiple windows at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frollsum(x, c(2, 4))
+#&gt; [[1]]
+#&gt;  [1] NA  3  5  7  9 11 13 15 17 19
+#&gt;
+#&gt; [[2]]
+#&gt;  [1] NA NA NA 10 14 18 22 26 30 34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Compute a rolling total per group inside a data.table.</strong> Combine <code>frollsum()</code> with <code>by</code> and the walrus <code>:=</code> operator to add the column by reference.</p>
+
+<div class="webr-container" data-block-title="Grouped rolling sum in data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Grouped rolling sum in data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- data.table(
+  store = rep(c(&quot;A&quot;, &quot;B&quot;), each = 6),
+  day   = rep(1:6, 2),
+  sales = c(10, 20, 30, 40, 50, 60, 5, 15, 25, 35, 45, 55)
+)
+dt[, roll3 := frollsum(sales, 3), by = store]
+dt[store == &quot;A&quot;]
+#&gt;    store day sales roll3
+#&gt; 1:     A   1    10    NA
+#&gt; 2:     A   2    20    NA
+#&gt; 3:     A   3    30    60
+#&gt; 4:     A   4    40    90
+#&gt; 5:     A   5    50   120
+#&gt; 6:     A   6    60   150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>by = store</code> clause restarts the window at each store, so no total ever leaks across groups.</p>
+
+<p><strong>Sum a 0/1 indicator to count events in a window.</strong> This is the sum-specific trick <code>frollmean()</code> cannot do: a rolling count.</p>
+
+<div class="webr-container" data-block-title="Rolling event count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rolling event count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">events &lt;- c(0, 1, 1, 0, 1, 1, 1, 0)
+frollsum(events, 4)
+#&gt; [1] NA NA NA  2  3  3  3  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Position 4 reports 2 events in the last four days; position 5 reports 3.</p>
+
+<h2>frollsum() vs frollmean and cumsum</h2>
+
+<p><strong>Pick the function by the shape of total you need.</strong> All three aggregate, but over different spans.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Window</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frollsum(x, n)</code></td>
+<td>Fixed <code>n</code>-wide sliding window</td>
+<td>Rolling total</td>
+</tr>
+<tr>
+<td><code>frollmean(x, n)</code></td>
+<td>Fixed <code>n</code>-wide sliding window</td>
+<td>Rolling average</td>
+</tr>
+<tr>
+<td><code>cumsum(x)</code></td>
+<td>Expanding window from element 1</td>
+<td>Running total</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>frollsum()</code> when only the last <code>n</code> observations matter, such as a trailing 7-day revenue figure. Use <code>cumsum()</code> when every past value should keep contributing. Use <code>frollmean()</code> when you want the level rather than the total.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>frollsum(x, 3)</code> is <code>series.rolling(3).sum()</code>. pandas defaults to a right-aligned window too, so the results line up directly.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A single NA wipes out the whole window.</strong> With the default <code>na.rm = FALSE</code>, any missing value inside a window makes that result <code>NA</code>. Set <code>na.rm = TRUE</code> to skip it.</p>
+
+<div class="webr-container" data-block-title="Handling missing values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Handling missing values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(1, 2, NA, 4, 5)
+frollsum(y, 3)
+#&gt; [1] NA NA NA NA NA
+frollsum(y, 3, na.rm = TRUE)
+#&gt; [1] NA NA  3  6  9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A window wider than the vector returns all NA.</strong> <code>frollsum(1:3, 5)</code> yields <code>NA NA NA</code> because no window is ever complete. Check <code>length(x)</code> against <code>n</code> before rolling, especially inside <code>by</code> groups where some groups may be short.</div></div>
+
+<p>Two more traps: forgetting <code>by</code> in a data.table mixes groups into one window, and assuming the window excludes the current row when <code>align = &quot;right&quot;</code> actually includes it.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a rolling 3-day sum of <code>daily</code> and store it in <code>ex_roll</code>. The first two values should be <code>NA</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rolling 3-day sum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rolling 3-day sum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rolling sum with window 3
+daily &lt;- c(4, 8, 6, 10, 2, 7)
+ex_roll &lt;- # your code here
+
+ex_roll
+#&gt; Expected: NA NA 18 24 18 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">daily &lt;- c(4, 8, 6, 10, 2, 7)
+ex_roll &lt;- frollsum(daily, 3)
+ex_roll
+#&gt; [1] NA NA 18 24 18 19</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>n = 3</code> the first two positions lack a full window and return <code>NA</code>. Position 3 sums <code>4 + 8 + 6 = 18</code>, and the window then slides one element at a time.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<ul>
+
+<li><a href="datatable-frollmean-in-R.html">frollmean()</a> computes a rolling average over the same sliding window.</li>
+
+<li><code>frollapply()</code> runs any custom function over a rolling window.</li>
+
+<li><a href="datatable-shift-in-R.html">shift()</a> lags or leads a column, useful for excluding the current row.</li>
+
+<li><code>frollmax()</code> and <code>frollmin()</code> return rolling extremes.</li>
+
+<li><code>cumsum()</code> gives an expanding running total instead of a fixed window.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/froll.html">rolling functions reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between frollsum and rollsum?</strong></p>
+
+<p><code>frollsum()</code> is the data.table function; <code>rollsum()</code> is from the zoo package. They compute the same rolling sum, but <code>frollsum()</code> is written in C, runs faster on large vectors, and supports multiple windows in one call. If you already use data.table, <code>frollsum()</code> avoids a second dependency and integrates cleanly with <code>:=</code> and <code>by</code>.</p>
+
+<p><strong>How do I compute a rolling sum by group in R?</strong></p>
+
+<p>Call <code>frollsum()</code> inside a data.table with the <code>by</code> argument: <code>dt[, total := frollsum(value, 3), by = group]</code>. The <code>by</code> clause restarts the window at each group boundary, so totals never leak from one group into the next. This is the standard pattern for per-store or per-customer rolling metrics.</p>
+
+<p><strong>Why does frollsum return NA at the start?</strong></p>
+
+<p>The first <code>n - 1</code> elements do not have enough preceding values to fill a window of width <code>n</code>, so <code>frollsum()</code> places the <code>fill</code> value there, which is <code>NA</code> by default. Pass <code>fill = 0</code> to use zero instead, or trim those rows if a partial window is meaningless for your analysis.</p>
+
+<p><strong>Can frollsum use a variable window size?</strong></p>
+
+<p>Yes. Set <code>adaptive = TRUE</code> and pass <code>n</code> as a vector the same length as <code>x</code>, where each element gives the window width for that position. This is useful when the window should grow over time or depend on another column, such as days-since-signup.</p>
+
+<p><strong>Is frollsum faster than a for loop?</strong></p>
+
+<p>Yes, substantially. <code>frollsum()</code> runs its sliding window in compiled C code, so it is typically orders of magnitude faster than an R <code>for</code> loop or <code>sapply()</code> on large vectors. For millions of rows the difference is the gap between milliseconds and seconds.</p>
+
+{% endraw %}
