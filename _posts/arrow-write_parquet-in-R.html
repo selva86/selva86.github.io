@@ -1,0 +1,320 @@
+---
+title: "arrow write_parquet() in R: Save Data Frames to Parquet"
+description: "Learn arrow write_parquet() in R to save data frames as Parquet files. Covers syntax, compression codecs, type preservation, and write_csv differences."
+keywords: "arrow write_parquet, write_parquet function R, arrow write_parquet examples, R write parquet file, write parquet in R, save data frame as parquet R, arrow write_dataset"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "write_parquet()|arrow write_parquet|arrow::write_parquet()|write Parquet file in R|write_parquet in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>arrow write_parquet() in R: Save Data Frames to Parquet</h1>
+
+<p class="lead">The arrow <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">write_parquet()</a> function saves an <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frame</a> as a Parquet file. Parquet is a compressed, columnar binary format, so a write_parquet() export is smaller on disk and faster to reload than the same data written as CSV.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>write_parquet(df, &quot;data.parquet&quot;)<span class="qa-cmt">                        # write a data frame</span>
+write_parquet(df, &quot;data.parquet&quot;, compression = &quot;zstd&quot;)<span class="qa-cmt">  # smaller file</span>
+write_parquet(df, &quot;data.parquet&quot;, compression = &quot;gzip&quot;)<span class="qa-cmt">  # portable codec</span>
+write_parquet(df, &quot;data.parquet&quot;, compression = &quot;uncompressed&quot;)<span class="qa-cmt"> # no compression</span>
+write_parquet(df, &quot;data.parquet&quot;, compression_level = 9)<span class="qa-cmt"> # tune compression effort</span>
+write_parquet(df, &quot;data.parquet&quot;, chunk_size = 10000)<span class="qa-cmt">    # rows per row group</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is write_parquet() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">write one data frame to a Parquet file</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">write_parquet(df, &quot;data.parquet&quot;)</text><text x="125" y="126" class="branch-label">write a partitioned multi-file dataset</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">write_dataset(df, &quot;folder/&quot;)</text><text x="125" y="182" class="branch-label">write an Arrow Feather or IPC file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">write_feather(df, &quot;data.feather&quot;)</text><text x="125" y="238" class="branch-label">write a portable text file</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">write_csv(df, &quot;data.csv&quot;)</text><text x="125" y="294" class="branch-label">save an R-only object exactly</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">write_rds(df, &quot;obj.rds&quot;)</text><text x="125" y="350" class="branch-label">read a Parquet file back into R</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_parquet(&quot;data.parquet&quot;)</text></svg></div>
+
+<h2>What write_parquet() does</h2>
+
+<p><strong>write_parquet() turns a data frame into a Parquet file.</strong> You give it a data frame and an output path, and it writes the data in Apache Parquet's compressed, columnar layout. The file carries a typed schema, so column types are stored alongside the values rather than guessed on reload.</p>
+
+<p>The function comes from the <code>arrow</code> package, which bundles the Apache Arrow C++ engine. Because Parquet writes each column as its own compressed block, the resulting file is usually a fraction of the size of an equivalent CSV. That same on-disk format is read natively by Spark, pandas, <a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a>, and many other tools, which makes Parquet a strong choice for sharing analytic data.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>The signature is short, and most calls only need the first two arguments.</strong> The rest tune compression and the internal row-group layout.</p>
+
+<div class="webr-container" data-block-title="The write_parquet signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The write_parquet signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_parquet(
+  x,                       # data frame, tibble, or Arrow Table to write
+  sink,                    # output path, or a connection
+  compression = &quot;snappy&quot;,  # snappy, gzip, zstd, brotli, lz4, or uncompressed
+  compression_level = NULL,# higher means a smaller file and a slower write
+  chunk_size = NULL,       # rows per row group; NULL lets arrow choose
+  version = &quot;2.4&quot;,         # Parquet format version
+  use_dictionary = TRUE    # dictionary-encode repeated values
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The argument you change most often is <code>compression</code>. The default <code>&quot;snappy&quot;</code> codec is fast and writes a moderately small file. Switch to <code>&quot;zstd&quot;</code> when disk space matters more than write speed, or <code>&quot;gzip&quot;</code> when another tool expects that codec. The <code>chunk_size</code> and <code>version</code> arguments rarely need changing.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> write_parquet() is the direct counterpart of <code>df.to_parquet(&quot;data.parquet&quot;)</code>. A file written by R reads straight into pandas, Spark, or DuckDB, because all of them share the same Parquet on-disk format.</div></div>
+
+<h2>write_parquet() examples</h2>
+
+<p><strong>Start with a round trip.</strong> Write a built-in dataset to a Parquet file, then read it back with <code>read_parquet()</code> to confirm the export worked.</p>
+
+<div class="webr-container" data-block-title="Write a data frame to Parquet">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a data frame to Parquet</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(arrow)
+
+write_parquet(mtcars, &quot;cars.parquet&quot;)
+file.exists(&quot;cars.parquet&quot;)
+#&gt; [1] TRUE
+cars &lt;- read_parquet(&quot;cars.parquet&quot;)
+dim(cars)
+#&gt; [1] 32 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The file appears on disk and reads back as a 32-row, 11-column tibble. No delimiter was written and no column type was flattened to text, because Parquet stores the schema inside the file.</p>
+
+<p><strong>Choose a compression codec with the <code>compression</code> argument.</strong> Each codec trades write speed against file size. The data is identical whichever codec you pick, so a file written with one codec reads back the same as any other.</p>
+
+<div class="webr-container" data-block-title="Choose a compression codec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose a compression codec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_parquet(mtcars, &quot;zstd.parquet&quot;, compression = &quot;zstd&quot;)
+write_parquet(mtcars, &quot;gzip.parquet&quot;, compression = &quot;gzip&quot;)
+
+nrow(read_parquet(&quot;zstd.parquet&quot;))
+#&gt; [1] 32
+nrow(read_parquet(&quot;gzip.parquet&quot;))
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both files round-trip to the same 32 rows. Use <code>&quot;zstd&quot;</code> for the smallest file, the default <code>&quot;snappy&quot;</code> for the fastest write, and <code>&quot;gzip&quot;</code> when a downstream tool only understands gzip.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The schema travels with the file.</strong> write_parquet() records each column's type in the Parquet metadata, so the reader never has to infer types. That is why a Parquet round trip is both faster and more reliable than a CSV round trip.</div></div>
+
+<p><strong>Parquet preserves column types.</strong> A CSV export flattens factors and dates into plain text, so those types are rebuilt on every reload. A Parquet export keeps them, because the file stores a typed schema.</p>
+
+<div class="webr-container" data-block-title="Parquet keeps factor and date types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parquet keeps factor and date types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  grp = factor(c(&quot;x&quot;, &quot;y&quot;, &quot;x&quot;)),
+  day = as.Date(&quot;2026-01-01&quot;) + 0:2
+)
+write_parquet(df, &quot;typed.parquet&quot;)
+sapply(read_parquet(&quot;typed.parquet&quot;), class)
+#&gt;      grp      day
+#&gt; &quot;factor&quot;   &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The factor returns with its levels intact and the date column returns as a <code>Date</code>. This type fidelity makes Parquet a solid format for caching cleaned data between sessions.</p>
+
+<p><strong>write_parquet() returns its input invisibly, so it fits inside a pipe.</strong> You can filter or transform a data frame and write the result in one chain without breaking the flow.</p>
+
+<div class="webr-container" data-block-title="write_parquet inside a dplyr pipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">write_parquet inside a dplyr pipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  filter(mpg &gt; 20) |&gt;
+  write_parquet(&quot;efficient.parquet&quot;)
+nrow(read_parquet(&quot;efficient.parquet&quot;))
+#&gt; [1] 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pipe filters <code>mtcars</code> to the 14 fuel-efficient cars and writes them straight to Parquet. Because write_parquet() passes its input through invisibly, the chain stays readable.</p>
+
+<h2>write_parquet() vs write_csv() and alternatives</h2>
+
+<p><strong>write_parquet() is the compact columnar writer; write_csv() is the portable text writer.</strong> The right choice depends on file size, on whether column types must survive, and on what tool reads the file next.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Writes</th>
+<th>Format</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>write_parquet()</code></td>
+<td>one file</td>
+<td>columnar binary</td>
+<td>analytic data, long-term storage</td>
+</tr>
+<tr>
+<td><code>write_feather()</code></td>
+<td>one file</td>
+<td>Arrow IPC binary</td>
+<td>fast short-lived exchange with Arrow tools</td>
+</tr>
+<tr>
+<td><code>write_dataset()</code></td>
+<td>many files</td>
+<td>partitioned Parquet</td>
+<td>data split by key, larger than memory</td>
+</tr>
+<tr>
+<td><code>write_csv()</code></td>
+<td>one file</td>
+<td>text</td>
+<td>sharing with tools that cannot read Parquet</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>write_parquet()</code> for analytic data that lives on disk between jobs. Use <code>write_dataset()</code> when the output should be split into many files by a partition key. Reach for <code>write_csv()</code> only when a person or a tool that cannot read Parquet needs the data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Switch to zstd for archival files.</strong> The default snappy codec optimizes for write speed, but <code>compression = &quot;zstd&quot;</code> produces a noticeably smaller file for a small extra cost. For data you write once and read many times, that trade is almost always worth it.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>write_parquet() overwrites an existing file without warning.</strong> Calling it on a path that already holds a file replaces that file silently, with no prompt and no backup. Guard important paths with <code>file.exists()</code> before writing.</p>
+
+<div class="webr-container" data-block-title="Guard against overwriting a file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Guard against overwriting a file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">path &lt;- &quot;new_cars.parquet&quot;
+if (!file.exists(path)) {
+  write_parquet(mtcars, path)
+}
+file.exists(path)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>write_parquet() writes exactly one file.</strong> It cannot produce a partitioned, multi-file output. When you need data split into many files by a grouping key, use <code>write_dataset(df, &quot;folder/&quot;, partitioning = &quot;grp&quot;)</code> instead, which writes one folder of Parquet files.</p>
+
+<p><strong>You cannot append rows to a Parquet file.</strong> Parquet has no append mode, so write_parquet() always writes a complete file. To grow a dataset over time, write each batch as a separate file into one folder and read them together with <code>open_dataset()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A minimal arrow build cannot write every codec.</strong> Codecs like <code>zstd</code> and <code>brotli</code> need the full arrow binary. If a write fails with a codec error, run <code>arrow::arrow_info()</code> to check capabilities, then reinstall arrow with <code>install.packages(&quot;arrow&quot;)</code> to pull a complete build.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write the built-in <code>iris</code> data frame to <code>iris.parquet</code> using zstd compression, then read it back into <code>ex_iris</code>. Confirm it has 150 rows.</p>
+<div class="webr-container" data-block-title="Your turn: write iris to Parquet">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write iris to Parquet</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write iris with zstd compression, then read it back
+write_parquet(iris, &quot;iris.parquet&quot;, compression = &quot;zstd&quot;)
+ex_iris &lt;- # your code here
+
+nrow(ex_iris)
+#&gt; Expected: 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_parquet(iris, &quot;iris.parquet&quot;, compression = &quot;zstd&quot;)
+ex_iris &lt;- read_parquet(&quot;iris.parquet&quot;)
+nrow(ex_iris)
+#&gt; [1] 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> write_parquet() saves the data frame with the zstd codec, and read_parquet() reads it back into a tibble. The compression codec changes the file size, not the data, so the row count stays at 150.</p>
+
+</details>
+</section>
+
+<h2>Related arrow functions</h2>
+
+<p><strong>write_parquet() sits among arrow's export and import helpers.</strong> Pick the one that matches the output you need.</p>
+
+<ul>
+
+<li><code>read_parquet()</code>: read a single Parquet file back into R, the inverse of this function.</li>
+
+<li><code>write_dataset()</code>: write a partitioned, multi-file Parquet dataset to a folder.</li>
+
+<li><code>write_feather()</code>: write an Arrow Feather or IPC file, a faster short-term format.</li>
+
+<li><code>open_dataset()</code>: query a folder of Parquet files as one dataset, even if it exceeds memory.</li>
+
+<li><code>write_rds()</code>: save a single R object to an R-only <code>.rds</code> file.</li>
+
+</ul>
+
+<p>For the full argument list, see the <a href="https://arrow.apache.org/docs/r/reference/write_parquet.html">arrow write_parquet reference</a> on arrow.apache.org.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I write a data frame to a Parquet file in R?</strong></p>
+
+<p>Load the arrow package and call <code>write_parquet(df, &quot;data.parquet&quot;)</code>. The first argument is the data frame or tibble, and the second is the output path. The function writes the data in Parquet's compressed columnar format, stores the column types in the file, and returns the input data frame invisibly so it works inside a pipe.</p>
+
+<p><strong>What compression should I use with write_parquet()?</strong></p>
+
+<p>The default <code>&quot;snappy&quot;</code> codec writes quickly and is a safe general choice. Use <code>compression = &quot;zstd&quot;</code> when you want the smallest file and can spend a little more time writing, which suits archival data. Use <code>&quot;gzip&quot;</code> only when a downstream tool specifically expects gzip. All codecs produce a file that reads back to identical data.</p>
+
+<p><strong>Can I append data to a Parquet file in R?</strong></p>
+
+<p>No. Parquet has no append mode, so write_parquet() always writes a complete file and overwrites any file already at that path. To grow a dataset, write each new batch as a separate Parquet file inside one folder, then read the whole folder together with <code>open_dataset()</code>, which treats the files as a single table.</p>
+
+<p><strong>Is a Parquet file smaller than a CSV file?</strong></p>
+
+<p>Usually, yes, often by a wide margin. write_parquet() compresses each column separately and stores numbers in a compact binary form instead of as text. A CSV writer stores every value as characters with no compression by default. For large analytic tables, a Parquet file is commonly several times smaller than the same data as CSV.</p>
+
+<p><strong>How do I write multiple Parquet files at once?</strong></p>
+
+<p>Use <code>write_dataset()</code> rather than write_parquet(). Calling <code>write_dataset(df, &quot;folder/&quot;, partitioning = &quot;grp&quot;)</code> splits the data by the <code>grp</code> column and writes one Parquet file per partition into the folder. This is the standard way to create a dataset that <code>open_dataset()</code> can later query without loading everything into memory.</p>
