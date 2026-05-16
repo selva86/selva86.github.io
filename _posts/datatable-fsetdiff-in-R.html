@@ -1,0 +1,358 @@
+---
+title: "data.table fsetdiff() in R: Set Difference of Tables"
+description: "Learn data.table fsetdiff() in R to find rows in one table that are not in another. Covers syntax, the all argument, fsetdiff vs setdiff, and pitfalls."
+keywords: "data.table fsetdiff, fsetdiff function R, data.table fsetdiff examples, R set difference data.table, fsetdiff vs setdiff, fsetdiff all argument, set difference rows R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fsetdiff()|data.table fsetdiff|data.table::fsetdiff()|fsetdiff|set difference in R"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table fsetdiff() in R: Set Difference of Tables</h1>
+
+<p class="lead">The data.table fsetdiff() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the rows of one table that are not present in another, the set difference of two tables. It is the row-wise equivalent of SQL's EXCEPT.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fsetdiff(x, y)<span class="qa-cmt">                       # rows in x not in y, distinct</span>
+fsetdiff(x, y, all = TRUE)<span class="qa-cmt">           # keep duplicate row counts</span>
+fsetdiff(new, old)<span class="qa-cmt">                   # rows added since the old table</span>
+fsetdiff(old, new)<span class="qa-cmt">                   # rows removed since the old table</span>
+fsetdiff(DT1[, .(id)], DT2[, .(id)])<span class="qa-cmt"> # diff on selected columns only</span>
+setdiff(v1, v2)<span class="qa-cmt">                      # vector version, single column</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fsetdiff() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rows in one table not another</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fsetdiff(x, y)</text><text x="125" y="126" class="branch-label">rows common to both tables</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fintersect(x, y)</text><text x="125" y="182" class="branch-label">all rows of both, deduplicated</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">funion(x, y)</text><text x="125" y="238" class="branch-label">check whether two tables are equal</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fsetequal(x, y)</text><text x="125" y="294" class="branch-label">difference of two plain vectors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setdiff(v1, v2)</text><text x="125" y="350" class="branch-label">rows of x with no key match in y</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">x[!y, on = &quot;id&quot;]</text></svg></div>
+
+<h2>What fsetdiff() does</h2>
+
+<p><strong>fsetdiff() takes the set difference of two tables, returning every row of <code>x</code> that does not appear in <code>y</code>.</strong> You pass two data.tables with the same columns. The function compares them row by row and keeps the rows from <code>x</code> that have no match in <code>y</code>.</p>
+
+<p>It is data.table's tool for answering "what changed between these two tables". A typical case is comparing an old snapshot against a new one to list added or removed records. Base R's <code>setdiff()</code> only works on vectors, so it cannot compare multi-column rows. <code>fsetdiff()</code> fills that gap and runs as fast C code, which matters once the tables grow large.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fsetdiff() compares whole rows, not single columns.</strong> Two rows match only when every column value is equal. This is exactly how SQL's <code>EXCEPT</code> behaves: the difference is computed over the full row, so a table with five columns is diffed across all five at once.</div></div>
+
+<h2>fsetdiff() syntax</h2>
+
+<p><strong>The call takes two tables and one optional <code>all</code> flag.</strong> The signature is <code>fsetdiff(x, y, all = FALSE)</code>. Here <code>x</code> and <code>y</code> are the two tables to compare, and <code>all</code> controls whether duplicate rows are kept in the result.</p>
+
+<div class="webr-container" data-block-title="The fsetdiff call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fsetdiff call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- data.table(id = 1:4, grp = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;))
+y &lt;- data.table(id = c(3L, 4L, 5L), grp = c(&quot;b&quot;, &quot;b&quot;, &quot;c&quot;))
+fsetdiff(x, y)
+#&gt;       id    grp
+#&gt;    &lt;int&gt; &lt;char&gt;
+#&gt; 1:     1      a
+#&gt; 2:     2      a</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rules govern every call. Both tables must have the same number of columns, and matching columns must share a type, because rows are compared position by position. The result keeps the column names and row order of <code>x</code>. With the default <code>all = FALSE</code>, the output holds only distinct rows, mirroring SQL <code>EXCEPT</code>. See the official <a href="https://rdatatable.gitlab.io/data.table/reference/setops.html">data.table set operations reference</a> for the full argument list.</p>
+
+<h2>fsetdiff() examples</h2>
+
+<p><strong>These examples cover the four most common fsetdiff() tasks.</strong> Each one shows a different real job: a basic two-table difference, finding added rows, finding removed rows, and a duplicate-aware difference.</p>
+
+<p>The first example takes two small tables and keeps the rows of <code>x</code> that <code>y</code> does not contain. Rows <code>id = 3</code> and <code>id = 4</code> exist in both, so only the first two rows survive.</p>
+
+<div class="webr-container" data-block-title="Basic difference of two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic difference of two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_a &lt;- data.table(region = c(&quot;N&quot;, &quot;N&quot;, &quot;S&quot;, &quot;E&quot;),
+                       units  = c(10, 20, 30, 40))
+sales_b &lt;- data.table(region = c(&quot;S&quot;, &quot;E&quot;),
+                       units  = c(30, 40))
+fsetdiff(sales_a, sales_b)
+#&gt;    region units
+#&gt;    &lt;char&gt; &lt;num&gt;
+#&gt; 1:      N    10
+#&gt; 2:      N    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A frequent use is comparing two snapshots to list new records. Here two slices of <code>mtcars</code> overlap, and <code>fsetdiff()</code> returns the cars present in the newer slice but absent from the older one.</p>
+
+<div class="webr-container" data-block-title="Find rows added between two snapshots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find rows added between two snapshots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars_v1 &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)[1:6, .(model, mpg, cyl)]
+cars_v2 &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)[4:9, .(model, mpg, cyl)]
+fsetdiff(cars_v2, cars_v1)
+#&gt;         model   mpg   cyl
+#&gt;        &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: Duster 360  14.3     8
+#&gt; 2:  Merc 240D  24.4     4
+#&gt; 3:   Merc 230  22.8     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Swapping the argument order answers the opposite question: which rows were removed. The same two slices now report the cars that were in the old snapshot but dropped out of the new one.</p>
+
+<div class="webr-container" data-block-title="Find rows removed between two snapshots">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find rows removed between two snapshots</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fsetdiff(cars_v1, cars_v2)
+#&gt;            model   mpg   cyl
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Mazda RX4  21.0     6
+#&gt; 2: Mazda RX4 Wag  21.0     6
+#&gt; 3:    Datsun 710  22.8     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setting <code>all = TRUE</code> switches to multiset semantics, like SQL <code>EXCEPT ALL</code>. The default drops duplicates; <code>all = TRUE</code> keeps a row as many times as its count in <code>x</code> exceeds its count in <code>y</code>.</p>
+
+<div class="webr-container" data-block-title="Keep duplicate rows with all = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep duplicate rows with all = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- data.table(v = c(1, 1, 2, 2, 2, 3))
+b &lt;- data.table(v = c(1, 2))
+fsetdiff(a, b)
+#&gt;        v
+#&gt;    &lt;num&gt;
+#&gt; 1:     3
+fsetdiff(a, b, all = TRUE)
+#&gt;        v
+#&gt;    &lt;num&gt;
+#&gt; 1:     1
+#&gt; 2:     2
+#&gt; 3:     2
+#&gt; 4:     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>all = TRUE</code> when row counts carry meaning.</strong> Order lines, log entries, and transaction records often repeat on purpose. With the default <code>all = FALSE</code> those repeats collapse to one row, which silently understates the difference. Keep <code>all = TRUE</code> whenever each duplicate is a distinct event.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> Pandas has no single set-difference function for rows. The common idiom is a left merge with an indicator, <code>x.merge(y, how=&quot;left&quot;, indicator=True)</code> followed by keeping the rows where <code>_merge == &quot;left_only&quot;</code>.</div></div>
+
+<h2>fsetdiff vs setdiff vs anti_join</h2>
+
+<p><strong>Pick the function that matches your data shape and how rows are compared.</strong> All of these subtract one collection from another, but they differ in what they operate on.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Operates on</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fsetdiff()</code></td>
+<td>data.table</td>
+<td>whole rows of tables</td>
+<td>row-level difference of two tables</td>
+</tr>
+<tr>
+<td><code>setdiff()</code></td>
+<td>base R</td>
+<td>vectors, single column</td>
+<td>difference of two plain vectors</td>
+</tr>
+<tr>
+<td><code>anti_join()</code></td>
+<td>dplyr</td>
+<td>tables, matched by key</td>
+<td>rows of <code>x</code> with no key match in <code>y</code></td>
+</tr>
+<tr>
+<td><code>fintersect()</code></td>
+<td>data.table</td>
+<td>whole rows of tables</td>
+<td>rows common to both tables</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>fsetdiff()</code> when you compare entire rows of two tables that share the same columns, and you want the SQL <code>EXCEPT</code> behaviour. Drop to base <code>setdiff()</code> only for a single vector or one column. Choose <code>anti_join()</code> when the two tables have different columns and you want to match on a key rather than on every column. Reach for <code>fintersect()</code> when you need the rows the two tables have in common instead of the difference.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most fsetdiff() bugs trace back to mismatched columns, argument order, or the silent de-duplication.</strong> All three surface quickly once you know the symptom.</p>
+
+<p>The tables must have the same number of columns. A column-count mismatch fails loudly before any comparison runs.</p>
+
+<div class="webr-container" data-block-title="Both tables need the same columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Both tables need the same columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fsetdiff(x, data.table(id = 1:4))
+#&gt; Error in fsetdiff(x, data.table(id = 1:4)) :
+#&gt;   x and y must have the same number of columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>fsetdiff() is not symmetric, so argument order changes the answer.</strong> <code>fsetdiff(x, y)</code> and <code>fsetdiff(y, x)</code> return different tables. The first lists rows only in <code>x</code>; the second lists rows only in <code>y</code>. Always put the table you are subtracting from first.</div></div>
+
+<div class="webr-container" data-block-title="Argument order is not symmetric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Argument order is not symmetric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- data.table(v = 1:3)
+q &lt;- data.table(v = 2:4)
+list(p_minus_q = fsetdiff(p, q)$v,
+     q_minus_p = fsetdiff(q, p)$v)
+#&gt; $p_minus_q
+#&gt; [1] 1
+#&gt;
+#&gt; $q_minus_p
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Finally, the default <code>all = FALSE</code> removes duplicate rows from the result even when nothing in <code>y</code> matched them. Here <code>y</code> is empty, yet the repeated <code>5</code> collapses to a single row.</p>
+
+<div class="webr-container" data-block-title="The default drops duplicate rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The default drops duplicate rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dups &lt;- data.table(v = c(5, 5, 6))
+fsetdiff(dups, data.table(v = numeric(0)))
+#&gt;        v
+#&gt;    &lt;num&gt;
+#&gt; 1:     5
+#&gt; 2:     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have two product catalogs, catalog_2023 and catalog_2024. Use fsetdiff() to find the SKUs that appear in catalog_2024 but were not in catalog_2023, the new arrivals. Save the result to ex_new.</p>
+<div class="webr-container" data-block-title="Your turn: find new products">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find new products</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">catalog_2023 &lt;- data.table(sku = c(&quot;A1&quot;, &quot;B2&quot;, &quot;C3&quot;))
+catalog_2024 &lt;- data.table(sku = c(&quot;B2&quot;, &quot;C3&quot;, &quot;D4&quot;, &quot;E5&quot;))
+ex_new &lt;- # your code here
+
+ex_new
+#&gt; Expected: D4 and E5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">catalog_2023 &lt;- data.table(sku = c(&quot;A1&quot;, &quot;B2&quot;, &quot;C3&quot;))
+catalog_2024 &lt;- data.table(sku = c(&quot;B2&quot;, &quot;C3&quot;, &quot;D4&quot;, &quot;E5&quot;))
+ex_new &lt;- fsetdiff(catalog_2024, catalog_2023)
+ex_new
+#&gt;       sku
+#&gt;    &lt;char&gt;
+#&gt; 1:     D4
+#&gt; 2:     E5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing the newer table as <code>x</code> and the older one as <code>y</code> returns the rows that exist only in the newer catalog. <code>B2</code> and <code>C3</code> appear in both, so they are subtracted out, leaving the two genuinely new SKUs.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>fsetdiff() is one of data.table's four fast set operations.</strong> These functions pair well with it for combining and comparing tables:</p>
+
+<ul>
+
+<li><code>funion()</code>: stack two tables and drop duplicate rows. See <a href="datatable-funion-in-R.html">data.table funion in R</a>.</li>
+
+<li><code>fintersect()</code>: keep only the rows common to both tables. See <a href="datatable-fintersect-in-R.html">data.table fintersect in R</a>.</li>
+
+<li><code>uniqueN()</code>: count the distinct rows or values in a result. See <a href="datatable-uniqueN-in-R.html">data.table uniqueN in R</a>.</li>
+
+<li><code>rbindlist()</code>: combine many tables into one before a diff. See <a href="datatable-rbindlist-in-R.html">data.table rbindlist in R</a>.</li>
+
+<li><code>merge()</code>: key-based join when the tables have different columns. See <a href="datatable-merge-in-R.html">data.table merge in R</a>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fsetdiff() and setdiff()?</strong></p>
+
+<p>Base R's <code>setdiff()</code> works on vectors, so it can only compare one column of values at a time. <code>fsetdiff()</code> works on whole tables and compares every row across all of its columns at once. If you pass single-column tables, the two return equivalent results, but <code>fsetdiff()</code> keeps the data.table structure and runs as optimized C code. Use <code>setdiff()</code> for plain vectors and <code>fsetdiff()</code> whenever the comparison spans more than one column.</p>
+
+<p><strong>Does fsetdiff() keep duplicate rows?</strong></p>
+
+<p>Not by default. With <code>all = FALSE</code>, which is the default, the result holds only distinct rows, exactly like SQL <code>EXCEPT</code>. Set <code>all = TRUE</code> to switch to multiset semantics, like SQL <code>EXCEPT ALL</code>. In that mode a row appears in the output as many times as its count in <code>x</code> exceeds its count in <code>y</code>. Choose <code>all = TRUE</code> when each duplicate is a separate, meaningful record such as an order line or a log event.</p>
+
+<p><strong>Can fsetdiff() compare data.frames, not just data.tables?</strong></p>
+
+<p>Yes. <code>fsetdiff()</code> accepts plain data.frames as well as data.tables, and it returns a data.table either way. The only requirement is that both inputs have the same number of columns and that matching columns share a type. If you work mainly with data.frames, you can call <code>fsetdiff()</code> directly without converting first, though converting once with <code>setDT()</code> is worth it when you run many operations.</p>
+
+<p><strong>Why does fsetdiff() return a different result when I swap the arguments?</strong></p>
+
+<p>Because set difference is directional. <code>fsetdiff(x, y)</code> returns rows that are in <code>x</code> but not in <code>y</code>, while <code>fsetdiff(y, x)</code> returns rows in <code>y</code> but not in <code>x</code>. The two answers are different sets, so the order of arguments is not interchangeable. When comparing an old and a new table, decide which question you are asking: pass the new table first to find added rows, and the old table first to find removed rows.</p>
+
+</content>
+
+</invoke>
