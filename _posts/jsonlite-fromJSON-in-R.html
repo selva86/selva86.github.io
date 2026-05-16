@@ -1,0 +1,337 @@
+---
+title: "jsonlite fromJSON() in R: Parse JSON Into R Objects"
+description: "Learn jsonlite fromJSON() in R to parse JSON strings, files, and URLs into lists and data frames. Covers syntax, simplifyVector, flatten, and common errors."
+keywords: "jsonlite fromJSON, fromJSON function R, jsonlite fromJSON examples, read JSON in R, parse JSON R, fromJSON data frame, R JSON to data frame"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fromJSON()|jsonlite fromJSON|jsonlite::fromJSON()|parse JSON in R|read JSON in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>jsonlite fromJSON() in R: Parse JSON Into R Objects</h1>
+
+<p class="lead">The jsonlite fromJSON() function parses JSON into native R objects. It reads a JSON string, file path, or URL and returns a list, vector, or data frame, automatically simplifying the structure where it can.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fromJSON('{&quot;a&quot;:1,&quot;b&quot;:2}')<span class="qa-cmt">                     # JSON object to a named list</span>
+fromJSON('[1,2,3]')<span class="qa-cmt">                           # JSON array to an atomic vector</span>
+fromJSON('[{&quot;x&quot;:1},{&quot;x&quot;:2}]')<span class="qa-cmt">                 # array of objects to a data frame</span>
+fromJSON(txt, simplifyVector = FALSE)<span class="qa-cmt">         # keep everything as nested lists</span>
+fromJSON(txt, flatten = TRUE)<span class="qa-cmt">                 # flatten nested data frame columns</span>
+fromJSON(&quot;data.json&quot;)<span class="qa-cmt">                         # parse a JSON file by path</span>
+fromJSON(&quot;https://api.example.com/data&quot;)<span class="qa-cmt">      # parse JSON straight from a URL</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fromJSON() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">parse a JSON string or file into R</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fromJSON(txt)</text><text x="125" y="126" class="branch-label">keep JSON literal, never simplify</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">parse_json(txt)</text><text x="125" y="182" class="branch-label">read a JSON file with explicit path semantics</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_json(&quot;data.json&quot;)</text><text x="125" y="238" class="branch-label">write an R object back to JSON</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">toJSON(x)</text><text x="125" y="294" class="branch-label">stream large line-delimited JSON</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">stream_in(file(&quot;big.ndjson&quot;))</text><text x="125" y="350" class="branch-label">the file is actually CSV, not JSON</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a>(&quot;data.csv&quot;)</text></svg></div>
+
+<h2>What fromJSON() does</h2>
+
+<p><strong>fromJSON() converts JSON text into the closest matching R object.</strong> You pass it JSON and it returns a list, an atomic vector, or a data frame, depending on the shape of the input. The argument can be a literal JSON string, a path to a <code>.json</code> file, or an <code>http://</code> URL, and fromJSON() detects which one it received.</p>
+
+<p>The function does more than a literal translation. By default it runs a simplification step that turns JSON arrays into vectors and arrays of flat objects into data frames. That mapping makes jsonlite practical: API responses arrive as nested JSON, and fromJSON() lands them as a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>Most calls pass only the JSON itself; the remaining arguments control how aggressively fromJSON() simplifies the result.</strong> Web APIs return predictable shapes, so once you know the structure you can tune these flags to get exactly the object you want.</p>
+
+<div class="webr-container" data-block-title="The fromJSON signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fromJSON signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fromJSON(
+  txt,                       # JSON string, file path, or URL
+  simplifyVector = TRUE,     # collapse primitive arrays into vectors
+  simplifyDataFrame = TRUE,  # collapse arrays of objects into data frames
+  simplifyMatrix = TRUE,     # collapse nested arrays into matrices
+  flatten = FALSE            # pull nested object columns up to the top level
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three <code>simplify*</code> arguments all default to the value of <code>simplifyVector</code>, so setting <code>simplifyVector = FALSE</code> turns off simplification entirely and returns raw <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a>. The <code>flatten</code> argument is separate: it leaves simplification on but unpacks nested <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> into dotted column names like <code>loc.lat</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is <code>pandas.read_json()</code>, which also maps a JSON array of objects to a tabular structure. fromJSON() differs by returning either a base R data frame or a plain list, and you choose the shape with the <code>simplify*</code> flags rather than an <code>orient</code> argument.</div></div>
+
+<h2>fromJSON() examples</h2>
+
+<p><strong>Every example below uses a literal JSON string, so each block runs on its own with no file or network access.</strong> Start by loading jsonlite, then parse a simple JSON object.</p>
+
+<div class="webr-container" data-block-title="Parse a JSON object into a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse a JSON object into a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(jsonlite)
+
+person &lt;- fromJSON('{&quot;name&quot;: &quot;Ada&quot;, &quot;age&quot;: 36, &quot;active&quot;: true}')
+person
+#&gt; $name
+#&gt; [1] &quot;Ada&quot;
+#&gt;
+#&gt; $age
+#&gt; [1] 36
+#&gt;
+#&gt; $active
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A JSON object has named keys but no tabular shape, so fromJSON() returns a named list. JSON <code>true</code> becomes R <code>TRUE</code>, and the numeric value stays numeric.</p>
+
+<p><strong>An array of flat objects is the case fromJSON() simplifies into a data frame.</strong> This is the typical shape of an API result: a list of records that all share the same keys.</p>
+
+<div class="webr-container" data-block-title="Parse an array of objects into a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse an array of objects into a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- fromJSON('[
+  {&quot;city&quot;: &quot;Paris&quot;, &quot;pop&quot;: 2.1},
+  {&quot;city&quot;: &quot;Oslo&quot;,  &quot;pop&quot;: 0.7},
+  {&quot;city&quot;: &quot;Lima&quot;,  &quot;pop&quot;: 9.7}
+]')
+records
+#&gt;    city pop
+#&gt; 1 Paris 2.1
+#&gt; 2  Oslo 0.7
+#&gt; 3  Lima 9.7
+class(records)
+#&gt; [1] &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Turn simplification off with <code>simplifyVector = FALSE</code> when you want the raw structure.</strong> This is useful for ragged JSON where records do not share the same keys, since forcing a data frame would misalign the columns.</p>
+
+<div class="webr-container" data-block-title="Keep the result as nested lists">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the result as nested lists</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw &lt;- fromJSON(
+  '[{&quot;city&quot;: &quot;Paris&quot;, &quot;pop&quot;: 2.1}, {&quot;city&quot;: &quot;Oslo&quot;, &quot;pop&quot;: 0.7}]',
+  simplifyVector = FALSE
+)
+length(raw)
+#&gt; [1] 2
+raw[[1]]$city
+#&gt; [1] &quot;Paris&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use <code>flatten = TRUE</code> when records contain nested objects.</strong> Without it, a nested object becomes a data frame column that holds another data frame, which is awkward to index.</p>
+
+<div class="webr-container" data-block-title="Flatten nested object columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flatten nested object columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- fromJSON('[
+  {&quot;id&quot;: 1, &quot;loc&quot;: {&quot;lat&quot;: 48.8, &quot;lon&quot;: 2.3}},
+  {&quot;id&quot;: 2, &quot;loc&quot;: {&quot;lat&quot;: 59.9, &quot;lon&quot;: 10.7}}
+]', flatten = TRUE)
+nested
+#&gt;   id loc.lat loc.lon
+#&gt; 1  1    48.8     2.3
+#&gt; 2  2    59.9    10.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pretty-print before you debug.</strong> When an API response is hard to read, wrap the raw string in <code>prettify()</code> to see the indented structure, or call <code>toJSON(x, pretty = TRUE)</code> on a parsed object. Seeing the nesting makes it obvious whether you need <code>flatten = TRUE</code>.</div></div>
+
+<h2>fromJSON() vs read_json(), parse_json() and toJSON()</h2>
+
+<p><strong>fromJSON() is one of several jsonlite functions, and the right choice depends on your input and how much simplification you want.</strong> They share an engine, so the difference is mostly behaviour at the edges.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Direction</th>
+<th>Simplifies?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fromJSON()</code></td>
+<td>JSON to R</td>
+<td>Yes, by default</td>
+<td>Strings, files, or URLs you want as data frames</td>
+</tr>
+<tr>
+<td><code>read_json()</code></td>
+<td>JSON file to R</td>
+<td>No, by default</td>
+<td>A file path, kept as nested lists</td>
+</tr>
+<tr>
+<td><code>parse_json()</code></td>
+<td>JSON string to R</td>
+<td>No</td>
+<td>A literal string, kept exactly as written</td>
+</tr>
+<tr>
+<td><code>toJSON()</code></td>
+<td>R to JSON</td>
+<td>n/a</td>
+<td>Writing an R object back out as JSON</td>
+</tr>
+<tr>
+<td><code>stream_in()</code></td>
+<td>NDJSON to R</td>
+<td>Yes</td>
+<td>Large line-delimited JSON files</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>fromJSON()</code> when you want JSON converted into the most convenient R object with the least code. Reach for <code>read_json()</code> or <code>parse_json()</code> when you need the literal structure preserved, for example when keys vary between records. Use <code>toJSON()</code> for the reverse trip.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Simplification is the whole point of fromJSON().</strong> The same JSON can land as a list or a data frame depending on one flag. If a result is not the shape you expected, the fix is almost always a <code>simplifyVector</code> or <code>flatten</code> argument, not a manual loop to reshape the output.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Passing malformed JSON.</strong> fromJSON() validates the text before parsing, so a missing value, an extra comma, or an unclosed brace stops it with a lexical error that names the position.</p>
+
+<div class="webr-container" data-block-title="Pitfall: malformed JSON">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: malformed JSON</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># fromJSON('{&quot;name&quot;: &quot;Ada&quot;, &quot;age&quot;:}')
+#&gt; Error: lexical error: invalid char in json text.
+fromJSON('{&quot;name&quot;: &quot;Ada&quot;, &quot;age&quot;: 36}')   # correct: every key has a value
+#&gt; $name
+#&gt; [1] &quot;Ada&quot;
+#&gt;
+#&gt; $age
+#&gt; [1] 36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Using single quotes inside the JSON.</strong> The JSON standard requires double quotes around every key and string. A string like <code>&quot;{&#x27;a&#x27;: 1}&quot;</code> is valid R but invalid JSON, and fromJSON() rejects it. Keep the outer R quotes single and the inner JSON quotes double.</p>
+
+<p><strong>Expecting a data frame from ragged records.</strong> fromJSON() builds a data frame only when the objects in an array share their keys. If some records miss a key, simplification fills the gaps with <code>NA</code>, hiding the fact that the source data is inconsistent.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Reading from a URL needs a live connection.</strong> When <code>txt</code> looks like a URL, fromJSON() fetches it over the network. In a restricted environment that call fails or hangs. Download the file first, or parse a literal string, when you need a result that does not depend on connectivity.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Parse the JSON array below into a data frame, then compute the mean of the <code>score</code> column. Save the result to <code>ex_mean</code>.</p>
+<div class="webr-container" data-block-title="Your turn: parse JSON and summarise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: parse JSON and summarise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: parse JSON, mean of the score column
+ex_json &lt;- '[{&quot;name&quot;:&quot;A&quot;,&quot;score&quot;:80},{&quot;name&quot;:&quot;B&quot;,&quot;score&quot;:92},{&quot;name&quot;:&quot;C&quot;,&quot;score&quot;:71}]'
+ex_df &lt;- # your code here
+
+ex_mean &lt;- # your code here
+ex_mean
+#&gt; Expected: about 81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_json &lt;- '[{&quot;name&quot;:&quot;A&quot;,&quot;score&quot;:80},{&quot;name&quot;:&quot;B&quot;,&quot;score&quot;:92},{&quot;name&quot;:&quot;C&quot;,&quot;score&quot;:71}]'
+ex_df &lt;- fromJSON(ex_json)
+ex_mean &lt;- mean(ex_df$score)
+ex_mean
+#&gt; [1] 81</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The JSON array of flat objects simplifies to a data frame, so <code>ex_df$score</code> is an ordinary numeric column that <code>mean()</code> summarises directly.</p>
+
+</details>
+</section>
+
+<h2>Related jsonlite functions</h2>
+
+<p><strong>fromJSON() sits in a small family of jsonlite functions for moving data between JSON and R.</strong> Pick the one that matches the direction you need and how much structure you want preserved.</p>
+
+<ul>
+
+<li><code>toJSON()</code>: serialize an R object back into a JSON string, the inverse of fromJSON().</li>
+
+<li><code>read_json()</code>: read a JSON file by path, without simplification by default.</li>
+
+<li><code>write_json()</code>: write an R object straight to a <code>.json</code> file on disk.</li>
+
+<li><code>parse_json()</code>: parse a literal JSON string while keeping the exact nested structure.</li>
+
+<li><code>stream_in()</code>: read large newline-delimited JSON (NDJSON) one record at a time.</li>
+
+<li><code>prettify()</code>: re-indent a JSON string so you can read its structure.</li>
+
+<li><code>validate()</code>: check whether a string is well-formed JSON before parsing.</li>
+
+</ul>
+
+<p>For the full argument reference, see the <a href="https://cran.r-project.org/web/packages/jsonlite/jsonlite.pdf">jsonlite fromJSON() documentation</a> on CRAN.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I read a JSON file in R?</strong></p>
+
+<p>Install jsonlite with <code>install.packages(&quot;jsonlite&quot;)</code>, load it with <code>library(jsonlite)</code>, then call <code>fromJSON(&quot;path/to/file.json&quot;)</code>. The function detects that the argument is a file path, reads the file, and returns the parsed object. The path can be absolute or relative to your working directory.</p>
+
+<p><strong>What is the difference between fromJSON and read_json?</strong></p>
+
+<p>Both parse JSON, but they differ in defaults. <code>fromJSON()</code> accepts a string, file path, or URL and simplifies the result into vectors and data frames by default. <code>read_json()</code> is meant for file paths and returns the literal nested-list structure with no simplification. Use <code>fromJSON()</code> when you want a tidy data frame with minimal code, and <code>read_json()</code> when the exact structure matters or records have varying keys.</p>
+
+<p><strong>How do I convert JSON to a data frame in R?</strong></p>
+
+<p>Pass a JSON array of flat objects to <code>fromJSON()</code>. When every object in the array shares the same keys, the default <code>simplifyDataFrame = TRUE</code> collapses the array into a data frame with one row per object and one column per key. If the JSON contains nested objects, add <code>flatten = TRUE</code> so the nested fields become dotted columns instead of list-columns.</p>
+
+<p><strong>Why does fromJSON return a list instead of a data frame?</strong></p>
+
+<p>fromJSON() returns a data frame only for a JSON array of objects that share their keys. A single JSON object becomes a named list, and an array whose elements have different shapes stays a list because no consistent table exists. Check the JSON shape, and if you expected a table, confirm the input is an array <code>[ ... ]</code> of objects rather than one object <code>{ ... }</code>.</p>
+
+<p><strong>Can fromJSON read JSON directly from a URL?</strong></p>
+
+<p>Yes. When the <code>txt</code> argument starts with <code>http://</code> or <code>https://</code>, fromJSON() fetches the content over the network and parses the response in one step. This needs a live internet connection, so in an offline environment, download the file first and parse it locally.</p>
