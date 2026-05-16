@@ -1,0 +1,343 @@
+---
+title: "fst read_fst() in R: Read .fst Data Files Fast"
+description: "read_fst() in R loads .fst binary files into a data frame at high speed, with column selection and row ranges. See syntax, examples, and common pitfalls."
+keywords: "fst read_fst, read_fst function R, fst read_fst examples, read .fst file R, read_fst R, fst package read"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "read_fst()|fst read_fst|fst::read_fst()|read .fst file|read_fst"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>fst read_fst() in R: Read .fst Data Files Fast</h1>
+
+<p class="lead">read_fst() in the fst package reads a .fst binary file into an <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frame</a> fast, with optional <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a> and row ranges so you load only the data you need.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_fst(&quot;data.fst&quot;)<span class="qa-cmt">                          # read the whole file</span>
+read_fst(&quot;data.fst&quot;, columns = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">   # selected columns only</span>
+read_fst(&quot;data.fst&quot;, from = 1, to = 1000)<span class="qa-cmt">     # first 1000 rows</span>
+read_fst(&quot;data.fst&quot;, as.data.table = TRUE)<span class="qa-cmt">    # return a data.table</span>
+metadata_fst(&quot;data.fst&quot;)<span class="qa-cmt">                      # inspect without loading</span>
+write_fst(df, &quot;data.fst&quot;, compress = 50)<span class="qa-cmt">      # create a .fst file</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is read_fst() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">read a .fst binary file</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_fst(&quot;data.fst&quot;)</text><text x="125" y="126" class="branch-label">read a CSV text file</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">read_csv(&quot;data.csv&quot;)</text><text x="125" y="182" class="branch-label">read a Parquet file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">read_parquet</a>(&quot;data.parquet&quot;)</text><text x="125" y="238" class="branch-label">read an R serialized object</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">readRDS(&quot;data.rds&quot;)</text><text x="125" y="294" class="branch-label">read an Excel workbook</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel</a>(&quot;data.xlsx&quot;)</text><text x="125" y="350" class="branch-label">inspect a .fst file without loading it</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">metadata_fst(&quot;data.fst&quot;)</text></svg></div>
+
+<h2>What read_fst() does</h2>
+
+<p><strong>read_fst() loads a .fst binary file into an R data frame.</strong> The fst package stores data frames in a compressed, columnar format on disk. Because the layout is columnar and indexed, read_fst() can pull back a few columns or a slice of rows without scanning the whole file. That makes it the fastest practical way to reload a large data frame between R sessions.</p>
+
+<p>A .fst file is produced by <code>write_fst()</code>. Once written, the file is self-describing: it records column names, column types, the row count, and the compression level. read_fst() reads that header first, then decompresses only the blocks you ask for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Columnar storage is why read_fst() is fast.</strong> A CSV is parsed line by line and every value is converted from text. A .fst file stores each column as a typed, compressed binary block, so a read is mostly a memory copy plus decompression.</div></div>
+
+<h2>read_fst() syntax and arguments</h2>
+
+<p><strong>read_fst() takes a file path plus four optional arguments.</strong> The basic call is <code>read_fst(path, columns, from, to, as.data.table)</code>. Only <code>path</code> is required; the rest default to reading the entire file as a plain data frame.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path</code></td>
+<td>(required)</td>
+<td>Path to the .fst file to read</td>
+</tr>
+<tr>
+<td><code>columns</code></td>
+<td><code>NULL</code></td>
+<td>Character vector of columns to read; <code>NULL</code> reads all</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td><code>1</code></td>
+<td>First row to read, 1-indexed and inclusive</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td><code>NULL</code></td>
+<td>Last row to read; <code>NULL</code> reads to the final row</td>
+</tr>
+<tr>
+<td><code>as.data.table</code></td>
+<td><code>FALSE</code></td>
+<td>If <code>TRUE</code>, return a <code>data.table</code> instead of a <code>data.frame</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>columns</code>, <code>from</code>, and <code>to</code> arguments are the reason to choose .fst over <code>.rds</code>. They let you read a subset of a large file straight from disk, instead of loading everything into memory and then subsetting.</p>
+
+<h2>Reading .fst files: four common cases</h2>
+
+<p><strong>Start by writing a sample .fst file so the reads have something to load.</strong> The block below builds a 10,000-row data frame and saves it with <code>write_fst()</code>. Every later example reads this file back.</p>
+
+<div class="webr-container" data-block-title="Create a sample fst file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a sample fst file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fst)
+
+sales &lt;- data.frame(
+  region = rep(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), 2500),
+  units  = sample(1:100, 10000, replace = TRUE),
+  price  = round(runif(10000, 5, 50), 2)
+)
+
+write_fst(sales, &quot;sales.fst&quot;, compress = 50)
+nrow(sales)
+#&gt; [1] 10000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Case 1: read the entire file.</strong> Pass only the path to load every row and column back into a data frame.</p>
+
+<div class="webr-container" data-block-title="Read an entire fst file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read an entire fst file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_all &lt;- read_fst(&quot;sales.fst&quot;)
+
+dim(sales_all)
+#&gt; [1] 10000     3
+head(sales_all, 3)
+#&gt;   region units price
+#&gt; 1  North    43 31.07
+#&gt; 2  North    12  8.55
+#&gt; 3  North    77 44.92</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Case 2: read selected columns.</strong> Pass a character vector to <code>columns</code>. fst decompresses only those columns, which is faster and uses less memory than loading the full frame.</p>
+
+<div class="webr-container" data-block-title="Read selected columns only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read selected columns only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- read_fst(&quot;sales.fst&quot;, columns = c(&quot;region&quot;, &quot;price&quot;))
+
+names(prices)
+#&gt; [1] &quot;region&quot; &quot;price&quot;
+ncol(prices)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Selecting columns is the biggest single speed win.</strong> When a file has dozens of columns and you need three, <code>columns = c(...)</code> skips decompression of everything else, so the read scales with what you ask for, not with the file size.</div></div>
+
+<p><strong>Case 3: read a range of rows.</strong> Use <code>from</code> and <code>to</code> to pull a window of rows. Both bounds are inclusive, so <code>from = 1, to = 500</code> returns exactly 500 rows.</p>
+
+<div class="webr-container" data-block-title="Read a range of rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read a range of rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">chunk &lt;- read_fst(&quot;sales.fst&quot;, from = 1, to = 500)
+
+nrow(chunk)
+#&gt; [1] 500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Case 4: inspect metadata, or return a data.table.</strong> <code>metadata_fst()</code> reads the header only, with no data load, so you can check the shape of a file before committing memory to it. Set <code>as.data.table = TRUE</code> when you want a <code>data.table</code> back.</p>
+
+<div class="webr-container" data-block-title="Inspect metadata and return a data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect metadata and return a data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">metadata_fst(&quot;sales.fst&quot;)
+#&gt; &lt;fst file&gt;
+#&gt; 10000 rows, 3 columns (sales.fst)
+#&gt; * 'region': character
+#&gt; * 'units' : integer
+#&gt; * 'price' : double
+
+dt &lt;- read_fst(&quot;sales.fst&quot;, columns = &quot;units&quot;, as.data.table = TRUE)
+class(dt)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>read_fst() vs other ways to load data</h2>
+
+<p><strong>read_fst() wins when you reload large data frames repeatedly.</strong> It is faster than <code>readRDS()</code> and far faster than <code>read_csv()</code>, and unlike either it supports partial reads. The trade-off is that .fst is an R-focused binary format, so it is a session cache, not an interchange format.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>File format</th>
+<th>Read speed</th>
+<th>Partial read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_fst()</code></td>
+<td><code>.fst</code> binary</td>
+<td>Fastest</td>
+<td>Yes, columns and rows</td>
+</tr>
+<tr>
+<td><code>readRDS()</code></td>
+<td><code>.rds</code> binary</td>
+<td>Fast</td>
+<td>No, loads the whole object</td>
+</tr>
+<tr>
+<td><code>read_csv()</code></td>
+<td><code>.csv</code> text</td>
+<td>Slow</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>read_parquet()</code></td>
+<td><code>.parquet</code> binary</td>
+<td>Fast</td>
+<td>Yes, columns</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>read_fst()</code> for an R-only workflow that re-reads big tables often. Use <code>read_parquet()</code> when the same data must move between R, Python, and other tools.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> There is no direct <code>.fst</code> reader in mainstream pandas. The cross-language equivalent of a fast binary table is Parquet or Feather, both read in R with <code>arrow::read_parquet()</code> and in Python with <code>pandas.read_parquet()</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Column names passed to read_fst() are case-sensitive.</strong> A typo or wrong case raises an error instead of silently returning nothing. Match the names exactly as <code>metadata_fst()</code> reports them.</p>
+
+<div class="webr-container" data-block-title="Pitfall: wrong column name case">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: wrong column name case</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_fst(&quot;sales.fst&quot;, columns = &quot;Price&quot;)
+#&gt; Error: Selected column not found: 'Price'
+
+# fix: use the exact lowercase name
+read_fst(&quot;sales.fst&quot;, columns = &quot;price&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>The <code>from</code> and <code>to</code> bounds are inclusive.</strong> Reading <code>from = 101, to = 200</code> returns 100 rows, not 99. Treat the window like <code>101:200</code>, not like a zero-based slice.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The .fst format is a cache, not an archive.</strong> The on-disk format can change between major versions of the fst package, and a file written by a newer version may not open in an older one. For long-term storage or sharing, keep a CSV or Parquet copy and treat .fst as a fast session cache.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read only the <code>units</code> column from <code>sales.fst</code> for rows 1 through 100. Save the result to ex_units.</p>
+<div class="webr-container" data-block-title="Your turn: read a column slice">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read a column slice</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: read the units column, rows 1-100
+ex_units &lt;- # your code here
+
+nrow(ex_units)
+#&gt; Expected: 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_units &lt;- read_fst(&quot;sales.fst&quot;, columns = &quot;units&quot;, from = 1, to = 100)
+nrow(ex_units)
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>columns</code>, <code>from</code>, and <code>to</code> together reads one column across a 100-row window. fst touches only that slice of the file, so the read stays fast even on a large dataset.</p>
+
+</details>
+</section>
+
+<h2>Related fst and data import functions</h2>
+
+<p><strong>read_fst() is one of a small, focused family in the fst package.</strong> These functions cover writing, inspecting, and tuning .fst input and output.</p>
+
+<ul>
+
+<li><code>write_fst()</code>: create a <code>.fst</code> file from a data frame, with an adjustable compression level.</li>
+
+<li><code>metadata_fst()</code>: read a file's column names, types, and row count without loading data.</li>
+
+<li><code>threads_fst()</code>: set how many threads fst uses for compression and decompression.</li>
+
+<li><code>readRDS()</code>: read a single R object from an <code>.rds</code> file.</li>
+
+<li><code>arrow::read_parquet()</code>: read a Parquet file when data must cross languages.</li>
+
+</ul>
+
+<p>See the official <a href="https://www.fstpackage.org/reference/index.html">fst package reference</a> for the full argument list and benchmarks.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a .fst file in R?</strong></p>
+
+<p>A .fst file is a compressed, columnar binary file that stores an R data frame on disk. It is created by <code>write_fst()</code> from the fst package. The format records column names, types, and row count in a header, and stores each column as a separately compressed block. That layout lets <code>read_fst()</code> load specific columns or row ranges without reading the whole file, which makes it well suited to caching large tables between R sessions.</p>
+
+<p><strong>Is read_fst() faster than read.csv()?</strong></p>
+
+<p>Yes, by a wide margin on large data. <code>read.csv()</code> parses text line by line and converts every value from a string, which is CPU-bound. <code>read_fst()</code> reads typed binary blocks, so the work is mostly decompression and a memory copy. For multi-million-row tables the difference is often more than ten-fold, and <code>read_fst()</code> can also read just the columns you need, which <code>read.csv()</code> cannot.</p>
+
+<p><strong>Can read_fst() read part of a file?</strong></p>
+
+<p>Yes. Pass <code>columns</code> to read a subset of columns and <code>from</code> plus <code>to</code> to read a range of rows. Both bounds are 1-indexed and inclusive. Because .fst is columnar and indexed, these partial reads pull only the requested blocks off disk rather than loading the full file and subsetting in memory.</p>
+
+<p><strong>Does read_fst() return a data.table or a data.frame?</strong></p>
+
+<p>By default <code>read_fst()</code> returns a plain <code>data.frame</code>. Set <code>as.data.table = TRUE</code> to get a <code>data.table</code> instead, which is useful when the rest of your pipeline uses <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table syntax</a>. The underlying data is identical either way; only the class and the available methods change.</p>
