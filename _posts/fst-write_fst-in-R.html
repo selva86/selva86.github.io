@@ -1,0 +1,349 @@
+---
+title: "fst write_fst() in R: Fast Save Data Frames to Disk"
+description: "Learn how to use write_fst() in R to save data frames to fast, compressed .fst files. Covers the compress argument, syntax, pitfalls, and format comparisons."
+keywords: "fst write_fst, write_fst function R, fst write_fst examples, R save data frame fst, write_fst compress, fst package write file, fast write data frame R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "write_fst()|fst write_fst|fst::write_fst()|write fst file|write_fst in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>fst write_fst() in R: Fast Save Data Frames to Disk</h1>
+
+<p class="lead">The fst <code>write_fst()</code> function saves a data frame to a fast, compressed binary <code>.fst</code> file that reloads at multiple gigabytes per second, far quicker than CSV or RDS.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>write_fst(df, &quot;data.fst&quot;)<span class="qa-cmt">                 # default, compress = 50</span>
+write_fst(df, &quot;data.fst&quot;, compress = 0)<span class="qa-cmt">   # fastest write, largest file</span>
+write_fst(df, &quot;data.fst&quot;, compress = 100)<span class="qa-cmt"> # smallest file, slowest write</span>
+write_fst(df, path)<span class="qa-cmt">                       # overwrites path silently</span>
+write_fst(df, &quot;data.fst&quot;)<span class="qa-cmt">                 # returns df invisibly, pipe-safe</span>
+metadata_fst(&quot;data.fst&quot;)<span class="qa-cmt">                  # inspect a file you wrote</span>
+read_fst(&quot;data.fst&quot;)<span class="qa-cmt">                      # round-trip: load it back</span>
+fst::write_fst(df, &quot;data.fst&quot;)<span class="qa-cmt">            # call without attaching fst</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is write_fst() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">save a data frame for fast reload</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">write_fst(df, &quot;d.fst&quot;)</text><text x="125" y="126" class="branch-label">save any R object (model, list)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">saveRDS(obj, &quot;d.rds&quot;)</text><text x="125" y="182" class="branch-label">share with non-R users (Excel)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">readr</a>::write_csv(df, &quot;d.csv&quot;)</text><text x="125" y="238" class="branch-label">cross-language columnar storage</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">arrow::write_parquet(df, &quot;d.<a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">parquet</a>&quot;)</text><text x="125" y="294" class="branch-label">append rows to an existing file</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">not supported, rewrite the file</text><text x="125" y="350" class="branch-label">read a column subset back fast</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">read_fst(&quot;d.fst&quot;, columns = &quot;x&quot;)</text></svg></div>
+
+<h2>What write_fst() does</h2>
+
+<p><strong>write_fst() saves a data frame to a fast, compressed binary file.</strong> It is the writer half of the <code>fst</code> package, a serialization format built for speed. You hand it a data frame and a file path, and it stores every column to disk in a <code>.fst</code> file that <code>read_fst()</code> can later load at multiple gigabytes per second.</p>
+
+<p>The format compresses each column with a type-specific compressor, so <code>.fst</code> files are usually smaller than CSV or <code>.rds</code> while loading much faster. The file also supports random access, meaning a later read can pull specific columns or row ranges without loading the whole dataset.</p>
+
+<p>This makes <code>write_fst()</code> a natural fit for caching intermediate results in a data pipeline. Writing a stage's cleaned output to a <code>.fst</code> file lets the next stage, or a teammate, reload it far faster than a CSV. The format is R-specific, so it suits internal storage rather than sharing data across languages.</p>
+
+<h2>write_fst() syntax and arguments</h2>
+
+<p><strong>The function takes a data frame and a path, plus an optional compression level.</strong> The full signature is short:</p>
+
+<div class="webr-container" data-block-title="The write_fst signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The write_fst signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_fst(x, path, compress = 50, uncompress_finished = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only the first two arguments are required. The table below lists every argument.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>required</td>
+<td>The data frame or data.table to write</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>required</td>
+<td>File path for the output <code>.fst</code> file</td>
+</tr>
+<tr>
+<td><code>compress</code></td>
+<td><code>50</code></td>
+<td>Compression level, from <code>0</code> (none) to <code>100</code> (maximum)</td>
+</tr>
+<tr>
+<td><code>uncompress_finished</code></td>
+<td><code>NULL</code></td>
+<td>Advanced callback, rarely needed</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>x</code> argument must be a data frame or <code>data.table</code>; lists and model objects are not accepted. The <code>path</code> argument is an ordinary file path, and the <code>.fst</code> extension is a convention rather than a requirement. The <code>compress</code> argument is the only knob most users ever touch.</p>
+
+<p><code>write_fst()</code> writes the file as a side effect and returns the input data frame <code>x</code> invisibly. Because the return value is the data itself, the call can sit inside a pipe without breaking the flow, letting you save a checkpoint mid-pipeline.</p>
+
+<h2>Saving data frames: four common cases</h2>
+
+<p><strong>Most write_fst() calls are a single line.</strong> Start by creating a sample sales data frame and writing it to disk with the defaults.</p>
+
+<div class="webr-container" data-block-title="Save a data frame with write_fst">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save a data frame with write_fst</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(fst)
+
+sales &lt;- data.frame(
+  region  = sample(c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;, &quot;West&quot;), 50000, replace = TRUE),
+  product = sample(c(&quot;A&quot;, &quot;B&quot;, &quot;C&quot;), 50000, replace = TRUE),
+  units   = sample(1:100, 50000, replace = TRUE),
+  price   = round(runif(50000, 5, 50), 2)
+)
+
+write_fst(sales, &quot;sales.fst&quot;)
+file.exists(&quot;sales.fst&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single line creates <code>sales.fst</code> on disk. The file holds all 50,000 rows and four columns, each compressed independently. No further configuration is needed for a typical save.</p>
+
+<p>The second case is tuning the file size. The default <code>compress = 50</code> is a balanced middle ground, but you can move the dial. A lower level writes faster and produces a larger file; a higher level spends more CPU time to squeeze the file smaller. Set <code>compress</code> explicitly and compare the results with <code>file.size()</code> to see the trade in bytes.</p>
+
+<div class="webr-container" data-block-title="Tune the compress argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune the compress argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_fst(sales, &quot;sales_fast.fst&quot;, compress = 0)
+write_fst(sales, &quot;sales_small.fst&quot;, compress = 100)
+
+file.size(&quot;sales_fast.fst&quot;)
+#&gt; [1] 631208
+file.size(&quot;sales_small.fst&quot;)
+#&gt; [1] 410336</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Leave compress near the default for most work.</strong> <code>compress = 50</code> already shrinks files substantially while staying fast. Push toward <code>100</code> only for archival data you write once and read many times.</div></div>
+
+<p>Here <code>compress = 100</code> produced a file roughly a third smaller than <code>compress = 0</code>. The ratio depends on how repetitive your data is.</p>
+
+<p>The third case is overwriting. <code>write_fst()</code> has no append mode, so each call replaces the file at <code>path</code> silently and completely. There is no warning and no merge; the old contents are simply gone. To add rows to an existing dataset, read it back, bind the new rows in memory, and rewrite the whole file. The fourth case uses the invisible return value: because <code>write_fst()</code> returns <code>x</code>, you can save a snapshot inside a pipe and keep working with the same data frame in the next step.</p>
+
+<div class="webr-container" data-block-title="write_fst returns the data invisibly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">write_fst returns the data invisibly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">saved &lt;- write_fst(sales, &quot;sales.fst&quot;)
+nrow(saved)
+#&gt; [1] 50000
+identical(saved, sales)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>write_fst() vs saveRDS(), write_csv(), and other formats</h2>
+
+<p><strong>write_fst() wins when you reload tabular data often and want column-level random access.</strong> The comparison below shows where each writer fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Format</th>
+<th>Writer</th>
+<th>Write speed</th>
+<th>Cross-language</th>
+<th>Random access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fst</td>
+<td><code>write_fst()</code></td>
+<td>Fastest</td>
+<td>No, R only</td>
+<td>Yes, columns and rows</td>
+</tr>
+<tr>
+<td>RDS</td>
+<td><code>saveRDS()</code></td>
+<td>Moderate</td>
+<td>No, R only</td>
+<td>No</td>
+</tr>
+<tr>
+<td>CSV</td>
+<td><code>write_csv()</code></td>
+<td>Slow</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Parquet</td>
+<td><code>arrow::write_parquet()</code></td>
+<td>Fast</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>write_fst()</code> for data frames you reload frequently inside R, especially large ones where load time matters. Use <code>saveRDS()</code> when you must store a non-tabular object such as a fitted model, a nested list, or anything that is not a flat table. Use <code>write_csv()</code> or Parquet when other tools or languages need to read the file, since <code>.fst</code> is an R-only format. Parquet is the better choice when you want both speed and cross-language portability.</p>
+
+<p>A round-trip back through <code>read_fst()</code> confirms the data survives the save intact. The column types, values, and order all come back exactly as written.</p>
+
+<div class="webr-container" data-block-title="Read the file back with read_fst">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read the file back with read_fst</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">back &lt;- read_fst(&quot;sales.fst&quot;)
+head(back, 3)
+#&gt;   region product units price
+#&gt; 1   West       B    47 23.10
+#&gt; 2  North       A    12 41.55
+#&gt; 3   East       C    88  9.07</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A .fst file stores columns only, so anything outside the column grid is lost.</strong> Three mistakes trip up new users.</p>
+
+<p>First, row names are dropped. <code>write_fst()</code> keeps no row-name vector, so reading the file back gives default integer row names.</p>
+
+<div class="webr-container" data-block-title="Row names are not preserved">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row names are not preserved</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_fst(mtcars, &quot;mt.fst&quot;)
+rownames(read_fst(&quot;mt.fst&quot;))[1:3]
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The car names that <code>mtcars</code> stores as row names are gone. The fix is to move identifiers into a real column before writing, for example with <code>tibble::rownames_to_column()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>write_fst() rejects non-atomic columns.</strong> List-columns and nested data-frame columns cause an error because <code>.fst</code> stores only flat, <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a>. Unnest those columns first, or fall back to <code>saveRDS()</code> for objects that are not purely tabular.</div></div>
+
+<p>Second, custom attributes and grouping disappear. A grouped tibble comes back as a plain data frame with its groups dropped, and any attributes you attached with <code>attr()</code> are not restored. If grouping or metadata matters, record it in the data itself or re-apply it after reading. Third, <code>write_fst()</code> overwrites without warning, so a typo in <code>path</code> can silently replace a file you meant to keep. Build paths with <code>file.path()</code> and check them before writing to a shared directory.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Save the built-in <code>iris</code> data frame to a file called <code>iris.fst</code> using a compression level of 80, then confirm the file was created.</p>
+<div class="webr-container" data-block-title="Your turn: write iris to fst">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write iris to fst</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write iris.fst with compress = 80
+ex_path &lt;- # your code here
+
+file.exists(&quot;iris.fst&quot;)
+#&gt; Expected: TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_fst(iris, &quot;iris.fst&quot;, compress = 80)
+file.exists(&quot;iris.fst&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first argument is the data frame, the second is the destination path, and <code>compress = 80</code> requests strong compression. <code>write_fst()</code> writes the file as a side effect, so <code>file.exists()</code> returns <code>TRUE</code> afterward.</p>
+
+</details>
+</section>
+
+<h2>Related fst and data import functions</h2>
+
+<p>These functions pair naturally with <code>write_fst()</code> for reading and inspecting <code>.fst</code> files:</p>
+
+<ul>
+
+<li><code>read_fst()</code> reads a <code>.fst</code> file back, optionally selecting columns or row ranges.</li>
+
+<li><code>metadata_fst()</code> inspects a <code>.fst</code> file's column names, types, and size without loading data.</li>
+
+<li><code>threads_fst()</code> sets the number of threads <code>fst</code> uses for reading and writing.</li>
+
+<li><code>write_rds()</code> and <code>saveRDS()</code> serialize non-tabular R objects.</li>
+
+<li><code>write_csv()</code> exports a data frame to a portable, cross-language text file.</li>
+
+</ul>
+
+<p>The official <a href="https://www.fstpackage.org/reference/write_fst.html">fst write_fst() reference</a> documents every argument in full detail.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is write_fst() faster than saveRDS()?</strong></p>
+
+<p>Yes, in most cases by a wide margin. <code>write_fst()</code> uses multi-threading and type-specific column compressors, so writing a large data frame is typically several times faster than <code>saveRDS()</code>. Reading the file back is faster still. The gap widens as the data frame grows, which is why <code>fst</code> is a common choice for caching intermediate results in data pipelines.</p>
+
+<p><strong>What compression level should I use with write_fst()?</strong></p>
+
+<p>The default <code>compress = 50</code> suits almost all work. It produces a small file without slowing the write noticeably. Use <code>compress = 0</code> when write speed matters more than disk space, such as temporary scratch files. Use <code>compress = 100</code> for archival data written once and read many times, where the smaller file pays off over repeated reads.</p>
+
+<p><strong>Can write_fst() append rows to an existing .fst file?</strong></p>
+
+<p>No. <code>write_fst()</code> has no append mode and every call overwrites the file completely. To add rows, read the existing file with <code>read_fst()</code>, combine it with the new rows using <code>bind_rows()</code>, then write the full data frame back. For frequent appends, a database or Parquet dataset is a better fit.</p>
+
+<p><strong>Does write_fst() work with data.table?</strong></p>
+
+<p>Yes. <code>write_fst()</code> accepts both <code>data.frame</code> and <code>data.table</code> objects. When you read the file back with <code>read_fst()</code>, you can pass <code>as.data.table = TRUE</code> to return a <code>data.table</code> directly. The <code>fst</code> package is designed to integrate cleanly with <code>data.table</code> workflows.</p>
+
+<p><strong>What is the difference between write_fst() and write.fst()?</strong></p>
+
+<p>They are the same function. <code>write.fst()</code> is a deprecated alias kept for backward compatibility with early versions of the package. Use <code>write_fst()</code> with an underscore in all new code, since it matches the current <code>fst</code> naming convention and the underscore form is the one the documentation maintains.</p>
+
+{% endraw %}
