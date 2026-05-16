@@ -584,9 +584,10 @@ def process_additive(links_data):
                 # Rebuild skip ranges since HTML changed
                 skip_ranges = build_skip_set(html, skip_tags, skip_classes)
 
-        # Further Reading
+        # Further Reading — skip files whose FR block is hand-managed
+        # (literal <!-- fr-manual --> marker; e.g. fr_cards.py card grids).
         fr_injected = False
-        if fname in further_reading:
+        if fname in further_reading and '<!-- fr-manual -->' not in original_html:
             fr_items = [item for item in further_reading[fname]
                         if item.get("status") == "published"]
             if fr_items:
@@ -613,9 +614,17 @@ def process_additive(links_data):
 
 
 def process_reprocess(links_data):
-    """Strip all auto-links and further reading, then redo."""
+    """Strip all auto-links and further reading, then redo.
+
+    A file carrying the literal <!-- fr-manual --> marker keeps its
+    Further Reading block — it is hand-managed (e.g. a card grid rendered
+    by _build/fr_cards.py), not the auto-generated <ul>. Inline auto-links
+    on such files are still stripped and reprocessed normally; only the FR
+    block is left alone.
+    """
     files = get_html_files(ROOT_DIR)
     stripped = 0
+    fr_kept = 0
     for fname, fpath in files:
         try:
             with open(fpath, "r", encoding="utf-8", errors="replace") as f:
@@ -624,7 +633,10 @@ def process_reprocess(links_data):
             continue
 
         new_html = strip_all_auto_links(html)
-        new_html = strip_further_reading(new_html)
+        if '<!-- fr-manual -->' in html:
+            fr_kept += 1
+        else:
+            new_html = strip_further_reading(new_html)
 
         if new_html != html:
             with open(fpath, "w", encoding="utf-8", newline='') as f:
@@ -632,6 +644,8 @@ def process_reprocess(links_data):
             stripped += 1
 
     print(f"Stripped auto-links from {stripped} files.")
+    if fr_kept:
+        print(f"Kept hand-managed FR block on {fr_kept} fr-manual file(s).")
     print("Re-running additive mode...")
     return process_additive(links_data)
 

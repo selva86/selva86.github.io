@@ -266,7 +266,10 @@ def render_block(cfg: dict, children: list[tuple[str, str]]) -> str:
                    f'See all {total} recipes &rarr;</a>')
 
     parts = [
-        '<!-- fr-manual: rendered by _build/fr_cards.py — sync_registries / auto_link skip this block -->',
+        # Exact marker — has_manual_fr_marker() matches this literal string;
+        # it tells sync_registries / auto_link to leave this block alone
+        # (the card grid is owned by _build/fr_cards.py).
+        '<!-- fr-manual -->',
         '<div id="auto-further-reading" class="fr-cards-block">',
         '<h2>Further Reading</h2>',
         f'<p class="fr-intro">{cfg["intro"]}</p>',
