@@ -1,0 +1,344 @@
+---
+title: "data.table setcolorder() in R: Reorder Columns by Reference"
+description: "setcolorder() reorders data.table columns by reference in R with no copy. Learn the syntax, move columns to the front or back, and use before and after."
+keywords: "data.table setcolorder, setcolorder function R, data.table setcolorder examples, R reorder columns data.table, setcolorder by reference, move column data.table, data.table column order"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "setcolorder()|setcolorder|data.table setcolorder|data.table::setcolorder()|reorder columns"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table setcolorder() in R: Reorder Columns by Reference</h1>
+
+<p class="lead">data.table <code>setcolorder()</code> reorders the columns of a data.table by reference, changing their position in place without copying the whole table. You pass a column order, and data.table rearranges the pointers, so it stays fast even on millions of rows.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>setcolorder(DT, c(&quot;b&quot;,&quot;a&quot;,&quot;c&quot;))<span class="qa-cmt">         # full explicit order</span>
+setcolorder(DT, &quot;c&quot;)<span class="qa-cmt">                     # move one column to front</span>
+setcolorder(DT, c(3, 1, 2))<span class="qa-cmt">              # reorder by position</span>
+setcolorder(DT, &quot;id&quot;, before = &quot;name&quot;)<span class="qa-cmt">   # place before a column</span>
+setcolorder(DT, &quot;ts&quot;, after = &quot;id&quot;)<span class="qa-cmt">      # place after a column</span>
+setcolorder(DT, rev(names(DT)))<span class="qa-cmt">          # reverse every column</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is setcolorder() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> in place</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">setcolorder(DT, c(&quot;b&quot;,&quot;a&quot;))</text><text x="125" y="126" class="branch-label"><a class="auto-link" href="dplyr-rename-in-R.html" title="dplyr rename() in R: Rename Columns Without Dropping">rename columns</a> instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">setnames(DT, &quot;old&quot;, &quot;new&quot;)</text><text x="125" y="182" class="branch-label">reorder rows by value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setorder(DT, score)</text><text x="125" y="238" class="branch-label">keep only some columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">DT[, .(a, <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a>]</text><text x="125" y="294" class="branch-label">set a sort key on columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a>(DT, id)</text><text x="125" y="350" class="branch-label">reorder a plain data.frame copy</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">df[c(&quot;b&quot;,&quot;a&quot;)]</text></svg></div>
+
+<h2>What setcolorder() does</h2>
+
+<p><strong>setcolorder() changes column position without moving data.</strong> It is one of data.table's <code>set*</code> functions, meaning it edits the table by reference. Instead of building a new data.table with columns in a different order, it rewrites the internal column list in place. No copy is made, and the call returns invisibly.</p>
+
+<p>That reference behavior is the whole point. Reordering columns by selecting them, like <code>DT[, .(c, a, b)]</code>, copies every value into a fresh table. On a wide or long dataset that copy is wasteful when all you want is a cosmetic change to column order. <code>setcolorder()</code> skips the copy entirely.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Column order in a data.table is just a list of pointers.</strong> <code>setcolorder()</code> shuffles those pointers, so the cost is the same whether the table has 100 rows or 100 million. The data itself never moves.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is compact but flexible.</strong> <code>setcolorder()</code> takes the table plus a description of the order you want.</p>
+
+<div class="webr-container" data-block-title="setcolorder signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setcolorder signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(x, neworder, before = NULL, after = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each argument controls a different part of the reorder:</p>
+
+<ul>
+
+<li><code>x</code>: the data.table (or data.frame) to <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">modify in place</a>.</li>
+
+<li><code>neworder</code>: a character vector of column names, or an integer vector of positions, in the order you want. It may list only some columns.</li>
+
+<li><code>before</code>: place the <code>neworder</code> columns immediately before this column.</li>
+
+<li><code>after</code>: place the <code>neworder</code> columns immediately after this column.</li>
+
+</ul>
+
+<p>If <code>neworder</code> lists only a subset of columns, the columns you left out keep their current relative order and are appended after the ones you named. You never lose a column by omitting it.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The <code>before</code> and <code>after</code> arguments require data.table 1.15.0 or newer.</strong> On older versions, pass a full or partial <code>neworder</code> vector instead. Check your version with <code>packageVersion(&quot;data.table&quot;)</code>.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start by building a small data.table to reorder.</strong> Every example below runs against this same table.</p>
+
+<div class="webr-container" data-block-title="Build a sample data.table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a sample data.table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT &lt;- data.table(
+  id    = 1:4,
+  name  = c(&quot;Ann&quot;, &quot;Ben&quot;, &quot;Cara&quot;, &quot;Dan&quot;),
+  score = c(88, 92, 75, 81),
+  grade = c(&quot;B&quot;, &quot;A&quot;, &quot;C&quot;, &quot;B&quot;)
+)
+DT
+#&gt;       id   name score  grade
+#&gt;    &lt;int&gt; &lt;char&gt; &lt;num&gt; &lt;char&gt;
+#&gt; 1:     1    Ann    88      B
+#&gt; 2:     2    Ben    92      A
+#&gt; 3:     3   Cara    75      C
+#&gt; 4:     4    Dan    81      B</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pass a full vector of names to set the exact order.</strong> This is the most explicit form: every column appears once, in the position you want.</p>
+
+<div class="webr-container" data-block-title="Reorder with a full name vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reorder with a full name vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(DT, c(&quot;name&quot;, &quot;id&quot;, &quot;grade&quot;, &quot;score&quot;))
+names(DT)
+#&gt; [1] &quot;name&quot;  &quot;id&quot;    &quot;grade&quot; &quot;score&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pass a single name to move one column to the front.</strong> Because <code>neworder</code> can be a subset, naming just <code>&quot;score&quot;</code> pulls it first and leaves the rest in place.</p>
+
+<div class="webr-container" data-block-title="Move one column to the front">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Move one column to the front</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(DT, c(&quot;id&quot;, &quot;name&quot;, &quot;score&quot;, &quot;grade&quot;))  # reset order
+setcolorder(DT, &quot;score&quot;)                            # score first
+names(DT)
+#&gt; [1] &quot;score&quot; &quot;id&quot;    &quot;name&quot;  &quot;grade&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use integer positions when names are long or generated.</strong> The vector <code>c(4, 1, 2, 3)</code> means "the 4th column first, then the 1st, 2nd, and 3rd".</p>
+
+<div class="webr-container" data-block-title="Reorder by integer position">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reorder by integer position</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(DT, c(&quot;id&quot;, &quot;name&quot;, &quot;score&quot;, &quot;grade&quot;))  # reset order
+setcolorder(DT, c(4, 1, 2, 3))
+names(DT)
+#&gt; [1] &quot;grade&quot; &quot;id&quot;    &quot;name&quot;  &quot;score&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use <code>before</code> or <code>after</code> to place columns relative to another.</strong> This avoids spelling out the entire order when you only want to nudge one column.</p>
+
+<div class="webr-container" data-block-title="Place a column with after">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Place a column with after</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(DT, c(&quot;id&quot;, &quot;name&quot;, &quot;score&quot;, &quot;grade&quot;))  # reset order
+setcolorder(DT, &quot;grade&quot;, after = &quot;name&quot;)
+names(DT)
+#&gt; [1] &quot;id&quot;    &quot;name&quot;  &quot;grade&quot; &quot;score&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>setcolorder() vs other column-ordering approaches</h2>
+
+<p><strong>setcolorder() wins whenever you only need a different order.</strong> The alternatives all build a copy, which matters on large data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Copies data?</th>
+<th>Speed</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setcolorder(DT, ...)</code></td>
+<td>No</td>
+<td>Fastest</td>
+<td>Reordering a data.table by reference</td>
+</tr>
+<tr>
+<td><code>DT[, .(b, a, c)]</code></td>
+<td>Yes</td>
+<td>Slower</td>
+<td>You also subset or <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">transform columns</a></td>
+</tr>
+<tr>
+<td><code>df[c(&quot;b&quot;, &quot;a&quot;)]</code></td>
+<td>Yes</td>
+<td>Slow</td>
+<td>A plain data.frame, small data</td>
+</tr>
+<tr>
+<td><code>dplyr::relocate()</code></td>
+<td>Yes</td>
+<td>Moderate</td>
+<td>A tidyverse pipeline that returns a tibble</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If the only change is column order and the object is a data.table, use <code>setcolorder()</code>. If you are already subsetting columns or chaining verbs, fold the reorder into that step instead.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>setcolorder()</code> also works on a plain data.frame.</strong> It still reorders by reference, so you get the same zero-copy benefit even without converting to a data.table first.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The by-reference behavior surprises most newcomers.</strong> A second variable pointing at the same data.table is not a copy. Reordering through one name reorders the other.</p>
+
+<div class="webr-container" data-block-title="Reference, not a copy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reference, not a copy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT_a  &lt;- data.table(x = 1:2, y = 3:4, z = 5:6)
+alias &lt;- DT_a               # same object, not a copy
+setcolorder(alias, &quot;z&quot;)
+names(DT_a)                 # the original is reordered too
+#&gt; [1] &quot;z&quot; &quot;x&quot; &quot;y&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To reorder an independent version, call <code>copy()</code> first, then <code>setcolorder()</code> on the copy.</p>
+
+<p><strong>A misspelled column name throws an error.</strong> <code>setcolorder()</code> validates <code>neworder</code> against the actual column names and stops if a name is missing.</p>
+
+<div class="webr-container" data-block-title="Missing column name errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing column name errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setcolorder(DT_a, c(&quot;z&quot;, &quot;Q&quot;))
+#&gt; Error in setcolorder(DT_a, c(&quot;z&quot;, &quot;Q&quot;)) :
+#&gt;   Items of 'neworder' not found in column names: [Q]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Do not rely on the return value.</strong> <code>setcolorder()</code> returns the table invisibly, so writing <code>DT &lt;- setcolorder(DT, ...)</code> works but is redundant and misleading. Call it for its side effect and use <code>DT</code> directly afterward.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Reorder the columns of <code>ex_dt</code> so that <code>grade</code> comes first and the rest keep their order. Save nothing new, just modify <code>ex_dt</code> in place.</p>
+<div class="webr-container" data-block-title="Your turn: move grade to front">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: move grade to front</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- data.table(id = 1:3, name = c(&quot;Eva&quot;, &quot;Finn&quot;, &quot;Gus&quot;),
+                     grade = c(&quot;A&quot;, &quot;B&quot;, &quot;A&quot;))
+# Try it: put grade first
+# your code here
+
+names(ex_dt)
+#&gt; Expected: &quot;grade&quot; &quot;id&quot; &quot;name&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- data.table(id = 1:3, name = c(&quot;Eva&quot;, &quot;Finn&quot;, &quot;Gus&quot;),
+                     grade = c(&quot;A&quot;, &quot;B&quot;, &quot;A&quot;))
+setcolorder(ex_dt, &quot;grade&quot;)
+names(ex_dt)
+#&gt; [1] &quot;grade&quot; &quot;id&quot;    &quot;name&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing the single name <code>&quot;grade&quot;</code> as <code>neworder</code> moves that column to the front. The columns you did not name, <code>id</code> and <code>name</code>, keep their original relative order and follow behind.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>setcolorder() sits in a family of by-reference setters.</strong> Each one edits a different aspect of the table in place.</p>
+
+<ul>
+
+<li><code>setnames()</code>: rename columns without copying.</li>
+
+<li><code>setorder()</code>: <a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">sort rows</a> by one or more columns.</li>
+
+<li><code>setkey()</code>: set a sort key for fast joins and lookups.</li>
+
+<li><code>setDT()</code>: convert a data.frame to a data.table in place.</li>
+
+<li><code>set()</code>: assign values into cells by reference.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does setcolorder() modify the original data.table?</strong></p>
+
+<p>Yes. <code>setcolorder()</code> reorders columns by reference, so the original object changes and no new table is returned for assignment. Any other variable bound to the same data.table sees the new order too. If you need to keep the original layout, make an explicit <code>copy()</code> of the table first and call <code>setcolorder()</code> on that copy instead.</p>
+
+<p><strong>Can I use setcolorder() on a data.frame?</strong></p>
+
+<p>Yes. <code>setcolorder()</code> accepts a plain data.frame and reorders its columns by reference, just as it does for a data.table. This is one of the few data.table functions that helps even if you have not converted your object. You do not need <code>setDT()</code> first when the only change you want is column order.</p>
+
+<p><strong>What happens if neworder lists only some columns?</strong></p>
+
+<p>The columns you name are placed in the order given, and every column you left out is appended afterward in its original relative order. Nothing is dropped. This makes it easy to move one or two columns to the front without typing the full column list.</p>
+
+<p><strong>Is setcolorder() faster than reordering with <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a>?</strong></p>
+
+<p>Yes, especially on large data. Selecting columns with <code>DT[, .(c, a, b)]</code> copies every value into a new table, while <code>setcolorder()</code> only rearranges internal pointers. The cost of <code>setcolorder()</code> does not grow with the number of rows, so it is the right choice whenever reordering is the only change.</p>
+
+<p>For the full argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/setcolorder.html">official data.table setcolorder documentation</a>.</p>
