@@ -1,0 +1,409 @@
+---
+title: "data.table as.data.table() in R: Convert Objects Fast"
+description: "Use data.table as.data.table() in R to convert data.frames, lists, matrices, and tables. Covers keep.rownames, as.data.table vs setDT, methods, and pitfalls."
+keywords: "data.table as.data.table, as.data.table function R, as.data.table examples, convert data.frame to data.table, as.data.table vs setDT, coerce to data.table, as.data.table r"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as.data.table()|data.table as.data.table|data.table::as.data.table()|coerce to data.table|as.data.table function"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table as.data.table() in R: Convert Objects Fast</h1>
+
+<p class="lead">The <code>as.data.table()</code> function from data.table converts an existing object, a data.frame, list, matrix, table, or vector, into a <code>data.table</code>, returning a fresh copy while leaving the original untouched.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as.data.table(df)<span class="qa-cmt">                            # data.frame to data.table</span>
+as.data.table(my_list)<span class="qa-cmt">                       # named list to data.table</span>
+as.data.table(my_matrix)<span class="qa-cmt">                     # matrix to data.table</span>
+as.data.table(df, keep.rownames = TRUE)<span class="qa-cmt">      # keep row names as column 'rn'</span>
+as.data.table(df, keep.rownames = &quot;id&quot;)<span class="qa-cmt">      # keep row names, name it 'id'</span>
+as.data.table(table(x))<span class="qa-cmt">                      # frequency table to long form</span>
+as.data.table(1:5)<span class="qa-cmt">                           # atomic vector to one-column DT</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as.data.table() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">convert a copy of any object to a data.table</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as.data.table(x)</text><text x="125" y="126" class="branch-label">convert a data.frame in place, no copy</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">setDT(df)</text><text x="125" y="182" class="branch-label">turn a data.table back into a data.frame</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setDF(dt)</text><text x="125" y="238" class="branch-label">read a file straight into a data.table</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="readr-vs-read-csv-vs-fread.html" title="readr vs read.csv vs fread: Which Data Import Function Is Fastest?">fread</a>(&quot;data.csv&quot;)</text><text x="125" y="294" class="branch-label">stack a list of tables into one data.table</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rbindlist(lst)</text><text x="125" y="350" class="branch-label">check if an object already is a data.table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">is.data.table(x)</text></svg></div>
+
+<h2>What as.data.table() does in one sentence</h2>
+
+<p><strong><code>as.data.table()</code> coerces an object into a <code>data.table</code>.</strong> You hand it a data.frame, list, matrix, <code>table</code>, or plain vector, and it returns a new <code>data.table</code> carrying the same values. The original object is not modified, because <code>as.data.table()</code> works on a copy.</p>
+
+<p>That copy behaviour is the single most important thing to know about <code>data.table as.data.table</code>. It is a safe, functional converter: nothing changes until you assign the result. Its in-place sibling <code>setDT()</code> does the opposite, mutating the object you pass without copying. Choosing between them is the main decision this page helps you make.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>as.data.table()</code> is a generic with a method for each input type.</strong> Every method shares two arguments, and the data.frame method adds one more.</p>
+
+<div class="webr-container" data-block-title="Load data.table and convert a data.frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and convert a data.frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+roster &lt;- data.frame(
+  name  = c(&quot;Ada&quot;, &quot;Linus&quot;, &quot;Grace&quot;),
+  score = c(91, 78, 88),
+  stringsAsFactors = FALSE
+)
+
+dt &lt;- as.data.table(roster)
+class(dt)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually use are:</p>
+
+<ul>
+
+<li><code>x</code>: the object to convert. A data.frame, named or unnamed list, matrix, <code>table</code>, array, or atomic vector.</li>
+
+<li><code>keep.rownames</code>: how to treat row names. <code>FALSE</code> drops them, <code>TRUE</code> saves them in a column called <code>rn</code>, and a string uses that string as the column name.</li>
+
+<li><code>key</code>: an optional column name (or vector of names) to set as the data.table key in the same call.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>as.data.table()</code> does not convert strings to factors.</strong> Unlike <code>as.data.frame()</code> on older R versions, character columns stay character. This matches modern R defaults and avoids surprise factor levels.</div></div>
+
+<h2>Converting different objects</h2>
+
+<h3>1. Convert a named list</h3>
+
+<p>A list of equal-length vectors becomes a data.table with one column per element. Element names become column names.</p>
+
+<div class="webr-container" data-block-title="Convert a named list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a named list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">metrics &lt;- list(
+  city = c(&quot;Oslo&quot;, &quot;Lima&quot;, &quot;Cairo&quot;),
+  temp = c(12, 19, 34)
+)
+as.data.table(metrics)
+#&gt;      city  temp
+#&gt;    &lt;char&gt; &lt;num&gt;
+#&gt; 1:   Oslo    12
+#&gt; 2:   Lima    19
+#&gt; 3:  Cairo    34</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Convert a matrix</h3>
+
+<p>A matrix becomes a data.table with one column per matrix column. Use <code>keep.rownames</code> to retain the matrix row names.</p>
+
+<div class="webr-container" data-block-title="Convert a matrix and keep row names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a matrix and keep row names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- matrix(1:6, nrow = 2,
+            dimnames = list(c(&quot;r1&quot;, &quot;r2&quot;), c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)))
+as.data.table(m, keep.rownames = &quot;row&quot;)
+#&gt;       row     a     b     c
+#&gt;    &lt;char&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1:     r1     1     3     5
+#&gt; 2:     r2     2     4     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Convert a frequency table</h3>
+
+<p>Passing the output of <code>table()</code> reshapes a <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">cross-tabulation</a> into tidy long form: one row per cell, with an <code>N</code> count column.</p>
+
+<div class="webr-container" data-block-title="Convert a table to long form">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert a table to long form</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">freq &lt;- table(mtcars$cyl, mtcars$gear)
+as.data.table(freq)
+#&gt;        V1     V2     N
+#&gt;    &lt;char&gt; &lt;char&gt; &lt;int&gt;
+#&gt; 1:      4      3     1
+#&gt; 2:      6      3     2
+#&gt; 3:      8      3    12
+#&gt; 4:      4      4     8
+#&gt; 5:      6      4     4
+#&gt; 6:      8      4     0
+#&gt; 7:      4      5     2
+#&gt; 8:      6      5     1
+#&gt; 9:      8      5     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Keep data.frame row names</h3>
+
+<p>Many built-in datasets store labels as row names. <code>keep.rownames</code> rescues them into a real column so you do not lose them in the conversion.</p>
+
+<div class="webr-container" data-block-title="Keep mtcars row names as a column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep mtcars row names as a column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars_dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+head(cars_dt[, .(model, mpg, cyl)], 3)
+#&gt;             model   mpg   cyl
+#&gt;            &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      Mazda RX4  21.0     6
+#&gt; 2:  Mazda RX4 Wag  21.0     6
+#&gt; 3:     Datsun 710  22.8     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The result is both a <code>data.table</code> and a <code>data.frame</code>.</strong> <code>data.table</code> inherits from <code>data.frame</code>, so every base R function that expects a data frame keeps working. The conversion only adds capability, it never takes any away.</div></div>
+
+<h2>as.data.table() vs setDT()</h2>
+
+<p><strong><code>as.data.table()</code> copies; <code>setDT()</code> converts by reference.</strong> This is the defining difference. <code>as.data.table()</code> leaves your original object alone and hands back a new one. <code>setDT()</code> rewrites the object in place with no copy, which is faster on large data but mutates what you passed.</p>
+
+<div class="webr-container" data-block-title="as.data.table leaves the original alone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">as.data.table leaves the original alone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orig &lt;- data.frame(x = 1:3)
+dt_copy &lt;- as.data.table(orig)
+dt_copy[, y := x * 2]
+&quot;y&quot; %in% names(orig)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="setDT converts the object itself">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">setDT converts the object itself</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orig2 &lt;- data.frame(x = 1:3)
+setDT(orig2)
+class(orig2)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>as.data.table()</code></th>
+<th><code>setDT()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Original object</td>
+<td>Unchanged</td>
+<td>Converted in place</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>Copies the data</td>
+<td>No copy</td>
+</tr>
+<tr>
+<td>Accepts</td>
+<td>data.frame, list, matrix, table, vector</td>
+<td>data.frame and list only</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Matrices, tables, safe pipelines</td>
+<td>Large data.frames you own</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>as.data.table()</code> when the input is not a data.frame, when you must keep the original intact, or inside a function that should not surprise its caller. Reach for <code>setDT()</code> when you own a large data.frame and want the conversion to cost nothing.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Inside functions, prefer <code>as.data.table()</code>.</strong> A function that calls <code>setDT()</code> on its argument silently mutates the caller's variable. Copying with <code>as.data.table()</code> keeps the function predictable and side-effect free.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: discarding the return value.</strong> Because <code>as.data.table()</code> copies, the conversion is lost unless you assign it. Calling it on a line by itself does nothing useful.</p>
+
+<div class="webr-container" data-block-title="Return value discarded then captured">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return value discarded then captured</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = 1:3)
+as.data.table(df)        # result thrown away
+class(df)
+#&gt; [1] &quot;data.frame&quot;
+
+df &lt;- as.data.table(df)  # capture the result
+class(df)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: unnamed list elements become V1, V2.</strong> A list with no names produces auto-generated column names. Name the elements before converting.</p>
+
+<div class="webr-container" data-block-title="Unnamed list gets V1, V2 columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unnamed list gets V1, V2 columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.data.table(list(1:3, 4:6))
+#&gt;       V1    V2
+#&gt;    &lt;int&gt; &lt;int&gt;
+#&gt; 1:     1     4
+#&gt; 2:     2     5
+#&gt; 3:     3     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 3: row names vanish by default.</strong> <code>keep.rownames</code> is <code>FALSE</code>, so a data.frame's labels are dropped unless you ask for them.</p>
+
+<div class="webr-container" data-block-title="Row names dropped without keep.rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row names dropped without keep.rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plain &lt;- as.data.table(mtcars)
+&quot;rn&quot; %in% names(plain)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Check <code>keep.rownames</code> whenever the source has meaningful row names.</strong> Datasets like <code>mtcars</code> carry identifiers as row names. Convert without <code>keep.rownames</code> and those labels are gone with no warning.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> below to a data.table, then set its key on the <code>id</code> column in the same call. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: list to keyed data.table
+people &lt;- list(id = c(3, 1, 2), name = c(&quot;C&quot;, &quot;A&quot;, &quot;B&quot;))
+ex_dt &lt;- # your code here
+
+ex_dt
+#&gt; Expected: 3 rows, sorted by id</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people &lt;- list(id = c(3, 1, 2), name = c(&quot;C&quot;, &quot;A&quot;, &quot;B&quot;))
+ex_dt &lt;- as.data.table(people, key = &quot;id&quot;)
+ex_dt
+#&gt;       id   name
+#&gt;    &lt;num&gt; &lt;char&gt;
+#&gt; 1:     1      A
+#&gt; 2:     2      B
+#&gt; 3:     3      C</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>key = &quot;id&quot;</code> inside <code>as.data.table()</code> converts the list and sets the key in one step. Setting a key sorts the data.table by that column, which is why the rows come back in <code>id</code> order.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>as.data.table()</code> when you build or reshape tables:</p>
+
+<ul>
+
+<li><code>setDT()</code>: convert a data.frame or list to a data.table in place, with no copy.</li>
+
+<li><code>setDF()</code>: the reverse, converting a data.table back to a plain data.frame by reference.</li>
+
+<li><code>fread()</code>: read a file directly as a data.table, skipping the conversion step entirely.</li>
+
+<li><code>rbindlist()</code>: stack a list of data.frames or data.tables into one data.table.</li>
+
+<li><code>data.table()</code>: build a data.table from scratch instead of converting an existing object.</li>
+
+</ul>
+
+<p>A frequent pattern is <code>rbindlist(lapply(my_list_of_frames, as.data.table))</code>, which converts and stacks a collection of data.frames in a single line.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as.data.table and setDT?</strong></p>
+
+<p><code>as.data.table()</code> returns a new data.table and leaves the original object untouched, because it works on a copy. <code>setDT()</code> converts the object in place by reference, with no copy, so the variable you passed is itself changed. Use <code>as.data.table()</code> for safety and for inputs that are not data.frames, such as matrices or tables. Use <code>setDT()</code> when you want a fast, zero-copy conversion of a data.frame you own.</p>
+
+<p><strong>Does as.data.table copy the data?</strong></p>
+
+<p>Yes. <code>as.data.table()</code> always produces a copy, so the object you pass in is never modified. This makes it safe to use inside functions and pipelines where mutating a caller's variable would be a surprise. The trade-off is memory: on a very large data.frame the copy doubles peak usage briefly. If that matters and the input is a data.frame, <code>setDT()</code> converts without copying.</p>
+
+<p><strong>How do I convert a data.frame to a data.table in R?</strong></p>
+
+<p>Call <code>as.data.table(your_data_frame)</code> and assign the result, for example <code>dt &lt;- as.data.table(df)</code>. The returned object is a <code>data.table</code> that also inherits from <code>data.frame</code>, so existing code keeps working. If the data.frame has meaningful row names, add <code>keep.rownames = TRUE</code> to save them as a column. For an in-place conversion with no copy, use <code>setDT(df)</code> instead.</p>
+
+<p><strong>Can as.data.table convert a list to a data.table?</strong></p>
+
+<p>Yes. A named list whose elements are equal-length vectors converts to a data.table with one column per element, using the element names as column names. An unnamed list still converts, but the columns are auto-named <code>V1</code>, <code>V2</code>, and so on. Lists with elements of differing lengths will error or recycle, so make the vectors the same length first.</p>
+
+<p><strong>What does keep.rownames do in as.data.table?</strong></p>
+
+<p><code>keep.rownames</code> controls whether a data.frame's or matrix's row names survive the conversion. The default <code>FALSE</code> drops them. Setting it to <code>TRUE</code> stores them in a new column named <code>rn</code>. Passing a string, such as <code>keep.rownames = &quot;model&quot;</code>, stores them in a column with that name. Use it whenever the row names hold real information you do not want to lose.</p>
+
+<p>For the full argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/as.data.table.html">data.table as.data.table documentation</a>.</p>
