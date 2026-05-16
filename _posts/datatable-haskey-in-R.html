@@ -1,0 +1,312 @@
+---
+title: "data.table haskey() in R: Check If a Table Has a Key"
+description: "data.table haskey() returns TRUE if a data.table has a key, FALSE if not. Learn syntax, guard-clause examples, and how it differs from key() and setkey()."
+keywords: "data.table haskey, haskey function R, data.table haskey examples, R data.table key check, check data.table key, haskey vs key"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "haskey()|data.table haskey|data.table::haskey()|check data.table key|haskey function"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table haskey() in R: Check If a Table Has a Key</h1>
+
+<p class="lead">data.table <code>haskey()</code> returns <code>TRUE</code> if a data.table has a key set and <code>FALSE</code> if it does not. It is the fast, side-effect-free way to test key status before a keyed join or subset.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>haskey(DT)<span class="qa-cmt">                          # TRUE if DT has a key set</span>
+key(DT)<span class="qa-cmt">                             # the key column names, or NULL</span>
+setkey(DT, id)<span class="qa-cmt">                      # set a key on column id</span>
+setkey(DT, NULL)<span class="qa-cmt">                    # remove the key</span>
+if (!haskey(DT)) setkey(DT, id)<span class="qa-cmt">     # set the key only if missing</span>
+haskey(as.data.table(mtcars))<span class="qa-cmt">       # FALSE for a freshly built table</span>
+indices(DT)<span class="qa-cmt">                         # secondary indexes (haskey ignores these)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is haskey() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">check whether a table is keyed</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">haskey(DT)</text><text x="125" y="126" class="branch-label">get the key column names</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">key(DT)</text><text x="125" y="182" class="branch-label">set or change the key</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setkey(DT, col)</text><text x="125" y="238" class="branch-label">check for a secondary index</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">indices(DT)</text><text x="125" y="294" class="branch-label">remove the key entirely</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setkey(DT, NULL)</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">order rows</a> without keying</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">setorder(DT, col)</text></svg></div>
+
+<h2>What haskey() does in one sentence</h2>
+
+<p><strong>haskey() is a yes/no key probe.</strong> It takes one data.table and returns a single logical value: <code>TRUE</code> when a primary key is attached, <code>FALSE</code> when none is. Internally it is just <code>!is.null(key(x))</code>, so it never sorts, copies, or modifies your table. That makes it cheap to call inside loops, package code, and assertions.</p>
+
+<p>A key in data.table is an attribute recording which columns the table is sorted by. Keyed tables support fast binary-search joins and the <code>DT[.(value)]</code> subset syntax. Before you rely on either, <code>haskey()</code> tells you whether the key you expect is actually present.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature has one argument.</strong> You pass a data.table and get a logical back.</p>
+
+<div class="webr-container" data-block-title="haskey signature and basic call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">haskey signature and basic call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT &lt;- as.data.table(mtcars)
+haskey(DT)
+#&gt; [1] FALSE
+
+setkey(DT, cyl)
+haskey(DT)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>haskey(x)</code> accepts a single object <code>x</code>. A freshly built data.table has no key, so <code>haskey()</code> returns <code>FALSE</code> until you call <code>setkey()</code> or <code>setkeyv()</code>. There are no other arguments and no options to configure.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>haskey() never errors on a plain data frame.</strong> Passing a <code>data.frame</code> or other object returns <code>FALSE</code> rather than raising an error, because no <code>sorted</code> attribute exists. Treat a <code>FALSE</code> result as "not keyed", not as proof the input is a data.table.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Most real uses fall into four patterns.</strong> Each example below uses a built-in dataset so you can run it directly.</p>
+
+<p>A direct check on a converted table:</p>
+
+<div class="webr-container" data-block-title="Check key status after conversion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check key status after conversion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(iris)
+haskey(DT)
+#&gt; [1] FALSE
+
+setkey(DT, Species)
+haskey(DT)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A guard clause that sets a key only when one is missing, which avoids re-sorting an already-keyed table:</p>
+
+<div class="webr-container" data-block-title="Set the key only when missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set the key only when missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- as.data.table(data.frame(id = c(3L, 1L, 2L), amt = c(30, 10, 20)))
+
+if (!haskey(sales)) setkey(sales, id)
+
+haskey(sales)
+#&gt; [1] TRUE
+sales[.(2L)]
+#&gt;    id amt
+#&gt; 1:  2  20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Comparing <code>haskey()</code> with <code>key()</code> to see what each returns:</p>
+
+<div class="webr-container" data-block-title="haskey versus key return values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">haskey versus key return values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars)
+haskey(DT)   # logical
+#&gt; [1] FALSE
+key(DT)      # character vector or NULL
+#&gt; NULL
+
+setkey(DT, gear, carb)
+haskey(DT)
+#&gt; [1] TRUE
+key(DT)
+#&gt; [1] &quot;gear&quot; &quot;carb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Confirming that a secondary index does not count as a key:</p>
+
+<div class="webr-container" data-block-title="Secondary index is not a key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Secondary index is not a key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars)
+setindex(DT, gear)
+
+haskey(DT)
+#&gt; [1] FALSE
+indices(DT)
+#&gt; [1] &quot;gear&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>haskey() vs key(), setkey() and indices()</h2>
+
+<p><strong>Four functions touch keys, and each answers a different question.</strong> Pick by what you need back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use it to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>haskey(DT)</code></td>
+<td><code>TRUE</code> / <code>FALSE</code></td>
+<td>Test whether any key exists</td>
+</tr>
+<tr>
+<td><code>key(DT)</code></td>
+<td>Character vector or <code>NULL</code></td>
+<td>Read which columns form the key</td>
+</tr>
+<tr>
+<td><code>setkey(DT, col)</code></td>
+<td>Invisibly, the table</td>
+<td>Set or remove the key (sorts the data)</td>
+</tr>
+<tr>
+<td><code>indices(DT)</code></td>
+<td>Character vector or <code>NULL</code></td>
+<td>List secondary indexes, not the key</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule: use <code>haskey()</code> for a boolean branch, and <code>key()</code> when you need the column names themselves. <code>haskey()</code> is the cheaper call when the names do not matter.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine haskey() with stopifnot() for defensive code.</strong> Inside a function that depends on a keyed join, <code>stopifnot(haskey(dt))</code> fails fast with a clear message instead of returning silently wrong results from an unkeyed subset.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most haskey() bugs.</strong></p>
+
+<p>Treating the return value as column names. <code>haskey()</code> gives a logical, never a string, so comparing it to a column name never matches:</p>
+
+<div class="webr-container" data-block-title="Logical result, not a column name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Logical result, not a column name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars)
+setkey(DT, cyl)
+
+# WRONG: haskey() is TRUE/FALSE, not &quot;cyl&quot;
+if (identical(haskey(DT), &quot;cyl&quot;)) &quot;keyed by cyl&quot; else &quot;no match&quot;
+#&gt; [1] &quot;no match&quot;
+
+# RIGHT: compare key() for the column names
+if (identical(key(DT), &quot;cyl&quot;)) &quot;keyed by cyl&quot; else &quot;no match&quot;
+#&gt; [1] &quot;keyed by cyl&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Expecting <code>haskey()</code> to detect secondary indexes. A table built with <code>setindex()</code> but no <code>setkey()</code> returns <code>FALSE</code>; check <code>indices()</code> for those. Finally, remember that subsetting with <code>DT[order(...)]</code> or <code>setorder()</code> reorders rows without setting a key, so <code>haskey()</code> still returns <code>FALSE</code> afterward.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert <code>airquality</code> to a data.table, then set a key on <code>Month</code> only if the table does not already have one. Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: guard with haskey">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: guard with haskey</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(airquality)
+# Try it: key ex_dt on Month only if it has no key
+
+ex_dt
+#&gt; Expected: haskey(ex_dt) is TRUE after your code</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(airquality)
+if (!haskey(ex_dt)) setkey(ex_dt, Month)
+haskey(ex_dt)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>haskey()</code> returns <code>FALSE</code> for the freshly converted table, so the <code>if</code> branch runs and <code>setkey()</code> sorts <code>ex_dt</code> by <code>Month</code>. A second call to <code>haskey()</code> now returns <code>TRUE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>These functions pair naturally with haskey() when managing keys.</strong></p>
+
+<ul>
+
+<li><code>setkey()</code> sets the primary key and physically sorts the table.</li>
+
+<li><code>key()</code> returns the key column names so you can act on them.</li>
+
+<li><code>setindex()</code> and <code>indices()</code> manage fast secondary indexes.</li>
+
+<li><code>setorder()</code> reorders rows without attaching a key.</li>
+
+<li><code>setkeyv()</code> sets a key from a character vector of column names.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does haskey() return in R?</strong></p>
+
+<p><code>haskey()</code> returns a single logical value: <code>TRUE</code> if the data.table has a primary key attached and <code>FALSE</code> otherwise. It never returns column names or <code>NULL</code>. Because it only reads the table's <code>sorted</code> attribute, the call is instant and has no side effects, which makes it safe to use inside loops, assertions, and conditional branches.</p>
+
+<p><strong>What is the difference between haskey() and key() in data.table?</strong></p>
+
+<p><code>haskey()</code> answers "is there a key?" with <code>TRUE</code> or <code>FALSE</code>. <code>key()</code> answers "which columns form the key?" by returning a character vector, or <code>NULL</code> when no key is set. Use <code>haskey()</code> for a boolean branch and <code>key()</code> when you need the actual column names. <code>haskey()</code> is effectively shorthand for <code>!is.null(key(x))</code>.</p>
+
+<p><strong>Does haskey() detect secondary indexes?</strong></p>
+
+<p>No. <code>haskey()</code> only reports the primary key created by <code>setkey()</code>. A table with one or more secondary indexes from <code>setindex()</code> but no primary key returns <code>FALSE</code>. To check for secondary indexes, call <code>indices()</code>, which lists their column names, or returns <code>NULL</code> when none exist.</p>
+
+<p><strong>How do I remove a key so haskey() returns FALSE?</strong></p>
+
+<p>Call <code>setkey(DT, NULL)</code>. This drops the <code>sorted</code> attribute without changing the row order, so a following <code>haskey(DT)</code> call returns <code>FALSE</code>. The data stays sorted in memory, but data.table no longer treats it as keyed, and keyed subsetting like <code>DT[.(value)]</code> will no longer work until you set a key again.</p>
+
+<p>For the full key reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/setkey.html">data.table setkey documentation</a>.</p>
+
+{% endraw %}
