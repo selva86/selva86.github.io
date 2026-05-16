@@ -1,0 +1,371 @@
+---
+title: "data.table fwrite() in R: Fast CSV Writing"
+description: "Use data.table fwrite() in R to write CSV files fast. Covers syntax, delimiters, append mode, gzip compression, and fwrite vs write.csv with examples."
+keywords: "data.table fwrite, fwrite function R, data.table fwrite examples, R fwrite csv, write csv fast R, fwrite vs write.csv, fwrite append"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fwrite()|data.table fwrite|data.table::fwrite()|fwrite|fwrite function|fwrite CSV"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table fwrite() in R: Fast CSV Writing</h1>
+
+<p class="lead">data.table fwrite() in R writes a data frame or data.table to a CSV file far faster than any base R alternative, using a parallel, multi-threaded engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fwrite(dt, &quot;out.csv&quot;)<span class="qa-cmt">                 # write a data.table or data.frame</span>
+fwrite(dt, &quot;out.csv&quot;, sep = &quot;;&quot;)<span class="qa-cmt">      # custom delimiter</span>
+fwrite(dt, &quot;out.tsv&quot;, sep = &quot;\t&quot;)<span class="qa-cmt">     # tab-separated file</span>
+fwrite(dt, &quot;out.csv&quot;, append = TRUE)<span class="qa-cmt">  # append rows to an existing file</span>
+fwrite(dt, &quot;out.csv.gz&quot;)<span class="qa-cmt">              # gzip-compressed output</span>
+fwrite(dt, &quot;&quot;, quote = TRUE)<span class="qa-cmt">          # print to console, force quotes</span>
+fwrite(dt, &quot;out.csv&quot;, nThread = 4)<span class="qa-cmt">    # control parallel write threads</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fwrite() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">write a data frame to CSV fast</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fwrite(dt, &quot;out.csv&quot;)</text><text x="125" y="126" class="branch-label">read a CSV back into R</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="readr-vs-read-csv-vs-fread.html" title="readr vs read.csv vs fread: Which Data Import Function Is Fastest?">fread</a>(&quot;out.csv&quot;)</text><text x="125" y="182" class="branch-label">write an Excel .xlsx file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">writexl::write_xlsx(dt, &quot;out.xlsx&quot;)</text><text x="125" y="238" class="branch-label">save R objects, not text</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">saveRDS(dt, &quot;out.rds&quot;)</text><text x="125" y="294" class="branch-label">write JSON output</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">jsonlite</a>::write_json(dt, &quot;out.json&quot;)</text><text x="125" y="350" class="branch-label">append to a growing log file</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fwrite(dt, &quot;log.csv&quot;, append = TRUE)</text></svg></div>
+
+<h2>What fwrite() does in one sentence</h2>
+
+<p><strong>fwrite() turns an R table into a delimited text file at high speed.</strong> It accepts a <code>data.table</code>, <code>data.frame</code>, <code>list</code>, or <code>matrix</code> and writes it to disk as CSV, TSV, or any custom-delimited format. The function is the writing counterpart of <code>fread()</code>, and on large tables it runs 10 to 50 times faster than <code>write.csv()</code> because it splits the work across CPU cores.</p>
+
+<p>The example below loads <code>data.table</code>, builds a small table from <code>mtcars</code>, and writes it to a file in the browser session. Reading the raw lines back confirms the file content.</p>
+
+<div class="webr-container" data-block-title="Write a data.table to CSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a data.table to CSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+dt &lt;- as.data.table(mtcars)[1:5, .(mpg, cyl, hp)]
+fwrite(dt, &quot;cars.csv&quot;)
+cat(readLines(&quot;cars.csv&quot;), sep = &quot;\n&quot;)
+#&gt; mpg,cyl,hp
+#&gt; 21,6,110
+#&gt; 21,6,110
+#&gt; 22.8,4,93
+#&gt; 21.4,6,110
+#&gt; 18.7,8,175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice there is no row-name column. Unlike <code>write.csv()</code>, fwrite never adds row indices, so the file is ready to share or re-import without cleanup.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The fwrite() call needs only two arguments to be useful: the object and a file path.</strong> Every other argument tunes the output format. The signature, with the arguments you will use most often, is:</p>
+
+<div class="webr-container" data-block-title="fwrite signature with common arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">fwrite signature with common arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fwrite(
+  x,                  # data.table, data.frame, list, or matrix
+  file = &quot;&quot;,          # output path; &quot;&quot; prints to the console
+  sep = &quot;,&quot;,          # field delimiter
+  quote = &quot;auto&quot;,     # quote strings only when needed
+  na = &quot;&quot;,            # text written for NA values
+  col.names = TRUE,   # write a header row
+  append = FALSE,     # add to an existing file instead of overwriting
+  compress = &quot;auto&quot;,  # gzip when the path ends in .gz
+  nThread = getDTthreads()  # number of parallel write threads
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>file</code></td>
+<td>Output path; <code>&quot;&quot;</code> writes to the console</td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>sep</code></td>
+<td>Field delimiter</td>
+<td><code>,</code></td>
+</tr>
+<tr>
+<td><code>quote</code></td>
+<td>When to wrap fields in quotes</td>
+<td><code>&quot;auto&quot;</code></td>
+</tr>
+<tr>
+<td><code>na</code></td>
+<td>String used for <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a></td>
+<td><code>&quot;&quot;</code></td>
+</tr>
+<tr>
+<td><code>append</code></td>
+<td>Append rows rather than overwrite</td>
+<td><code>FALSE</code></td>
+</tr>
+<tr>
+<td><code>compress</code></td>
+<td>Compression mode (<code>&quot;auto&quot;</code>, <code>&quot;gzip&quot;</code>, <code>&quot;none&quot;</code>)</td>
+<td><code>&quot;auto&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let fwrite use every core.</strong> It already reads <code>getDTthreads()</code> by default, but on a shared server you can cap it with <code>nThread</code> or globally with <code>setDTthreads()</code>. More threads cut write time on million-row tables without changing the output.</div></div>
+
+<h2>Writing data: five common patterns</h2>
+
+<p><strong>Most real fwrite() calls fall into a handful of recurring shapes.</strong> The patterns below cover delimiters, appending, compression, and quoting.</p>
+
+<p>A custom delimiter is one argument away. Passing <code>&quot;&quot;</code> as the file path sends output straight to the console, which is handy for inspecting the result:</p>
+
+<div class="webr-container" data-block-title="Custom delimiter and console output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom delimiter and console output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fwrite(dt, &quot;&quot;, sep = &quot;;&quot;)
+#&gt; mpg;cyl;hp
+#&gt; 21;6;110
+#&gt; 21;6;110
+#&gt; 22.8;4;93
+#&gt; 21.4;6;110
+#&gt; 18.7;8;175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Append mode adds rows to a file that already exists. fwrite writes no header when <code>append = TRUE</code>, so the file keeps a single header from the first write:</p>
+
+<div class="webr-container" data-block-title="Append rows to an existing file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Append rows to an existing file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fwrite(dt[1:2], &quot;log.csv&quot;)
+fwrite(dt[3:4], &quot;log.csv&quot;, append = TRUE)
+cat(readLines(&quot;log.csv&quot;), sep = &quot;\n&quot;)
+#&gt; mpg,cyl,hp
+#&gt; 21,6,110
+#&gt; 21,6,110
+#&gt; 22.8,4,93
+#&gt; 21.4,6,110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compression happens automatically when the path ends in <code>.gz</code>. The file is smaller on disk and <code>fread()</code> reads it back transparently:</p>
+
+<div class="webr-container" data-block-title="Write a compressed CSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write a compressed CSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fwrite(dt, &quot;cars.csv.gz&quot;)
+fread(&quot;cars.csv.gz&quot;)
+#&gt;     mpg cyl  hp
+#&gt;   &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: 21.0   6 110
+#&gt; 2: 21.0   6 110
+#&gt; 3: 22.8   4  93
+#&gt; 4: 21.4   6 110
+#&gt; 5: 18.7   8 175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Quoting and NA handling control how text and missing values appear. Use <code>quote = TRUE</code> to wrap every field and <code>na</code> to set the missing-value string:</p>
+
+<div class="webr-container" data-block-title="Control quoting and NA strings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control quoting and NA strings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt2 &lt;- data.table(name = c(&quot;Ann&quot;, &quot;Bob&quot;), score = c(NA, 9))
+fwrite(dt2, &quot;&quot;, na = &quot;NA&quot;, quote = TRUE)
+#&gt; &quot;name&quot;,&quot;score&quot;
+#&gt; &quot;Ann&quot;,NA
+#&gt; &quot;Bob&quot;,9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>fwrite() vs write.csv() and write_csv()</h2>
+
+<p><strong>fwrite() wins on speed and produces a cleaner file by default.</strong> Base R's <code>write.csv()</code> is single-threaded and adds a row-name column unless you disable it. The <code>readr::write_csv()</code> function is faster than base R but still trails fwrite on large data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th><code>fwrite()</code></th>
+<th><code>write.csv()</code></th>
+<th><code>readr::write_csv()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Multi-threaded</td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Adds row-name column</td>
+<td>Never</td>
+<td>Yes, unless disabled</td>
+<td>Never</td>
+</tr>
+<tr>
+<td>gzip via <code>.gz</code> path</td>
+<td>Yes</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Append mode</td>
+<td>Yes</td>
+<td>Manual</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Relative speed (1M rows)</td>
+<td>Fastest</td>
+<td>Slowest</td>
+<td>Middle</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use fwrite for any table larger than a few thousand rows, for repeated writes inside a loop, or whenever write time shows up in a profile. Reach for <code>write.csv()</code> only when you cannot add a package dependency.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>fwrite(dt, &quot;out.csv&quot;)</code> is <code>df.to_csv(&quot;out.csv&quot;, index=False)</code>. fwrite drops the index by default, so you do not need the <code>index=False</code> argument.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most broken fwrite() output.</strong> Knowing them up front saves a debugging session.</p>
+
+<ul>
+
+<li><strong>append = TRUE does not check columns.</strong> fwrite appends rows blindly without verifying that column order or count matches the existing file. If you append a table whose columns are reordered, the file is silently corrupted. Always append tables with identical column structure.</li>
+
+<li><strong>fwrite does not create directories.</strong> Calling <code>fwrite(dt, &quot;reports/out.csv&quot;)</code> errors if the <code>reports</code> folder does not exist. Run <code>dir.create(&quot;reports&quot;, showWarnings = FALSE)</code> before writing into a new path.</li>
+
+<li><strong>List-columns are flattened with sep2.</strong> A column that holds a list (common after a grouped <code>.()</code> operation) is written using the <code>sep2</code> separator, not <code>sep</code>. Inspect such columns or unnest them before writing if you need a flat CSV.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Overwriting is silent.</strong> fwrite replaces an existing file without a prompt or warning. When a script runs on a schedule, guard important files with <code>file.exists()</code> or write to a timestamped path so a rerun cannot destroy yesterday's output.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write the first 8 rows of <code>iris</code> (columns <code>Species</code> and <code>Sepal.Length</code> only) to a semicolon-separated file called <code>ex_iris.csv</code>. Save nothing else; just create the file.</p>
+<div class="webr-container" data-block-title="Your turn: write a semicolon CSV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: write a semicolon CSV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write iris columns to a semicolon file
+ex_dt &lt;- as.data.table(iris)[1:8, .(Species, Sepal.Length)]
+# your code here
+
+cat(readLines(&quot;ex_iris.csv&quot;), sep = &quot;\n&quot;)
+#&gt; Expected: header line is Species;Sepal.Length</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(iris)[1:8, .(Species, Sepal.Length)]
+fwrite(ex_dt, &quot;ex_iris.csv&quot;, sep = &quot;;&quot;)
+cat(readLines(&quot;ex_iris.csv&quot;), sep = &quot;\n&quot;)
+#&gt; Species;Sepal.Length
+#&gt; setosa;5.1
+#&gt; setosa;4.9
+#&gt; setosa;4.7
+#&gt; setosa;4.6
+#&gt; setosa;5
+#&gt; setosa;5.4
+#&gt; setosa;4.6
+#&gt; setosa;5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>sep = &quot;;&quot;</code> argument swaps the comma for a semicolon. fwrite writes the header automatically, and no row-name column appears.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>fwrite() pairs with several other data.table tools</strong> for a full read-write workflow:</p>
+
+<ul>
+
+<li><code>fread()</code> reads CSV and delimited files back into R at matching speed.</li>
+
+<li><code>as.data.table()</code> converts a data frame so fwrite can use the fast path.</li>
+
+<li><code>rbindlist()</code> stacks many tables into one before a single fwrite call.</li>
+
+<li><code>setDT()</code> converts an object to a data.table in place, by reference.</li>
+
+<li><code>melt()</code> and <code>dcast()</code> reshape a table before you write it out.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Is fwrite faster than write.csv?</strong> Yes, by a wide margin. fwrite is multi-threaded and uses a specialized number-to-text algorithm, so on a one-million-row table it typically finishes 10 to 50 times faster than <code>write.csv()</code>. The gap grows with table size and core count. For small tables under a few thousand rows the difference is not noticeable, but fwrite is never slower.</p>
+
+<p><strong>How do I write a tab-separated file with fwrite?</strong> Set the <code>sep</code> argument to a tab character: <code>fwrite(dt, &quot;out.tsv&quot;, sep = &quot;\t&quot;)</code>. fwrite does not infer the delimiter from the file extension, so the <code>.tsv</code> name is just a convention. Any single character works as a delimiter, including <code>;</code> or <code>|</code>.</p>
+
+<p><strong>Can fwrite append to an existing CSV?</strong> Yes. Pass <code>append = TRUE</code> and fwrite adds rows without writing a new header. The columns must match the existing file in order and count, because fwrite does not check alignment. Appending a reordered table silently corrupts the output.</p>
+
+<p><strong>Does fwrite write row names?</strong> No. fwrite never adds a row-name or index column, which is the main behavioral difference from <code>write.csv()</code>. If you need row identifiers in the file, add them as an explicit column before writing, for example with <code>dt[, id := .I]</code>.</p>
+
+<p><strong>How do I write a compressed CSV with fwrite?</strong> End the file path with <code>.gz</code> and fwrite gzips the output automatically: <code>fwrite(dt, &quot;out.csv.gz&quot;)</code>. You can also force it with <code>compress = &quot;gzip&quot;</code>. The matching <code>fread()</code> call reads the compressed file back without any extra argument.</p>
+
+{% endraw %}
