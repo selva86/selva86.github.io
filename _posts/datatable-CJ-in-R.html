@@ -1,0 +1,372 @@
+---
+title: "data.table CJ() in R: Generate All Value Combinations"
+description: "Use data.table CJ() in R to build the cross join of vectors, generate every value combination, and fill missing rows, with sorted and unique examples."
+keywords: "data.table CJ, CJ function R, data.table CJ examples, R cross join data.table, CJ Cartesian product R, expand grid data.table, all combinations in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "CJ()|data.table CJ|data.table::CJ()|cross join|Cartesian product"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table CJ() in R: Generate All Value Combinations</h1>
+
+<p class="lead">The <code>CJ()</code> function in data.table builds a cross join: a data.table containing every combination of the vectors you pass, sorted and keyed by default, ready to join against your data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>CJ(1:3, c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">                     # all combos of two vectors</span>
+CJ(id = 1:3, grp = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">          # name the output columns</span>
+CJ(c(2, 1, 2), c(&quot;a&quot;, &quot;a&quot;), unique = TRUE)<span class="qa-cmt"> # dedupe inputs first</span>
+CJ(c(3, 1, 2), 1:2, sorted = FALSE)<span class="qa-cmt">      # keep input order, unkeyed</span>
+CJ(year = 2021:2023, quarter = 1:4)<span class="qa-cmt">      # build a full panel grid</span>
+sales[CJ(unique(store), unique(month))]<span class="qa-cmt">  # join to fill missing combos</span>
+nrow(CJ(1:10, 1:10))<span class="qa-cmt">                     # rows = product of lengths</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is CJ() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">all combinations of values</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">CJ(x, y)</text><text x="125" y="126" class="branch-label">combinations as a data.frame</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">expand.grid(x, y)</text><text x="125" y="182" class="branch-label">combinations in the tidyverse</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tidyr::crossing(x, y)</text><text x="125" y="238" class="branch-label">fill missing panel rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[CJ(ids, dates)]</text><text x="125" y="294" class="branch-label">only count combinations</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">prod(lengths(list(x, y)))</text><text x="125" y="350" class="branch-label">full join of two whole tables</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">merge(a, b, allow.cartesian = TRUE)</text></svg></div>
+
+<h2>What CJ() does in one sentence</h2>
+
+<p><strong><code>CJ()</code> produces the cross product of its input vectors as a data.table.</strong> The name stands for Cross Join. You hand it two or more vectors, and it returns a table whose rows are every possible combination of one value from each vector. Two vectors of length 3 and 2 give a 6-row table.</p>
+
+<p>The reason <code>data.table CJ</code> exists is to make grid building fast and join-ready. Base R has <code>expand.grid()</code>, but it returns an unsorted <code>data.frame</code>. <code>CJ()</code> returns a <code>data.table</code> that is sorted and keyed on every column by default, so it slots straight into a <code>data.table</code> join to expand or complete a dataset. That keying is what makes <code>CJ()</code> the standard tool for filling missing rows in a panel.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>CJ()</code> takes any number of vectors plus two switches.</strong> Every vector becomes one column of the result; the switches control ordering and deduplication.</p>
+
+<div class="webr-container" data-block-title="Load data.table and cross join two vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and cross join two vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+CJ(1:3, c(&quot;a&quot;, &quot;b&quot;))
+#&gt;       V1     V2
+#&gt;    &lt;int&gt; &lt;char&gt;
+#&gt; 1:     1      a
+#&gt; 2:     1      b
+#&gt; 3:     2      a
+#&gt; 4:     2      b
+#&gt; 5:     3      a
+#&gt; 6:     3      b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>CJ(..., sorted = TRUE, unique = FALSE)</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>...</code>: the vectors to cross. Each one becomes a column. Pass them with names (<code>id = 1:3</code>) to name the output columns; bare vectors become <code>V1</code>, <code>V2</code>, and so on.</li>
+
+<li><code>sorted</code>: <code>TRUE</code> (the default) sorts the result and sets a key on all columns. <code>FALSE</code> keeps input order and leaves the table unkeyed.</li>
+
+<li><code>unique</code>: <code>TRUE</code> applies <code>unique()</code> to each input before crossing. <code>FALSE</code> (the default) keeps duplicate inputs, which inflates the row count.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always name your inputs.</strong> Writing <code>CJ(year = 2021:2023, quarter = 1:4)</code> gives readable <code>year</code> and <code>quarter</code> columns instead of <code>V1</code> and <code>V2</code>, and it makes the result join cleanly against tables that already use those names.</div></div>
+
+<h2>Cross joining vectors: four common patterns</h2>
+
+<h3>1. All combinations of two or more vectors</h3>
+
+<p><strong>The core use of <code>CJ()</code> is enumerating every combination.</strong> Pass as many vectors as you like; the result has one row per combination and one column per vector.</p>
+
+<div class="webr-container" data-block-title="Cross join three vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross join three vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">CJ(size = c(&quot;S&quot;, &quot;M&quot;), color = c(&quot;red&quot;, &quot;blue&quot;), pack = 1:2)
+#&gt;      size  color  pack
+#&gt;    &lt;char&gt; &lt;char&gt; &lt;int&gt;
+#&gt; 1:      M   blue     1
+#&gt; 2:      M   blue     2
+#&gt; 3:      M    red     1
+#&gt; 4:      M    red     2
+#&gt; 5:      S   blue     1
+#&gt; 6:      S   blue     2
+#&gt; 7:      S    red     1
+#&gt; 8:      S    red     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two sizes, two colors, and two pack counts give <code>2 * 2 * 2 = 8</code> rows. The last vector varies fastest, and because <code>sorted = TRUE</code>, each column comes out in ascending order.</p>
+
+<h3>2. Keep input order with sorted = FALSE</h3>
+
+<p><strong>Set <code>sorted = FALSE</code> when the original order of your vectors matters.</strong> The default sorts every column, which is usually helpful but discards any deliberate ordering.</p>
+
+<div class="webr-container" data-block-title="Retain input order with sorted FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Retain input order with sorted FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">CJ(c(3, 1, 2), c(&quot;b&quot;, &quot;a&quot;), sorted = FALSE)
+#&gt;       V1     V2
+#&gt;    &lt;num&gt; &lt;char&gt;
+#&gt; 1:      3      b
+#&gt; 2:      3      a
+#&gt; 3:      1      b
+#&gt; 4:      1      a
+#&gt; 5:      2      b
+#&gt; 6:      2      a</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first value <code>3</code> is no longer pushed to the bottom. The result is also unkeyed, so a later join against it will not get the speed boost that a keyed table provides.</p>
+
+<h3>3. Drop duplicate inputs with unique = TRUE</h3>
+
+<p><strong><code>CJ()</code> keeps duplicate inputs unless you ask it not to.</strong> A vector with repeats produces repeated rows, which is rarely what you want for a grid.</p>
+
+<div class="webr-container" data-block-title="Cross join unique values only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross join unique values only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ids &lt;- c(1, 1, 2, 3, 3)
+
+nrow(CJ(ids, c(&quot;a&quot;, &quot;b&quot;)))
+#&gt; [1] 10
+
+nrow(CJ(ids, c(&quot;a&quot;, &quot;b&quot;), unique = TRUE))
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With duplicates kept, the five-element <code>ids</code> vector crosses with two letters for 10 rows. Passing <code>unique = TRUE</code> first reduces <code>ids</code> to its three distinct values, giving the expected <code>3 * 2 = 6</code> rows.</p>
+
+<h3>4. Build a panel and fill missing rows</h3>
+
+<p><strong>The headline use of <code>CJ()</code> is completing a dataset.</strong> Join a <code>CJ()</code> grid against a keyed table and every missing combination appears as a row with <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="Fill missing combinations with a CJ join">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill missing combinations with a CJ join</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.table(
+  store = c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;),
+  month = c(1L, 2L, 1L),
+  units = c(10, 15, 7)
+)
+setkey(sales, store, month)
+
+sales[CJ(store = c(&quot;A&quot;, &quot;B&quot;), month = 1:2)]
+#&gt;     store month units
+#&gt;    &lt;char&gt; &lt;int&gt; &lt;num&gt;
+#&gt; 1:      A     1    10
+#&gt; 2:      A     2    15
+#&gt; 3:      B     1     7
+#&gt; 4:      B     2     NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Store <code>B</code> had no row for month 2 in the raw data. The <code>CJ()</code> grid lists both stores against both months, and the join surfaces the gap as <code>units = NA</code>, ready for you to fill with zero or impute.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>CJ()</code> turns an incomplete dataset into a rectangular one.</strong> Real data has holes: a store with no sales in a month, a sensor that skipped a reading. Joining against the complete <code>CJ()</code> grid makes every expected row exist, so downstream sums, rolling windows, and plots no longer silently skip the gaps.</div></div>
+
+<h2>CJ() vs expand.grid() and crossing()</h2>
+
+<p><strong>Three functions build cross products, but they differ in output type and ordering.</strong> <code>CJ()</code> returns a keyed <code>data.table</code>, <code>expand.grid()</code> returns a base <code>data.frame</code>, and <code>tidyr::crossing()</code> returns a sorted tibble.</p>
+
+<div class="webr-container" data-block-title="CJ versus expand.grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CJ versus expand.grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cj_out &lt;- CJ(x = 1:2, y = c(&quot;a&quot;, &quot;b&quot;))
+class(cj_out)
+#&gt; [1] &quot;data.table&quot; &quot;data.frame&quot;
+
+eg_out &lt;- expand.grid(x = 1:2, y = c(&quot;a&quot;, &quot;b&quot;))
+class(eg_out)
+#&gt; [1] &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Returns</th>
+<th>Sorted and keyed</th>
+<th>Auto-dedupe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CJ()</code></td>
+<td>data.table</td>
+<td>data.table</td>
+<td>yes, by default</td>
+<td>with <code>unique = TRUE</code></td>
+</tr>
+<tr>
+<td><code>expand.grid()</code></td>
+<td>base R</td>
+<td>data.frame</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>crossing()</code></td>
+<td>tidyr</td>
+<td>tibble</td>
+<td>yes, sorted</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>CJ()</code> when the result feeds a <code>data.table</code> join, since the key makes that join fast. Use <code>expand.grid()</code> for a quick base-R grid with no extra dependency. Use <code>crossing()</code> inside a tidyverse pipeline.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>CJ()</code> is <code>pd.merge(df1, df2, how=&quot;cross&quot;)</code>, or <code>itertools.product()</code> when you only need the raw tuples rather than a labelled table.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: the result grows multiplicatively.</strong> A cross join of two vectors has <code>length(x) * length(y)</code> rows, so large inputs explode fast.</p>
+
+<div class="webr-container" data-block-title="Cross joins grow multiplicatively">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross joins grow multiplicatively</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(CJ(1:1000, 1:1000))
+#&gt; [1] 1000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Crossing two thousand-element vectors yields a million rows. Check <code>prod(lengths(list(x, y)))</code> before running <code>CJ()</code> on big inputs so you do not exhaust memory by accident.</p>
+
+<p><strong>Pitfall 2: duplicate inputs are kept by default.</strong> Because <code>unique</code> defaults to <code>FALSE</code>, a vector with repeated values produces repeated rows. If your inputs come from a raw column rather than a clean lookup, pass <code>unique = TRUE</code> or wrap each input in <code>unique()</code> yourself.</p>
+
+<p><strong>Pitfall 3: bare vectors get generic column names.</strong> <code>CJ(1:3, 1:2)</code> produces columns <code>V1</code> and <code>V2</code>, which will not match the names in the table you join against. Always pass named arguments so the join keys line up.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A <code>CJ()</code> join can fail with an <code>allow.cartesian</code> error.</strong> When the grid is large relative to the data, data.table refuses the join as a safety check. If the size is genuinely intended, add <code>allow.cartesian = TRUE</code> to the join call rather than disabling the guard globally.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a grid of every combination of three shirt sizes (<code>S</code>, <code>M</code>, <code>L</code>) and two colors (<code>red</code>, <code>blue</code>). Save the result to <code>ex_grid</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cross join sizes and colors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cross join sizes and colors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: all size-color combinations
+ex_grid &lt;- # your code here
+
+nrow(ex_grid)
+#&gt; Expected: 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- CJ(size = c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;), color = c(&quot;red&quot;, &quot;blue&quot;))
+nrow(ex_grid)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>CJ()</code> crosses the three sizes with the two colors, producing <code>3 * 2 = 6</code> rows. Naming the arguments gives readable <code>size</code> and <code>color</code> columns instead of <code>V1</code> and <code>V2</code>.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>CJ()</code> when you build grids or join tables:</p>
+
+<ul>
+
+<li><code>expand.grid()</code>: the base R cross product, returning an unsorted <code>data.frame</code>.</li>
+
+<li><code>setkey()</code>: sets the key that makes a <code>CJ()</code> join fast.</li>
+
+<li><code>merge()</code>: joins two whole tables, with <code>allow.cartesian</code> for full cross joins.</li>
+
+<li><code>rbindlist()</code>: stacks a list of tables into one, often after a grid expansion.</li>
+
+<li><code>data.table()</code>: the constructor; <code>CJ()</code> is effectively a grid-shaped constructor.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does CJ stand for in data.table?</strong></p>
+
+<p>CJ stands for Cross Join. It is named after the SQL cross join, which pairs every row of one table with every row of another. In data.table, <code>CJ()</code> does the same for vectors: it returns every combination of one value from each input vector as a new <code>data.table</code>. The companion functions <code>J()</code> and <code>SJ()</code> build join tables too, with <code>SJ()</code> being a sorted variant.</p>
+
+<p><strong>How is CJ different from expand.grid in R?</strong></p>
+
+<p>Both return every combination of their inputs, but <code>CJ()</code> produces a <code>data.table</code> that is sorted and keyed on all columns, while <code>expand.grid()</code> produces an unsorted base <code>data.frame</code>. The key matters: a keyed <code>CJ()</code> table joins against other data.tables quickly, which is why <code>CJ()</code> is preferred for completing panels. <code>expand.grid()</code> is fine when you only need a quick grid and want no extra package dependency.</p>
+
+<p><strong>How do I use CJ to fill missing dates in R?</strong></p>
+
+<p>Build a grid of every id and every date with <code>CJ(id = unique(dt$id), date = seq_dates)</code>, then join it against your keyed table: <code>dt[CJ(...)]</code>. Set the key first with <code>setkey(dt, id, date)</code>. Combinations present in the data keep their values, and missing combinations appear as new rows with <code>NA</code>, which you can then fill with zero or carry forward.</p>
+
+<p><strong>Does CJ remove duplicate values?</strong></p>
+
+<p>Not by default. <code>CJ()</code> has a <code>unique</code> argument that defaults to <code>FALSE</code>, so duplicate values in an input vector produce duplicate rows. Pass <code>unique = TRUE</code> to apply <code>unique()</code> to every input before crossing. If only some inputs have duplicates, you can instead wrap those specific vectors in <code>unique()</code> yourself.</p>
+
+<p><strong>How large can a CJ result get?</strong></p>
+
+<p>A <code>CJ()</code> result has exactly <code>prod(lengths(inputs))</code> rows, so it grows multiplicatively. Crossing two vectors of length 1,000 gives a million rows, and a third vector of length 100 makes it 100 million. Always estimate the size with <code>prod()</code> before crossing large vectors, since a too-large grid can exhaust memory.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/J.html">data.table CJ documentation</a>.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
