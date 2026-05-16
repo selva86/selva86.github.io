@@ -77,9 +77,83 @@ PARENT_CONFIGS = {
         ],
         "see_all": None,
     },
-    # Future parents drop in here as they grow. Examples:
-    # "lubridate-in-R.html":              { ... },
-    # "stringr-in-R.html":                { ... },
+    "Importing-Data-in-R.html": {
+        "intro": "Read and write data in every common format — CSV, Excel, JSON, statistical-software files, and fast columnar formats. Each recipe has runnable code and the gotcha to watch.",
+        "categories": [
+            ("CSV & text files",        r"^readr-"),
+            ("Excel files",             r"^readxl-"),
+            ("Statistical software",    r"^haven-"),
+            ("Fast & columnar formats", r"^(arrow-|fst-|qs-|Apache-Arrow)"),
+            ("JSON",                    r"^jsonlite-"),
+        ],
+        "see_all": None,
+    },
+    "lubridate-in-R.html": {
+        "intro": "lubridate recipes for parsing, extracting, rounding, and doing arithmetic with dates and times. Each has runnable code and the base-R equivalent.",
+        "categories": [
+            ("Parse & construct",   r"^lubridate-(dmy|mdy|ymd|parse_date_time|fast_strptime|as_date|now|today)"),
+            ("Extract components",  r"^lubridate-(year|month|day|hour|minute|second|wday|mday|yday|week|isoweek|quarter|semester|am|pm|days_in_month|leap_year|tz)-in-R"),
+            ("Round dates",         r"^lubridate-(floor_date|ceiling_date|round_date|rollback)"),
+            ("Durations & periods", r"^lubridate-(duration|period|interval|days|hours|minutes|seconds|weeks|months|years|difftime|int_length|int_overlaps|time_length)-in-R"),
+            ("Time zones",          r"^lubridate-(force_tz|with_tz)"),
+        ],
+        "see_all": None,
+    },
+    "stringr-in-R.html": {
+        "intro": "stringr recipes for detecting, extracting, replacing, and reshaping text. Each has runnable code, regex notes, and the common pitfall.",
+        "categories": [
+            ("Detect & locate",   r"^stringr-str_(count|ends|starts|locate|which|subset|view)"),
+            ("Extract & match",   r"^stringr-str_(extract|match|split|sub)"),
+            ("Replace & remove",  r"^stringr-str_(replace|remove)"),
+            ("Transform case",    r"^stringr-str_to_"),
+            ("Pad, trim & format", r"^stringr-str_(pad|trim|squish|trunc|dup|c-|length|glue)"),
+            ("Sort & order",      r"^stringr-str_(sort|order)"),
+            ("Pattern modifiers", r"^stringr-(fixed|regex)"),
+            ("Regex reference",   r"^R-Regex-"),
+        ],
+        "see_all": None,
+    },
+    "data-table-vs-dplyr.html": {
+        "intro": "data.table's fast, memory-efficient toolkit — I/O, keys, rolling windows, and reshaping. Each recipe pairs the data.table idiom with its dplyr equivalent.",
+        "categories": [
+            ("Fast I/O",            r"^datatable-(fread|fwrite)"),
+            ("Conditionals",        r"^datatable-(fcase|fcoalesce|fifelse)"),
+            ("Keys & ordering",     r"^datatable-(key|setkey|haskey|setorder|setcolorder|setDF|setDT|setnames|as-data-table)"),
+            ("Rolling & ranking",   r"^datatable-(froll|frank|rleid|rowid|shift)"),
+            ("Combine & reshape",   r"^datatable-(CJ|merge|rbindlist|fsetdiff|tstrsplit|uniqueN)"),
+        ],
+        "see_all": None,
+    },
+    "Categorical-Data-in-R.html": {
+        "intro": "forcats tools for reordering, lumping, and cleaning up factor levels. Each recipe has runnable code and the base-R approach it replaces.",
+        "categories": [
+            ("Reorder levels",   r"^forcats-fct_(relevel|reorder|infreq|inorder|rev|shift|shuffle)"),
+            ("Combine & lump",   r"^forcats-fct_(collapse|lump|other|recode)"),
+            ("Add & drop levels", r"^forcats-fct_(drop|expand|explicit_na|unique)"),
+            ("Inspect",          r"^forcats-fct_count"),
+        ],
+        "see_all": None,
+    },
+    "R-Common-Errors.html": {
+        "intro": "The R errors and warnings that stop people cold — what each one means and how to fix it fast.",
+        "categories": [
+            ("Objects & scoping",    r"^R-Error-(Function-Not-Found|Object-Not-Found|No-Package)"),
+            ("Data & subscripting",  r"^R-Error-(Subscript|Undefined-Columns|Replacement-Length|Non-Numeric|Breaks-Not-Unique|CSV-Columns|Cannot-Open-Connection)"),
+            ("Matrix & numerical",   r"^R-Error-(Not-Matrix|Singular-Matrix|Memory)"),
+            ("Package-specific",     r"^R-Error-(dplyr|ggplot2|lme4|Stan)"),
+            ("Warnings",             r"^R-Warning-"),
+        ],
+        "see_all": None,
+    },
+    "Is-R-Worth-Learning-in-2026.html": {
+        "intro": "Should you learn R, and how to get started — books, courses, career paths, and honest R-vs-X comparisons.",
+        "categories": [
+            ("R vs other tools", r"^(R-vs-|RStudio-vs-)"),
+            ("Switching to R",   r"^R-for-"),
+            ("Learning & career", r"^(Best-R-|Free-R-|R-Certifications|R-Data-Scientist|R-Resume)"),
+        ],
+        "see_all": None,
+    },
 }
 
 # --------------------------------------------------------------------------- #
@@ -221,7 +295,7 @@ def render_card(url: str, title: str, slug: str, cat: str) -> str:
     fm = read_frontmatter(slug)
     desc = excerpt(fm.get("description", ""))
     clean = re.sub(r"\s+With Examples\s*$", "", title)
-    clean = re.sub(r"^(ggplot2|dplyr|purrr)\s+", "", clean)
+    clean = re.sub(r"^(ggplot2|dplyr|purrr|lubridate|stringr|readr|readxl|forcats|haven|arrow|jsonlite|data\.table)\s+", "", clean)
     clean = re.sub(r"\s*:\s*$", "", clean)
     # PSEO posts are single-function deep-dives -> code badge.
     # FR / concept posts have no single function -> "Guide" label.
