@@ -1,0 +1,329 @@
+---
+title: "data.table fcoalesce() in R: Fill Missing Values Fast"
+description: "Learn data.table fcoalesce() in R to fill missing values from the first non-NA source. Covers syntax, scalar defaults, fcoalesce vs coalesce, and pitfalls."
+keywords: "data.table fcoalesce, fcoalesce function R, data.table fcoalesce examples, R coalesce NA, replace NA data.table, fcoalesce vs coalesce, first non-NA value R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fcoalesce()|data.table fcoalesce|data.table::fcoalesce()|fcoalesce|coalesce in R"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table fcoalesce() in R: Fill Missing Values Fast</h1>
+
+<p class="lead">The data.table fcoalesce() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the first non-missing value across two or more vectors, scanning them left to right in a single fast pass. It is the R equivalent of SQL's COALESCE.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fcoalesce(x, y)<span class="qa-cmt">                      # first non-NA of x then y</span>
+fcoalesce(x, 0)<span class="qa-cmt">                      # scalar fills every NA</span>
+fcoalesce(x, y, z)<span class="qa-cmt">                   # scan any number of vectors</span>
+DT[, v := fcoalesce(a, b)]<span class="qa-cmt">           # add a column by reference</span>
+fcoalesce(d, as.Date(&quot;2024-01-01&quot;))<span class="qa-cmt">  # Date class is preserved</span>
+fcoalesce(chr, &quot;unknown&quot;)<span class="qa-cmt">            # text fallback for NA</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fcoalesce() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> from a backup vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fcoalesce(x, backup)</text><text x="125" y="126" class="branch-label">pick a value by one condition</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fifelse(test, yes, no)</text><text x="125" y="182" class="branch-label">classify by many conditions</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fcase(c1, v1, c2, v2)</text><text x="125" y="238" class="branch-label">replace NA in place by reference</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">setnafill(DT, fill = 0)</text><text x="125" y="294" class="branch-label">drop every row containing NA</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">na.omit(DT)</text><text x="125" y="350" class="branch-label">count <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> per column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">colSums(is.na(DT))</text></svg></div>
+
+<h2>What fcoalesce() does</h2>
+
+<p><strong>fcoalesce() merges several vectors into one by taking the first value that is not NA.</strong> You pass two or more vectors of the same type and length. For each position, the function walks the vectors left to right and returns the first value that is not missing.</p>
+
+<p>It is data.table's tool for combining sparse sources into one complete column. A common case is a primary column with gaps and a backup column that fills them. Instead of writing <code>ifelse(is.na(x), y, x)</code> by hand, <code>fcoalesce()</code> does the same job in one optimized C pass and extends cleanly to three, four, or more fallback vectors.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fcoalesce() resolves a priority order, not just a single fallback.</strong> The argument order is the priority order: the first vector wins wherever it has a value, the second fills its gaps, the third fills what remains, and so on. Reading a call left to right tells you exactly which source takes precedence.</div></div>
+
+<h2>fcoalesce() syntax</h2>
+
+<p><strong>The call takes any number of vectors plus an optional nan argument.</strong> The signature is <code>fcoalesce(..., nan = NA)</code>. Each vector in <code>...</code> is a candidate source, and <code>nan</code> controls whether <code>NaN</code> is treated as missing alongside <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="The fcoalesce call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fcoalesce call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- c(1, NA, NA, 4)
+y &lt;- c(9, 9, 9, 9)
+fcoalesce(x, y)
+#&gt; [1] 1 9 9 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rules govern every call. All inputs must share one type, since the result is a single typed vector. Each input must have length 1 or the same length as the longest input, and length-1 values are recycled to fill every position. The output keeps the type and attributes of the inputs, so a <code>Date</code> stays a <code>Date</code>. See the official <a href="https://rdatatable.gitlab.io/data.table/reference/coalesce.html">data.table fcoalesce reference</a> for the full argument list.</p>
+
+<h2>fcoalesce() examples</h2>
+
+<p><strong>These examples cover the four most common fcoalesce() tasks.</strong> Each one shows a different real job: merging two vectors, applying a scalar default, filling a data.table column, and resolving a priority chain.</p>
+
+<p>The first example merges two sparse vectors. Wherever <code>primary</code> has a value it wins; wherever it is <code>NA</code>, the matching <code>secondary</code> value fills the gap.</p>
+
+<div class="webr-container" data-block-title="Merge two sparse vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Merge two sparse vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">primary   &lt;- c(10, NA, 30, NA)
+secondary &lt;- c(NA, 20, NA, 40)
+fcoalesce(primary, secondary)
+#&gt; [1] 10 20 30 40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A single number as the last argument acts as a default. Because length-1 inputs are recycled, that scalar fills every remaining <code>NA</code> at once.</p>
+
+<div class="webr-container" data-block-title="Use a scalar as the default value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a scalar as the default value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">readings &lt;- c(5.2, NA, 7.8, NA, 3.1)
+fcoalesce(readings, 0)
+#&gt; [1] 5.2 0.0 7.8 0.0 3.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside a <code>data.table</code>, <code>fcoalesce()</code> pairs naturally with the <code>:=</code> operator. Here the built-in <code>airquality</code> data has 37 missing <code>Ozone</code> readings, and a precomputed mean fills them by reference.</p>
+
+<div class="webr-container" data-block-title="Fill a data.table column with the mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill a data.table column with the mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- as.data.table(airquality)
+ozone_mean &lt;- as.integer(round(mean(aq$Ozone, na.rm = TRUE)))
+aq[, Ozone_filled := fcoalesce(Ozone, ozone_mean)]
+c(before = sum(is.na(aq$Ozone)), after = sum(is.na(aq$Ozone_filled)))
+#&gt; before  after
+#&gt;     37      0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With three or more vectors, <code>fcoalesce()</code> resolves a priority chain. The official name wins, a nickname fills the next gaps, and a generated label catches whatever is still missing.</p>
+
+<div class="webr-container" data-block-title="Resolve a priority chain of sources">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Resolve a priority chain of sources</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">official &lt;- c(NA, &quot;Bob&quot;, NA)
+nickname &lt;- c(&quot;Ann&quot;, NA, NA)
+fallback &lt;- c(&quot;User1&quot;, &quot;User2&quot;, &quot;User3&quot;)
+fcoalesce(official, nickname, fallback)
+#&gt; [1] &quot;Ann&quot;   &quot;Bob&quot;   &quot;User3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>fcoalesce()</code> is <code>Series.combine_first()</code>, which fills missing values in one Series from another, element by element.</div></div>
+
+<h2>fcoalesce vs coalesce vs nafill</h2>
+
+<p><strong>Pick the function that matches your stack and where the fill values come from.</strong> All three handle <code>NA</code>, but they differ in source and in whether they edit data in place.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Fills from</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fcoalesce()</code></td>
+<td>data.table</td>
+<td>other vectors, element-wise</td>
+<td>combining sparse columns</td>
+</tr>
+<tr>
+<td><code>coalesce()</code></td>
+<td>dplyr</td>
+<td>other vectors, element-wise</td>
+<td>tidyverse pipelines</td>
+</tr>
+<tr>
+<td><code>nafill()</code></td>
+<td>data.table</td>
+<td>a constant, last, or next value</td>
+<td>time-ordered single columns</td>
+</tr>
+<tr>
+<td><code>ifelse(is.na(x), y, x)</code></td>
+<td>base R</td>
+<td>one backup vector</td>
+<td>quick one-off, no packages</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. If you already work in data.table, <code>fcoalesce()</code> keeps everything in one fast, dependency-free idiom and accepts as many fallback vectors as you need. Reach for <code>nafill()</code> when the fill should come from a neighbouring value in the same column, such as last-observation-carried-forward on a <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>. Use <code>dplyr::coalesce()</code> only when the rest of your pipeline is already tidyverse, since it behaves the same way but needs dplyr loaded.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most fcoalesce() bugs trace back to mixed types, wrong lengths, or assuming it catches values other than NA.</strong> All three surface quickly once you know the symptom.</p>
+
+<p>Mixing input types throws an error, because the result must be one typed vector. A numeric vector and a character fallback cannot share a call.</p>
+
+<div class="webr-container" data-block-title="All inputs must share one type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All inputs must share one type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fcoalesce(c(1, NA, 3), &quot;missing&quot;)
+#&gt; Error in fcoalesce(c(1, NA, 3), &quot;missing&quot;) :
+#&gt;   Argument #2 is of type character but argument #1 is of type double. Please make sure all arguments have the same type.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Type mismatches fail loudly, but the empty-string trap fails silently.</strong> The error above is easy to fix by coercing both inputs to the same type. The quieter mistake is expecting <code>fcoalesce()</code> to replace <code>&quot;&quot;</code>, <code>0</code>, or the string <code>&quot;NA&quot;</code>. It only treats a true <code>NA</code> as missing.</div></div>
+
+<p>Each input must be length 1 or the same length as the longest vector. Any other length is rejected.</p>
+
+<div class="webr-container" data-block-title="Vectors must be length 1 or equal length">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vectors must be length 1 or equal length</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fcoalesce(c(1, NA, 3), c(99, 88))
+#&gt; Error in fcoalesce(c(1, NA, 3), c(99, 88)) :
+#&gt;   Argument #2 is length 2 but argument #1 is length 3. Lengths must be 1 or equal.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Finally, <code>fcoalesce()</code> replaces only <code>NA</code>. An empty string is a real value, so it is kept and never filled.</p>
+
+<div class="webr-container" data-block-title="Only NA counts as missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Only NA counts as missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ids &lt;- c(&quot;A&quot;, &quot;&quot;, NA)
+fcoalesce(ids, &quot;unknown&quot;)
+#&gt; [1] &quot;A&quot;       &quot;&quot;        &quot;unknown&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use fcoalesce() to fill the NA values in stock with the matching value from backup, then fill any value still missing with 0. Save the result to ex_filled.</p>
+<div class="webr-container" data-block-title="Your turn: coalesce stock levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: coalesce stock levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fill NA with fcoalesce()
+stock  &lt;- c(12, NA, NA, 7)
+backup &lt;- c(NA, 5, NA, NA)
+ex_filled &lt;- # your code here
+
+ex_filled
+#&gt; Expected: 12 5 0 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stock  &lt;- c(12, NA, NA, 7)
+backup &lt;- c(NA, 5, NA, NA)
+ex_filled &lt;- fcoalesce(stock, backup, 0)
+ex_filled
+#&gt; [1] 12  5  0  7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fcoalesce()</code> reads the arguments as a priority order. <code>stock</code> wins where it has a value, <code>backup</code> fills the next gap at position two, and the scalar <code>0</code> is recycled to cover position three where both vectors were <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>fcoalesce() sits in data.table's family of fast, vectorized helpers.</strong> These functions pair well with it for conditional logic and cleanup:</p>
+
+<ul>
+
+<li><code>fifelse()</code>: the binary choice, for a single condition. See <a href="datatable-fifelse-in-R.html">data.table fifelse in R</a>.</li>
+
+<li><code>fcase()</code>: the multi-case version, for three or more conditions. See <a href="datatable-fcase-in-R.html">data.table fcase in R</a>.</li>
+
+<li><code>shift()</code>: lag or lead a column to build a fallback. See <a href="datatable-shift-in-R.html">data.table shift in R</a>.</li>
+
+<li><code>setDT()</code>: convert a data.frame to a data.table in place. See <a href="datatable-setDT-in-R.html">data.table setDT in R</a>.</li>
+
+<li><code>uniqueN()</code>: count distinct values in the filled result. See <a href="datatable-uniqueN-in-R.html">data.table uniqueN in R</a>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fcoalesce() and dplyr's <a class="auto-link" href="dplyr-coalesce-in-R.html" title="dplyr coalesce() in R: First Non-NA Value Across Vectors">coalesce()</a>?</strong></p>
+
+<p>Both return the first non-<code>NA</code> value across a set of equal-length vectors, scanning left to right. <code>fcoalesce()</code> ships with data.table and runs as optimized C code, so it is fast and needs no tidyverse load. <code>dplyr::coalesce()</code> does the same job inside tidyverse pipelines. In logic they are interchangeable, so pick the one that matches the packages your project already uses. Inside a <code>DT[, := ]</code> call, <code>fcoalesce()</code> is the natural fit.</p>
+
+<p><strong>Does fcoalesce() modify the data.table in place?</strong></p>
+
+<p>No. <code>fcoalesce()</code> itself is a pure function that returns a new vector and changes nothing. The in-place behaviour comes from the <code>:=</code> operator that you usually wrap it in, as in <code>DT[, col := fcoalesce(a, b)]</code>. That assignment adds or updates the column by reference with no copy. If you want to fill an existing column directly with a constant or a carried-forward value, use <code>setnafill()</code> instead, which edits the column in place.</p>
+
+<p><strong>Can fcoalesce() <a class="auto-link" href="tidyr-fill-in-R.html" title="tidyr fill() in R: Forward-Fill Missing Values">fill missing values</a> with a single number?</strong></p>
+
+<p>Yes. Pass a length-1 value as the final argument and it is recycled across every position, so it fills any <code>NA</code> that the earlier vectors did not. For example, <code>fcoalesce(x, 0)</code> replaces every remaining missing value in <code>x</code> with <code>0</code>. The scalar must share the type of the other inputs, so use <code>0L</code> for an integer vector and <code>0</code> for a double vector to avoid a type-mismatch error.</p>
+
+<p><strong>What types can fcoalesce() handle?</strong></p>
+
+<p><code>fcoalesce()</code> works with logical, integer, double, character, and complex vectors, plus classed types such as <code>Date</code>, <code>factor</code>, and <code>IDate</code>. The one firm rule is that every argument must share the same type, because the result is a single typed vector. It also preserves attributes, so a <code>Date</code> input returns a <code>Date</code> and a <code>factor</code> returns a <code>factor</code> with its levels intact, unlike a hand-written <code>ifelse()</code> that would strip the class.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
