@@ -1,0 +1,329 @@
+---
+title: "jsonlite stream_in() in R: Read Newline-Delimited JSON"
+description: "Learn jsonlite stream_in() in R to read newline-delimited JSON (NDJSON) line by line. Covers syntax, the handler callback, pagesize, and the most common errors."
+keywords: "jsonlite stream_in, stream_in function R, jsonlite stream_in examples, read NDJSON in R, read newline-delimited JSON R, jsonlite read json lines, stream_in vs fromJSON"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "stream_in()|jsonlite stream_in|jsonlite::stream_in()|newline-delimited JSON|NDJSON"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>jsonlite stream_in() in R: Read Newline-Delimited JSON</h1>
+
+<p class="lead">The jsonlite stream_in() function reads newline-delimited JSON (NDJSON) one record per line. It pulls JSON from a connection (a file, URL, or pipe), parses each line, and returns a single data frame, processing the stream page by page so large files never have to fit in memory at once.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>stream_in(file(&quot;data.ndjson&quot;))<span class="qa-cmt">               # read NDJSON into a data frame</span>
+stream_in(con, verbose = FALSE)<span class="qa-cmt">               # silence the progress messages</span>
+stream_in(con, pagesize = 1000)<span class="qa-cmt">               # records read per page</span>
+stream_in(con, handler = fun)<span class="qa-cmt">                 # process each page, low memory</span>
+stream_in(textConnection(txt))<span class="qa-cmt">                # read NDJSON from a string</span>
+stream_in(gzfile(&quot;data.ndjson.gz&quot;))<span class="qa-cmt">           # read gzip-compressed NDJSON</span>
+stream_in(url(&quot;https://host/data.ndjson&quot;))<span class="qa-cmt">    # stream NDJSON from a URL</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is stream_in() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">read line-delimited JSON (NDJSON)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">stream_in(file(&quot;data.ndjson&quot;))</text><text x="125" y="126" class="branch-label">parse one JSON string or array</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fromJSON(txt)</text><text x="125" y="182" class="branch-label">read a .json file as <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">nested lists</a></text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_json(&quot;data.json&quot;)</text><text x="125" y="238" class="branch-label">write a data frame as NDJSON</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">stream_out(df, file(&quot;out.json&quot;))</text><text x="125" y="294" class="branch-label">the file is one big JSON array</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fromJSON(&quot;data.json&quot;)</text><text x="125" y="350" class="branch-label">the file is plain CSV, not JSON</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv</a>(&quot;data.csv&quot;)</text></svg></div>
+
+<h2>What stream_in() does</h2>
+
+<p><strong>stream_in() reads JSON that is stored one record per line.</strong> This format is called newline-delimited JSON, or NDJSON, and it is the standard way to ship large JSON datasets: log streams, API exports, and machine-learning datasets all use it. Each line is a complete, minified JSON object, and the line break is the only separator between records.</p>
+
+<p>Because the records are independent lines, stream_in() never has to load the whole file before it can start parsing. It reads a fixed number of lines at a time (a <em>page</em>), parses that page into a data frame, and moves on. When no handler is supplied, it stacks every page into one combined data frame and returns it. That makes stream_in() the right tool for files too big to read with <code>fromJSON()</code> in a single pass.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>Most calls pass only a connection; the other arguments tune paging, logging, and memory behaviour.</strong> The connection is mandatory because stream_in() works on a stream, not a path string.</p>
+
+<div class="webr-container" data-block-title="The stream_in signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The stream_in signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stream_in(
+  con,                  # an open or unopened connection (file, url, gzfile)
+  handler = NULL,       # optional function called once per page of records
+  pagesize = 500,       # number of lines (records) read per page
+  verbose = TRUE,       # print progress messages while reading
+  ...                   # extra arguments passed on to fromJSON()
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>con</code> argument is a connection object such as <code>file()</code>, <code>url()</code>, <code>gzfile()</code>, or <code>textConnection()</code>. If you pass an unopened connection, stream_in() opens it and closes it again for you. The <code>handler</code> argument decides the return shape: leave it <code>NULL</code> to get one bound data frame, or supply a function to process each page yourself. The <code>pagesize</code> argument controls how many records are read between handler calls, and <code>verbose</code> toggles the progress log.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent is <code>pandas.read_json(path, lines=True)</code>, where <code>lines=True</code> switches on NDJSON mode. stream_in() differs by exposing the page boundary through the <code>handler</code> callback, so you can process a stream larger than memory without a third-party chunking helper.</div></div>
+
+<h2>stream_in() examples</h2>
+
+<p><strong>Every example builds its own NDJSON in the session, so each block runs without an external file or network call.</strong> Start by writing three minified JSON objects to a temporary file, then stream them back in.</p>
+
+<div class="webr-container" data-block-title="Read an NDJSON file into a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read an NDJSON file into a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(jsonlite)
+
+ndjson_path &lt;- tempfile(fileext = &quot;.json&quot;)
+writeLines(c(
+  '{&quot;city&quot;:&quot;Paris&quot;,&quot;pop&quot;:2.1}',
+  '{&quot;city&quot;:&quot;Oslo&quot;,&quot;pop&quot;:0.7}',
+  '{&quot;city&quot;:&quot;Lima&quot;,&quot;pop&quot;:9.7}'
+), ndjson_path)
+
+cities &lt;- stream_in(file(ndjson_path), verbose = FALSE)
+cities
+#&gt;    city pop
+#&gt; 1 Paris 2.1
+#&gt; 2  Oslo 0.7
+#&gt; 3  Lima 9.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each line was parsed into one row, and stream_in() bound the three pages into a single data frame. Setting <code>verbose = FALSE</code> suppressed the progress messages that stream_in() prints by default.</p>
+
+<p><strong>You can stream NDJSON straight from a string with <code>textConnection()</code>.</strong> This is handy for tests and quick demos where you have the JSON in a variable rather than a file.</p>
+
+<div class="webr-container" data-block-title="Stream NDJSON from a string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stream NDJSON from a string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- '{&quot;id&quot;:1,&quot;ok&quot;:true}
+{&quot;id&quot;:2,&quot;ok&quot;:false}
+{&quot;id&quot;:3,&quot;ok&quot;:true}'
+
+df &lt;- stream_in(textConnection(records), verbose = FALSE)
+df
+#&gt;   id    ok
+#&gt; 1  1  TRUE
+#&gt; 2  2 FALSE
+#&gt; 3  3  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The JSON <code>true</code> and <code>false</code> values became logical <code>TRUE</code> and <code>FALSE</code>, and the numeric <code>id</code> stayed an integer column.</p>
+
+<p><strong>Supply a <code>handler</code> function to process each page without keeping the full result in memory.</strong> The handler receives one page (a data frame) at a time, and stream_in() returns invisibly instead of binding everything.</p>
+
+<div class="webr-container" data-block-title="Process pages with a handler callback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Process pages with a handler callback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">total &lt;- 0
+count_rows &lt;- function(page) {
+  total &lt;&lt;- total + nrow(page)
+}
+stream_in(file(ndjson_path), handler = count_rows,
+          pagesize = 2, verbose = FALSE)
+total
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>pagesize = 2</code>, stream_in() called <code>count_rows</code> twice (a page of 2, then a page of 1). The handler only ever held one page, which is what lets stream_in() scale to files larger than RAM.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair stream_in() with stream_out() for a memory-safe round trip.</strong> <code>stream_out()</code> writes a data frame to NDJSON one record per line, the exact format stream_in() expects. Together they let you filter or reshape a huge dataset page by page and write the result without ever materialising the whole thing.</div></div>
+
+<div class="webr-container" data-block-title="Round-trip a data frame through NDJSON">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round-trip a data frame through NDJSON</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">out_path &lt;- tempfile(fileext = &quot;.json&quot;)
+stream_out(iris[1:3, ], file(out_path), verbose = FALSE)
+
+back &lt;- stream_in(file(out_path), verbose = FALSE)
+nrow(back)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>stream_in() vs fromJSON() and read_json()</h2>
+
+<p><strong>stream_in() and fromJSON() both turn JSON into R objects, but they expect different file shapes.</strong> Choosing the wrong one is the most common source of confusion, so match the function to your input format.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Expects</th>
+<th>Reads in pages?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stream_in()</code></td>
+<td>NDJSON, one record per line</td>
+<td>Yes</td>
+<td>Large line-delimited JSON, logs, exports</td>
+</tr>
+<tr>
+<td><code>fromJSON()</code></td>
+<td>One JSON value or array</td>
+<td>No</td>
+<td>API responses, small <code>.json</code> files</td>
+</tr>
+<tr>
+<td><code>read_json()</code></td>
+<td>A <code>.json</code> file path</td>
+<td>No</td>
+<td>Files kept as literal nested lists</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>stream_in()</code> when each line of the file is its own JSON object. Use <code>fromJSON()</code> when the whole file is a single JSON array <code>[ ... ]</code> or one object <code>{ ... }</code>. The two formats look similar but are not interchangeable: an NDJSON file has no enclosing brackets and no commas between records.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The line break is the contract.</strong> stream_in() treats every newline as a record boundary, so the JSON on each line must be minified onto that single line. If you understand that one rule, every stream_in() error and every format mismatch with <code>fromJSON()</code> becomes predictable.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Passing a file path instead of a connection.</strong> stream_in() needs a connection object, so a bare string fails immediately. Wrap the path in <code>file()</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall: a path string is not a connection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: a path string is not a connection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># stream_in(ndjson_path)
+#&gt; Error: Argument 'con' must be a connection.
+stream_in(file(ndjson_path), verbose = FALSE)   # correct: wrap in file()
+#&gt;    city pop
+#&gt; 1 Paris 2.1
+#&gt; 2  Oslo 0.7
+#&gt; 3  Lima 9.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Feeding it prettified JSON.</strong> stream_in() reads line by line, so a JSON object spread across several indented lines is read as several broken records. The input must be minified, with each complete record on exactly one line.</p>
+
+<p><strong>Feeding it a JSON array.</strong> A file that holds one array <code>[{...},{...}]</code> is valid JSON but not NDJSON. stream_in() will not split it into rows the way you expect; that file belongs to <code>fromJSON()</code> instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Streaming from a URL needs a live connection.</strong> When <code>con</code> is a <code>url()</code> connection, stream_in() fetches data over the network as it reads. In a restricted or offline environment that call hangs or fails partway. Download the NDJSON file first, then stream it from a local <code>file()</code> connection.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Read the NDJSON string below with stream_in() and count how many rows have a score above 80. Save the count to ex_high.</p>
+<div class="webr-container" data-block-title="Your turn: stream NDJSON and filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stream NDJSON and filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: stream NDJSON, count rows with score &gt; 80
+ex_nd &lt;- '{&quot;name&quot;:&quot;A&quot;,&quot;score&quot;:80}
+{&quot;name&quot;:&quot;B&quot;,&quot;score&quot;:92}
+{&quot;name&quot;:&quot;C&quot;,&quot;score&quot;:71}
+{&quot;name&quot;:&quot;D&quot;,&quot;score&quot;:88}'
+
+ex_df &lt;- # your code here
+ex_high &lt;- # your code here
+ex_high
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nd &lt;- '{&quot;name&quot;:&quot;A&quot;,&quot;score&quot;:80}
+{&quot;name&quot;:&quot;B&quot;,&quot;score&quot;:92}
+{&quot;name&quot;:&quot;C&quot;,&quot;score&quot;:71}
+{&quot;name&quot;:&quot;D&quot;,&quot;score&quot;:88}'
+ex_df &lt;- stream_in(textConnection(ex_nd), verbose = FALSE)
+ex_high &lt;- sum(ex_df$score &gt; 80)
+ex_high
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each line is one record, so stream_in() binds the four objects into a data frame. Comparing <code>ex_df$score &gt; 80</code> gives a logical vector, and <code>sum()</code> counts the <code>TRUE</code> values.</p>
+
+</details>
+</section>
+
+<h2>Related jsonlite functions</h2>
+
+<p><strong>stream_in() belongs to a small family of jsonlite functions for moving data between JSON and R.</strong> Pick the one that matches your file format and direction.</p>
+
+<ul>
+
+<li><code>stream_out()</code>: the inverse of stream_in(), writes a data frame to NDJSON one record per line.</li>
+
+<li><code>fromJSON()</code>: parse a single JSON string, file, or array into an R object.</li>
+
+<li><code>toJSON()</code>: serialize an R object into a JSON string.</li>
+
+<li><code>read_json()</code>: read a regular <code>.json</code> file by path as a nested list.</li>
+
+<li><code>write_json()</code>: write an R object straight to a <code>.json</code> file.</li>
+
+<li><code>prettify()</code> and <code>minify()</code>: re-indent or compact a JSON string.</li>
+
+</ul>
+
+<p>For the full argument reference, see the <a href="https://search.r-project.org/CRAN/refmans/jsonlite/help/stream_in.html">jsonlite stream_in() documentation</a> on CRAN.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is stream_in() in R?</strong></p>
+
+<p><code>stream_in()</code> is a jsonlite function that reads newline-delimited JSON (NDJSON), where every line of the input is a complete, minified JSON record. It reads the stream in pages rather than all at once, parses each page into a data frame, and by default binds every page into one combined data frame. Because it processes the input page by page, it can handle files far larger than available memory.</p>
+
+<p><strong>How do I read an NDJSON file in R?</strong></p>
+
+<p>Load jsonlite with <code>library(jsonlite)</code>, then call <code>stream_in(file(&quot;data.ndjson&quot;))</code>. The <code>file()</code> wrapper turns the path into a connection, which stream_in() requires. Add <code>verbose = FALSE</code> to silence the progress messages. The call returns a data frame with one row per line of the file, with columns inferred from the JSON keys.</p>
+
+<p><strong>What is the difference between stream_in and fromJSON?</strong></p>
+
+<p>They expect different formats. <code>stream_in()</code> reads NDJSON, where each line is a separate JSON object and there are no enclosing brackets. <code>fromJSON()</code> reads a single JSON value, usually one object or one array. Use <code>stream_in()</code> for line-delimited exports and logs, and <code>fromJSON()</code> for an API response or a small <code>.json</code> file that holds one array.</p>
+
+<p><strong>How does the handler argument work?</strong></p>
+
+<p>The <code>handler</code> argument takes a function that stream_in() calls once for each page of records. Each call receives one page as a data frame, sized by <code>pagesize</code>. When you supply a handler, stream_in() does not bind or return the data; it relies on your function for side effects such as writing to disk or updating a running total. This is how you process a stream larger than memory.</p>
+
+<p><strong>Can stream_in() read a compressed or remote file?</strong></p>
+
+<p>Yes. Because stream_in() works on any connection, you can pass <code>gzfile(&quot;data.ndjson.gz&quot;)</code> to read gzip-compressed NDJSON, or <code>url(&quot;https://host/data.ndjson&quot;)</code> to stream it over the network. The remote case needs a live internet connection, so for reliability in offline or restricted environments, download the file first and stream it from a local <code>file()</code> connection.</p>
