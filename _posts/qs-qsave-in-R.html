@@ -1,0 +1,374 @@
+---
+title: "qs qsave() in R: Save R Objects Fast to Disk"
+description: "Learn how to use qs qsave() in R to serialize any R object to disk fast. Covers syntax, presets, multithreading, qsave vs saveRDS, and pitfalls, with examples."
+keywords: "qs qsave, qsave function R, qs qsave examples, R save objects qs, qsave vs saveRDS, qs package R, fast serialization R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "qsave()|qs qsave|qs::qsave()|qread()|qs package|fast serialization"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>qs qsave() in R: Save R Objects Fast to Disk</h1>
+
+<p class="lead">The <code>qs</code> <code>qsave()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> serializes any R object to a compressed binary file, running several times faster than base R's <code>saveRDS()</code> while producing smaller files.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>qsave(df, &quot;df.qs&quot;)<span class="qa-cmt">                      # default, high compression</span>
+qsave(df, &quot;df.qs&quot;, preset = &quot;fast&quot;)<span class="qa-cmt">     # speed over file size</span>
+qsave(df, &quot;df.qs&quot;, preset = &quot;archive&quot;)<span class="qa-cmt">  # smallest file</span>
+qsave(model, &quot;model.qs&quot;, nthreads = 4)<span class="qa-cmt">  # parallel write</span>
+qread(&quot;df.qs&quot;)<span class="qa-cmt">                          # read it back</span>
+qsavem(a, b, file = &quot;vars.qs&quot;)<span class="qa-cmt">          # save several objects</span>
+qs::qsave(x, &quot;x.qs&quot;)<span class="qa-cmt">                    # call without attaching</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is qsave() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">save any R object fast</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">qsave(x, &quot;x.qs&quot;)</text><text x="125" y="126" class="branch-label">save only a data frame, max speed</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">write_fst(df, &quot;df.fst&quot;)</text><text x="125" y="182" class="branch-label">share data with non-R users</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">write_csv(df, &quot;df.csv&quot;)</text><text x="125" y="238" class="branch-label">base R with zero dependencies</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">saveRDS(x, &quot;x.rds&quot;)</text><text x="125" y="294" class="branch-label">save multiple objects at once</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">qsavem(a, b, file = &quot;v.qs&quot;)</text><text x="125" y="350" class="branch-label">columnar data across tools</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">write_parquet(df, &quot;df.parquet&quot;)</text></svg></div>
+
+<h2>What qsave() does</h2>
+
+<p><strong>qsave() writes any in-memory R object to a single compressed file on disk.</strong> It is the workhorse of the qs package, designed to serialize objects far faster than <code>saveRDS()</code> while keeping files small. You pass an object and a path, and qsave() writes the file and returns it invisibly.</p>
+
+<p>Unlike format-specific writers such as <code>write_csv()</code> or <code>write_fst()</code>, qsave() is not limited to data frames. It serializes lists, fitted models, nested structures, S4 objects, and anything else R can hold in memory. The companion reader <code>qread()</code> restores the object exactly as it was, with every attribute, class, and environment intact.</p>
+
+<p>The speed comes from two design choices. qs uses modern compression libraries (zstd and lz4) that are quicker than the gzip compression in <code>saveRDS()</code>, and it can spread that work across several CPU cores.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>qsave() trades a package dependency for speed.</strong> A <code>.qs</code> file can only be opened where the qs package is installed. In return you get compression and read/write speeds base R cannot match, which makes qsave() ideal for caching intermediate results inside a project.</div></div>
+
+<h2>qsave() syntax and arguments</h2>
+
+<p><strong>A qsave() call needs an object, a file path, and an optional compression preset.</strong> Everything else has a sensible default, so most real code passes just two arguments.</p>
+
+<div class="webr-container" data-block-title="qsave a data frame to disk">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">qsave a data frame to disk</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(qs)
+
+qsave(mtcars, file = &quot;mtcars.qs&quot;)
+
+file.exists(&quot;mtcars.qs&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature exposes the compression controls. The <code>preset</code> argument is the one you reach for most often, because it bundles the algorithm and its level into a single named choice.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>required</td>
+<td>The R object to serialize</td>
+</tr>
+<tr>
+<td><code>file</code></td>
+<td>required</td>
+<td>Destination path, conventionally ending in <code>.qs</code></td>
+</tr>
+<tr>
+<td><code>preset</code></td>
+<td><code>&quot;high&quot;</code></td>
+<td>Named bundle: <code>&quot;fast&quot;</code>, <code>&quot;balanced&quot;</code>, <code>&quot;high&quot;</code>, <code>&quot;archive&quot;</code>, <code>&quot;uncompressed&quot;</code></td>
+</tr>
+<tr>
+<td><code>nthreads</code></td>
+<td><code>1</code></td>
+<td>Threads used for compression; raise for large objects</td>
+</tr>
+<tr>
+<td><code>algorithm</code></td>
+<td><code>&quot;zstd&quot;</code></td>
+<td>Compression algorithm; set by the preset unless <code>preset = &quot;custom&quot;</code></td>
+</tr>
+<tr>
+<td><code>compress_level</code></td>
+<td><code>4L</code></td>
+<td>Algorithm-specific level; higher means smaller and slower</td>
+</tr>
+</tbody>
+</table>
+
+<p>The default <code>&quot;high&quot;</code> preset uses zstd compression at a moderate level, a good balance for most work. The <code>&quot;fast&quot;</code> preset switches to lz4 for the quickest write at the cost of a larger file, while <code>&quot;archive&quot;</code> pushes zstd hard for the smallest file. Set <code>preset = &quot;custom&quot;</code> only when you want to combine an <code>algorithm</code> and <code>compress_level</code> by hand.</p>
+
+<h2>Saving objects with qsave(): four common cases</h2>
+
+<h3>Round-trip a data frame</h3>
+
+<p><strong>The core pattern is qsave() to write and qread() to read.</strong> A correct round-trip returns an object identical to the original.</p>
+
+<div class="webr-container" data-block-title="Save and reload a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save and reload a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qsave(mtcars, &quot;mtcars.qs&quot;)
+df2 &lt;- qread(&quot;mtcars.qs&quot;)
+
+identical(df2, mtcars)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>identical()</code> check returns <code>TRUE</code> because qsave() preserves column types, row names, and attributes. This is the everyday use: write an object after an expensive step, then read it back instead of recomputing.</p>
+
+<h3>Trade file size against speed with presets</h3>
+
+<p><strong>Presets tune the speed-versus-size balance without touching algorithm internals.</strong> The <code>&quot;fast&quot;</code> preset writes quickly but leaves larger files, while <code>&quot;archive&quot;</code> compresses hardest.</p>
+
+<div class="webr-container" data-block-title="Compare qsave presets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare qsave presets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">big &lt;- data.frame(x = rnorm(1e5), g = sample(letters, 1e5, TRUE))
+
+qsave(big, &quot;fast.qs&quot;, preset = &quot;fast&quot;)
+qsave(big, &quot;archive.qs&quot;, preset = &quot;archive&quot;)
+
+file.size(&quot;fast.qs&quot;) &gt; file.size(&quot;archive.qs&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&quot;fast&quot;</code> file is larger because lz4 prioritizes write speed over compression ratio. For a cache you rewrite often that is the right call; for an object you save once and keep, <code>&quot;archive&quot;</code> is the better trade.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick the preset by use case, not by habit.</strong> Use <code>&quot;fast&quot;</code> for short-lived cache files you rewrite often, <code>&quot;high&quot;</code> (the default) for everyday work, and <code>&quot;archive&quot;</code> only for objects you store long-term and rarely re-read.</div></div>
+
+<h3>Speed up large saves with multiple threads</h3>
+
+<p><strong>The nthreads argument splits compression across CPU cores.</strong> For large objects this is the single biggest speed lever qsave() offers, and it applies to <code>qread()</code> too.</p>
+
+<div class="webr-container" data-block-title="Multithreaded write and read">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multithreaded write and read</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qsave(big, &quot;big.qs&quot;, nthreads = 4)
+df3 &lt;- qread(&quot;big.qs&quot;, nthreads = 4)
+
+nrow(df3)
+#&gt; [1] 100000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compression parallelizes cleanly, so a four-thread write finishes far sooner than the single-threaded default. Match <code>nthreads</code> to the cores you can spare; values beyond your physical core count give no further gain.</p>
+
+<h3>Save several objects in one file</h3>
+
+<p><strong>qsavem() saves multiple named objects together, and qload() restores them.</strong> This mirrors base R's <code>save()</code> and <code>load()</code> pair but with qs speed.</p>
+
+<div class="webr-container" data-block-title="Save and restore multiple objects">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Save and restore multiple objects</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- 1:10
+b &lt;- list(name = &quot;demo&quot;, ok = TRUE)
+qsavem(a, b, file = &quot;vars.qs&quot;)
+
+rm(a, b)
+qload(&quot;vars.qs&quot;)
+
+b$name
+#&gt; [1] &quot;demo&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After <code>qload()</code> the objects reappear under their original names, so there is no assignment step. Use <code>qsavem()</code> when a checkpoint involves several related objects, such as a model plus its training data.</p>
+
+<h2>qsave() vs saveRDS() and other formats</h2>
+
+<p><strong>qsave() wins on speed for any object type, but a <code>.qs</code> file is not portable.</strong> The table below shows where each writer fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Speed</th>
+<th>Object types</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qsave()</code></td>
+<td>qs</td>
+<td>Very fast</td>
+<td>Any R object</td>
+<td>Fast caching of any object</td>
+</tr>
+<tr>
+<td><code>saveRDS()</code></td>
+<td>base R</td>
+<td>Slow</td>
+<td>Any R object</td>
+<td>Portable, zero dependencies</td>
+</tr>
+<tr>
+<td><code>write_fst()</code></td>
+<td>fst</td>
+<td>Very fast</td>
+<td>Data frames only</td>
+<td>Random-access data frame storage</td>
+</tr>
+<tr>
+<td><code>write_parquet()</code></td>
+<td>arrow</td>
+<td>Fast</td>
+<td>Data frames only</td>
+<td>Sharing columnar data across tools</td>
+</tr>
+<tr>
+<td><code>write_csv()</code></td>
+<td>readr</td>
+<td>Slow, large</td>
+<td>Data frames only</td>
+<td>Human-readable universal exchange</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for qsave() when speed matters and the reader is another R session with qs installed. Fall back to <code>saveRDS()</code> when the file must open anywhere without extra packages, and pick <code>write_csv()</code> or <code>write_parquet()</code> when tools outside R need the data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>qs has a successor, qs2.</strong> The newer qs2 package introduces <code>qs_save()</code> with an improved on-disk format. The classic <code>qsave()</code> shown here remains supported and widely used, but evaluate qs2 for brand-new projects that need a long-term stable format.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Sending a <code>.qs</code> file to a colleague without qs installed.</strong> The file is unreadable anywhere the qs package is missing. For data you must share widely, write a <code>.csv</code> or <code>.rds</code> file instead, or have the recipient run <code>install.packages(&quot;qs&quot;)</code> first.</p>
+
+<p><strong>Passing a connection instead of a path.</strong> Unlike <code>saveRDS()</code>, qsave() expects a plain character file path, not a connection object. Wrapping the path in <code>gzfile()</code> fails because qs manages compression itself.</p>
+
+<div class="webr-container" data-block-title="qsave needs a path, not a connection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">qsave needs a path, not a connection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">con &lt;- gzfile(&quot;bad.qs&quot;)
+qsave(mtcars, file = con)
+#&gt; Error: `file` must be a character string
+
+qsave(mtcars, file = &quot;good.qs&quot;)  # correct</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Leaving nthreads at 1 for large objects.</strong> The default is single-threaded, so a multi-gigabyte object compresses slower than it needs to. Set <code>nthreads</code> to match the cores you can spare for an easy win.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Save the built-in <code>iris</code> data frame with qsave() using the <code>&quot;archive&quot;</code> preset, then read it back into <code>ex_iris</code> and confirm the row count.</p>
+<div class="webr-container" data-block-title="Your turn: qsave iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: qsave iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: save iris with the archive preset, then read it back
+qsave(iris, &quot;ex_iris.qs&quot;, preset = ) # your code here
+ex_iris &lt;- # your code here
+
+nrow(ex_iris)
+#&gt; Expected: 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">qsave(iris, &quot;ex_iris.qs&quot;, preset = &quot;archive&quot;)
+ex_iris &lt;- qread(&quot;ex_iris.qs&quot;)
+
+nrow(ex_iris)
+#&gt; [1] 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>&quot;archive&quot;</code> preset compresses hardest for long-term storage. <code>qread()</code> restores the data frame exactly, so <code>nrow()</code> returns the original 150 rows.</p>
+
+</details>
+</section>
+
+<h2>Related qs and data import functions</h2>
+
+<p>These functions cover the rest of the fast serialization workflow:</p>
+
+<ul>
+
+<li><a href="readr-write_rds-in-R.html">readr write_rds()</a> writes <code>.rds</code> files with a tidyverse-friendly interface.</li>
+
+<li><a href="readr-read_rds-in-R.html">readr read_rds()</a> reads <code>.rds</code> files back into R.</li>
+
+<li><a href="fst-write_fst-in-R.html">fst write_fst()</a> stores data frames with fast random-access reads.</li>
+
+<li><a href="arrow-write_parquet-in-R.html">arrow write_parquet()</a> saves data frames in the portable Parquet format.</li>
+
+<li><code>qread()</code> is the qs reader that restores any object written by <code>qsave()</code>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Is qsave() faster than saveRDS()?</strong></p>
+
+<p>Yes. For most objects qsave() writes and reads several times faster than <code>saveRDS()</code>, and the gap widens for large data because qsave() can use multiple threads. It also tends to produce smaller files at the default <code>&quot;high&quot;</code> preset. The trade-off is that the qs package must be installed to open the file, whereas <code>.rds</code> files work in any base R session.</p>
+
+<p><strong>What file extension should qs files use?</strong></p>
+
+<p>By convention qs files use the <code>.qs</code> extension, as in <code>qsave(x, &quot;results.qs&quot;)</code>. The extension is not enforced, so a file saved under any name still reads correctly through <code>qread()</code>. Sticking to <code>.qs</code> keeps your project readable and signals the format to collaborators and to scripts that scan directories for cached output.</p>
+
+<p><strong>Can qsave() save a fitted model?</strong></p>
+
+<p>Yes. qsave() serializes any R object, including <code>lm()</code>, <code>glm()</code>, randomForest, and other model objects, together with their attributes and environments. Use <code>qsave(model, &quot;model.qs&quot;)</code> and restore it with <code>qread()</code>. This makes qsave() a fast way to cache trained models between sessions so you do not re-fit them on every run.</p>
+
+<p><strong>Should I use qs or qs2 for a new project?</strong></p>
+
+<p>The classic qs package and its <code>qsave()</code> function remain fully supported and are a safe choice today. The newer qs2 package offers an updated on-disk format through <code>qs_save()</code> and is worth considering for new projects that prioritize a stable long-term format. For everyday caching inside an active project, either package works well.</p>
+
+<p>For the official argument reference, see the <a href="https://github.com/qsbase/qs">qs package documentation</a>.</p>
