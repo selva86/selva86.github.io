@@ -63,8 +63,21 @@ PARENT_CONFIGS = {
         ],
         "see_all": None,  # set to "ggplot2-recipes.html" once the hub page ships
     },
+    "Functional-Programming-in-R.html": {
+        "intro": "purrr and base-R tools for applying functions over lists and vectors. Each recipe has runnable code, common variations, and the loop it replaces.",
+        "categories": [
+            ("Map family",          r"^purrr-(p|i)?map"),
+            ("Walk (side effects)", r"^purrr-(p|i)?walk"),
+            ("Reduce & accumulate", r"^purrr-(reduce|accumulate)"),
+            ("Filter & predicate",  r"^purrr-(keep|discard|compact|detect|every|some|none|has_element)"),
+            ("Modify & reshape",    r"^purrr-(modify|pluck|flatten|transpose|list_|set_names)"),
+            ("Function operators",  r"^purrr-(compose|partial|negate|lift|safely|possibly|quietly|insistently)"),
+            ("Combinations",        r"^purrr-cross"),
+            ("Base R apply family", r"^base-"),
+        ],
+        "see_all": None,
+    },
     # Future parents drop in here as they grow. Examples:
-    # "Functional-Programming-in-R.html": { ... },
     # "lubridate-in-R.html":              { ... },
     # "stringr-in-R.html":                { ... },
 }
@@ -205,13 +218,17 @@ def categorize(children: list[tuple[str, str]],
 
 
 def render_card(url: str, title: str, slug: str, cat: str) -> str:
-    desc = excerpt(read_frontmatter(slug).get("description", ""))
+    fm = read_frontmatter(slug)
+    desc = excerpt(fm.get("description", ""))
     clean = re.sub(r"\s+With Examples\s*$", "", title)
-    clean = re.sub(r"^(ggplot2|dplyr)\s+", "", clean)
+    clean = re.sub(r"^(ggplot2|dplyr|purrr)\s+", "", clean)
     clean = re.sub(r"\s*:\s*$", "", clean)
+    # PSEO posts are single-function deep-dives -> code badge.
+    # FR / concept posts have no single function -> "Guide" label.
+    badge = function_badge(slug) if fm.get("post_type") == "PSEO" else "Guide"
     return (
         f'  <a class="fr-card" href="{url}" data-cat="{cat}">\n'
-        f'    <span class="fr-fn">{function_badge(slug)}</span>\n'
+        f'    <span class="fr-fn">{badge}</span>\n'
         f'    <span class="fr-title">{clean}</span>\n'
         f'    <p class="fr-excerpt">{desc}</p>\n'
         f'  </a>'
