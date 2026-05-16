@@ -1,0 +1,387 @@
+---
+title: "data.table shift() in R: Lag and Lead Columns"
+description: "Learn data.table shift() in R to lag and lead column values. Covers the n, fill, and type arguments, group-wise shifts with by, and common pitfalls to avoid."
+keywords: "data.table shift, shift function R, data.table shift examples, R lag lead column, data.table lag, data.table lead, shift vs lag R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "shift()|data.table shift|data.table::shift()|lag and lead|lead and lag"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table shift() in R: Lag and Lead Columns</h1>
+
+<p class="lead">The data.table shift() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> moves the values of a vector or column forward (lag) or backward (lead) by a fixed number of positions. It is the fast, vectorized way to compare each row with an earlier or later one.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>shift(x)<span class="qa-cmt">                          # lag by 1 (the default)</span>
+shift(x, type = &quot;lead&quot;)<span class="qa-cmt">           # lead by 1</span>
+shift(x, n = 3)<span class="qa-cmt">                   # lag by 3 positions</span>
+shift(x, fill = 0)<span class="qa-cmt">                # fill the gap with 0, not NA</span>
+shift(x, n = 1:2)<span class="qa-cmt">                 # list: lag 1 and lag 2 at once</span>
+shift(x, type = &quot;cyclic&quot;)<span class="qa-cmt">         # wrap end values to the front</span>
+DT[, p := shift(v), by = g]<span class="qa-cmt">       # lag within each group</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is shift() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">lag or lead a column</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">shift(v)</text><text x="125" y="126" class="branch-label">difference between adjacent rows</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">v - shift(v)</text><text x="125" y="182" class="branch-label">rolling mean over a window</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">frollmean(v, 3)</text><text x="125" y="238" class="branch-label">cumulative running total</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">cumsum(v)</text><text x="125" y="294" class="branch-label">number consecutive runs of a value</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rleid(v)</text><text x="125" y="350" class="branch-label">row number within each group</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rowid(g)</text></svg></div>
+
+<h2>What shift() does</h2>
+
+<p><strong>shift() slides every value to a new position.</strong> A lag pushes values down so each row sees the one before it. A lead pulls values up so each row sees the one after it. The vector keeps its original length, and the positions left empty at the edge are filled with <code>NA</code>.</p>
+
+<p>This is the building block for period-over-period analysis. To compute a daily change, a growth rate, or a "same value as yesterday" flag, you need each row paired with its neighbour. <code>shift()</code> produces that neighbour as a plain column.</p>
+
+<div class="webr-container" data-block-title="Lag and lead a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag and lead a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+x &lt;- c(10, 20, 30, 40)
+shift(x)
+#&gt; [1] NA 10 20 30
+
+shift(x, type = &quot;lead&quot;)
+#&gt; [1] 20 30 40 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lag drops <code>NA</code> into position 1 because no row precedes it. The lead drops <code>NA</code> into the last position for the same reason at the other end.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Lag looks backward, lead looks forward.</strong> A lag of 1 gives each row the previous value; a lead of 1 gives each row the next value. If you ever mix them up, remember that "lag" shares a root with "lagging behind".</div></div>
+
+<h2>shift() syntax and arguments</h2>
+
+<p><strong>shift() takes one vector or list plus four optional controls.</strong> The defaults give a single-step lag filled with <code>NA</code>, so calling <code>shift(x)</code> alone is the most common form.</p>
+
+<div class="webr-container" data-block-title="The shift function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The shift function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># shift(x, n = 1L, fill = NA, type = &quot;lag&quot;, give.names = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>required</td>
+<td>A vector, or a list of vectors of equal length</td>
+</tr>
+<tr>
+<td><code>n</code></td>
+<td><code>1L</code></td>
+<td>How many positions to move; accepts a vector for several shifts</td>
+</tr>
+<tr>
+<td><code>fill</code></td>
+<td><code>NA</code></td>
+<td>Value placed in the gap created at the edge</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>&quot;lag&quot;</code></td>
+<td>One of <code>&quot;lag&quot;</code>, <code>&quot;lead&quot;</code>, <code>&quot;shift&quot;</code>, or <code>&quot;cyclic&quot;</code></td>
+</tr>
+<tr>
+<td><code>give.names</code></td>
+<td><code>FALSE</code></td>
+<td>If <code>TRUE</code>, names the output list elements automatically</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>type = &quot;shift&quot;</code> option is an alias that behaves like <code>&quot;lag&quot;</code> for positive <code>n</code>. The <code>&quot;cyclic&quot;</code> option is the odd one out: instead of inserting <code>fill</code>, it wraps the values pushed off one end around to the other.</p>
+
+<h2>shift() examples by use case</h2>
+
+<p><strong>Four patterns cover almost every real use of shift().</strong> Each adds one argument: a custom fill, several lags at once, a cyclic wrap, and finally a shift inside a grouped data.table.</p>
+
+<h3>Replace the NA gap with a fill value</h3>
+
+<p><strong>The fill argument controls what lands in the empty edge slot.</strong> Passing <code>fill = 0</code> keeps the column fully numeric, which avoids <code>NA</code> propagation in later arithmetic.</p>
+
+<div class="webr-container" data-block-title="Fill the gap instead of NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill the gap instead of NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, 30, 40)
+shift(x, fill = 0)
+#&gt; [1]  0 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Produce several lags in one call</h3>
+
+<p><strong>Pass a vector to n and shift() returns a list.</strong> Each list element is one lag, which is handy when a model needs values from the last few periods as separate columns.</p>
+
+<div class="webr-container" data-block-title="Lag by 1 and 2 together">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag by 1 and 2 together</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shift(x, n = 1:2)
+#&gt; [[1]]
+#&gt; [1] NA 10 20 30
+#&gt;
+#&gt; [[2]]
+#&gt; [1] NA NA 10 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Wrap values with a cyclic shift</h3>
+
+<p><strong>The cyclic type recycles edge values rather than discarding them.</strong> The value pushed off the bottom reappears at the top, so no <code>NA</code> is ever introduced.</p>
+
+<div class="webr-container" data-block-title="Cyclic shift wraps the ends">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cyclic shift wraps the ends</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shift(x, type = &quot;cyclic&quot;)
+#&gt; [1] 40 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Shift within each group</h3>
+
+<p><strong>Inside a data.table, combine shift() with by to lag per group.</strong> This is the single most important pattern: it stops the last value of one group from leaking into the first row of the next.</p>
+
+<div class="webr-container" data-block-title="Group-wise lag with by">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group-wise lag with by</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(
+  grp = c(&quot;a&quot;, &quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;),
+  val = c(10, 14, 19, 50, 58)
+)
+DT[, prev := shift(val), by = grp]
+DT
+#&gt;    grp val prev
+#&gt; 1:   a  10   NA
+#&gt; 2:   a  14   10
+#&gt; 3:   a  19   14
+#&gt; 4:   b  50   NA
+#&gt; 5:   b  58   50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice row 4: group <code>b</code> starts fresh with <code>NA</code>, not the <code>19</code> from group <code>a</code>. From there, a change column is one subtraction away.</p>
+
+<div class="webr-container" data-block-title="Row-over-row change per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row-over-row change per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, change := val - shift(val), by = grp]
+DT
+#&gt;    grp val prev change
+#&gt; 1:   a  10   NA     NA
+#&gt; 2:   a  14   10      4
+#&gt; 3:   a  19   14      5
+#&gt; 4:   b  50   NA     NA
+#&gt; 5:   b  58   50      8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Sort before you shift.</strong> <code>shift()</code> works on physical row order, not on any logical ordering. Run <code>setorder(DT, grp, date)</code> first so each lag pulls the genuinely previous period and not a random earlier row.</div></div>
+
+<h2>shift() compared with alternatives</h2>
+
+<p><strong>Several functions move data, but shift() is the data.table-native choice.</strong> It is fast, works inside <code>DT[...]</code>, and returns the same length it received.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shift()</code></td>
+<td>data.table</td>
+<td>Lag and lead in one function; vectorized <code>n</code>; group-aware with <code>by</code></td>
+</tr>
+<tr>
+<td><code>lag()</code> / <code>lead()</code></td>
+<td>dplyr</td>
+<td>Tidyverse equivalent; one function per direction</td>
+</tr>
+<tr>
+<td><code>lag()</code></td>
+<td>stats</td>
+<td>Shifts a <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> object's index, not its values; rarely what you want</td>
+</tr>
+<tr>
+<td><code>head()</code> / <code>tail()</code> with padding</td>
+<td>base R</td>
+<td>Manual, error-prone, changes length unless you re-pad</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>shift()</code> whenever the data already lives in a data.table. Reach for dplyr's <code>lag()</code> and <code>lead()</code> only when the surrounding pipeline is tidyverse.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> <code>shift(x)</code> is <code>lag(x)</code>, and <code>shift(x, type = &quot;lead&quot;)</code> is <code>lead(x)</code>. data.table folds both directions into one function controlled by <code>type</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most shift() bugs.</strong> Each has a quick fix.</p>
+
+<p>First, <strong>forgetting <code>by</code> on grouped data.</strong> Without it, <code>shift()</code> lags across the whole table and the first row of every group inherits the previous group's last value. Always add <code>by = grp</code>.</p>
+
+<p>Second, <strong>shifting an unsorted table.</strong> <code>shift()</code> trusts row order. If the rows are not in time order, the "previous" value is meaningless. Call <code>setorder()</code> before shifting.</p>
+
+<div class="webr-container" data-block-title="A shift on unsorted rows is wrong">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A shift on unsorted rows is wrong</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- data.table(day = c(3, 1, 2), v = c(30, 10, 20))
+bad[, prev := shift(v)]   # lags physical order, not day order
+bad
+#&gt;    day  v prev
+#&gt; 1:   3 30   NA
+#&gt; 2:   1 10   30
+#&gt; 3:   2 20   10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Third, <strong>expecting <code>n = -1</code> to mean lead.</strong> A negative <code>n</code> does flip direction, but <code>type = &quot;lead&quot;</code> is the clear, readable way to express intent.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Lag the <code>mpg</code> column of <code>mtcars</code> by one row, filling the gap with <code>0</code>. Save the result to <code>ex_lagged</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lag mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lag mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+dt &lt;- as.data.table(mtcars)
+
+# Try it: lag mpg by 1, fill with 0
+ex_lagged &lt;- # your code here
+
+head(ex_lagged)
+#&gt; Expected: 0.0 21.0 21.0 22.8 21.4 18.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+dt &lt;- as.data.table(mtcars)
+
+ex_lagged &lt;- shift(dt$mpg, n = 1, fill = 0)
+head(ex_lagged)
+#&gt; [1]  0.0 21.0 21.0 22.8 21.4 18.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>shift()</code> with <code>n = 1</code> lags the vector one position and <code>fill = 0</code> replaces the leading <code>NA</code> with <code>0</code>, keeping the column numeric.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>shift()</code> for ordered-data work:</p>
+
+<ul>
+
+<li><code>frollmean()</code> computes a rolling mean over a sliding window.</li>
+
+<li><code>frollsum()</code> computes a rolling sum for moving totals.</li>
+
+<li><code>rleid()</code> numbers consecutive runs of identical values.</li>
+
+<li><code>rowid()</code> gives a row counter within each group.</li>
+
+<li><code>setorder()</code> sorts a data.table in place so shifts respect time order.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between shift() and <a class="auto-link" href="dplyr-lag-in-R.html" title="dplyr lag() in R: Look at the Previous Row's Value">lag()</a> in R?</strong></p>
+
+<p><code>shift()</code> is the data.table function and <code>lag()</code> is the dplyr (or base stats) function. data.table's <code>shift()</code> handles both directions through its <code>type</code> argument, so <code>shift(x)</code> lags and <code>shift(x, type = &quot;lead&quot;)</code> leads. dplyr splits this into two functions, <code>lag()</code> and <code>lead()</code>. The base <code>stats::lag()</code> is different again: it shifts a time series object's time index rather than its values, which surprises most users.</p>
+
+<p><strong>How do I shift a column within groups in data.table?</strong></p>
+
+<p>Add a <code>by</code> clause to the data.table call: <code>DT[, prev := shift(val), by = grp]</code>. The <code>by</code> argument makes <code>shift()</code> restart at every group boundary, so the first row of each group gets <code>NA</code> instead of leaking the previous group's last value. Sort the table with <code>setorder()</code> first if the rows are not already in order.</p>
+
+<p><strong>Why does shift() return <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>?</strong></p>
+
+<p><code>shift()</code> keeps the vector the same length, so the positions exposed at the edge have nothing to point to. A lag empties the first <code>n</code> rows and a lead empties the last <code>n</code>. Pass the <code>fill</code> argument, for example <code>fill = 0</code>, to replace those <code>NA</code> values with a constant of your choice.</p>
+
+<p><strong>Can shift() move data in both directions?</strong></p>
+
+<p>Yes. Set <code>type = &quot;lead&quot;</code> to pull values backward so each row sees the next one, and keep the default <code>type = &quot;lag&quot;</code> to push values forward. You can also pass a negative <code>n</code>, which reverses direction, but <code>type</code> is the clearer way to express intent in code.</p>
+
+<p><strong>Does shift() work on a whole data.table at once?</strong></p>
+
+<p><code>shift()</code> accepts a list of equal-length vectors, and a data.table is a list of columns, so <code>shift(DT)</code> lags every column and returns a list. In practice you usually shift specific columns inside <code>DT[, ...]</code> with <code>.SD</code> and <code>.SDcols</code> for clean, named output.</p>
