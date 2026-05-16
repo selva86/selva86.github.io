@@ -1,0 +1,305 @@
+---
+title: "arrow read_parquet() in R: Read Parquet Files Fast"
+description: "Learn arrow read_parquet() in R to load Parquet files fast. Covers syntax, col_select for column pruning, type preservation, read_csv differences, and pitfalls."
+keywords: "arrow read_parquet, read_parquet function R, arrow read_parquet examples, read parquet file R, R read parquet, arrow open_dataset"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "read_parquet()|arrow read_parquet|arrow::read_parquet()|read Parquet file in R|read_parquet in R"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>arrow read_parquet() in R: Read Parquet Files Fast</h1>
+
+<p class="lead">The arrow <a class="auto-link" href="Apache-Arrow-in-R.html" title="Apache Arrow in R: Read Parquet Files & Run Fast In-Memory Analytics">read_parquet()</a> function loads a Parquet file into an <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">R data frame</a> in one call. Parquet is a compressed, columnar binary format, so a read_parquet() import is far faster and smaller than the same data stored as CSV.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>read_parquet(&quot;data.parquet&quot;)<span class="qa-cmt">                          # read a whole file</span>
+read_parquet(&quot;data.parquet&quot;, col_select = c(mpg, hp))<span class="qa-cmt"> # read only some columns</span>
+read_parquet(&quot;https://site.com/data.parquet&quot;)<span class="qa-cmt">         # read straight from a URL</span>
+read_parquet(&quot;data.parquet&quot;, as_data_frame = FALSE)<span class="qa-cmt">   # return an Arrow Table</span>
+read_parquet(&quot;data.parquet&quot;, col_select = starts_with(&quot;d&quot;))<span class="qa-cmt"> # tidyselect columns</span>
+nrow(read_parquet(&quot;data.parquet&quot;))<span class="qa-cmt">                    # check row count</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is read_parquet() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">read one Parquet file into memory</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">read_parquet(&quot;data.parquet&quot;)</text><text x="125" y="126" class="branch-label">read many Parquet files as one dataset</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">open_dataset(&quot;folder/&quot;)</text><text x="125" y="182" class="branch-label">read an Arrow Feather or IPC file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">read_feather(&quot;data.feather&quot;)</text><text x="125" y="238" class="branch-label">read a plain CSV or text table</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">read_csv(&quot;data.csv&quot;)</text><text x="125" y="294" class="branch-label">restore an R-only saved object</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">read_rds(&quot;obj.rds&quot;)</text><text x="125" y="350" class="branch-label">write a data frame to Parquet</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">write_parquet(df, &quot;data.parquet&quot;)</text></svg></div>
+
+<h2>What read_parquet() does</h2>
+
+<p><strong>read_parquet() reads one Parquet file into R.</strong> A Parquet file stores a table in a compressed, columnar layout that databases and tools like Spark and pandas all understand. You give read_parquet() a path, and it returns a tibble with the column types already set, so nothing is guessed the way a CSV reader has to guess.</p>
+
+<p>The function comes from the <code>arrow</code> package, which bundles the Apache Arrow C++ engine. Because Parquet stores each column separately, read_parquet() can skip columns you do not ask for and decode only the data you need. That selective reading is the main reason Parquet imports beat CSV imports on large data.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>The signature is short, and one argument does most of the work.</strong> You almost always pass just <code>file</code>, and reach for <code>col_select</code> whenever the file is wide and you only need a few columns.</p>
+
+<div class="webr-container" data-block-title="The read_parquet signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The read_parquet signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_parquet(
+  file,                  # path, URL, or connection to a .parquet file
+  col_select = NULL,     # tidyselect columns to read; NULL reads all
+  as_data_frame = TRUE,  # TRUE returns a tibble; FALSE returns an Arrow Table
+  props = ParquetArrowReaderProperties$create(),
+  mmap = TRUE            # memory-map the file for faster local reads
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>col_select</code> argument accepts the same tidyselect helpers as <code>dplyr::select()</code>, such as <code>starts_with()</code> and <code>c()</code>. Setting <code>as_data_frame = FALSE</code> returns a lazy Arrow Table instead of pulling everything into an R data frame, which is useful for very wide files. The <code>props</code> and <code>mmap</code> arguments rarely need changing.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> read_parquet() is the direct counterpart of <code>pandas.read_parquet()</code>. A Parquet file written by pandas, Spark, or <a class="auto-link" href="DuckDB-in-R.html" title="DuckDB in R: Query 100 Million Rows on Your Laptop in Under 2 Seconds">DuckDB</a> reads into R with no conversion step, because all of them share the same on-disk format.</div></div>
+
+<h2>read_parquet() examples</h2>
+
+<p><strong>Start with a round trip.</strong> Write a built-in dataset to a Parquet file with <code>write_parquet()</code>, then read it back so every example has a real file to work with.</p>
+
+<div class="webr-container" data-block-title="Write and read a Parquet file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write and read a Parquet file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(arrow)
+
+write_parquet(mtcars, &quot;cars.parquet&quot;)
+cars &lt;- read_parquet(&quot;cars.parquet&quot;)
+dim(cars)
+#&gt; [1] 32 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The data returns as a 32-row, 11-column tibble. No delimiter was parsed and no column type was inferred, because the Parquet file already stored the schema alongside the data.</p>
+
+<p><strong>Read only the columns you need.</strong> Pass <code>col_select</code> and read_parquet() decodes just those columns from disk, leaving the rest untouched. On a wide file this is dramatically faster than reading everything and dropping columns afterward.</p>
+
+<div class="webr-container" data-block-title="Read only selected columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read only selected columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">small &lt;- read_parquet(&quot;cars.parquet&quot;, col_select = c(mpg, cyl, hp))
+names(small)
+#&gt; [1] &quot;mpg&quot; &quot;cyl&quot; &quot;hp&quot;
+nrow(small)
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only three columns came back. Because Parquet is columnar, the other eight columns were never read off disk at all.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Parquet stores columns, not rows.</strong> That single fact explains why col_select is nearly free: skipping a column means skipping a contiguous block of the file, not filtering it out after a full read.</div></div>
+
+<p><strong>Parquet preserves column types.</strong> A CSV round trip flattens factors and dates into text, so you rebuild those types on every reload. A Parquet round trip keeps them, because the file carries a typed schema.</p>
+
+<div class="webr-container" data-block-title="Parquet keeps factor and date types">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parquet keeps factor and date types</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(
+  grp = factor(c(&quot;a&quot;, &quot;b&quot;, &quot;a&quot;)),
+  day = as.Date(&quot;2026-01-01&quot;) + 0:2
+)
+write_parquet(df, &quot;typed.parquet&quot;)
+restored &lt;- read_parquet(&quot;typed.parquet&quot;)
+sapply(restored, class)
+#&gt;      grp      day
+#&gt; &quot;factor&quot;   &quot;Date&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The factor returns with its levels intact and the date column returns as a <code>Date</code>. This type fidelity makes Parquet a solid choice for caching cleaned data between sessions.</p>
+
+<p><strong>Return an Arrow Table instead of a data frame.</strong> Set <code>as_data_frame = FALSE</code> when a file is too wide to pull fully into memory. The Table is a lazy handle you can filter before collecting.</p>
+
+<div class="webr-container" data-block-title="Read as an Arrow Table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read as an Arrow Table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tbl &lt;- read_parquet(&quot;cars.parquet&quot;, as_data_frame = FALSE)
+class(tbl)[1]
+#&gt; [1] &quot;Table&quot;
+tbl$num_rows
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Table reports 32 rows without materializing them as an R data frame. You can run dplyr verbs on it and call <code>collect()</code> only when you need the result in memory.</p>
+
+<h2>read_parquet() vs read_csv() and alternatives</h2>
+
+<p><strong>read_parquet() is the fast columnar reader; <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_csv()</a> is the portable text reader.</strong> They both return a tibble, so the choice depends on the file format you have and how the data will be shared.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Reads</th>
+<th>Format</th>
+<th>Speed</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_parquet()</code></td>
+<td>one file</td>
+<td>columnar binary</td>
+<td>fast</td>
+<td>large analytic data, column pruning</td>
+</tr>
+<tr>
+<td><code>read_feather()</code></td>
+<td>one file</td>
+<td>Arrow IPC binary</td>
+<td>fastest</td>
+<td>short-lived data shared with Arrow tools</td>
+</tr>
+<tr>
+<td><code>open_dataset()</code></td>
+<td>many files</td>
+<td>partitioned Parquet</td>
+<td>lazy</td>
+<td>datasets larger than memory</td>
+</tr>
+<tr>
+<td><code>read_csv()</code></td>
+<td>one file</td>
+<td>text</td>
+<td>slow</td>
+<td>data shared across any tool</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>read_parquet()</code> for analytic data that lives on disk between jobs. Use <code>open_dataset()</code> when the data is split across many Parquet files in a folder. Reach for <code>read_csv()</code> only when a person or a tool that cannot read Parquet needs the data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set col_select on wide files.</strong> Reading a 200-column file when you need 5 columns wastes the columnar layout that makes Parquet fast. Naming the columns up front is the single biggest read_parquet() speedup.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pointing read_parquet() at a folder.</strong> read_parquet() reads exactly one file. A directory of Parquet files, such as the output of a partitioned write, will not load with a single read_parquet() call. Use <code>open_dataset(&quot;folder/&quot;)</code> instead, which treats the whole folder as one queryable dataset.</p>
+
+<p><strong>Reading a huge file fully into memory.</strong> With <code>as_data_frame = TRUE</code>, read_parquet() pulls every selected row into an R data frame. A file larger than your available RAM will fail or thrash. Switch to <code>open_dataset()</code> or <code>as_data_frame = FALSE</code> so rows are filtered before they are collected.</p>
+
+<p><strong>Expecting Parquet to be human readable.</strong> A <code>.parquet</code> file is compressed binary. You cannot open it in a text editor or diff it like a CSV. Inspect it from R with <code>read_parquet()</code> or print the schema with <code>schema(read_parquet(&quot;file.parquet&quot;, as_data_frame = FALSE))</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A minimal arrow build cannot read every Parquet file.</strong> Some compression codecs need the full arrow binary. If a read fails with a codec error, run <code>arrow::arrow_info()</code> to check capabilities, then reinstall arrow with <code>install.packages(&quot;arrow&quot;)</code> to pull a complete build.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write the <code>iris</code> data frame to <code>iris.parquet</code>, then read back only the <code>Species</code> and <code>Sepal.Length</code> columns into <code>ex_iris</code>. Save the column names to <code>ex_names</code>.</p>
+<div class="webr-container" data-block-title="Your turn: read selected columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: read selected columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: write iris, then read two columns back
+write_parquet(iris, &quot;iris.parquet&quot;)
+ex_iris &lt;- # your code here
+
+ex_names &lt;- # your code here
+ex_names
+#&gt; Expected: &quot;Species&quot; &quot;Sepal.Length&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_parquet(iris, &quot;iris.parquet&quot;)
+ex_iris &lt;- read_parquet(&quot;iris.parquet&quot;, col_select = c(Species, Sepal.Length))
+ex_names &lt;- names(ex_iris)
+ex_names
+#&gt; [1] &quot;Species&quot;      &quot;Sepal.Length&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> col_select takes bare column names through tidyselect, so read_parquet() decodes only those two columns from the file and leaves the other three on disk.</p>
+
+</details>
+</section>
+
+<h2>Related arrow functions</h2>
+
+<p><strong>read_parquet() sits among arrow's import and export helpers.</strong> Pick the one that matches the file you have.</p>
+
+<ul>
+
+<li><code>write_parquet()</code>: write a data frame to a <code>.parquet</code> file, the inverse of this function.</li>
+
+<li><code>open_dataset()</code>: query a folder of Parquet files as one dataset, even if it exceeds memory.</li>
+
+<li><code>read_feather()</code>: read an Arrow Feather or IPC file, an even faster short-term format.</li>
+
+<li><code>read_csv_arrow()</code>: read a CSV with the Arrow engine when you want Arrow types.</li>
+
+<li><code>read_rds()</code>: restore a single R object from an R-only <code>.rds</code> file.</li>
+
+</ul>
+
+<p>For the full argument list, see the <a href="https://arrow.apache.org/docs/r/reference/read_parquet.html">arrow read_parquet reference</a> on arrow.apache.org.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a Parquet file in R?</strong></p>
+
+<p>A Parquet file is a compressed, columnar table format used widely in data engineering. In R it is read with <code>read_parquet()</code> from the arrow package. Because each column is stored and compressed separately, a Parquet file is smaller than the same data as CSV and far faster to read, especially when you only need some of the columns.</p>
+
+<p><strong>How do I read a Parquet file in R without the arrow package?</strong></p>
+
+<p>The <code>nanoparquet</code> package reads Parquet with no system dependencies through <code>nanoparquet::read_parquet()</code>. It is lighter than arrow and good for simple imports. For partitioned datasets, <a class="auto-link" href="R-Promise-Objects.html" title="R Promise Objects: Lazy Evaluation & Force() Explained">lazy evaluation</a>, or writing Parquet, the arrow package is still the fuller tool.</p>
+
+<p><strong>How do I read only some columns from a Parquet file?</strong></p>
+
+<p>Pass the <code>col_select</code> argument: <code>read_parquet(&quot;data.parquet&quot;, col_select = c(a, b))</code>. It accepts bare column names and tidyselect helpers like <code>starts_with()</code>. Because Parquet is columnar, unselected columns are never read off disk, so this is much faster than reading everything and dropping columns later.</p>
+
+<p><strong>Can read_parquet() read a folder of Parquet files?</strong></p>
+
+<p>No. read_parquet() reads exactly one file. To treat a directory of Parquet files as a single table, use <code>open_dataset(&quot;folder/&quot;)</code>. It scans the folder, combines the files, and lets you filter with dplyr verbs before pulling any rows into memory.</p>
+
+<p><strong>Is Parquet faster than CSV in R?</strong></p>
+
+<p>Yes, usually by a wide margin. A Parquet file is compressed and columnar, so read_parquet() reads less data off disk and skips type inference entirely. A CSV reader must decompress nothing but parse every character and guess column types. On large files Parquet imports are commonly several times faster.</p>
+
+{% endraw %}
