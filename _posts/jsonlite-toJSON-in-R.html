@@ -1,0 +1,329 @@
+---
+title: "jsonlite toJSON() in R: Convert R Objects to JSON"
+description: "jsonlite toJSON() converts R data frames, lists, and vectors into JSON strings. Learn syntax, auto_unbox, pretty printing, and common pitfalls with examples."
+keywords: "jsonlite toJSON, toJSON function R, jsonlite toJSON examples, R convert to JSON, toJSON data frame R, R object to JSON, toJSON pretty"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "toJSON()|jsonlite toJSON|jsonlite::toJSON()|convert R to JSON|serialize R to JSON"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>jsonlite toJSON() in R: Convert R Objects to JSON</h1>
+
+<p class="lead">The jsonlite <code>toJSON()</code> function converts R objects, data frames, lists, and vectors, into a JSON-formatted character string ready to send to an API or write to a file.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>toJSON(df)<span class="qa-cmt">                          # data frame to JSON array</span>
+toJSON(mylist, auto_unbox = TRUE)<span class="qa-cmt">   # unwrap length-1 scalars</span>
+toJSON(x, pretty = TRUE)<span class="qa-cmt">            # indented, human-readable</span>
+toJSON(df, dataframe = &quot;columns&quot;)<span class="qa-cmt">   # column-oriented output</span>
+toJSON(x, na = &quot;null&quot;)<span class="qa-cmt">              # NA becomes JSON null</span>
+toJSON(x, digits = 10)<span class="qa-cmt">              # control numeric precision</span>
+write_json(df, &quot;out.json&quot;)<span class="qa-cmt">          # write JSON straight to file</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is toJSON() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">serialize an R object to JSON text</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">toJSON(x)</text><text x="125" y="126" class="branch-label">parse JSON text back into R</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fromJSON(txt)</text><text x="125" y="182" class="branch-label">write JSON directly to a file</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">write_json(x, path)</text><text x="125" y="238" class="branch-label">pretty-print an existing JSON string</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">prettify(json)</text><text x="125" y="294" class="branch-label">minify JSON to shrink payload size</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">minify(json)</text><text x="125" y="350" class="branch-label">stream large data row by row</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">stream_out(df, con)</text></svg></div>
+
+<h2>What toJSON() does</h2>
+
+<p><strong>toJSON() serializes R data into JSON.</strong> You pass an R object and get back a single character string in JavaScript Object Notation, the format almost every web API speaks. It is the export half of the <a href="https://cran.r-project.org/package=jsonlite">jsonlite</a> package; <code>fromJSON()</code> is the import half that reads JSON back into R.</p>
+
+<p>The function maps R types to JSON types automatically. Data frames become arrays of objects, named lists become objects, and <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> become arrays. This means most real-world R data converts in one call with no manual string building.</p>
+
+<div class="webr-container" data-block-title="Load jsonlite and convert a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load jsonlite and convert a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(jsonlite)
+
+toJSON(head(iris, 2))
+#&gt; [{&quot;Sepal.Length&quot;:5.1,&quot;Sepal.Width&quot;:3.5,&quot;Petal.Length&quot;:1.4,&quot;Petal.Width&quot;:0.2,&quot;Species&quot;:&quot;setosa&quot;},{&quot;Sepal.Length&quot;:4.9,&quot;Sepal.Width&quot;:3,&quot;Petal.Length&quot;:1.4,&quot;Petal.Width&quot;:0.2,&quot;Species&quot;:&quot;setosa&quot;}]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>iris</code> becomes one JSON object, and the whole data frame becomes an array. That row-oriented shape is what most REST APIs expect.</p>
+
+<h2>Syntax and key arguments</h2>
+
+<p><strong>toJSON() takes one object plus formatting controls.</strong> The signature looks intimidating, but you only ever touch three or four arguments in practice.</p>
+
+<div class="webr-container" data-block-title="The toJSON function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The toJSON function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">toJSON(x, dataframe = &quot;rows&quot;, null = &quot;list&quot;, na = &quot;null&quot;,
+       auto_unbox = FALSE, digits = 4, pretty = FALSE, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will reach for most often:</p>
+
+<ul>
+
+<li><code>x</code>: the R object to serialize (data frame, list, vector, or matrix).</li>
+
+<li><code>dataframe</code>: how to lay out a data frame, <code>&quot;rows&quot;</code>, <code>&quot;columns&quot;</code>, or <code>&quot;values&quot;</code>.</li>
+
+<li><code>auto_unbox</code>: if <code>TRUE</code>, length-1 vectors render as scalars instead of arrays.</li>
+
+<li><code>na</code>: how to encode <code>NA</code>, as <code>&quot;null&quot;</code>, <code>&quot;string&quot;</code>, or <code>NA</code> (invalid JSON).</li>
+
+<li><code>digits</code>: maximum decimal places for numeric values, default 4.</li>
+
+<li><code>pretty</code>: if <code>TRUE</code>, add indentation and newlines for readability.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>toJSON() returns a special class, not plain text.</strong> The result has class <code>json</code>, which prints without quotes. Wrap it in <code>as.character()</code> if a downstream function expects an ordinary string.</div></div>
+
+<h2>toJSON() examples by use case</h2>
+
+<p><strong>Most conversions differ only in one argument.</strong> These four examples cover the cases that come up daily.</p>
+
+<p>The default treats every value as a vector, so a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of single values produces arrays. Set <code>auto_unbox = TRUE</code> to get clean scalars.</p>
+
+<div class="webr-container" data-block-title="Unbox length-one values into scalars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unbox length-one values into scalars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">person &lt;- list(name = &quot;Ada&quot;, age = 36, active = TRUE)
+
+toJSON(person)
+#&gt; {&quot;name&quot;:[&quot;Ada&quot;],&quot;age&quot;:[36],&quot;active&quot;:[true]}
+
+toJSON(person, auto_unbox = TRUE)
+#&gt; {&quot;name&quot;:&quot;Ada&quot;,&quot;age&quot;:36,&quot;active&quot;:true}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For configuration files or logs, pretty printing makes the output human-readable.</p>
+
+<div class="webr-container" data-block-title="Pretty-print JSON with indentation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pretty-print JSON with indentation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">toJSON(person, auto_unbox = TRUE, pretty = TRUE)
+#&gt; {
+#&gt;   &quot;name&quot;: &quot;Ada&quot;,
+#&gt;   &quot;age&quot;: 36,
+#&gt;   &quot;active&quot;: true
+#&gt; }</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>dataframe</code> argument changes the whole layout of tabular data. Column orientation is compact; value orientation drops the keys entirely.</p>
+
+<div class="webr-container" data-block-title="Switch data frame orientation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch data frame orientation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:2, y = c(&quot;a&quot;, &quot;b&quot;))
+
+toJSON(df, dataframe = &quot;columns&quot;)
+#&gt; {&quot;x&quot;:[1,2],&quot;y&quot;:[&quot;a&quot;,&quot;b&quot;]}
+
+toJSON(df, dataframe = &quot;values&quot;)
+#&gt; [[1,&quot;a&quot;],[2,&quot;b&quot;]]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To save JSON straight to disk, skip <code>toJSON()</code> and use its file-writing companion.</p>
+
+<div class="webr-container" data-block-title="Write JSON to a file">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Write JSON to a file</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write_json(df, &quot;people.json&quot;, pretty = TRUE)
+# creates people.json on disk; no return value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>toJSON() vs write_json() and alternatives</h2>
+
+<p><strong>Pick the function that matches your destination.</strong> <code>toJSON()</code> builds a string in memory; the alternatives target files or preserve R-specific attributes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>toJSON()</code></td>
+<td>JSON string</td>
+<td>Sending to an API or further string work</td>
+</tr>
+<tr>
+<td><code>write_json()</code></td>
+<td>Nothing (writes file)</td>
+<td>Saving JSON directly to disk</td>
+</tr>
+<tr>
+<td><code>serializeJSON()</code></td>
+<td>JSON string</td>
+<td>You must restore exact <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">R attributes</a> later</td>
+</tr>
+<tr>
+<td><code>prettify()</code></td>
+<td>Formatted string</td>
+<td>Reformatting JSON you already have</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Need text to manipulate or POST? Use <code>toJSON()</code>. Need a file? Use <code>write_json()</code>. Need a perfect round trip that keeps factors, classes, and attributes? Use <code>serializeJSON()</code> with <code>unserializeJSON()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>toJSON() is lossy by design.</strong> It produces clean, idiomatic JSON that other languages can read, but it discards R attributes like factor levels and custom classes. <code>serializeJSON()</code> keeps everything at the cost of JSON that only R understands.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most toJSON() surprises.</strong> Each has a one-argument fix.</p>
+
+<p><strong>Scalars wrapped in arrays.</strong> Without <code>auto_unbox = TRUE</code>, a single value like <code>age = 36</code> becomes <code>[36]</code>. APIs expecting a scalar will reject it. Always set <code>auto_unbox = TRUE</code> for object payloads.</p>
+
+<p><strong>Factors silently become strings.</strong> A factor column converts to its character labels, not its integer codes. If you need codes, convert with <code>as.integer()</code> before calling <code>toJSON()</code>, or pass <code>factor = &quot;integer&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Control how NA values encode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Control how NA values encode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">toJSON(c(1, NA, 3))
+#&gt; [1,null,3]
+
+toJSON(c(1, NA, 3), na = &quot;string&quot;)
+#&gt; [1,&quot;NA&quot;,3]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>NA becomes null without warning.</strong> The default <code>na = &quot;null&quot;</code> turns <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> into JSON <code>null</code>. If the receiving system treats <code>null</code> and a real zero differently, that silent conversion can corrupt downstream logic. Choose the <code>na</code> setting deliberately.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the first 3 rows of <code>mtcars</code> to pretty-printed, column-oriented JSON. Save the result to <code>ex_json</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert mtcars to JSON">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert mtcars to JSON</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: convert mtcars to JSON
+ex_json &lt;- # your code here
+
+ex_json
+#&gt; Expected: column-oriented JSON with mpg, cyl, disp keys</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_json &lt;- toJSON(head(mtcars, 3), dataframe = &quot;columns&quot;, pretty = TRUE)
+ex_json
+#&gt; {
+#&gt;   &quot;mpg&quot;: [21, 21, 22.8],
+#&gt;   &quot;cyl&quot;: [6, 6, 4],
+#&gt;   ...
+#&gt; }</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>dataframe = &quot;columns&quot;</code> groups values by variable instead of by row, and <code>pretty = TRUE</code> adds the indentation. The result is still a <code>json</code>-class string.</p>
+
+</details>
+</section>
+
+<h2>Related jsonlite functions</h2>
+
+<p><strong>toJSON() sits in a small family of JSON tools.</strong> These functions cover parsing, file I/O, and reformatting.</p>
+
+<ul>
+
+<li><code>fromJSON()</code>: parse a JSON string back into an R object.</li>
+
+<li><code>write_json()</code>: serialize and write to a file in one step.</li>
+
+<li><code>read_json()</code>: read a JSON file directly into R.</li>
+
+<li><code>prettify()</code>: add indentation to an existing JSON string.</li>
+
+<li><code>minify()</code>: strip whitespace to shrink a JSON payload.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between toJSON() and fromJSON()?</strong></p>
+
+<p><code>toJSON()</code> and <code>fromJSON()</code> are inverses. <code>toJSON()</code> serializes an R object into a JSON string, the direction you use when sending data to an API or writing a file. <code>fromJSON()</code> parses a JSON string back into an R list or data frame, the direction you use when reading an API response. A value passed through both should return roughly unchanged, though attributes like factor levels may not survive the round trip.</p>
+
+<p><strong>Why does toJSON() wrap my values in square brackets?</strong></p>
+
+<p>R has no scalar type; a single number is a length-1 vector. By default <code>toJSON()</code> represents every vector as a JSON array, so <code>age = 36</code> becomes <code>[36]</code>. Set <code>auto_unbox = TRUE</code> to render length-1 vectors as bare scalars. This is the single most common adjustment people make to <code>toJSON()</code> output.</p>
+
+<p><strong>How do I make toJSON() output readable?</strong></p>
+
+<p>Pass <code>pretty = TRUE</code>. This adds newlines and two-space indentation so the JSON is easy to inspect or store in a config file. You can also reformat an existing JSON string with <code>prettify()</code>, or compress one with <code>minify()</code>. Pretty printing adds whitespace, so use <code>minify()</code> or the default compact form for network payloads.</p>
+
+<p><strong>Does toJSON() write to a file?</strong></p>
+
+<p>No. <code>toJSON()</code> only returns a string in memory. To write JSON to disk, use <code>write_json(x, path)</code>, which serializes and saves in one call and accepts the same formatting arguments such as <code>pretty</code> and <code>auto_unbox</code>. Using <code>write_json()</code> avoids the extra step of capturing the string and calling <code>writeLines()</code> yourself.</p>
+
+<p><strong>How does toJSON() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong></p>
+
+<p>By default <code>na = &quot;null&quot;</code> converts <code>NA</code> to JSON <code>null</code>. You can pass <code>na = &quot;string&quot;</code> to encode it as the literal text <code>&quot;NA&quot;</code>, or <code>na = NA</code> to emit a bare <code>NA</code> token, though that produces invalid JSON. Choose the option that matches what the receiving system expects, since the conversion happens silently.</p>
+
+{% endraw %}
