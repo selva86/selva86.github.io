@@ -1,0 +1,325 @@
+---
+title: "haven zap_formats() in R: Clear SPSS and Stata Formats"
+description: "Learn how haven zap_formats() removes SPSS, Stata, and SAS display-format attributes from imported data in R, with runnable examples and common pitfalls."
+keywords: "haven zap_formats, zap_formats function R, haven zap_formats examples, R remove SPSS formats, zap_formats haven, remove display format R, haven zap formats Stata"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "zap_formats()|haven zap_formats|haven::zap_formats()|zap_formats|remove format attributes"
+auto_link_case_sensitive: true
+fr_parent: "Importing-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>haven zap_formats() in R: Clear SPSS and Stata Formats</h1>
+
+<p class="lead">The haven zap_formats() function removes the SPSS, Stata, and SAS display-format attributes that haven attaches to imported columns, leaving plain <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">R vectors</a> that print and behave normally.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>zap_formats(x)<span class="qa-cmt">                          # strip formats from one column</span>
+zap_formats(df)<span class="qa-cmt">                         # strip formats from every column</span>
+df$pay &lt;- zap_formats(df$pay)<span class="qa-cmt">           # strip one column in place</span>
+attributes(zap_formats(x))<span class="qa-cmt">              # confirm format attrs are gone</span>
+df |&gt; mutate(across(everything(), zap_formats))<span class="qa-cmt">  # tidyverse style</span>
+zap_labels(zap_formats(x))<span class="qa-cmt">              # chain with other zappers</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is zap_formats() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">remove SPSS/Stata format strings</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">zap_formats(df)</text><text x="125" y="126" class="branch-label">remove value labels too</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">zap_labels(df)</text><text x="125" y="182" class="branch-label">remove the variable label</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">zap_label(df)</text><text x="125" y="238" class="branch-label">remove SPSS column display widths</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">zap_widths(df)</text><text x="125" y="294" class="branch-label">turn labelled values into factors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as_factor(df)</text><text x="125" y="350" class="branch-label">blank strings should become NA</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">zap_empty(df$x)</text></svg></div>
+
+<h2>What zap_formats() does</h2>
+
+<p><strong>zap_formats() deletes display-format metadata, not data.</strong> When <code>haven</code> reads an SPSS, Stata, or SAS file, it preserves each variable's original display format so the data can round-trip back to the source software unchanged. That format is stored as an attribute (<code>format.spss</code>, <code>format.stata</code>, or <code>format.sas</code>) on every affected column.</p>
+
+<p>Those attributes are harmless most of the time, but they can confuse functions that inspect attributes, clutter <code>str()</code> output, or trip up packages that do not expect them. <code>zap_formats()</code> strips all three attributes and returns the column or data frame with identical values.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Formats are a round-trip convenience, not part of your data.</strong> haven keeps them so you can write the file back out to Stata or SPSS with the same look. If you never plan to export to those formats, zapping them is safe and lossless.</div></div>
+
+<div class="webr-container" data-block-title="Inspect a haven format attribute">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect a haven format attribute</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(haven)
+
+# A numeric column as haven would return it from a .sav file
+pay &lt;- c(48000, 52500, 61000)
+attr(pay, &quot;format.spss&quot;) &lt;- &quot;F8.2&quot;
+
+attributes(pay)
+#&gt; $format.spss
+#&gt; [1] &quot;F8.2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>zap_formats() syntax and arguments</h2>
+
+<p><strong>The signature is minimal: <code>zap_formats(x)</code>.</strong> The single argument <code>x</code> is either a vector or a data frame. For a vector, <code>zap_formats()</code> removes the format attributes directly. For a data frame, it applies itself to every column and returns the cleaned frame. There are no other parameters to tune.</p>
+
+<p>The function targets exactly three attributes, one per supported statistical package:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Source software</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>format.spss</code></td>
+<td>SPSS (.sav)</td>
+<td>Display format such as <code>F8.2</code></td>
+</tr>
+<tr>
+<td><code>format.stata</code></td>
+<td>Stata (.dta)</td>
+<td>Display format such as <code>%9.0g</code></td>
+</tr>
+<tr>
+<td><code>format.sas</code></td>
+<td>SAS (.sas7bdat)</td>
+<td>SAS format such as <code>DOLLAR12.</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Strip a format attribute from a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip a format attribute from a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean_pay &lt;- zap_formats(pay)
+attributes(clean_pay)
+#&gt; NULL
+
+clean_pay
+#&gt; [1] 48000 52500 61000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The values are untouched. Only the metadata disappears.</p>
+
+<h2>Remove format attributes with zap_formats()</h2>
+
+<p><strong>Pass a whole data frame to clean every column at once.</strong> This is the common case after reading a survey export, where many columns each carry a stray format string. A single call clears them all.</p>
+
+<div class="webr-container" data-block-title="Strip formats across a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip formats across a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey &lt;- data.frame(
+  id  = 1:3,
+  pay = c(48000, 52500, 61000),
+  age = c(31, 45, 27)
+)
+attr(survey$pay, &quot;format.spss&quot;) &lt;- &quot;F8.2&quot;
+attr(survey$age, &quot;format.stata&quot;) &lt;- &quot;%9.0g&quot;
+
+survey &lt;- zap_formats(survey)
+lapply(survey, attributes)
+#&gt; $id
+#&gt; NULL
+#&gt;
+#&gt; $pay
+#&gt; NULL
+#&gt;
+#&gt; $age
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Fold zap_formats() into a dplyr pipeline for a one-line cleanup.</strong> Using <code>across(everything(), zap_formats)</code> keeps the format-stripping step visible in your import script instead of buried in a separate line.</div></div>
+
+<div class="webr-container" data-block-title="Combine zap_formats with a dplyr pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Combine zap_formats with a dplyr pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+survey2 &lt;- data.frame(score = c(7, 9, 5))
+attr(survey2$score, &quot;format.spss&quot;) &lt;- &quot;F2.0&quot;
+
+survey2 &lt;- survey2 |&gt;
+  mutate(across(everything(), zap_formats))
+attr(survey2$score, &quot;format.spss&quot;)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can also chain it with other zappers, for example <code>zap_labels(zap_formats(x))</code>, when a column carries both formats and value labels.</p>
+
+<h2>zap_formats() vs zap_labels and other zap functions</h2>
+
+<p><strong>Each zap function removes one specific kind of haven metadata.</strong> They are easy to confuse because they share a prefix, but they act on different attributes. Picking the wrong one leaves the attribute you actually wanted to remove still attached.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Removes</th>
+<th>Changes values?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>zap_formats()</code></td>
+<td><code>format.spss/stata/sas</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>zap_labels()</code></td>
+<td>Value labels (<code>labels</code> attr)</td>
+<td>No, returns underlying values</td>
+</tr>
+<tr>
+<td><code>zap_label()</code></td>
+<td>The variable label (<code>label</code> attr)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>zap_widths()</code></td>
+<td>SPSS display widths</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>zap_empty()</code></td>
+<td>Converts <code>&quot;&quot;</code> to <code>NA</code></td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is simple: use <code>zap_formats()</code> for display formats, <code>zap_labels()</code> for coded value labels, and <code>zap_label()</code> for the human-readable variable description. Only <code>zap_empty()</code> alters the data itself.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The most frequent mistake is forgetting to reassign the result.</strong> <code>zap_formats()</code> returns a cleaned copy; it does not modify its input in place. Calling it without capturing the output does nothing visible.</p>
+
+<div class="webr-container" data-block-title="Reassign to keep the change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reassign to keep the change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">zap_formats(pay)            # result discarded, pay unchanged
+attr(pay, &quot;format.spss&quot;)
+#&gt; [1] &quot;F8.2&quot;
+
+pay &lt;- zap_formats(pay)     # reassign to actually apply it
+attr(pay, &quot;format.spss&quot;)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>zap_formats() will not remove value labels.</strong> If a column still prints with labelled categories after zapping formats, you needed <code>zap_labels()</code> instead. The two attributes are independent, and clearing one leaves the other intact.</div></div>
+
+<p>The third pitfall is harmless but worth knowing: running <code>zap_formats()</code> on a column that has no format attribute is a safe no-op. It returns the column unchanged rather than raising an error, so you can apply it defensively across mixed data.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a numeric vector <code>ex_cost</code>, attach a Stata format attribute to it, then remove that attribute with <code>zap_formats()</code>. Save the cleaned vector to <code>ex_clean</code>.</p>
+<div class="webr-container" data-block-title="Your turn: zap a Stata format">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: zap a Stata format</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(haven)
+
+ex_cost &lt;- c(120, 340, 89)
+attr(ex_cost, &quot;format.stata&quot;) &lt;- &quot;%9.0g&quot;
+
+ex_clean &lt;- # your code here
+
+attributes(ex_clean)
+#&gt; Expected: NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_clean &lt;- zap_formats(ex_cost)
+attributes(ex_clean)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>zap_formats()</code> strips the <code>format.stata</code> attribute and returns a plain numeric vector. The values stay the same, so <code>attributes()</code> reports <code>NULL</code> once the only attribute is removed.</p>
+
+</details>
+</section>
+
+<h2>Related haven functions</h2>
+
+<p>These functions handle the other metadata that <code>haven</code> attaches to imported SPSS, Stata, and SAS columns:</p>
+
+<ul>
+
+<li><code>zap_labels()</code> removes coded value labels and returns the underlying values.</li>
+
+<li><code>zap_label()</code> removes the variable's human-readable description.</li>
+
+<li><code>zap_widths()</code> removes SPSS display-width attributes.</li>
+
+<li><code>as_factor()</code> converts labelled vectors into ordinary <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">R factors</a>.</li>
+
+<li><code>read_sav()</code>, <code>read_dta()</code>, and <code>read_sas()</code> import the files that carry these formats. See the official <a href="https://haven.tidyverse.org/reference/zap_formats.html">haven zap_formats reference</a> for package details.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does zap_formats() do in haven?</strong></p>
+
+<p><code>zap_formats()</code> removes the display-format attributes (<code>format.spss</code>, <code>format.stata</code>, and <code>format.sas</code>) that <code>haven</code> attaches to columns when it imports SPSS, Stata, or SAS files. These attributes record how each variable was formatted in the source software. The function returns the same vector or data frame with identical values, just without the format metadata. It is a cleanup step, not a transformation, so the numbers and strings you care about never change.</p>
+
+<p><strong>Does zap_formats() remove value labels?</strong></p>
+
+<p>No. <code>zap_formats()</code> only touches display-format attributes. Value labels are stored in a separate <code>labels</code> attribute and are removed by <code>zap_labels()</code>. If an imported column still prints with labelled categories after you run <code>zap_formats()</code>, that label attribute is still attached. Use <code>zap_labels()</code> to drop the coded labels, or <code>as_factor()</code> to convert them into a proper factor instead.</p>
+
+<p><strong>Do I need zap_formats() after read_sav()?</strong></p>
+
+<p>Not always. The format attributes are harmless for most analysis and are only needed if you plan to export the data back to SPSS or Stata. Use <code>zap_formats()</code> when the attributes interfere with code that inspects attributes, when <code>str()</code> output is cluttered, or when a downstream package fails on the unexpected metadata. If you never export to a statistical package, zapping formats keeps your data frame clean.</p>
+
+<p><strong>What is the difference between zap_formats() and zap_widths()?</strong></p>
+
+<p><code>zap_formats()</code> removes the display-format strings such as <code>F8.2</code> or <code>%9.0g</code>. <code>zap_widths()</code> removes the separate <code>display_width</code> attribute that SPSS uses to set column width in its data editor. They target different attributes, so removing one does not affect the other. A column imported from SPSS can carry both, in which case you call each function once or chain them together.</p>
+
+</content>
+
+</invoke>
